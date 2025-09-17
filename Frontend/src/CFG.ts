@@ -5,5 +5,7 @@ export const API_BASE_URL = IS_LOCAL
 
 export const config = {
   isLocal: IS_LOCAL,
-  apiBaseUrl: API_BASE_URL
+  apiBaseUrl: API_BASE_URL,
+  contextoPid: 0 as number | null,
 };
+

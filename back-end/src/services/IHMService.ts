@@ -42,9 +42,9 @@ export default class IHMService {
       await this.connectToFtp();
       const fileList = await this.client.list(remoteDir);
       const csvFiles = fileList
-        .filter(file => file.type === FTPFileType.File && file.name.toLowerCase().endsWith('.csv'))
-        .filter(file => !IHMService.isExcludedFile(file.name));
-      return csvFiles.map(file => file.name);
+        .filter((file: any) => file.type === FTPFileType.File && file.name.toLowerCase().endsWith('.csv'))
+        .filter((file: any) => !IHMService.isExcludedFile(file.name));
+      return csvFiles.map((file: FileInfo) => file.name);
     } catch (error: any) {
       throw new Error(`Erro ao listar arquivos: ${error.message}`);
     } finally {

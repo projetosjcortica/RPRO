@@ -30,3 +30,5 @@ export interface IDbService {
 export interface IFileProcessorService {
   processFile(fullPath: string): Promise<any>;
 }
+
+
