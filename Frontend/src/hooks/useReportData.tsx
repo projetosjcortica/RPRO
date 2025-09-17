@@ -47,7 +47,7 @@ export const useReportData = (filtros: Filtros) => {
           setDados(filtered);
         } else {
           try {
-            const response = await api.get("/relatorio/", {
+            const response = await api.get("/relatorio", {
               params: {
                 ...(filtros.dataInicio && { data_inicio: filtros.dataInicio }),
                 ...(filtros.dataFim && { data_fim: filtros.dataFim }),

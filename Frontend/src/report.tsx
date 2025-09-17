@@ -10,6 +10,8 @@ import { IS_LOCAL } from "./CFG";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "./components/ui/pagination";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "./lib/utils";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
+import { Separator } from "./components/ui/separator";
 
 export default function Report() {
   const [filtros, setFiltros] = useState<Filtros>({
@@ -85,7 +87,7 @@ export default function Report() {
 
   return (
     <div className="overflow-hidden flex flex-col gap-7 w-[100vw] h-full">
-      <div className="h-30 flex flex-row justify-between">
+      <div className="h-[80%] flex flex-row justify-between">
         <div className="flex flex-row items-end gap-2">
           <Button onClick={() => setView('table')}>Relatórios</Button>
           <Button onClick={() => setView('product')}>Produtos</Button>
@@ -96,8 +98,9 @@ export default function Report() {
           <Button>Upload</Button>
         </div>
       </div>
-      <div className="flex flex-col gap-3.5 items-start justify-end h-[81vh]">
-        <div className="w-[83vw] mx-auto h-[75vh] overflow-hidden shadow-xl/16 flex justify-center">
+      <div id="tabela+pag+sideInfo "className="flex flex-row gap-2 justify-start">
+        <div className="flex flex-col gap-3.5 items-start justify-start h-[81vh]">
+        <div className="w-[70vw] h-[75vh] overflow-hidden shadow-xl/16 flex ">
           {content}
         </div>
         <div id="pagination" className="flex flex-row items-center justify-end mt-2">
@@ -136,6 +139,45 @@ export default function Report() {
               </PaginationItem>
             </PaginationContent>
           </Pagination>
+        </div>
+        </div>
+        <div id="sideinfo" className="w-[270px]  h-[75.2vh] flex flex-col p-2 border rounded-lg gap-2">
+          <div id="quadradoInfo" className="grid grid-cols-2 gap-1 ">
+            <div className="w-31 h-28 max-h-28 border-2 border-black rounded-lg">
+              
+            </div>
+            <div className="w-31 h-28 max-h-28 border-2 border-black rounded-lg">
+              
+            </div>
+            <div className="w-31 h-28 max-h-28 border-2 border-black rounded-lg">
+              
+            </div>
+            <div className="w-31 h-28 max-h-28 border-2 border-black rounded-lg">
+              
+            </div>
+          </div>
+          <div id="retanguloProd" className="border rounded">
+            <Table className="h-100">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-center">
+                    <p>Produtos</p>
+                  </TableHead>
+                  <Separator className="vertical"/>
+                  <TableHead className="text-center">
+                    <p>Quantidade</p>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow>
+                  <TableCell>
+                    
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
     </div>
