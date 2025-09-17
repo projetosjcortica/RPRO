@@ -143,17 +143,17 @@ export default function Report() {
         </div>
         <div id="sideinfo" className="w-[270px]  h-[75.2vh] flex flex-col p-2 border rounded-lg gap-2">
           <div id="quadradoInfo" className="grid grid-cols-2 gap-1 ">
-            <div className="w-31 h-28 max-h-28 border-2 border-black rounded-lg">
-              
+            <div className="w-31 h-20 max-h-20 border-2 rounded-lg">
+              <p className="text-center font-semibold">Total</p>
             </div>
-            <div className="w-31 h-28 max-h-28 border-2 border-black rounded-lg">
-              
+            <div className="w-31 h-20 max-h-20 border-2 rounded-lg">
+              <p className="text-center font-semibold">Batidas</p>
             </div>
-            <div className="w-31 h-28 max-h-28 border-2 border-black rounded-lg">
-              
+            <div className="w-31 h-20 max-h-20 border-2 rounded-lg">
+              <p className="text-center font-semibold">Hora inicial</p>
             </div>
-            <div className="w-31 h-28 max-h-28 border-2 border-black rounded-lg">
-              
+            <div className="w-31 h-20 max-h-20 border-2 rounded-lg">
+              <p className="text-center font-semibold">Hora final</p>
             </div>
           </div>
           <div id="retanguloProd" className="border rounded">
@@ -178,6 +178,13 @@ export default function Report() {
               </TableBody>
             </Table>
           </div>
+            <div id="impressao" className="flex flex-col text-center gap-2 mt-6">
+              <p>Importar/Imprimir</p>
+              <div id="botões" className="flex flex-row gap-2 justify-center">
+                <Button className="w-20">PDF</Button>
+                <Button className="w-20">Excel</Button>
+              </div>
+            </div>
         </div>
       </div>
     </div>

@@ -48,7 +48,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
           }
         }
 
-        // 🔥 garante que do col6 até col20 existam
+        // 🔥 garante que do col6 até col45 existam
         for (let i = 6; i <= 45; i++) {
           const key = `col${i}`;
           if (!labelsObj[key]) {
@@ -67,7 +67,6 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
 
   const handleUnidadeChange = (colKey: string, unidade: string) => {
     if (IS_LOCAL) {
-      // Get the current labels from localStorage
       const saved = localStorage.getItem("colLabels");
       let labels: ColLabel[] = [];
       
@@ -77,7 +76,6 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
           if (Array.isArray(parsed)) {
             labels = parsed;
           } else if (parsed && typeof parsed === "object") {
-            // Convert object format to array format
             labels = Object.keys(parsed).map(key => ({
               col_key: key,
               col_name: parsed[key],
@@ -90,7 +88,6 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
         }
       }
 
-      // Update the specific column's unit
       const index = labels.findIndex((l) => l.col_key === colKey);
       if (index !== -1) {
         labels[index].unidade = unidade;
@@ -102,21 +99,17 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
         });
       }
 
-      // Save back to localStorage
       localStorage.setItem("colLabels", JSON.stringify(labels));
     }
     
-    // Call the parent's onLabelChange with the unit
     onLabelChange(colKey, colLabels[colKey] || "", unidade);
   };
 
-  // Ordena colunas numericamente
   const columns = Object.keys(colLabels).sort(
     (a, b) =>
       parseInt(a.replace("col", ""), 10) - parseInt(b.replace("col", ""), 10)
   );
 
-  // Só mostra inputs a partir da col6
   const editableColumns = columns.filter(
     (col) => parseInt(col.replace("col", ""), 10) >= 6
   );
@@ -131,33 +124,54 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
               Nenhuma coluna editável encontrada
             </p>
           )}
-          {editableColumns.map((col) => (
-            <div key={col}>
-              <div className="flex flex-row justify-center items-center gap-1 border border-black rounded-lg pr-1">
-                <Input
-                  className="m-0.5 h-8 inset-shadow-1"
-                  type="text"
-                  placeholder={col}
-                  value={colLabels?.[col] || ""}
-                  onChange={(e) => onLabelChange(col, e.target.value)}
-                />
-                <RadioGroup
-                  className="flex flex-row gap-1"
-                  defaultValue="kilogram"
-                  onValueChange={(value) => handleUnidadeChange(col, value)}
-                >
-                  <div className="flex flex-row items-center">
-                    <RadioGroupItem value="gram" className="border-black mx-1" />
-                    <Label>g</Label>
+          {editableColumns.map((col) => {
+            const colNumber = parseInt(col.replace("col", ""), 10);
+            const produtoNumber = colNumber - 5;
+
+            return (
+              <div key={col}>
+                <div className="flex flex-row justify-center items-center gap-2 border border-black rounded-lg px-2 py-1">
+                  {/* Float label com fundo branco */}
+                  <div className="relative flex-1">
+                    <Input
+                      id={`input-${col}`}
+                      className="peer h-9 px-2 pt-4 text-sm border-b border-gray-400 rounded-lg focus:border-black focus:ring-0"
+                      type="text"
+                      value={colLabels?.[col] || ""}
+                      onChange={(e) => onLabelChange(col, e.target.value)}
+                      placeholder=" "
+                    />
+                    <Label
+                      htmlFor={`input-${col}`}
+                      className="absolute left-2 px-1 transition-all
+                        text-gray-500 text-xs 
+                        peer-placeholder-shown:top-2.5 peer-placeholder-shown:text-sm peer-placeholder-shown:text-gray-400 peer-placeholder-shown:bg-transparent
+                        peer-focus:top-[-0.6rem] peer-focus:text-base peer-focus:text-black peer-focus:bg-white
+                        peer-not-placeholder-shown:top-[-0.6rem] peer-not-placeholder-shown:text-sm peer-not-placeholder-shown:text-black peer-not-placeholder-shown:bg-white"
+                    >
+                      {`Produto ${produtoNumber}`}
+                    </Label>
                   </div>
-                  <div className="flex flex-row items-center">
-                    <RadioGroupItem value="kilogram" className="border-black mx-1" />
-                    <Label>kg</Label>
-                  </div>
-                </RadioGroup>
+
+                  {/* Radios */}
+                  <RadioGroup
+                    className="flex flex-row gap-1"
+                    defaultValue="kilogram"
+                    onValueChange={(value) => handleUnidadeChange(col, value)}
+                  >
+                    <div className="flex flex-row items-center">
+                      <RadioGroupItem value="gram" className="border-black mx-1" />
+                      <Label className="text-sm">g</Label>
+                    </div>
+                    <div className="flex flex-row items-center">
+                      <RadioGroupItem value="kilogram" className="border-black mx-1" />
+                      <Label className="text-sm">kg</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </ScrollArea>
     </div>
@@ -165,10 +179,3 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
 }
 
 export default Products;
-
-// Mock só como fallback, sem redeclarar a interface
-export const mockLabels: ColLabel[] = [
-  { col_key: "col6", col_name: "Peso" },
-  { col_key: "col7", col_name: "Altura" },
-  { col_key: "col8", col_name: "Largura" },
-];
