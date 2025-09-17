@@ -269,7 +269,7 @@ export default function TableComponent({ filtros, colLabels }: TableComponentPro
           Arraste: seleciona múltiplas células
         </span>
       </div>
-      <ScrollArea className="h-[70.5vh] m-b-4">
+      <ScrollArea className="h-[70.5vh] w-[full] m-b-4">
         <Table className="border-collapse border border-gray-300 w-full">
           <TableHeader className="bg-gray-100 sticky top-0">
             <TableRow>
