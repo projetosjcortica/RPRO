@@ -3,7 +3,8 @@
  */
 
 import { Request, Response, NextFunction } from 'express'; // ignore lint error 
-import { AppDataSource, initDb } from '../services/dbService';
+import { AppDataSource } from '../services/dbService';
+import dbService from '../services/dbService';
 // import dbController from './dbController';
 import { Relatorio } from '../entities/Relatorio';
 
@@ -18,7 +19,7 @@ async function queryDbRows(
   pageSize: number,
   filters: { formula?: string | null; dateStart?: string | null; dateEnd?: string | null; sortBy?: string | null; sortDir?: 'ASC' | 'DESC' }
 ) {
-  await initDb();
+  await dbService.init();
   const repo = AppDataSource.getRepository(Relatorio);
 
   // Validate sort column against a whitelist to avoid injection

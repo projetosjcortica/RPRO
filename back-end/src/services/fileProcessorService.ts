@@ -2,19 +2,23 @@ import parserService, { ParserRow, ParserResult } from './parserService';
 import BackupService from './backupService';
 import * as db from './dbService';
 import localBackupDb from './localBackupDbService';
-import * as path from 'path';
-import * as fs from 'fs';
+import path from 'path';
+import fs from 'fs';
 import BaseService from './BaseService';
+import { parse } from 'fast-csv';
+import { Readable } from 'stream';
+import { ProcessPayload, Observer, CandidateObserver } from '../types/interfaces';
 
-export type ProcessPayload = { filename: string; lastProcessedAt: string; rowCount: number };
 
-export interface Observer {
-  update(payload: ProcessPayload): Promise<void>;
-}
+// export type ProcessPayload = { filename: string; lastProcessedAt: string; rowCount: number };
 
-export interface CandidateObserver {
-  updateCandidates(candidates: Array<{ name: string; size: number }>): Promise<Array<{ name: string; size: number }>>;
-}
+// export interface Observer {
+//   update(payload: ProcessPayload): Promise<void>;
+// }
+
+// export interface CandidateObserver {
+//   updateCandidates(candidates: Array<{ name: string; size: number }>): Promise<Array<{ name: string; size: number }>>;
+// }
 
 class CandidateSubject {
   private observers: Set<CandidateObserver> = new Set();
@@ -78,6 +82,36 @@ class CleanupObserver implements Observer {
     }
   }
 }
+
+
+export async function processCSV(input: { buffer?: Buffer; path?: string }): Promise<{ message: string; rowsCount: number; rows: any[] }> {
+  return new Promise((resolve, reject) => {
+    const rows: any[] = [];
+    const onData = (row: any) => rows.push(row);
+    const onEnd = () => resolve({ message: 'CSV processado', rowsCount: rows.length, rows });
+    const onError = (err: unknown) => reject(err);
+
+    if (input?.buffer) {
+      const r = new Readable();
+      r.push(input.buffer);
+      r.push(null);
+      r.pipe(parse({ headers: true }))
+        .on('error', onError)
+        .on('data', onData)
+        .on('end', onEnd);
+    } else if (input?.path) {
+      if (!fs.existsSync(input.path)) return reject(new Error('Arquivo CSV não encontrado: ' + input.path));
+      fs.createReadStream(input.path)
+        .pipe(parse({ headers: true }))
+        .on('error', onError)
+        .on('data', onData)
+        .on('end', onEnd);
+    } else {
+      reject(new Error('Entrada inválida para processamento CSV'));
+    }
+  });
+}
+
 
 /**
  * Serviço responsável por processar arquivos CSV e gerenciar observadores.
@@ -242,6 +276,6 @@ class FileProcessorService extends BaseService {
   }
 }
 
-const fileProcessor = new FileProcessorService();
-export default fileProcessor;
+const fileProcessorService = new FileProcessorService();
+export default fileProcessorService;
 export { FileProcessorService };

@@ -3,7 +3,7 @@
   "compilerOptions": {
   // File Layout
   "rootDir": ".",
-    "outDir": "./dist",
+    "outDir": "../Frontend/backend",
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
@@ -46,6 +46,6 @@
     "moduleDetection": "force",
     "skipLibCheck": true
   },
-  "include": ["src/**/*", "tests/**/*", "types/**/*"],
-  "exclude": ["dist", "Entities", "UseCase"]
+  "include": ["src/**/*", "types/**/*"],
+  "exclude": ["Entities", "UseCase"]
 }

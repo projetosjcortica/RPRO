@@ -15,6 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
+import { IpcRendererEvent } from "electron/utility";
 
 export const initialFormData = {
   nomeCliente: "",
@@ -52,7 +53,13 @@ export interface FormData {
 
 declare global {
   interface Window {
-    electronAPI: {
+    electronAPI: { 
+      onChildStdout: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => void;
+      onChildStderr: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => void;
+      onChildExit: (fn: (evt: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => void) => void;
+      onChildMessage: (fn: (evt: IpcRendererEvent, data: { pid: number; data?: any } | { pid: number; code?: number | null; signal?: string | null }) => void) => void;
+      sendToChild: (pid: number, msg: any) => Promise<{ ok: boolean; reason?: string }>;
+      startFork(arg0: { script: string; args: never[]; }): unknown;
       loadData: (key: string) => Promise<FormData>;
       saveData: (key: string, data: FormData) => Promise<boolean>;
       selectFolder: () => Promise<string>;

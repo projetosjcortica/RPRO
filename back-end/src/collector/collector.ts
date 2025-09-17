@@ -10,7 +10,7 @@ import { setTimeout as wait } from 'timers/promises';
 import IHMService from '../services/IHMService';
 import fileProcessorService from '../services/fileProcessorService';
 import BackupService from '../services/backupService';
-import dbService, { initDb } from '../services/dbService';
+import dbService from '../services/dbService';
 
 /**
  * Intervalo de polling (em ms) entre cada ciclo de coleta.
@@ -97,7 +97,7 @@ const collector = new Collector(new IHMService(process.env.IHM_HOST || '127.0.0.
  * @returns {Promise<void>}
  */
 export async function startCollector() {
-  await initDb();
+  await dbService.init();
   collector.start();
 
   while (!STOP) {
