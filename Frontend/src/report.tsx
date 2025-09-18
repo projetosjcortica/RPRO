@@ -98,49 +98,49 @@ export default function Report() {
         </div>
       </div>
       <div id="tabela+pag+sideInfo "className="flex flex-row gap-2 justify-start">
-        <div className="flex flex-col gap-3.5 items-start justify-start h-[81vh]">
-        <div className="w-[70vw] h-[75vh] overflow-hidden shadow-xl/16 flex ">
-          {content}
-        </div>
-        <div id="pagination" className="flex flex-row items-center justify-end mt-2">
-          <Pagination className="flex flex-row justify-end" >
-            <PaginationContent>
-              <PaginationItem>
-              <PaginationLink href="#" aria-label="Go to previous page" size="icon">
-              <ChevronsLeft className="h-4 w-4" />
-            </PaginationLink>
-            </PaginationItem>
-              {pages.map((page) => {
-                const isActive = page === 1;
-                return (
-                  <PaginationItem key={page}>
-                    <PaginationLink
-                      href={`#${page}`}
-                      isActive={page === 2}
-                      className={cn({
-                        [buttonVariants({
-                          variant: "default",
-                          className:
-                            "hover:text-primary-foreground! shadow-none! dark:bg-primary dark:hover:bg-primary/90",
-                        })]: isActive,
-                        "bg-secondary text-secondary-foreground": !isActive,
-                      })}
-                    >
-                      {page}
-                    </PaginationLink>
-                  </PaginationItem>
-                );
-              })}
-              <PaginationItem>
-              <PaginationLink href="#" aria-label="Go to next page" size="icon">
-                <ChevronsRight className="h-4 w-4" />
+        <div className="flex flex-col gap-3.5 items-start justify-start h-[80vh]">
+          <div className="w-[63dvw] lg:w-[70.5dvw] h-[80vh] overflow-hidden shadow-md/16 flex ">
+            {content}
+          </div>
+          <div id="pagination" className="flex flex-row items-center justify-end mt-2">
+            <Pagination className="flex flex-row justify-end" >
+              <PaginationContent>
+                <PaginationItem>
+                <PaginationLink href="#" aria-label="Go to previous page" size="icon">
+                <ChevronsLeft className="h-4 w-4" />
               </PaginationLink>
               </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+                {pages.map((page) => {
+                  const isActive = page === 1;
+                  return (
+                    <PaginationItem key={page}>
+                      <PaginationLink
+                        href={`#${page}`}
+                        isActive={page === 2}
+                        className={cn({
+                          [buttonVariants({
+                            variant: "default",
+                            className:
+                              "hover:text-primary-foreground! shadow-none! dark:bg-primary dark:hover:bg-primary/90",
+                          })]: isActive,
+                          "bg-secondary text-secondary-foreground": !isActive,
+                        })}
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  );
+                })}
+                <PaginationItem>
+                <PaginationLink href="#" aria-label="Go to next page" size="icon">
+                  <ChevronsRight className="h-4 w-4" />
+                </PaginationLink>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
         </div>
-        </div>
-        <div id="sideinfo" className="w-[270px]  h-[75.2vh] flex flex-col p-2 border rounded-lg gap-2">
+        <div id="sideinfo" className=" h-[75.2vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           <div id="quadradoInfo" className="grid grid-cols-2 gap-1 ">
             <div className="w-31 h-20 max-h-20 border-2 rounded-lg">
               <p className="text-center font-semibold">Total</p>

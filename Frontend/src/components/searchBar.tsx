@@ -119,10 +119,10 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
     <div className="flex flex-row items-end justify-end gap-2">
       <Input 
         type="text" 
-        placeholder="Filtrar por nome..."
+        placeholder="Filtrar por nome da fórmula..."
         value={filtrosTemporarios.nomeFormula}
         onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
-        className="border-black w-48"
+        className="border-black w-60"
       />
       
       <Popover>
