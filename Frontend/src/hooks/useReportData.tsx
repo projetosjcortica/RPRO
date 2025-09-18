@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
-import { Filtros, ReportRow, ReportApiResponse } from "../components/types";
+import { Filtros, ReportRow } from "../components/types";
 import { mockRows } from "../Testes/mockData";
-import { api } from "../Testes/api";
-import { IS_LOCAL } from "../CFG";
-import { config } from "../CFG";
-import { getProcessador } from "../Processador";
+import { IS_LOCAL, config } from "../CFG";
+import { getProcessador , FilterOptions} from "../Processador";
 
 export const useReportData = (filtros: Filtros) => {
   const [dados, setDados] = useState<ReportRow[]>([]);
@@ -60,12 +58,55 @@ export const useReportData = (filtros: Filtros) => {
           config.contextoPid = pid;
           // Usar IPC Processador
           const p = getProcessador(pid);
-          const res = await p.getTableData(1, 300, {
-            formula: filtros.nomeFormula || null,
-            dateStart: filtros.dataInicio || null,
-            dateEnd: filtros.dataFim || null,
-          });
-          const mapped: ReportRow[] = (res.rows || []).map((r: any) => {
+          let retryAttempts = 0;
+          const maxRetries = 5;
+          while (retryAttempts < maxRetries) {
+            try {
+              const res = await p.getTableData(1, 300, {
+                formula: filtros.nomeFormula || null,
+                dateStart: filtros.dataInicio || null,
+                dateEnd: filtros.dataFim || null,
+              });
+              const mapped: ReportRow[] = (res.rows || []).map((r: any) => {
+                const values: number[] = [];
+                for (let i = 1; i <= 40; i++) {
+                  const v = r[`Prod_${i}`];
+                  values.push(typeof v === 'number' ? v : (v != null ? Number(v) : 0));
+                }
+                return {
+                  Dia: r.Dia || '',
+                  Hora: r.Hora || '',
+                  Nome: r.Nome || '',
+                  Codigo: r.Form1 ?? 0,
+                  Numero: r.Form2 ?? 0,
+                  values,
+                } as ReportRow;
+              });
+              setDados(mapped);
+              break; // Exit retry loop on success
+            } catch (retryErr) {
+              retryAttempts++;
+              if (retryAttempts >= maxRetries) {
+                throw retryErr; // Rethrow error after max retries
+              }
+              await new Promise(r => setTimeout(r, 1000)); // Wait before retrying
+            }
+          }
+        } else {
+          // Substituir API HTTP por WebSocket
+          const pid = config.contextoPid ?? undefined; // Garante que o valor seja `number | undefined`
+          const p = getProcessador(pid);
+          const res = await p.relatorioPaginate(
+            1,
+            300,
+            {
+              formula: filtros.nomeFormula || null,
+              dateStart: filtros.dataInicio || null,
+              dateEnd: filtros.dataFim || null,
+            }
+          );
+
+          const rows: ReportRow[] = (res.rows || []).map((r: any) => {
             const values: number[] = [];
             for (let i = 1; i <= 40; i++) {
               const v = r[`Prod_${i}`];
@@ -80,38 +121,6 @@ export const useReportData = (filtros: Filtros) => {
               values,
             } as ReportRow;
           });
-          setDados(mapped);
-        } else {
-          // Fallback HTTP (caso rode fora do Electron)
-          const response = await api.get("/relatorio", {
-            params: {
-              ...(filtros.dataInicio && { data_inicio: filtros.dataInicio }),
-              ...(filtros.dataFim && { data_fim: filtros.dataFim }),
-              ...(filtros.nomeFormula && { nome_formula: filtros.nomeFormula }),
-            },
-          });
-
-          // Type assertion com verificação
-          const responseData = response.data as ReportApiResponse;
-          
-          // Validação dos dados
-          if (!responseData || typeof responseData !== 'object') {
-            throw new Error('Resposta da API inválida');
-          }
-
-          let rows: ReportRow[] = [];
-          
-          // Extrai dados com fallbacks
-          if (Array.isArray(responseData.rows)) {
-            rows = responseData.rows;
-          } else if (Array.isArray(responseData.data)) {
-            rows = responseData.data as unknown as ReportRow[];
-          } else if (Array.isArray(responseData)) {
-            rows = responseData as unknown as ReportRow[];
-          } else {
-            console.warn('Formato de resposta não esperado:', responseData);
-          }
-
           setDados(rows);
         }
 

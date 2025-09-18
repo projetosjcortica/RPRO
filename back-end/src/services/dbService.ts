@@ -7,6 +7,7 @@ import { Relatorio, MateriaPrima, Batch, Row } from '../entities/index';
 
 export class DBService extends BaseService {
   ds: DataSource;
+  private initializing: Promise<void> | null = null;
   constructor(
     host = process.env.MYSQL_HOST || 'localhost',
     port = Number(process.env.MYSQL_PORT || 3306),
@@ -16,16 +17,41 @@ export class DBService extends BaseService {
   ) {
     super('DBService');
     const useMysql = process.env.USE_SQLITE !== 'true';
+    const isProduction = process.env.NODE_ENV === 'production';
     if (useMysql) {
-      this.ds = new DataSource({ type: 'mysql', host, port, username, password, database, synchronize: true, logging: false, entities: [Relatorio, MateriaPrima, Batch, Row] });
+      this.ds = new DataSource({
+        type: 'mysql',
+        host,
+        port,
+        username,
+        password,
+        database,
+        synchronize: !isProduction, // Disable synchronization in production
+        logging: false,
+        entities: [Relatorio, MateriaPrima, Batch, Row],
+      });
     } else {
       const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
       const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
       const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
-      this.ds = new DataSource({ type: 'sqlite', database: absPath, synchronize: shouldSync, logging: false, entities: [Relatorio, MateriaPrima, Batch, Row] });
+      this.ds = new DataSource({
+        type: 'sqlite',
+        database: absPath,
+        synchronize: !isProduction && shouldSync, // Disable synchronization in production
+        logging: false,
+        entities: [Relatorio, MateriaPrima, Batch, Row],
+      });
     }
   }
-  async init() { if (!this.ds.isInitialized) await this.ds.initialize(); }
+  async init() {
+    if (this.ds.isInitialized) return;
+    if (this.initializing) {
+      await this.initializing;
+      return;
+    }
+  this.initializing = this.ds.initialize().then(() => {}).finally(() => { this.initializing = null; });
+    await this.initializing;
+  }
   async insertRelatorioRows(rows: any[], processedFile: string) {
     await this.init();
     const repo = this.ds.getRepository(Relatorio);

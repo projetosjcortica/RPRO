@@ -1,5 +1,26 @@
 {
   "compilerOptions": {
+    "target": "es2020", 
+    "module": "system",
+    "outFile": "../Frontend/backend/index.js",
+    "rootDir": "./src", 
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": false,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "moduleResolution": "node"
+  },
+  "include": [
+    "src/**/*"
+  ]
+}
+
+
+/*
+{
+  "compilerOptions": {
     "target": "es2016", 
     "module": "system",
     "outFile": "../Frontend/backend/index.js",
@@ -14,6 +35,11 @@
     "moduleResolution": "node"
   },
   "include": [
-    "src/**/*"
+    "src/**\/\*\"
   ]
 }
+
+
+
+
+**/

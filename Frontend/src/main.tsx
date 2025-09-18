@@ -13,7 +13,7 @@ export { Processador, getProcessador, setProcessador };
 
 // Start the backend child process correctly using the preload API (only in Electron)
 if ((window as any).electronAPI) {
-  (window as any).electronAPI.startFork('../back-end/dist/src/index.js', [])
+  (window as any).electronAPI.startFork('../back-end/dist/index.js', [])
   .then(async (res: StartForkResult) => {
     if (res && res.ok) {
       console.log('Backend started:', res);
@@ -59,6 +59,9 @@ if ((window as any).electronAPI) {
       });
       p.onEvent('config-ack', () => {
         console.log('Configuration applied successfully via WebSocket');
+        p.collectorStart().catch((err) => {
+          console.error('Error starting collector via WebSocket:', err);
+        });
       });
       p.onEvent('heartbeat', (hb) => {
         console.log('[WS Heartbeat]', hb);
@@ -113,17 +116,6 @@ async function sendConfigurationToBackend(processador: Processador, retryCount =
     }
   }
 }
-
-// Exemplo de uso da classe Processador (pode ser removido em produção)
-/*
-if (config.contextoPid) {
-  const processador = getProcessador(config.contextoPid);
-  // Exemplo: buscar dados da tabela
-  processador.relatorioPaginate(1, 10, { dateStart: '2024-01-01' })
-    .then(data => console.log('Dados da tabela:', data))
-    .catch(err => console.error('Erro ao buscar dados:', err));
-}
-*/
 
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

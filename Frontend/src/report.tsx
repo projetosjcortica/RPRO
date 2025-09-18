@@ -13,6 +13,7 @@ import { cn } from "./lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { MyDocument } from "./Pdf";
+import { getProcessador } from "./Processador";
 
 export default function Report() {
   const [filtros, setFiltros] = useState<Filtros>({
@@ -71,6 +72,29 @@ export default function Report() {
     }
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const fileContent = reader.result;
+      if (!fileContent) return;
+
+      try {
+        const processador = getProcessador(); // Assumes WebSocket is initialized
+        // processador.sendConfig({});
+        processador.processFileContent(file.name, fileContent as string);
+        // processador.send('upload_csv', { filename: file.name, content: fileContent });
+        console.log('Arquivo enviado via WebSocket:', file.name);
+      } catch (error) {
+        console.error('Erro ao enviar arquivo via WebSocket:', error);
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
   let content;
   if (view === 'table') {
     content = <TableComponent filtros={filtros} colLabels={colLabels} />;
@@ -83,8 +107,16 @@ export default function Report() {
       />
     );
   }
+  let pages: number[] = [];
 
- const pages = [1, 2, 3];
+  function generatePages(pagesTotal: number) {
+    for (let i = 1; i <= pagesTotal; i++) {
+      pages.push(i);
+    } 
+
+  }
+
+  generatePages(5);
 
   return (
     <div className="overflow-hidden flex flex-col gap-7 w-[100vw] h-full">
@@ -96,7 +128,16 @@ export default function Report() {
         <div className="flex flex-row items-end justify-end gap-2">
           <FiltrosBar onAplicarFiltros={setFiltros} />
           <Button>Automático</Button>
-          <Button>Upload</Button>
+          <input
+            type="file"
+            accept=".csv"
+            id="file-upload"
+            style={{ display: 'none' }}
+            onChange={handleFileUpload}
+          />
+          <Button onClick={() => document.getElementById('file-upload')?.click()}>
+            Upload
+          </Button>
         </div>
       </div>
       <div id="tabela+pag+sideInfo "className="flex flex-row gap-2 justify-start">

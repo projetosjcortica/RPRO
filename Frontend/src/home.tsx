@@ -11,7 +11,7 @@ import { getProcessador } from './Processador'
 import { config } from './CFG'
 
 // Mocks fornecidos pelo projeto (fallback)
-import { mockRows as MOCK_ROWS } from "./Testes/mockData"
+// import { mockRows as MOCK_ROWS } from "./Testes/mockData"
 
 type Entry = {
   Nome: string
@@ -129,10 +129,6 @@ export default function Home() {
         } catch (e) {
           console.warn('Falha ao carregar via backend, caindo para MOCK:', e)
         }
-      }
-
-      if (!usingRealData) {
-        loadedRows = MOCK_ROWS as unknown as Entry[]
       }
 
       setRows(loadedRows)

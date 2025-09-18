@@ -79,6 +79,7 @@ export class Processador {
 
   private handleMessage(msg: any) {
     // Response pattern: { id, ok, data, error }
+    console.log('[Processador] Received message:', msg);
     if (msg && msg.id && (msg.ok === true || msg.ok === false)) {
       const entry = this.pending.get(msg.id);
       if (entry) {
@@ -193,6 +194,11 @@ export class Processador {
 
   public processFile(filePath: string) {
     return this.send("file.process", { filePath });
+  }
+
+  // Sends the file.processContent command to the backend
+  public processFileContent(filePath: string, content: string) {
+    return this.send("file.processContent", { filePath, content });
   }
 
   public ihmFetchLatest(ip: string, user = "anonymous", password = "") {
