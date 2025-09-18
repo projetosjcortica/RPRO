@@ -1,24 +1,15 @@
 import { api } from "./api";
 import { mockRows } from "./mockData";
-import { Filtros } from "../components/types";
+import { Filtros, ReportRow } from "../components/types";
 
 const USE_MOCK = true; // 👈 em casa = true | no escritório = false
 
-export interface Produto {
-  Dia:string;
-  Hora:string;
-  Nome:string;
-  Form1:number;
-  Form2:number;
-  values:number[];
-}
-
-export async function getData(filtros: Filtros): Promise<Produto[]> {
+export async function getData(filtros: Filtros): Promise<ReportRow[]> {
   if (USE_MOCK) {
     // Simula delay
     await new Promise((res) => setTimeout(res, 400));
 
-    let filtered: Produto[] = [...mockRows];
+    let filtered: ReportRow[] = [...mockRows];
 
     if (filtros.nomeFormula) {
       filtered = filtered.filter((item) =>
@@ -34,7 +25,7 @@ export async function getData(filtros: Filtros): Promise<Produto[]> {
 
     return filtered;
   } else {
-    const { data } = await api.get<Produto[]>("/dados", { params: filtros });
+    const { data } = await api.get<ReportRow[]>("/dados", { params: filtros });
     return data;
   }
 }

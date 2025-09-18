@@ -216,59 +216,78 @@ ipcMain.handle('start-fork', async (_event: IpcMainInvokeEvent, { script, args =
     if (typeof pid === 'number') {
       children.set(pid, child);
       console.log('Child process added to children map. Total children:', children.size);
-      
-      // Give the child process a moment to fully initialize
-      setTimeout(() => {
-        console.log('Child process should be ready for messages now');
-      }, 1000);
     } else {
       console.error('Child process PID is undefined');
       return { ok: false, reason: 'fork-failed-no-pid' };
     }
 
-    // Handle child process errors
-    child.on('error', (error) => {
-      console.error('Child process error:', error);
-      if (typeof child.pid === 'number') {
-        children.delete(child.pid);
-      }
-    });
+    // Return a promise that resolves with the WebSocket port
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Timeout waiting for WebSocket port from backend'));
+      }, 10000); // 10 second timeout
 
-    child.on('exit', (code, signal) => {
-      console.log(`Child process ${child.pid} exited with code ${code} and signal ${signal}`);
-      if (typeof child.pid === 'number') children.delete(child.pid);
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('child-exit', { pid: child.pid, code, signal });
-      }
-    });
+      // Listen for the websocket-port message from the backend
+      const messageHandler = (msg: any) => {
+        if (msg && msg.type === 'websocket-port' && typeof msg.port === 'number') {
+          clearTimeout(timeoutId);
+          child.off('message', messageHandler);
+          resolve({ ok: true, port: msg.port, pid });
+        }
+      };
 
-    // forward messages from child to renderer
-    child.on('message', (msg) => {
-      console.log('Message from child:', msg);
-      if (win && !win.isDestroyed()) {
-        win.webContents.send('child-message', { pid: child.pid, msg });
-      }
-    });
+      child.on('message', messageHandler);
 
-    // forward stdout/stderr
-    if (child.stdout) {
-      child.stdout.on('data', (chunk) => {
-        console.log('Child stdout:', chunk.toString());
+      // Handle child process errors
+      child.on('error', (error) => {
+        console.error('Child process error:', error);
+        if (typeof child.pid === 'number') {
+          children.delete(child.pid);
+        }
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+
+      child.on('exit', (code, signal) => {
+        console.log(`Child process ${child.pid} exited with code ${code} and signal ${signal}`);
+        if (typeof child.pid === 'number') children.delete(child.pid);
         if (win && !win.isDestroyed()) {
-          win.webContents.send('child-stdout', { pid: child.pid, data: chunk.toString() });
+          win.webContents.send('child-exit', { pid: child.pid, code, signal });
+        }
+        clearTimeout(timeoutId);
+        reject(new Error(`Child process exited with code ${code}`));
+      });
+
+      // forward messages from child to renderer (except websocket-port which we handle here)
+      child.on('message', (msg) => {
+        console.log('Message from child:', msg);
+        if (msg && typeof msg === 'object' && 'type' in msg && (msg as any).type === 'websocket-port') {
+          // Already handled above
+          return;
+        }
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('child-message', { pid: child.pid, msg });
         }
       });
-    }
-    if (child.stderr) {
-      child.stderr.on('data', (chunk) => {
-        console.error('Child stderr:', chunk.toString());
-        if (win && !win.isDestroyed()) {
-          win.webContents.send('child-stderr', { pid: child.pid, data: chunk.toString() });
-        }
-      });
-    }
 
-    return { ok: true, pid: child.pid };
+      // forward stdout/stderr
+      if (child.stdout) {
+        child.stdout.on('data', (chunk) => {
+          console.log('Child stdout:', chunk.toString());
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('child-stdout', { pid: child.pid, data: chunk.toString() });
+          }
+        });
+      }
+      if (child.stderr) {
+        child.stderr.on('data', (chunk) => {
+          console.error('Child stderr:', chunk.toString());
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('child-stderr', { pid: child.pid, data: chunk.toString() });
+          }
+        });
+      }
+    });
   } catch (error) {
     console.error('Failed to fork child process:', error);
     return { ok: false, reason: `fork-error: ${error}` };

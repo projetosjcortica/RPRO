@@ -7,7 +7,6 @@ import {
   ChartTooltipContent,
 } from "./components/ui/chart"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
-import { Package, AlertCircle, Database, FileUp } from "lucide-react"
 import { getProcessador } from './Processador'
 import { config } from './CFG'
 
@@ -90,42 +89,10 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [realData, setRealData] = useState<boolean>(false)
   const [rows, setRows] = useState<Entry[] | null>(null)
-  const [testingConnection, setTestingConnection] = useState<boolean>(false)
-  const [loadingMockData, setLoadingMockData] = useState<boolean>(false)
   const [dataIsEmpty, setDataIsEmpty] = useState<boolean>(false)
+ 
 
-  const loadMockDataToDatabase = async () => {
-    setLoadingMockData(true)
-    try {
-      setError(null)
-      // Em vez de popular DB, apenas usar MOCK_ROWS na UI
-      setRows(MOCK_ROWS as unknown as Entry[])
-      setRealData(false)
-      setDataIsEmpty(MOCK_ROWS.length === 0)
-    } catch (error: any) {
-      console.error('Error loading mock data:', error)
-      setError(`❌ Erro ao carregar dados de exemplo: ${error.message}`)
-    } finally {
-      setLoadingMockData(false)
-    }
-  }
-
-  const testBackendConnection = async () => {
-    setTestingConnection(true)
-    try {
-      if (!config.contextoPid) throw new Error('PID do backend indisponível')
-      const p = getProcessador(config.contextoPid)
-      const pong = await p.ping()
-      setError(`✅ Backend OK: ${JSON.stringify(pong)}`)
-    } catch (error: any) {
-      console.error('Backend connection test failed:', error)
-      setError(`❌ Teste de conexão falhou: ${error.message}`)
-    } finally {
-      setTestingConnection(false)
-    }
-  }
-
-  const loadData = async (retryCount = 0) => {
+  const loadData = async (_retryCount = 0) => {
     try {
       setLoading(true)
       setError(null)
@@ -207,14 +174,14 @@ export default function Home() {
     
     let filtered: Entry[]
     
-    console.log('=== FILTERING FOR PERIOD:', periodKey, '===')
+    // console.log('=== FILTERING FOR PERIOD:', periodKey, '===')
     console.log('Total rows available:', rows.length)
     
     switch(periodKey) {
       case '30dias':
         // Para 30 dias: usar todos os dados
         filtered = rows
-        console.log('30 dias: usando todos os dados')
+        // console.log('30 dias: usando todos os dados')
         break
         
       case '15dias':
@@ -226,7 +193,7 @@ export default function Home() {
           const day = parseInt(dayMatch[1], 10)
           return day >= 16 && day <= 30
         })
-        console.log('15 dias: filtrando dias 16-30, encontrados:', filtered.length)
+        // console.log('15 dias: filtrando dias 16-30, encontrados:', filtered.length)
         break
         
       case 'ontem':
@@ -238,7 +205,7 @@ export default function Home() {
           const day = parseInt(dayMatch[1], 10)
           return day === 19 || day === 20
         })
-        console.log('Ontem: filtrando dias 19 e 20, encontrados:', filtered.length)
+        // console.log('Ontem: filtrando dias 19 e 20, encontrados:', filtered.length)
         break
         
       default:
@@ -255,7 +222,7 @@ export default function Home() {
       productDataLength: productData.length,
       totalProducts
     })
-    console.log('=== END DEBUG ===')
+    // console.log('=== END DEBUG ===')
     
     return { chartData, sums: formulaSums, total, productData, productTotal: totalProducts, filteredCount: filtered.length }
   }
@@ -274,119 +241,22 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="container mx-auto p-6">
-        {/* Header */}
-        <div className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">Dashboard de Produtos</h1>
-          <p className="text-gray-600 text-lg">Análise de consumo e tendências</p>
-          
-          {/* Test Connection Button */}
-          <div className="mt-4 mb-4 flex gap-2 justify-center">
-            <button
-              onClick={testBackendConnection}
-              disabled={testingConnection}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {testingConnection ? 'Testando PIDs disponíveis...' : 'Testar Conexão Backend'}
-            </button>
-            
-            <button
-              onClick={() => {
-                setError(null)
-                loadData()
-              }}
-              disabled={loading}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Carregando...' : 'Recarregar Dados'}
-            </button>
-          </div>
-          
-          {/* Status indicator */}
-          <div className="mt-4 flex flex-col items-center gap-2">
-            {config.contextoPid && (
-              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-blue-800">
-                <Package className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  PID Ativo: {config.contextoPid}
-                </span>
-              </div>
-            )}
-            
-            {error && (
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
-                <AlertCircle className="h-4 w-4" />
-                <span className="text-sm">
-                  {error}
-                </span>
-              </div>
+        {/* Status bar */}
+        <div className="p-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            {realData ? (
+              <span className="px-2 py-1 rounded bg-green-100 text-green-700">Dados reais do backend</span>
+            ) : (
+              <span className="px-2 py-1 rounded bg-yellow-100 text-yellow-700">Usando dados mock</span>
             )}
           </div>
+          {error && (
+            <div className="text-sm text-red-600">{error}</div>
+          )}
         </div>
-
-        {/* Empty Data Warning */}
-        {realData && dataIsEmpty && (
-          <div className="mb-8">
-            <Card className="border-2 border-dashed border-orange-300 bg-orange-50">
-              <CardHeader className="text-center">
-                <div className="mx-auto w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mb-4">
-                  <Database className="h-8 w-8 text-orange-600" />
-                </div>
-                <CardTitle className="text-orange-900">Banco de Dados Vazio</CardTitle>
-                <CardDescription className="text-orange-700">
-                  A conexão com o backend está funcionando, mas não há dados no banco de dados para exibir.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center">
-                <p className="text-orange-800 mb-4">
-                  Para ver o dashboard funcionando com dados reais, você pode:
-                </p>
-                <div className="flex gap-3 justify-center flex-wrap">
-                  <button
-                    onClick={loadMockDataToDatabase}
-                    disabled={loadingMockData}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  >
-                    <Database className="h-4 w-4" />
-                    {loadingMockData ? 'Carregando dados...' : 'Carregar Dados de Exemplo'}
-                  </button>
-                  <button
-                    onClick={() => {
-                      const input = document.createElement('input')
-                      input.type = 'file'
-                      input.accept = '.csv'
-                      input.onchange = async (e: any) => {
-                        const file = e.target.files[0]
-                        if (file) {
-                          try {
-                            setLoadingMockData(true)
-                            const processador = getProcessador(config.contextoPid!)
-                            await processador.uploadCSVFile(file.path)
-                            setError('✅ Arquivo CSV carregado com sucesso!')
-                            setTimeout(() => loadData(), 1000)
-                          } catch (error: any) {
-                            setError(`❌ Erro ao carregar CSV: ${error.message}`)
-                          } finally {
-                            setLoadingMockData(false)
-                          }
-                        }
-                      }
-                      input.click()
-                    }}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
-                  >
-                    <FileUp className="h-4 w-4" />
-                    Importar Arquivo CSV
-                  </button>
-                </div>
-                <p className="text-xs text-orange-600 mt-3">
-                  💡 Os gráficos abaixo mostram dados de exemplo para demonstração
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+        {dataIsEmpty && (
+          <div className="px-4 text-sm text-gray-600">Nenhum dado disponível para o período selecionado.</div>
         )}
-
         {/* Charts Grid - Gráficos de Pizza */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">Distribuição por Período</h2>
@@ -485,32 +355,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Footer Info */}
-        <div className="mt-8 text-center">
-          <p className="text-gray-500 text-sm">
-            {realData ? (
-              dataIsEmpty ? (
-                <span className="text-orange-600">
-                  🗄️ Banco conectado mas vazio - usando dados de demonstração
-                </span>
-              ) : (
-                <span className="text-green-600">
-                  ✅ Exibindo dados reais do banco de dados
-                </span>
-              )
-            ) : (
-              <span className="text-blue-600">
-                🔄 Usando dados de fallback - verifique a conexão com o backend
-              </span>
-            )}
-          </p>
-          {config.contextoPid && (
-            <p className="text-gray-400 text-xs mt-1">
-              PID: {config.contextoPid} | Atualizado: {new Date().toLocaleTimeString()}
-            </p>
-          )}
-        </div>
-      </div>
+
     </div>
   )
 }
