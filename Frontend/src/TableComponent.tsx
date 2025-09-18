@@ -38,6 +38,8 @@ export default function TableComponent({ filtros, colLabels }: TableComponentPro
     { length: Math.max(numValues, numColLabels) }, 
     (_, i) => `col${i + 6}`
   ).filter((colKey, index) => {
+    
+    
     // Mostra a coluna se tiver label OU se tiver dados
     return colLabels[colKey] || (dados.some(row => row.values && index < row.values.length));
   });
@@ -45,6 +47,7 @@ export default function TableComponent({ filtros, colLabels }: TableComponentPro
 
   const cellKey = (rowIdx: number, colIdx: number) => `${rowIdx},${colIdx}`;
 
+  //logica selecionar celulas
   const selectCellRange = useCallback((startRow: number, startCol: number, endRow: number, endCol: number) => {
     const rowStart = Math.min(startRow, endRow);
     const rowEnd = Math.max(startRow, endRow);
@@ -269,14 +272,14 @@ export default function TableComponent({ filtros, colLabels }: TableComponentPro
           Arraste: seleciona múltiplas células
         </span>
       </div>
-      <ScrollArea className="h-[70.5vh] w-[full] m-b-4">
+      <ScrollArea className="h-[80vh] w-[full] m-b-4">
         <Table className="border-collapse border border-gray-300 w-full">
           <TableHeader className="bg-gray-100 sticky top-0">
             <TableRow>
               {fixedColumns.map((col, idx) => (
                 <TableHead
                   key={idx}
-                  className="py-2 px-8 text-center border border-gray-300 font-semibold"
+                  className="py-2 px-5 max-w-24 text-center border border-gray-300 font-semibold"
                 >
                   {colLabels?.[col] ?? col}
                 </TableHead>
@@ -284,7 +287,7 @@ export default function TableComponent({ filtros, colLabels }: TableComponentPro
               {dynamicColumns.map((colKey, idx) => (
                 <TableHead
                   key={idx + fixedColumns.length}
-                  className="py-2 px-5 text-center border border-gray-300 font-semibold"
+                  className="py-2 px-5 min-w-25 text-center  border border-gray-300 font-semibold"
                 >
                   {/* Usa label do Products, se não existir usa colKey, se não existir fallback */}
                   {colLabels?.[colKey] ?? colKey ?? `Coluna ${idx + 6}`}
