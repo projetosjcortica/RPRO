@@ -11,6 +11,8 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink } from ".
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "./lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
+import { PDFDownloadLink } from "@react-pdf/renderer";
+import { MyDocument } from "./Pdf";
 
 export default function Report() {
   const [filtros, setFiltros] = useState<Filtros>({
@@ -175,7 +177,33 @@ export default function Report() {
             <div id="impressao" className="flex flex-col text-center gap-2 mt-6">
               <p>Importar/Imprimir</p>
               <div id="botões" className="flex flex-row gap-2 justify-center">
-                <Button className="w-20">PDF</Button>
+                 <PDFDownloadLink
+                  document={
+                    <MyDocument
+                      total={1200}
+                      batidas={45}
+                      horaInicio="08:00"
+                      horaFim="17:00"
+                      produtos={[
+                        { nome: "Produto A", qtd: 100 },
+                        { nome: "Produto B", qtd: 250 },
+                      ]}
+                    />
+                  }
+                  fileName="relatorio.pdf"
+                >
+                  {({ loading }) =>
+                    loading ? (
+                      <Button className="bg-gray-400 text-white px-4 py-2 rounded">
+                        Gerando...
+                      </Button>
+                    ) : (
+                      <Button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                        Baixar PDF
+                      </Button>
+                    )
+                  }
+                </PDFDownloadLink>
                 <Button className="w-20">Excel</Button>
               </div>
             </div>

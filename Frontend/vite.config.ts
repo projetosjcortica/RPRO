@@ -25,6 +25,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      events: "events/",
+      stream: "stream-browserify",
+      process: "process/browser",
+      util: "util/",
     },
+  },
+   optimizeDeps: {
+    include: ["events", "stream-browserify", "process", "util"],
   },
 })
