@@ -6,9 +6,9 @@
   "scripts": {
     "start": "echo 'placeholder btw",
     "build": "tsc -p tsconfig.json",
-  "build:ipc": "tsc -p tsconfig.ipc.json",
+    "build:ipc": "tsc -p tsconfig.ipc.json",
     "smoke": "npm run build:ipc && node scripts/ipc-smoke.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "collector:dev": "ts-node-dev --respawn --transpile-only src/collector/index.ts",
     "collector:start": "node dist/collector/index.js",
     "lint": "eslint . || true",
@@ -28,6 +28,7 @@
   },
   "homepage": "https://github.com/projetosjcortica/backend#readme",
   "dependencies": {
+    "@types/ws": "^8.18.1",
     "basic-ftp": "^5.0.5",
     "cors": "^2.8.5",
     "csv-parse": "^5.6.0",
@@ -39,7 +40,8 @@
     "mysql2": "^3.6.0",
     "reflect-metadata": "^0.1.13",
     "sqlite3": "^5.1.6",
-    "typeorm": "^0.3.26"
+    "typeorm": "^0.3.26",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
