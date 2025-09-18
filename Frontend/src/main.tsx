@@ -5,7 +5,7 @@ import './index.css'
 import { config } from './CFG'
 import { Processador, getProcessador, setProcessador } from './Processador'
 
-type StartForkResult = { ok: true; pid: number } | { ok: false; reason: string };
+type StartForkResult = { ok: true; port: number; pid: number } | { ok: false; reason: string };
 
 // Export for use in other components
 export { Processador, getProcessador, setProcessador };
@@ -13,13 +13,14 @@ export { Processador, getProcessador, setProcessador };
 
 // Start the backend child process correctly using the preload API (only in Electron)
 if ((window as any).electronAPI) {
-  (window as any).electronAPI.startFork('../back-end/dist/index.js', [])
+  (window as any).electronAPI.startFork('../back-end/dist/src/index.js', [])
   .then(async (res: StartForkResult) => {
     if (res && res.ok) {
-      console.log(res)
+      console.log('Backend started:', res);
       config.contextoPid = res.pid;
-  console.log('Backend child process started with PID:', res.pid);
-  ;(window as any).contextoPid = res.pid;
+      (window as any).contextoPid = res.pid;
+      (window as any).backendPort = res.port;
+  console.log('Backend child process started with PID:', res.pid, 'and WebSocket port:', res.port);
 
       // Debug: wire stdout/stderr/exit to console
       (window as any).electronAPI.onChildStdout((_evt: any, data: any) => {
@@ -32,7 +33,8 @@ if ((window as any).electronAPI) {
         if (payload?.pid === res.pid) console.warn('[child exit]', payload);
       });
 
-      // Set up message listener to handle child responses
+      // Set up message listener to handle child responses - no longer needed for WebSocket communication
+      // but keeping for legacy compatibility
       (window as any).electronAPI.onChildMessage((_evt: any, payload: any) => {
         const msg = payload?.msg;
         if (!msg) return;
@@ -41,36 +43,39 @@ if ((window as any).electronAPI) {
             console.warn('Backend reforked. Adopting new PID:', msg.payload.newPid);
             (window as any).contextoPid = msg.payload.newPid;
             config.contextoPid = msg.payload.newPid;
-            try { setProcessador(msg.payload.newPid); } catch {}
-            sendConfigurationToChild(msg.payload.newPid);
+            // Note: WebSocket will reconnect automatically through Processador
             return;
           }
-          if (msg.event === 'ready') {
-            console.log('Child process is ready, sending configuration...');
-            sendConfigurationToChild(res.pid);
-            // Prepare Processador instance and bind handy events
-            const p = setProcessador(res.pid);
-            p.onEvent('file.processed', (e) => console.log('Arquivo processado:', e));
-          }
-          if (msg.event === 'config-ack') {
-            console.log('Configuration applied successfully');
-          }
-        }
-        if (msg.type === 'ready') {
-          // Legacy path
-          console.log('Child process is ready (legacy), sending configuration...');
-          sendConfigurationToChild(res.pid);
-        }
-        if (msg.type === 'config-response') {
-          console.log('Configuration applied successfully (legacy):', msg.result);
         }
       });
 
-      // Fallback: send config after a longer delay to ensure child is fully registered
+      // Initialize WebSocket-based Processador
+      console.log('Initializing WebSocket Processador on port:', res.port);
+      const p = setProcessador(res.port);
+      p.onEvent('file.processed', (e) => console.log('Arquivo processado:', e));
+      p.onEvent('ready', () => {
+        console.log('Backend WebSocket is ready, sending configuration...');
+        sendConfigurationToBackend(p);
+      });
+      p.onEvent('config-ack', () => {
+        console.log('Configuration applied successfully via WebSocket');
+      });
+      p.onEvent('heartbeat', (hb) => {
+        console.log('[WS Heartbeat]', hb);
+      });
+
+      // Start WS loop (optional; backend also supports env auto-start)
+      try {
+        await p.wsLoopStart(10000);
+      } catch (e) {
+        console.warn('Could not start WS heartbeat loop:', e);
+      }
+
+      // Fallback: send config after a delay to ensure WebSocket connection is established
       setTimeout(() => {
-        console.log('Timeout triggered, sending configuration...');
-        sendConfigurationToChild(res.pid);
-      }, 3000); // Increased delay
+        console.log('Timeout triggered, sending configuration via WebSocket...');
+        sendConfigurationToBackend(p);
+      }, 3000);
 
     } else {
       console.warn('Failed to start backend child process', res);
@@ -83,54 +88,29 @@ if ((window as any).electronAPI) {
   console.warn('electronAPI not found. Skipping backend fork (running in non-Electron context).');
 }
 
-async function sendConfigurationToChild(pid: number, retryCount = 0) {
+async function sendConfigurationToBackend(processador: Processador, retryCount = 0) {
   try {
-    console.log(`Attempting to send config to PID ${pid}, attempt ${retryCount + 1}`);
+    console.log(`Attempting to send config via WebSocket, attempt ${retryCount + 1}`);
 
     const formData = await (window as any).electronAPI.loadData();
-    console.log('Sending configuration to child process:', formData);
+    console.log('Sending configuration to backend via WebSocket:', formData);
 
-    // Send config to child process
-    const configResult = await (window as any).electronAPI.sendToChild(pid, {
-      type: 'config',
-      data: formData
-    });
+    // Send config to backend via WebSocket using the 'config' command
+    await processador.sendConfig(formData);
+    console.log('Configuration sent successfully via WebSocket');
 
-    if (configResult.ok) {
-      console.log('Configuration sent successfully to child process');
-    } else {
-      console.warn('Failed to send configuration to child process:', configResult.reason);
-      // Immediate refork on not-found
-      if (configResult.reason === 'not-found') {
-        console.warn('Child not found. Attempting to refork backend and resend config...');
-        try {
-          const refork = await (window as any).electronAPI.startFork('../back-end/dist/index.js', []);
-          if (refork && refork.ok) {
-            (window as any).contextoPid = refork.pid;
-            config.contextoPid = refork.pid;
-            console.log('Reforked backend with PID:', refork.pid);
-            await sendConfigurationToChild(refork.pid, 0);
-          } else {
-            console.error('Refork attempt failed:', refork);
-          }
-        } catch (reforkErr) {
-          console.error('Refork error:', reforkErr);
-        }
-        return;
-      }
-
-      // Retry up to 3 times with increasing delays
-      if (retryCount < 3) {
-        console.log(`Retrying in ${(retryCount + 1) * 1000}ms...`);
-        setTimeout(() => {
-          sendConfigurationToChild(pid, retryCount + 1);
-        }, (retryCount + 1) * 1000);
-      } else {
-        console.error('Max retries reached, giving up on configuration');
-      }
-    }
   } catch (configError) {
-    console.error('Error loading or sending configuration:', configError);
+    console.error('Error sending configuration via WebSocket:', configError);
+    
+    // Retry up to 3 times with increasing delays
+    if (retryCount < 3) {
+      console.log(`Retrying in ${(retryCount + 1) * 1000}ms...`);
+      setTimeout(() => {
+        sendConfigurationToBackend(processador, retryCount + 1);
+      }, (retryCount + 1) * 1000);
+    } else {
+      console.error('Max retries reached, giving up on configuration');
+    }
   }
 }
 

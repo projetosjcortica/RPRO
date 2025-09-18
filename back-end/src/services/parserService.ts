@@ -1,122 +1,70 @@
-// Este módulo é responsável por ler arquivos CSV e normalizar os dados para um formato consistente.
-// Ele detecta delimitadores, presença de cabeçalhos e converte os dados para objetos padronizados.
+import fs from 'fs';
+import path from 'path';
+import { BaseService } from '../core/baseService';
+import { ParserResult, ParserRow, parseRowDateTime } from '../core/utils';
 
-import * as path from 'path';
-import * as fs from 'fs';
-import { parse } from 'fast-csv';
-
-const tmpDir = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
-const processedDir = path.join(tmpDir, 'processed');
-if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-if (!fs.existsSync(processedDir)) fs.mkdirSync(processedDir, { recursive: true });
-
-/**
- * Interface que representa uma linha processada pelo parser.
- */
-export interface ParserRow {
-	/** Data e hora em formato ISO */
-	datetime: string;
-	label?: string | null;
-	group?: number | null;
-	flag?: number | null;
-	form1?: number | null;
-	form2?: number | null;
-	values: Array<number | null>;
+export class ParserService extends BaseService {
+  tmpDir: string;
+  processedDir: string;
+  constructor() {
+    super('ParserService');
+    this.tmpDir = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
+    this.processedDir = path.join(this.tmpDir, 'processed');
+    if (!fs.existsSync(this.tmpDir)) fs.mkdirSync(this.tmpDir, { recursive: true });
+    if (!fs.existsSync(this.processedDir)) fs.mkdirSync(this.processedDir, { recursive: true });
+  }
+  private detectDelimiter(sample: string) {
+    const candidates = [',', ';', '\t'];
+    let best = ',', bestScore = -1;
+    for (const c of candidates) {
+      const counts = sample.split('\n').slice(0, 5).map((l: string) => (l.match(new RegExp(`\\${c}`, 'g')) || []).length);
+      const score = counts.reduce((a, b) => a + b, 0);
+      if (score > bestScore) { bestScore = score; best = c; }
+    }
+    return best;
+  }
+  async processFile(filePath: string, opts?: { sinceTs?: string }): Promise<ParserResult> {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const delim = this.detectDelimiter(raw);
+    const lines = raw.split(/\r?\n/).filter(Boolean);
+    let start = 0; let headers: string[] | null = null;
+    if (lines.length > 0 && /[A-Za-z]/.test(lines[0])) { headers = lines[0].split(delim).map((s: string) => s.trim()); start = 1; }
+    const rows: ParserRow[] = [];
+    const sinceTs = opts?.sinceTs ? new Date(opts.sinceTs).getTime() : null;
+    const iterate = (i: number) => {
+      const parts = lines[i].split(delim).map((s: string) => s.trim());
+      let datetime: string | null = null; let label: string | null = null; let form1: number | null = null; let form2: number | null = null;
+      const values: Array<number | null> = [];
+      if (headers) {
+        const hmap = new Map(headers.map((h, idx) => [h, parts[idx] ?? '']));
+        const dia = (hmap.get('Dia') || hmap.get('date') || '') as string;
+        const hora = (hmap.get('Hora') || hmap.get('time') || '') as string;
+        const dt = parseRowDateTime({ Dia: dia, Hora: hora });
+        datetime = dt ? dt.toISOString() : new Date().toISOString();
+        label = (hmap.get('Nome') || hmap.get('label') || '') as string;
+        form1 = hmap.get('Form1') ? Number(hmap.get('Form1')) : null;
+        form2 = hmap.get('Form2') ? Number(hmap.get('Form2')) : null;
+        for (let p = 1; p <= 40; p++) { const v = hmap.get(`Prod_${p}`) as string | undefined; values.push(v != null && v !== '' ? Number(v) : null); }
+      } else {
+        const dia = parts[0] || ''; const hora = parts[1] || '';
+        const dt = parseRowDateTime({ Dia: dia, Hora: hora });
+        datetime = dt ? dt.toISOString() : new Date().toISOString();
+        label = parts[2] || null; form1 = parts[3] ? Number(parts[3]) : null; form2 = parts[4] ? Number(parts[4]) : null;
+        for (let p = 5; p < parts.length; p++) values.push(parts[p] ? Number(parts[p]) : null);
+      }
+      return { datetime: datetime!, label, form1, form2, values } as ParserRow;
+    };
+    if (sinceTs != null) {
+      const acc: ParserRow[] = [];
+      for (let i = lines.length - 1; i >= start; i--) { const r = iterate(i); const ts = new Date(r.datetime).getTime(); if (ts > sinceTs) acc.push(r); else break; }
+      rows.push(...acc.reverse());
+    } else {
+      for (let i = start; i < lines.length; i++) rows.push(iterate(i));
+    }
+    const processedPath = path.join(this.processedDir, path.basename(filePath) + '.json');
+    fs.writeFileSync(processedPath, JSON.stringify({ rows }, null, 2));
+    return { processedPath, rowsCount: rows.length, rows };
+  }
 }
 
-/**
- * Interface do resultado do processamento de um arquivo.
- */
-export interface ParserResult {
-	processedPath: string;
-	rowsCount: number;
-	rows: ParserRow[];
-}
-
-/**
- * Função auxiliar para converter data e hora em objeto Date.
- * Aceita datas no formato DD/MM/YY ou DD/MM/YYYY.
- */
-function parseDateTime(dateStr: string, timeStr: string) {
-	if (!dateStr || !timeStr) return new Date();
-	const parts = dateStr.split('/');
-	const d = parts[0] || '01';
-	const m = parts[1] || '01';
-	const y = parts[2] || '00';
-	const year = Number(y) < 100 ? 2000 + Number(y) : Number(y);
-	return new Date(`${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T${timeStr}`);
-}
-
-/**
- * Classe responsável por processar arquivos CSV e gerar arquivos JSON normalizados.
- */
-class ParserService {
-	/**
-	 * Processa um arquivo CSV e salva o resultado em JSON na pasta 'tmp/processed'.
-	 * @param {string} filePath - Caminho do arquivo CSV a ser processado.
-	 * @returns {Promise<ParserResult>} - Retorna uma Promise com o resultado do processamento.
-	 */
-	processFile(filePath: string): Promise<ParserResult> {
-		return new Promise((resolve, reject) => {
-			const rows: ParserRow[] = [];
-			let firstLine = '';
-			try {
-				const raw = fs.readFileSync(filePath, 'utf8');
-				firstLine = raw.split(/\r?\n/)[0] || '';
-			} catch (e) {
-				return reject(e);
-			}
-
-			// Detecta o delimitador do CSV
-			const delim = firstLine.includes(';') && !firstLine.includes(',') ? ';' : ',';
-			// Detecta se há cabeçalho
-			const hasHeader = /date|time|label|group|flag/i.test(firstLine);
-
-			fs.createReadStream(filePath)
-				.pipe(parse({ headers: hasHeader, trim: true, delimiter: delim }))
-				.on('error', (err: unknown) => reject(err))
-				.on('data', (row: any) => {
-					try {
-						// Normaliza os campos da linha
-						const datetime = row.datetime || (row.date && row.time ? parseDateTime(row.date, row.time).toISOString() : null);
-						// Extrai valores numéricos das colunas (quando sem headers)
-						let values: Array<number | null> = [];
-						if (Array.isArray(row.values)) {
-							values = row.values.map((v: any) => (v === '' || v == null ? null : Number(v)));
-						} else {
-							values = Object.values(row)
-								.map((v: any) => {
-									const n = Number(v);
-									return Number.isFinite(n) ? n : null;
-								})
-								.filter((v: any) => v !== null);
-						}
-						rows.push({
-							datetime,
-							label: row.label || row.Nome || null,
-							group: row.group || null,
-							flag: row.flag || null,
-							form1: row.form1 || null,
-							form2: row.form2 || null,
-							values,
-						});
-					} catch (e) {
-						// Ignora erros de linha individual
-					}
-				})
-				.on('end', () => {
-					// debug: quantas linhas foram parseadas
-					console.log(`[parserService] parsed rows for ${path.basename(filePath)}:`, rows.length);
-					const base = path.basename(filePath);
-					const outName = base + '.json';
-					const outPath = path.join(processedDir, outName);
-					fs.writeFileSync(outPath, JSON.stringify({ rows }, null, 2));
-					resolve({ processedPath: outPath, rowsCount: rows.length, rows });
-				});
-		});
-	}
-}
-
-const parserService = new ParserService();
-export default parserService;
-export const processFile = (filePath: string) => parserService.processFile(filePath);
+export const parserService = new ParserService();
