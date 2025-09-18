@@ -1,4 +1,4 @@
-// Processador.ts - Interface para comunicação com o backend child process
+// Processador.ts - Interface para comunicação com o backend child process (IPC)
 
 export interface FilterOptions {
   formula?: string | null;
@@ -9,12 +9,10 @@ export interface FilterOptions {
 }
 
 export interface TableDataResult {
+  rows: any[];
   total: number;
-  pages: number;
-  currentPage: number;
+  page: number;
   pageSize: number;
-  batidas: any[];
-  rowsCount: number;
 }
 
 export interface ChartDataResult {
@@ -28,250 +26,118 @@ export interface ChartDataResult {
 
 export class Processador {
   private pid: number;
-  private messageHandlers: Map<string, (data: any) => void> = new Map();
-  private responseTimeout: number = 10000; // 10 seconds timeout
-  
+  private responseTimeout: number = 15000;
+  private pending: Map<string, { resolve: (v: any) => void; reject: (e: any) => void; timeout: any } > = new Map();
+  private eventHandlers: Map<string, (payload: any) => void> = new Map();
+
   constructor(pid: number) {
     this.pid = pid;
     this.setupMessageListener();
   }
 
   private setupMessageListener() {
-    // Set up message listener to handle responses from child process
     (window as any).electronAPI.onChildMessage((_evt: any, payload: any) => {
-      if (payload && payload.pid === this.pid && payload.msg) {
-          const message = payload.msg;
-          console.log(message);
-        console.log(`[Processador-${this.pid}] Received message:`, message.type);
-        
-        // Call registered handler for this message type
-        const handler = this.messageHandlers.get(message.type);
-        if (handler) {
-          handler(message);
+      if (!payload || payload.pid !== this.pid || !payload.msg) return;
+      const msg = payload.msg;
+      // Response pattern: { id, ok, data, error }
+      if (msg && msg.id && (msg.ok === true || msg.ok === false)) {
+        const entry = this.pending.get(msg.id);
+        if (entry) {
+          clearTimeout(entry.timeout);
+          this.pending.delete(msg.id);
+          if (msg.ok) entry.resolve(msg.data);
+          else entry.reject(msg.error || new Error('Erro desconhecido'));
         }
+        return;
+      }
+      // Event pattern: { type:'event', event, payload }
+      if (msg && msg.type === 'event' && msg.event) {
+        const handler = this.eventHandlers.get(msg.event);
+        if (handler) handler(msg.payload);
+        return;
       }
     });
   }
 
-  public async sendMessage(msg: any): Promise<any> {
-    // Send a message to the process and return result
-    try {
-      const result = await (window as any).electronAPI.sendToChild(this.pid, msg);
-      if (!result.ok) {
-        throw new Error(result.reason || 'Failed to send message');
-      }
-      return result;
-    } catch (error) {
-      console.error(`[Processador-${this.pid}] Error sending message:`, error);
-      throw error;
-    }
+  private genId(): string {
+    return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
-  public onMessage(messageType: string, handler: (data: any) => void) {
-    // Register a handler for a specific message type
-    this.messageHandlers.set(messageType, handler);
-  }
-
-  public removeMessageHandler(messageType: string) {
-    // Remove a message handler
-    this.messageHandlers.delete(messageType);
-  }
-
-  private createPromiseWithTimeout<T>(
-    messageType: string,
-    requestMessage: any
-  ): Promise<T> {
+  private send(cmd: string, payload?: any): Promise<any> {
+    const id = this.genId();
     return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        this.removeMessageHandler(`${messageType}-response`);
-        reject(new Error(`Timeout: No response received for ${messageType} within ${this.responseTimeout}ms`));
+      const timeout = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`Timeout aguardando resposta de '${cmd}'`));
       }, this.responseTimeout);
 
-      // Set up response handler
-      this.onMessage(`${messageType}-response`, (message) => {
-        clearTimeout(timeoutId);
-        this.removeMessageHandler(`${messageType}-response`);
-        
-        if (message.error) {
-          reject(new Error(message.error));
-        } else {
-          resolve(message.result);
-        }
-      });
-
-      // Send request
-      this.sendMessage(requestMessage).catch((error) => {
-        clearTimeout(timeoutId);
-        this.removeMessageHandler(`${messageType}-response`);
-        reject(error);
-      });
+      this.pending.set(id, { resolve, reject, timeout });
+      (window as any).electronAPI
+        .sendToChild(this.pid, { id, cmd, payload })
+        .then((res: { ok: boolean; reason?: string }) => {
+          if (!res || res.ok !== true) {
+            // Falha de envio até o processo (não é a resposta do backend)
+            clearTimeout(timeout);
+            this.pending.delete(id);
+            reject(new Error(res?.reason || 'Falha ao enviar mensagem ao processo filho'));
+          }
+        })
+        .catch((err: unknown) => {
+          clearTimeout(timeout);
+          this.pending.delete(id);
+          reject(err);
+        });
     });
   }
 
-  // === Métodos do Contexto (Backend) ===
-
-  /**
-   * Busca dados da tabela com paginação e filtros
-   * @param page Página atual (padrão: 1)
-   * @param pageSize Tamanho da página (padrão: 300)
-   * @param filters Filtros de busca
-   */
-  public async getTableData(
-    page: number = 1, 
-    pageSize: number = 300, 
-    filters: FilterOptions = {}
-  ): Promise<TableDataResult> {
-    return this.createPromiseWithTimeout<TableDataResult>('getTableData', {
-      type: 'getTableData',
-      args: [page, pageSize, filters]
-    });
+  // Eventos do backend (ex.: 'file.processed', 'ready', 'config-ack')
+  public onEvent(event: string, handler: (payload: any) => void) {
+    this.eventHandlers.set(event, handler);
+  }
+  public offEvent(event: string) {
+    this.eventHandlers.delete(event);
   }
 
-  /**
-   * Busca dados para gráficos com paginação e filtros
-   * @param page Página atual
-   * @param pageSize Tamanho da página
-   * @param filters Filtros de busca
-   */
-  public async getChartData(
-    page: number = 1,
-    pageSize: number = 300,
-    filters: FilterOptions = {}
-  ): Promise<ChartDataResult> {
-    return this.createPromiseWithTimeout<ChartDataResult>('getChartData', {
-      type: 'getChartData',
-      args: [page, pageSize, filters]
-    });
+  // ==== Métodos mapeando os comandos do backend ====
+
+  public ping() { return this.send('ping'); }
+
+  public relatorioPaginate(page = 1, pageSize = 50, filters: FilterOptions = {}) {
+    return this.send('relatorio.paginate', { page, pageSize, ...filters });
   }
 
-  /**
-   * Faz upload e processa um arquivo CSV
-   * @param filePath Caminho para o arquivo CSV
-   */
-  public async uploadCSVFile(filePath: string): Promise<void> {
-    return this.createPromiseWithTimeout<void>('uploadCSVFile', {
-      type: 'uploadCSVFile',
-      args: [filePath]
-    });
+  public async getTableData(page = 1, pageSize = 300, filters: FilterOptions = {}): Promise<TableDataResult> {
+    const res = await this.relatorioPaginate(page, pageSize, filters);
+    return { rows: res.rows || [], total: res.total || 0, page: res.page || page, pageSize: res.pageSize || pageSize };
   }
 
-  /**
-   * Carrega dados de exemplo no banco de dados para demonstração
-   */
-  public async loadSampleData(): Promise<void> {
-    return this.createPromiseWithTimeout<void>('loadSampleData', {
-      type: 'loadSampleData',
-      args: []
-    });
-  }
+  public processFile(filePath: string) { return this.send('file.process', { filePath }); }
 
-  /**
-   * Obtém a configuração atual do contexto
-   */
-  public async getConfig(): Promise<any> {
-    return this.createPromiseWithTimeout<any>('getConfig', {
-      type: 'getConfig',
-      args: []
-    });
-  }
+  public ihmFetchLatest(ip: string, user = 'anonymous', password = '') { return this.send('ihm.fetchLatest', { ip, user, password }); }
 
-  /**
-   * Define a configuração do contexto
-   * @param config Dados de configuração
-   */
-  public async setConfig(config: any): Promise<void> {
-    return this.createPromiseWithTimeout<void>('setConfig', {
-      type: 'setConfig',
-      args: [config]
-    });
-  }
+  public backupList() { return this.send('backup.list'); }
 
-  /**
-   * Inicializa o banco de dados
-   */
-  public async initDb(): Promise<void> {
-    return this.createPromiseWithTimeout<void>('initDb', {
-      type: 'initDb',
-      args: []
-    });
-  }
+  public dbListBatches() { return this.send('db.listBatches'); }
 
-  /**
-   * Fecha a conexão com o banco de dados
-   */
-  public async closeDb(): Promise<void> {
-    return this.createPromiseWithTimeout<void>('closeDb', {
-      type: 'closeDb',
-      args: []
-    });
-  }
+  public dbSetupMateriaPrima(items: Array<{ num: number; produto: string; medida: number }>) { return this.send('db.setupMateriaPrima', { items }); }
 
-  /**
-   * Obtém o serviço de banco de dados
-   */
-  public async getDbService(): Promise<any> {
-    return this.createPromiseWithTimeout<any>('getDbService', {
-      type: 'getDbService',
-      args: []
-    });
-  }
+  public syncLocalToMain(limit = 500) { return this.send('sync.localToMain', { limit }); }
 
-  /**
-   * Obtém o repositório de relatórios
-   */
-  public async getRelatorioRepository(): Promise<any> {
-    return this.createPromiseWithTimeout<any>('getRelatorioRepository', {
-      type: 'getRelatorioRepository',
-      args: []
-    });
-  }
+  public collectorStart() { return this.send('collector.start'); }
+  public collectorStop() { return this.send('collector.stop'); }
 
-  // === Métodos de controle do processo ===
-
-  /**
-   * Para o processo child
-   */
+  // Controle do processo
   public async stop(): Promise<void> {
-    try {
-      // Clear all message handlers
-      this.messageHandlers.clear();
-      
-      // Stop the process
-      await (window as any).electronAPI.stopProcess(this.pid);
-      console.log(`[Processador-${this.pid}] Process stopped successfully`);
-    } catch (error) {
-      console.error(`[Processador-${this.pid}] Error stopping process:`, error);
-      throw error;
-    }
+    this.pending.forEach((p) => clearTimeout(p.timeout));
+    this.pending.clear();
+    this.eventHandlers.clear();
+    await (window as any).electronAPI.stopProcess(this.pid);
   }
 
-  /**
-   * Verifica se o processo está ativo
-   */
-  public isRunning(): boolean {
-    return this.pid !== null && this.pid !== undefined;
-  }
-
-  /**
-   * Obtém o PID do processo
-   */
-  public getPid(): number {
-    return this.pid;
-  }
-
-  /**
-   * Define o timeout para respostas (em ms)
-   */
-  public setTimeout(timeout: number): void {
-    this.responseTimeout = timeout;
-  }
-
-  /**
-   * Obtém o timeout atual
-   */
-  public getTimeout(): number {
-    return this.responseTimeout;
-  }
+  public isRunning(): boolean { return this.pid !== null && this.pid !== undefined; }
+  public getPid(): number { return this.pid; }
+  public setTimeout(timeout: number) { this.responseTimeout = timeout; }
+  public getTimeout(): number { return this.responseTimeout; }
 }
 
 // Singleton instance para facilitar o uso

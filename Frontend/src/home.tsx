@@ -8,7 +8,7 @@ import {
 } from "./components/ui/chart"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
 import { Package, AlertCircle, Database, FileUp } from "lucide-react"
-import { getProcessador } from './main'
+import { getProcessador } from './Processador'
 import { config } from './CFG'
 
 // Mocks fornecidos pelo projeto (fallback)
@@ -97,27 +97,11 @@ export default function Home() {
   const loadMockDataToDatabase = async () => {
     setLoadingMockData(true)
     try {
-      if (!config.contextoPid) {
-        throw new Error('Backend process not available')
-      }
-
-      console.log('Loading mock data to database...')
-      const processador = getProcessador(config.contextoPid)
-
-      // Usar método de carregar dados de exemplo (se existir)
-      try {
-        await processador.loadSampleData()
-      } catch {
-        // Fallback: usar uploadCSVFile
-        const mockCSVPath = 'mock-data.csv'
-        await processador.uploadCSVFile(mockCSVPath)
-      }
-      
-      setError('✅ Dados de exemplo carregados com sucesso!')
-      
-      // Recarregar dados para ver os novos dados
-      setTimeout(() => loadData(), 1000)
-      
+      setError(null)
+      // Em vez de popular DB, apenas usar MOCK_ROWS na UI
+      setRows(MOCK_ROWS as unknown as Entry[])
+      setRealData(false)
+      setDataIsEmpty(MOCK_ROWS.length === 0)
     } catch (error: any) {
       console.error('Error loading mock data:', error)
       setError(`❌ Erro ao carregar dados de exemplo: ${error.message}`)
@@ -129,39 +113,10 @@ export default function Home() {
   const testBackendConnection = async () => {
     setTestingConnection(true)
     try {
-      // PIDs mais ativos dos logs: 6236 e 8652 (que estão respondendo)
-      const availablePids = [8652, 6236, 11844, 23324, 3512] // Tentar dos mais ativos primeiro
-      
-      let connectedPid = null
-      let lastError = null
-      
-      for (const pid of availablePids) {
-        try {
-          console.log(`Testing connection with PID: ${pid}`)
-          const processador = getProcessador(pid)
-          
-          // Teste mais simples: apenas tentar obter dados sem filtros
-          const tableResult = await processador.getTableData(1, 10)
-          console.log(`Backend connection successful with PID ${pid}:`, tableResult)
-          
-          connectedPid = pid
-          break
-        } catch (error: any) {
-          console.log(`PID ${pid} failed:`, error.message)
-          lastError = error
-          continue
-        }
-      }
-      
-      if (connectedPid) {
-        // Se funcionou, atualizar o PID global e recarregar dados
-        config.contextoPid = connectedPid
-        setError(`✅ Conectado com sucesso ao PID ${connectedPid}`)
-        await loadData()
-      } else {
-        throw lastError || new Error('Nenhum PID disponível respondeu')
-      }
-      
+      if (!config.contextoPid) throw new Error('PID do backend indisponível')
+      const p = getProcessador(config.contextoPid)
+      const pong = await p.ping()
+      setError(`✅ Backend OK: ${JSON.stringify(pong)}`)
     } catch (error: any) {
       console.error('Backend connection test failed:', error)
       setError(`❌ Teste de conexão falhou: ${error.message}`)
@@ -178,92 +133,47 @@ export default function Home() {
       let loadedRows: Entry[] = []
       let usingRealData = false
 
-      // Tentar carregar dados do backend primeiro
       if (config.contextoPid) {
         try {
-          console.log(`Loading data from backend... (attempt ${retryCount + 1})`)
-          
-          const processador = getProcessador(config.contextoPid)
-
-          // Buscar dados da tabela
-          const tableResult = await processador.getTableData(1, 300, {
+          const p = getProcessador(config.contextoPid)
+          const tableResult = await p.getTableData(1, 300, {
             dateStart: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             dateEnd: new Date().toISOString().split('T')[0]
           })
 
-          if (tableResult?.batidas && tableResult.batidas.length > 0) {
-            // Converter dados do backend para o formato esperado
-            loadedRows = tableResult.batidas.map((r: any) => ({
-              Nome: r.Nome ?? "Desconhecido",
-              values: Array.isArray(r.values) ? r.values : [r.Form1 || 0],
+          const mapped: Entry[] = (tableResult.rows || []).map((r: any) => {
+            const values: number[] = [];
+            for (let i = 1; i <= 40; i++) {
+              const v = r[`Prod_${i}`];
+              values.push(typeof v === 'number' ? v : (v != null ? Number(v) : 0));
+            }
+            return {
+              Nome: r.Nome ?? 'Desconhecido',
+              values,
               Dia: r.Dia,
               Hora: r.Hora,
-              Form1: r.Form1,
-              Form2: r.Form2
-            }))
-            usingRealData = true
-            console.log('Data loaded from backend:', loadedRows.length, 'rows')
-          } else {
-            console.log('Backend returned empty data, using mock data')
-            throw new Error('Backend returned empty data')
-          }
-        } catch (error: any) {
-          console.error('Error loading data from backend:', error)
-          
-          // Retry logic para timeouts
-          if (error.message.includes('Timeout') && retryCount < 2) {
-            console.log(`Retrying data load in 2 seconds... (${retryCount + 1}/2)`)
-            setTimeout(() => loadData(retryCount + 1), 2000)
-            return
-          }
-          
-          // Usar dados mock em caso de erro
-          usingRealData = false
+              Form1: r.Form1 ?? undefined,
+              Form2: r.Form2 ?? undefined,
+            } as Entry
+          })
+
+          loadedRows = mapped
+          usingRealData = true
+        } catch (e) {
+          console.warn('Falha ao carregar via backend, caindo para MOCK:', e)
         }
       }
 
-      // Se não conseguiu carregar do backend, usar dados mock
       if (!usingRealData) {
-        loadedRows = (MOCK_ROWS || []).map((r: any) => ({
-          Nome: r.Nome ?? "Desconhecido",
-          values: Array.isArray(r.values) && r.values.length ? r.values : [0],
-          Dia: r.Dia,
-          Hora: r.Hora,
-          Form1: r.Form1,
-          Form2: r.Form2
-        }))
-        console.log('Using mock data:', loadedRows.length, 'rows')
+        loadedRows = MOCK_ROWS as unknown as Entry[]
       }
 
       setRows(loadedRows)
       setRealData(usingRealData)
-
-      // Detectar se os dados estão vazios
-      const isEmpty = loadedRows.length === 0 || loadedRows.every(r => !r.values || r.values.every(v => v <= 0))
-      setDataIsEmpty(isEmpty && usingRealData)
-
-      console.log('Data loaded successfully:', { 
-        rowsCount: loadedRows.length, 
-        usingRealData, 
-        isEmpty 
-      })
-
-    } catch (error: any) {
-      console.error('Error in loadData:', error)
-      setError(error.message || 'Failed to load data')
-      
-      // Usar dados mock como fallback final
-      const fallbackRows = (MOCK_ROWS || []).map((r: any) => ({
-        Nome: r.Nome ?? "Desconhecido",
-        values: Array.isArray(r.values) && r.values.length ? r.values : [0],
-        Dia: r.Dia,
-        Hora: r.Hora,
-        Form1: r.Form1,
-        Form2: r.Form2
-      }))
-      setRows(fallbackRows)
-      setRealData(false)
-      setDataIsEmpty(false)
+      setDataIsEmpty(!loadedRows || loadedRows.length === 0)
+    } catch (err: any) {
+      console.error('Erro ao carregar dados:', err)
+      setError('Erro ao carregar dados')
     } finally {
       setLoading(false)
     }

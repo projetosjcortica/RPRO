@@ -6,6 +6,8 @@
   "scripts": {
     "start": "echo 'placeholder btw",
     "build": "tsc -p tsconfig.json",
+  "build:ipc": "tsc -p tsconfig.ipc.json",
+    "smoke": "npm run build:ipc && node scripts/ipc-smoke.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "collector:dev": "ts-node-dev --respawn --transpile-only src/collector/index.ts",
     "collector:start": "node dist/collector/index.js",
