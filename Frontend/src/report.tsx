@@ -142,7 +142,7 @@ export default function Report() {
             </Pagination>
           </div>
         </div>
-        <div id="sideinfo" className=" h-[75.2vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+        <div id="sideinfo" className=" h-[74.2vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           <div id="quadradoInfo" className="grid grid-cols-2 gap-1 ">
             <div className="w-31 h-20 max-h-20 border-2 rounded-lg">
               <p className="text-center font-semibold">Total</p>
@@ -194,11 +194,11 @@ export default function Report() {
                 >
                   {({ loading }) =>
                     loading ? (
-                      <Button className="bg-gray-400 text-white px-4 py-2 rounded">
+                      <Button className="bg-gray-400 text-white px-4 py-2 rounded-lg">
                         Gerando...
                       </Button>
                     ) : (
-                      <Button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+                      <Button className=" text-white px-4 py-2 rounded-lg ">
                         Baixar PDF
                       </Button>
                     )

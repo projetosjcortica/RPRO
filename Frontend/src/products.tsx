@@ -12,7 +12,51 @@ interface ProductsProps {
   onLabelChange: (colKey: string, newName: string, unidade?: string) => void;
 }
 
+
 function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
+  // Salva o objeto completo de nomes e unidades no localStorage
+  const saveProdutosInfo = (labels: { [key: string]: string }, unidades: { [key: string]: string }) => {
+    const produtosInfo: { [key: string]: { nome: string; unidade: string } } = {};
+    for (let i = 6; i <= 45; i++) {
+      const key = `col${i}`;
+      produtosInfo[key] = {
+        nome: labels[key] || "",
+        unidade: unidades[key] || "kg" // padrão kg
+      };
+    }
+    localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
+  };
+
+  // Estado local para unidades
+  const unidades: { [key: string]: string } = {};
+  // Carrega unidades do localStorage (produtosInfo)
+  (() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("produtosInfo");
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          for (let i = 6; i <= 45; i++) {
+            const key = `col${i}`;
+            if (parsed[key] && parsed[key].unidade) {
+              unidades[key] = parsed[key].unidade;
+            } else {
+              unidades[key] = "kg";
+            }
+          }
+        } catch {
+          for (let i = 6; i <= 45; i++) {
+            unidades[`col${i}`] = "kg";
+          }
+        }
+      } else {
+        for (let i = 6; i <= 45; i++) {
+          unidades[`col${i}`] = "kg";
+        }
+      }
+    }
+  })();
+
   useEffect(() => {
     const fetchLabels = async () => {
       try {
@@ -57,52 +101,90 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
         }
         localStorage.setItem("labelsMock", JSON.stringify([labelsObj]))
         setColLabels(labelsObj);
+
+        // Salva também nomes e unidades no produtosInfo
+        saveProdutosInfo(labelsObj, unidades);
       } catch (err) {
         console.error("Erro ao carregar labels:", err);
       }
     };
 
     fetchLabels();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setColLabels]);
 
-  const handleUnidadeChange = (colKey: string, unidade: string) => {
-    if (IS_LOCAL) {
-      const saved = localStorage.getItem("colLabels");
-      let labels: ColLabel[] = [];
-      
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            labels = parsed;
-          } else if (parsed && typeof parsed === "object") {
-            labels = Object.keys(parsed).map(key => ({
-              col_key: key,
-              col_name: parsed[key],
-              unidade: ""
-            }));
-          }
-        } catch {
-          console.warn("colLabels inválido no localStorage");
-          labels = [];
-        }
-      }
-
-      const index = labels.findIndex((l) => l.col_key === colKey);
-      if (index !== -1) {
-        labels[index].unidade = unidade;
-      } else {
-        labels.push({ 
-          col_key: colKey, 
-          col_name: colLabels[colKey] || "", 
-          unidade 
-        });
-      }
-
-      localStorage.setItem("colLabels", JSON.stringify(labels));
+  // Salva nome e unidade ao alterar nome
+  const handleLabelChange = (colKey: string, newName: string, unidade?: string) => {
+    onLabelChange(colKey, newName, unidade);
+    // Atualiza localStorage produtosInfo
+    const produtosInfoRaw = localStorage.getItem("produtosInfo");
+    let produtosInfo: { [key: string]: { nome: string; unidade: string } } = {};
+    if (produtosInfoRaw) {
+      try {
+        produtosInfo = JSON.parse(produtosInfoRaw);
+      } catch {}
     }
-    
-    onLabelChange(colKey, colLabels[colKey] || "", unidade);
+    produtosInfo[colKey] = {
+      nome: newName,
+      unidade: (unidades[colKey] || "kg")
+    };
+    localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
+  };
+
+  // Salva unidade ao alterar unidade
+  const handleUnidadeChange = (colKey: string, unidade: string) => {
+    unidades[colKey] = unidade === "1" ? "g" : "kg";
+
+    console.log(`Changing unit for ${colKey} to ${unidade === "1" ? "grams" : "kilograms"}`);
+
+    // Divide values by 1000 if the unit is set to grams
+    if (unidade === "1") {
+      const columnValuesRaw = localStorage.getItem(`values_${colKey}`);
+      let columnValues: number[] = [];
+      if (columnValuesRaw) {
+        try {
+          columnValues = JSON.parse(columnValuesRaw);
+          console.log(`Original values for ${colKey}:`, columnValues);
+        } catch (error) {
+          console.error("Failed to parse column values from localStorage:", error);
+        }
+      } else {
+        console.warn(`No values found in localStorage for key: values_${colKey}`);
+      }
+
+      // Divide each value by 1000
+      columnValues = columnValues.map(value => value / 1000);
+      console.log(`Updated values for ${colKey}:`, columnValues);
+      localStorage.setItem(`values_${colKey}`, JSON.stringify(columnValues));
+
+      // Trigger re-render in TableComponent
+      const updatedData: { [key: string]: number }[] = JSON.parse(localStorage.getItem("tableData") || "[]");
+      updatedData.forEach((row) => {
+        if (row[colKey]) {
+          row[colKey] = row[colKey] / 1000;
+        }
+      });
+      localStorage.setItem("tableData", JSON.stringify(updatedData));
+    }
+
+    // Atualiza localStorage produtosInfo
+    const produtosInfoRaw = localStorage.getItem("produtosInfo");
+    let produtosInfo: { [key: string]: { nome: string; unidade: string } } = {};
+    if (produtosInfoRaw) {
+      try {
+        produtosInfo = JSON.parse(produtosInfoRaw);
+      } catch (error) {
+        console.error("Failed to parse produtosInfo from localStorage:", error);
+      }
+    }
+    produtosInfo[colKey] = {
+      nome: colLabels[colKey] || "",
+      unidade: unidades[colKey]
+    };
+    localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
+    console.log(`Updated produtosInfo for ${colKey}:`, produtosInfo[colKey]);
+
+    onLabelChange(colKey, colLabels[colKey] || "", unidades[colKey]);
   };
 
   const columns = Object.keys(colLabels).sort(
@@ -128,6 +210,18 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
             const colNumber = parseInt(col.replace("col", ""), 10);
             const produtoNumber = colNumber - 5;
 
+            // Recupera unidade do localStorage (produtosInfo) ou padrão
+            let unidadeAtual = "kg";
+            const produtosInfoRaw = localStorage.getItem("produtosInfo");
+            if (produtosInfoRaw) {
+              try {
+                const produtosInfo = JSON.parse(produtosInfoRaw);
+                if (produtosInfo[col] && produtosInfo[col].unidade) {
+                  unidadeAtual = produtosInfo[col].unidade;
+                }
+              } catch {}
+            }
+
             return (
               <div key={col}>
                 <div className="flex flex-row justify-center items-center gap-2 border border-black rounded-lg px-2 py-1">
@@ -138,7 +232,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                       className="peer h-9 px-2 pt-4 text-sm border-b border-gray-400 rounded-lg focus:border-black focus:ring-0"
                       type="text"
                       value={colLabels?.[col] || ""}
-                      onChange={(e) => onLabelChange(col, e.target.value)}
+                      onChange={(e) => handleLabelChange(col, e.target.value, unidadeAtual)}
                       placeholder=" "
                     />
                     <Label
@@ -156,15 +250,15 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                   {/* Radios */}
                   <RadioGroup
                     className="flex flex-row gap-1"
-                    defaultValue="kilogram"
+                    value={unidadeAtual === "g" ? "1" : "2"}
                     onValueChange={(value) => handleUnidadeChange(col, value)}
                   >
                     <div className="flex flex-row items-center">
-                      <RadioGroupItem value="gram" className="border-black mx-1" />
+                      <RadioGroupItem value="1" className="border-black mx-1" />
                       <Label className="text-sm">g</Label>
                     </div>
                     <div className="flex flex-row items-center">
-                      <RadioGroupItem value="kilogram" className="border-black mx-1" />
+                      <RadioGroupItem value="2" className="border-black mx-1" />
                       <Label className="text-sm">kg</Label>
                     </div>
                   </RadioGroup>

@@ -7,10 +7,10 @@ import {
   TableCell,
   TableRow,
 } from "./components/ui/table";
-
 import { useReportData } from "./hooks/useReportData";
 import { Filtros, ReportRow } from "./components/types";
 import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
+
 
 interface TableComponentProps {
   filtros?: Filtros;
@@ -254,10 +254,35 @@ export default function TableComponent({ filtros, colLabels }: TableComponentPro
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [lastSelected, dados, columns.length, selectCellRange]);
 
+  // Re-fetch data from localStorage when tableData changes
+  useEffect(() => {
+    const storedData = localStorage.getItem("tableData");
+    if (storedData) {
+      try {
+        const parsedData = JSON.parse(storedData);
+        console.log("Re-fetched table data:", parsedData);
+        // Assuming a state update is needed to trigger re-render
+        setTableData(parsedData);
+      } catch (error) {
+        console.error("Failed to parse table data from localStorage:", error);
+      }
+    }
+  }, []);
+
   if (loading) return <div className="p-4">Carregando...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
   if (!dados || dados.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
 
+  function formatValue(v: unknown): string {
+  if (typeof v === "number") {
+    return v.toLocaleString("pt-BR", {
+      minimumFractionDigits: 3,
+      maximumFractionDigits: 3,
+    });
+  }
+  if (typeof v === "string") return v;
+  return "";
+}
   return (
     <div 
       ref={tableRef} 
@@ -340,7 +365,7 @@ export default function TableComponent({ filtros, colLabels }: TableComponentPro
                     onMouseDown={(e) => handleMouseDown(rowIdx, dynIdx + fixedColumns.length, e)}
                     onMouseEnter={(e) => handleMouseEnter(rowIdx, dynIdx + fixedColumns.length, e)}
                   >
-                    {value}
+                    {formatValue(value)}
                   </TableCell>
                 );
               })}
