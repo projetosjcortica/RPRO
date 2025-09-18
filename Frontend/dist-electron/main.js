@@ -15338,6 +15338,7 @@ const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
 const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
 let win;
+let lastScriptPath = null;
 const children = /* @__PURE__ */ new Map();
 const initialFormData = {
   nomeCliente: "",
@@ -15426,17 +15427,18 @@ ipcMain$1.handle("start-fork", async (_event, { script, args = [] } = {}) => {
   if (path.isAbsolute(script)) {
     scriptPath = script;
   } else {
+    const projectRoot = path.dirname(path.dirname(__dirname));
     const possiblePaths = [
+      // Prefer IPC-only CJS build
+      path.join(projectRoot, "back-end", "dist", "index.js"),
+      // Fallback to full build structure if present
+      path.join(projectRoot, "back-end", "dist", "src", "index.js"),
+      // Original provided script path fallbacks
       path.join(__dirname, script),
-      // From electron build dir
-      path.join(process.env.APP_ROOT, script),
-      // From app root if defined
+      path.join(process.env.APP_ROOT || "", script),
       path.join(path.dirname(__dirname), script),
-      // From Frontend dir
-      path.join(path.dirname(path.dirname(__dirname)), script),
-      // From parent of Frontend (project root)
+      path.join(projectRoot, script),
       path.resolve(script)
-      // Resolve relative to current working directory
     ];
     console.log("Trying paths:", possiblePaths);
     scriptPath = possiblePaths.find((p) => {
@@ -15467,6 +15469,7 @@ ipcMain$1.handle("start-fork", async (_event, { script, args = [] } = {}) => {
       backendDir = path.dirname(backendDir);
     }
     console.log("Setting child process cwd to:", backendDir);
+    lastScriptPath = scriptPath;
     const child = fork(scriptPath, args, {
       stdio: ["pipe", "pipe", "pipe", "ipc"],
       cwd: backendDir,
@@ -15532,6 +15535,28 @@ ipcMain$1.handle("send-to-child", async (_event, { pid, msg } = {}) => {
   const child = children.get(pid);
   if (!child) {
     console.log("Child not found for PID:", pid);
+    if (lastScriptPath) {
+      try {
+        const backendDir = path.dirname(lastScriptPath);
+        const refork = fork(lastScriptPath, [], { stdio: ["pipe", "pipe", "pipe", "ipc"], cwd: backendDir, silent: false });
+        const newPid = refork.pid;
+        if (typeof newPid === "number") {
+          children.set(newPid, refork);
+          if (win && !win.isDestroyed()) {
+            win.webContents.send("child-message", { pid: newPid, msg: { type: "event", event: "reforked", payload: { oldPid: pid, newPid } } });
+          }
+          try {
+            refork.send(msg);
+            return { ok: true };
+          } catch (sendErr) {
+            console.error("Error sending message after refork:", sendErr);
+            return { ok: false, reason: String(sendErr) };
+          }
+        }
+      } catch (rfErr) {
+        console.error("Auto-refork failed:", rfErr);
+      }
+    }
     return { ok: false, reason: "not-found" };
   }
   try {

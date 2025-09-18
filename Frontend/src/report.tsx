@@ -11,7 +11,6 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink } from ".
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "./lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
-import { Separator } from "./components/ui/separator";
 
 export default function Report() {
   const [filtros, setFiltros] = useState<Filtros>({
@@ -160,13 +159,8 @@ export default function Report() {
             <Table className="h-100">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-center">
-                    <p>Produtos</p>
-                  </TableHead>
-                  <Separator className="vertical"/>
-                  <TableHead className="text-center">
-                    <p>Quantidade</p>
-                  </TableHead>
+                  <TableHead className="text-center">Produtos</TableHead>
+                  <TableHead className="text-center">Quantidade</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
