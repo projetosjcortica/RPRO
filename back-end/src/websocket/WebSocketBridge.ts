@@ -6,6 +6,7 @@ export class WebSocketBridge {
   private clients: Set<any> = new Set();
   private port = 0;
   private starting: Promise<number> | null = null;
+  private metadata: Record<string, any> = {}; // Armazena metadados temporários
 
   register(cmd: string, handler: (payload: any) => Promise<any> | any) {
     this.handlers[cmd] = handler;
@@ -68,6 +69,30 @@ export class WebSocketBridge {
   stop() { if (this.server) { this.clients.forEach(ws => ws.close()); this.clients.clear(); this.server.close(); this.server = null; this.port = 0; this.starting = null; } }
   getPort() { return this.port; }
   getClientCount() { return this.clients.size; }
+
+  // Execute a registered command directly (used for IPC / child process messages)
+  async executeCommand(cmd: string, payload: any) {
+    const h = this.handlers[cmd];
+    if (!h) throw Object.assign(new Error(`Unknown cmd: ${cmd}`), { status: 404 });
+    return await Promise.resolve(h(payload));
+  }
+
+  // Métodos para lidar com metadados temporários
+  getMetadata(key: string): any {
+    return this.metadata[key];
+  }
+
+  setMetadata(key: string, value: any): void {
+    this.metadata[key] = value;
+  }
+
+  clearMetadata(key?: string): void {
+    if (key) {
+      delete this.metadata[key];
+    } else {
+      this.metadata = {};
+    }
+  }
 }
 
 export const wsbridge = new WebSocketBridge();

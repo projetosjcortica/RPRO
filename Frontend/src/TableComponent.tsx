@@ -9,17 +9,102 @@ import {
 } from "./components/ui/table";
 import { useReportData } from "./hooks/useReportData";
 import { Filtros, ReportRow } from "./components/types";
-import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
-
+import { FilterBar } from "./components/FilterBar";
+import { useIsMobile } from "./hooks/use-mobile";
 
 interface TableComponentProps {
   filtros?: Filtros;
   colLabels: { [key: string]: string };
+  // Optional: allow caller to pass pre-fetched data (for pagination control outside)
+  dados?: any[];
+  loading?: boolean;
+  error?: string | null;
+  total?: number;
+  page?: number;
+  pageSize?: number;
 }
-export default function TableComponent({ filtros, colLabels }: TableComponentProps) {
-  const { dados, loading, error } = useReportData(
-    filtros ?? { dataInicio: "", dataFim: "", nomeFormula: "" }
+
+export default function TableComponent({ filtros, colLabels, dados: dadosProp, loading: loadingProp, error: errorProp, page = 1, pageSize = 300 }: TableComponentProps) {
+  const isMobile = useIsMobile();
+  const { dados: dadosFromHook, loading: loadingHook, error: errorHook } = useReportData(
+    filtros ?? { dataInicio: "", dataFim: "", nomeFormula: "" }, page, pageSize
   );
+
+  const dadosOriginais = dadosProp ?? dadosFromHook;
+  const loading = loadingProp ?? loadingHook;
+  const error = errorProp ?? errorHook;
+  
+  // Estado para filtro de categoria
+  const [categoriaSelecionada, setCategoriaSelecionada] = useState<string>("");
+  const [dadosFiltrados, setDadosFiltrados] = useState<ReportRow[]>([]);
+
+  // Estado para as informações de produtos
+  const [produtosInfo, setProdutosInfo] = useState<Record<string, any>>({});
+  const [categorias, setCategorias] = useState<string[]>([]);
+  
+  // Carregar informações de produtos do localStorage
+  useEffect(() => {
+    try {
+      const produtosInfoRaw = localStorage.getItem('produtosInfo');
+      if (produtosInfoRaw) {
+        const infoObj = JSON.parse(produtosInfoRaw);
+        setProdutosInfo(infoObj);
+        
+        // Extrair categorias únicas
+        const categoriasSet = new Set<string>();
+        Object.keys(infoObj).forEach(key => {
+          if (infoObj[key]?.categoria) {
+            categoriasSet.add(infoObj[key].categoria);
+          }
+        });
+        setCategorias(Array.from(categoriasSet).sort());
+      }
+    } catch (error) {
+      console.error('Erro ao carregar informações de produtos:', error);
+    }
+  }, []);
+  
+  // Determinar quais dados mostrar (filtrados ou originais)
+  const dados = categoriaSelecionada ? dadosFiltrados : dadosOriginais;
+
+  // Filtrar dados por categoria quando a categoria selecionada mudar
+  useEffect(() => {
+    if (categoriaSelecionada && dadosOriginais.length > 0) {
+      // Identificar colunas que pertencem à categoria selecionada
+      const colunasCategoria = Object.keys(produtosInfo).filter(
+        colKey => produtosInfo[colKey]?.categoria === categoriaSelecionada
+      );
+      
+      // Filtrar registros que tenham valores nessas colunas
+      const filtrados = dadosOriginais.filter(registro => {
+        return colunasCategoria.some(coluna => {
+          // Extrair o número da coluna e verificar se está nos values
+          const colNum = parseInt(coluna.replace('col', ''), 10);
+          if (isNaN(colNum)) return false;
+          
+          // O índice no array values é (colNum - 6)
+          const valueIdx = colNum - 6;
+          return (
+            registro.values && 
+            valueIdx >= 0 && 
+            valueIdx < registro.values.length && 
+            registro.values[valueIdx] !== null && 
+            registro.values[valueIdx] !== undefined && 
+            registro.values[valueIdx] !== 0
+          );
+        });
+      });
+      
+      setDadosFiltrados(filtrados);
+    } else {
+      setDadosFiltrados(dadosOriginais);
+    }
+  }, [categoriaSelecionada, dadosOriginais, produtosInfo]);
+  
+  // Limpar filtros de categoria
+  const limparFiltroCategoria = () => {
+    setCategoriaSelecionada("");
+  };
 
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
   const [lastSelected, setLastSelected] = useState<[number, number] | null>(null);
@@ -254,128 +339,183 @@ export default function TableComponent({ filtros, colLabels }: TableComponentPro
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [lastSelected, dados, columns.length, selectCellRange]);
 
-  // Re-fetch data from localStorage when tableData changes
+  // (removed stale re-fetch effect) no-op
+
+  // Emit selection changes to the window so other components (charts) can react
   useEffect(() => {
-    const storedData = localStorage.getItem("tableData");
-    if (storedData) {
-      try {
-        const parsedData = JSON.parse(storedData);
-        console.log("Re-fetched table data:", parsedData);
-        // Assuming a state update is needed to trigger re-render
-        setTableData(parsedData);
-      } catch (error) {
-        console.error("Failed to parse table data from localStorage:", error);
+    const detail = Array.from(selectedCells).map((k) => {
+      const [r, c] = k.split(',').map(Number);
+      // determine column key
+      const colKey = c < columns.length ? columns[c] : `col${c - columns.length + 6}`;
+      const row = dados?.[r];
+      let value: any = null;
+      if (row) {
+        if (c < columns.length) {
+          value = row[columns[c] as keyof typeof row];
+        } else {
+          const vi = c - columns.length;
+          value = row.values?.[vi];
+        }
       }
-    }
-  }, []);
+      return { rowIdx: r, colIdx: c, colKey, value, row };
+    });
+    const ev = new CustomEvent('table-selection', { detail });
+    window.dispatchEvent(ev);
+  }, [selectedCells, dados, columns]);
 
   if (loading) return <div className="p-4">Carregando...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
-  if (!dados || dados.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
+  if (!dadosOriginais || dadosOriginais.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
 
   function formatValue(v: unknown): string {
-  if (typeof v === "number") {
-    return v.toLocaleString("pt-BR", {
-      minimumFractionDigits: 3,
-      maximumFractionDigits: 3,
-    });
+    if (typeof v === "number") {
+      return v.toLocaleString("pt-BR", {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
+      });
+    }
+    if (typeof v === "string") return v;
+    return "";
   }
-  if (typeof v === "string") return v;
-  return "";
-}
+  
   return (
     <div 
       ref={tableRef} 
-      className="overflow-hidden" 
-      onMouseUp={handleMouseUp} // moved para wrapper
+      className="overflow-hidden w-full" 
+      onMouseUp={handleMouseUp}
     >
+      {/* Barra de filtros por categoria */}
+      {categorias.length > 0 && (
+        <FilterBar
+          categorias={categorias}
+          categoriaSelecionada={categoriaSelecionada}
+          onCategoriaChange={setCategoriaSelecionada}
+          onClear={limparFiltroCategoria}
+          total={dadosOriginais.length}
+          filtrado={dados.length}
+        />
+      )}
+      
       <div className="text-sm mb-2 p-2 bg-gray-100 rounded">
         {selectedCells.size > 0 ? `${selectedCells.size} células selecionadas` : "Nenhuma célula selecionada"}
-        <span className="ml-4 text-gray-600 text-xs">
+        <span className="hidden md:inline-block ml-4 text-gray-600 text-xs">
           • Clique: seleciona uma célula • 
           Ctrl+Clique: adiciona/remove células •
           Arraste: seleciona múltiplas células
         </span>
       </div>
-      <ScrollArea className="h-[70vh] w-[full] m-b-4">
-        <Table className="border-collapse border border-gray-300 w-full">
-          <TableHeader className="bg-gray-100 sticky top-0">
+      
+      {isMobile && (
+        <div className="block text-xs text-gray-500 mb-2">
+          Deslize para ver todas as colunas
+        </div>
+      )}
+      
+      <div className="w-full ">
+        <Table className="border-collapse border border-gray-300 table-fixed w-full overflow-auto">
+          <TableHeader className="bg-gray-100 sticky top-0 z-10">
             <TableRow>
               {fixedColumns.map((col, idx) => (
                 <TableHead
                   key={idx}
-                  className="py-2 px-5 max-w-24 text-center border border-gray-300 font-semibold"
+                  className="py-1 px-1 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm"
+                  style={{ width: idx === 0 ? '80px' : idx === 1 ? '70px' : '100px' }}
                 >
                   {colLabels?.[col] ?? col}
                 </TableHead>
               ))}
-              {dynamicColumns.map((colKey, idx) => (
-                <TableHead
-                  key={idx + fixedColumns.length}
-                  className="py-2 px-5 min-w-25 text-center  border border-gray-300 font-semibold"
-                >
-                  {/* Usa label do Products, se não existir usa colKey, se não existir fallback */}
-                  {colLabels?.[colKey] ?? colKey ?? `Coluna ${idx + 6}`}
-                </TableHead>
-              ))}
+              {dynamicColumns.map((colKey, idx) => {
+                // Verificar se o produto tem categoria
+                const produtoInfo = produtosInfo[colKey];
+                const categoria = produtoInfo?.categoria || '';
+                const isCategoriaSelecionada = categoria === categoriaSelecionada && categoriaSelecionada !== '';
+                
+                return (
+                  <TableHead
+                    key={idx + fixedColumns.length}
+                    className={`py-1 px-2 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm ${
+                      isCategoriaSelecionada ? 'bg-green-100' : ''
+                    }`}
+                    style={{ width: '100px' }}
+                    title={categoria ? `Categoria: ${categoria}` : ''}
+                  >
+                    {/* Usa label do Products, se não existir usa colKey, se não existir fallback */}
+                    <div className="flex flex-col">
+                      <span className="truncate">{colLabels?.[colKey] ?? colKey ?? `Coluna ${idx + 6}`}</span>
+                      {categoria && (
+                        <span className="text-xs text-gray-500 font-normal mt-1 hidden md:block truncate">
+                          {categoria}
+                        </span>
+                      )}
+                    </div>
+                  </TableHead>
+                );
+              })}
             </TableRow>
           </TableHeader>
 
-          <TableBody>
-            {dados.map((row, rowIdx) => (
-              <TableRow key={rowIdx} className="hover:bg-gray-50">
-                {/* Fixed columns */}
-                {fixedColumns.map((col, colIdx) => (
-                  <TableCell
-                    key={colIdx}
-                    data-key={cellKey(rowIdx, colIdx)}
-                    className={`px-6 border border-gray-300 cursor-pointer select-none text-center ${
-                      selectedCells.has(cellKey(rowIdx, colIdx))
-                        ? "bg-blue-200 font-medium"
-                        : rowIdx % 2 === 0
-                        ? "bg-red-50"
-                        : "bg-white"
-                    }`}
-                    onClick={(e) => handleCellClick(rowIdx, colIdx, e)}
-                    onMouseDown={(e) => handleMouseDown(rowIdx, colIdx, e)}
-                    onMouseEnter={(e) => handleMouseEnter(rowIdx, colIdx, e)}
-                  >
-                    {row[col as keyof ReportRow]}
-                  </TableCell>
-                ))}
+                      <TableBody>
+              {dados.map((row, rowIdx) => (
+                <TableRow key={rowIdx} className="hover:bg-gray-50">
+                  {/* Fixed columns */}
+                  {fixedColumns.map((col, colIdx) => (
+                    <TableCell
+                      key={colIdx}
+                      data-key={cellKey(rowIdx, colIdx)}
+                      className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
+                        selectedCells.has(cellKey(rowIdx, colIdx))
+                          ? "bg-blue-200 font-medium"
+                          : rowIdx % 2 === 0
+                          ? "bg-red-50"
+                          : "bg-white"
+                      }`}
+                      style={{ width: colIdx === 0 ? '80px' : colIdx === 1 ? '70px' : '100px' }}
+                      onClick={(e) => handleCellClick(rowIdx, colIdx, e)}
+                      onMouseDown={(e) => handleMouseDown(rowIdx, colIdx, e)}
+                      onMouseEnter={(e) => handleMouseEnter(rowIdx, colIdx, e)}
+                    >
+                      <div className="truncate">{row[col as keyof ReportRow]}</div>
+                    </TableCell>
+                  ))}
 
-                {/* Dynamic columns */}
-                {dynamicColumns.map((_ , dynIdx) => {
-                // Verifica se temos o value correspondente
-                const hasValue = row.values && dynIdx < row.values.length;
-                const value = hasValue ? row.values[dynIdx] : "";
-                
-                return (
-                  <TableCell
-                    key={dynIdx + fixedColumns.length}
-                    data-key={cellKey(rowIdx, dynIdx + fixedColumns.length)}
-                    className={`p-2 border border-gray-300 cursor-pointer select-none text-center ${
-                      selectedCells.has(cellKey(rowIdx, dynIdx + fixedColumns.length))
-                        ? "bg-blue-200 font-medium"
-                        : rowIdx % 2 === 0
-                        ? "bg-red-50"
-                        : "bg-white"
-                    }`}
-                    onClick={(e) => handleCellClick(rowIdx, dynIdx + fixedColumns.length, e)}
-                    onMouseDown={(e) => handleMouseDown(rowIdx, dynIdx + fixedColumns.length, e)}
-                    onMouseEnter={(e) => handleMouseEnter(rowIdx, dynIdx + fixedColumns.length, e)}
-                  >
-                    {formatValue(value)}
-                  </TableCell>
-                );
-              })}
-              </TableRow>
-            ))}
-          </TableBody>
+                  {/* Dynamic columns */}
+                  {dynamicColumns.map((_ , dynIdx) => {
+                  // Verifica se temos o value correspondente
+                  const hasValue = row.values && dynIdx < row.values.length;
+                  const value = hasValue ? row.values[dynIdx] : "";
+                  
+                  // Verifica se este produto tem categoria
+                  const colKey = dynamicColumns[dynIdx];
+                  const produtoInfo = produtosInfo[colKey];
+                  const temCategoria = produtoInfo?.categoria && produtoInfo.categoria === categoriaSelecionada;
+                  
+                  return (
+                    <TableCell
+                      key={dynIdx + fixedColumns.length}
+                      data-key={cellKey(rowIdx, dynIdx + fixedColumns.length)}
+                      className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
+                        selectedCells.has(cellKey(rowIdx, dynIdx + fixedColumns.length))
+                          ? "bg-blue-200 font-medium"
+                          : temCategoria && value
+                          ? "bg-green-50 font-medium"
+                          : rowIdx % 2 === 0
+                          ? "bg-red-50"
+                          : "bg-white"
+                      }`}
+                      style={{ width: '100px' }}
+                      onClick={(e) => handleCellClick(rowIdx, dynIdx + fixedColumns.length, e)}
+                      onMouseDown={(e) => handleMouseDown(rowIdx, dynIdx + fixedColumns.length, e)}
+                      onMouseEnter={(e) => handleMouseEnter(rowIdx, dynIdx + fixedColumns.length, e)}
+                    >
+                      <div className="truncate">{formatValue(value)}</div>
+                    </TableCell>
+                  );
+                })}
+                </TableRow>
+              ))}
+            </TableBody>
         </Table>
-        <ScrollBar orientation="horizontal" />
-        <ScrollBar orientation="vertical" />
-      </ScrollArea>
+      </div>
     </div>
   );
 }

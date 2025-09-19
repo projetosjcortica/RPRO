@@ -4,10 +4,7 @@
   "description": "Express backend refatorado para produção",
   "main": "server.js",
   "scripts": {
-    "start": "echo 'placeholder btw",
     "build": "tsc -p tsconfig.json",
-    "build:ipc": "tsc -p tsconfig.ipc.json",
-    "smoke": "npm run build:ipc && node scripts/ipc-smoke.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "collector:dev": "ts-node-dev --respawn --transpile-only src/collector/index.ts",
     "collector:start": "node dist/collector/index.js",
@@ -40,6 +37,7 @@
     "mysql2": "^3.6.0",
     "reflect-metadata": "^0.1.13",
     "sqlite3": "^5.1.6",
+    "systemjs": "^6.15.1",
     "typeorm": "^0.3.26",
     "ws": "^8.18.3"
   },

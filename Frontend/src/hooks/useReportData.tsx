@@ -6,10 +6,11 @@ import { IS_LOCAL } from "../CFG";
 import { config } from "../CFG";
 import { getProcessador } from "../Processador";
 
-export const useReportData = (filtros: Filtros) => {
+export const useReportData = (filtros: Filtros, page: number = 1, pageSize: number = 300) => {
   const [dados, setDados] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [total, setTotal] = useState<number>(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,7 +47,10 @@ export const useReportData = (filtros: Filtros) => {
           });
 
           console.log(`Dados mock: ${filtered.length} linhas após filtro`);
-          setDados(filtered);
+          setTotal(filtered.length);
+          const start = (page - 1) * pageSize;
+          const pageSlice = filtered.slice(start, start + pageSize);
+          setDados(pageSlice);
         } else if ((window as any).electronAPI) {
           // Aguarda PID do backend disponível
           let pid = config.contextoPid;
@@ -60,7 +64,7 @@ export const useReportData = (filtros: Filtros) => {
           config.contextoPid = pid;
           // Usar IPC Processador
           const p = getProcessador(pid);
-          const res = await p.getTableData(1, 300, {
+          const res = await p.getTableData(page, pageSize, {
             formula: filtros.nomeFormula || null,
             dateStart: filtros.dataInicio || null,
             dateEnd: filtros.dataFim || null,
@@ -81,6 +85,13 @@ export const useReportData = (filtros: Filtros) => {
             } as ReportRow;
           });
           setDados(mapped);
+          // se o backend retornar paginação, obter total
+          try {
+            const backendTotal = (res && (res.total || res.count || res.totalRows)) || 0;
+            setTotal(backendTotal);
+          } catch (e) {
+            setTotal(mapped.length);
+          }
         } else {
           // Fallback HTTP (caso rode fora do Electron)
           const response = await api.get("/relatorio", {
@@ -113,6 +124,7 @@ export const useReportData = (filtros: Filtros) => {
           }
 
           setDados(rows);
+          setTotal(rows.length);
         }
 
         setError(null);
@@ -131,5 +143,5 @@ export const useReportData = (filtros: Filtros) => {
     fetchData();
   }, [filtros]);
 
-  return { dados, loading, error };
+  return { dados, loading, error, total };
 };

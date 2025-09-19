@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { BaseService } from '../core/baseService';
 import { ProcessPayload, hashBufferHex } from '../core/utils';
-import { backupSvc } from './BackupService';
-import { parserService } from './ParserService';
+import { backupSvc } from './backupService';
+import { parserService } from './parserService';
 import { dbService } from './dbService';
 import { cacheService } from './CacheService';
 
@@ -39,7 +39,7 @@ export class FileProcessorService extends BaseService {
 
     if (newRows.length > 0) {
       const fileTag = originalName;
-      const mappedRows = newRows.map((r) => ({
+      const mappedRows = newRows.map((r: any) => ({
         Dia: r.datetime.substring(0, 10),
         Hora: r.datetime.substring(11, 19),
         Nome: r.label ?? null,

@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
-import { Relatorio, MateriaPrima, Batch, Row } from '../entities/index';
+import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque } from '../entities/index';
 
 export class DBService extends BaseService {
   ds: DataSource;
@@ -17,12 +17,28 @@ export class DBService extends BaseService {
     super('DBService');
     const useMysql = process.env.USE_SQLITE !== 'true';
     if (useMysql) {
-      this.ds = new DataSource({ type: 'mysql', host, port, username, password, database, synchronize: true, logging: false, entities: [Relatorio, MateriaPrima, Batch, Row] });
+      this.ds = new DataSource({ 
+        type: 'mysql', 
+        host, 
+        port, 
+        username, 
+        password, 
+        database, 
+        synchronize: true, 
+        logging: false, 
+        entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque] 
+      });
     } else {
       const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
       const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
       const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
-      this.ds = new DataSource({ type: 'sqlite', database: absPath, synchronize: shouldSync, logging: false, entities: [Relatorio, MateriaPrima, Batch, Row] });
+      this.ds = new DataSource({ 
+        type: 'sqlite', 
+        database: absPath, 
+        synchronize: shouldSync, 
+        logging: false, 
+        entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque] 
+      });
     }
   }
   async init() { if (!this.ds.isInitialized) await this.ds.initialize(); }

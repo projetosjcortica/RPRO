@@ -1,11 +1,23 @@
-import { api } from "./api";
+import { api, apiWs } from "./api";
 import { mockRows } from "./mockData";
 import { Filtros, ReportRow } from "../components/types";
 
-const USE_MOCK = true; // 👈 em casa = true | no escritório = false
+// Função auxiliar para verificar o status do mock
+async function isMockEnabled(): Promise<boolean> {
+  try {
+    const response = await apiWs.mockGetStatus();
+    return response?.enabled === true;
+  } catch (error) {
+    console.error("Erro ao verificar status do mock:", error);
+    return false;
+  }
+}
 
 export async function getData(filtros: Filtros): Promise<ReportRow[]> {
-  if (USE_MOCK) {
+  // Verifica se o modo mock está ativado no backend
+  const useMock = await isMockEnabled();
+  
+  if (useMock) {
     // Simula delay
     await new Promise((res) => setTimeout(res, 400));
 

@@ -48,5 +48,53 @@ export class Relatorio {
   @Column({ type: 'int', nullable: true }) Prod_38!: number | null;
   @Column({ type: 'int', nullable: true }) Prod_39!: number | null;
   @Column({ type: 'int', nullable: true }) Prod_40!: number | null;
+  
+  // Unidades dos produtos
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_1!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_2!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_3!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_4!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_5!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_6!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_7!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_8!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_9!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_10!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_11!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_12!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_13!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_14!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_15!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_16!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_17!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_18!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_19!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_20!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_21!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_22!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_23!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_24!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_25!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_26!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_27!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_28!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_29!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_30!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_31!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_32!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_33!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_34!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_35!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_36!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_37!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_38!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_39!: string | null;
+  @Column({ type: 'varchar', length: 2, nullable: true }) Unidade_40!: string | null;
+  
   @Column({ type: 'varchar', length: 255, nullable: true }) processedFile!: string | null;
+  @Column({ type: 'varchar', length: 50, nullable: true }) Area!: string | null;
+  @Column({ type: 'varchar', length: 100, nullable: true }) AreaDescricao!: string | null;
+  
+  // Propriedade para indexação dinâmica
+  [key: string]: any;
 }

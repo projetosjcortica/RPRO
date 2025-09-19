@@ -2,13 +2,19 @@ import 'reflect-metadata';
 import fs from 'fs';
 import path from 'path';
 import { AppDataSource, dbService } from './services/dbService';
-import { backupSvc } from './services/BackupService';
-import { parserService } from './services/ParserService';
+import { backupSvc } from './services/backupService';
+import { parserService } from './services/parserService';
 import { fileProcessorService } from './services/fileProcessorService';
 import { IHMService } from './services/IHMService';
+import { materiaPrimaService } from './services/materiaPrimaService';
+import { mockService } from './services/mockService'; // Importação do mockService
+import { resumoService } from './services/resumoService'; // Importação do serviço de resumo
+import { dataPopulationService } from './services/dataPopulationService'; // Importação do serviço de população de dados
+import { unidadesService } from './services/unidadesService'; // Importação do serviço de unidades
 import { Relatorio, MateriaPrima, Batch } from './entities';
 import { postJson, ProcessPayload } from './core/utils';
 import { WebSocketBridge, wsbridge } from './websocket/WebSocketBridge';
+import { configureEstoqueEndpoints } from './websocket/estoqueEndpoints';
 
 // Collector
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
@@ -76,6 +82,18 @@ wsbridge.register('ihm.fetchLatest', async ({ ip, user = 'anonymous', password =
   return { meta, processed };
 });
 wsbridge.register('relatorio.paginate', async ({ page = 1, pageSize = 50, formula = null, dateStart = null, dateEnd = null, sortBy = 'Dia', sortDir = 'DESC' }: any) => {
+  // Se o modo mock estiver habilitado, usar dados mock
+  if (mockService.isMockEnabled()) {
+    return await wsbridge.executeCommand('mock.getRelatorios', { 
+      page, 
+      pageSize, 
+      formula, 
+      dateStart, 
+      dateEnd 
+    });
+  }
+
+  // Caso contrário, usar dados reais do banco
   await dbService.init();
   const repo = AppDataSource.getRepository(Relatorio);
   const qb = repo.createQueryBuilder('r');
@@ -91,13 +109,224 @@ wsbridge.register('relatorio.paginate', async ({ page = 1, pageSize = 50, formul
   return { rows, total, page, pageSize };
 });
 wsbridge.register('db.listBatches', async () => { await dbService.init(); const repo = AppDataSource.getRepository(Batch); const [items, total] = await repo.findAndCount({ take: 50, order: { fileTimestamp: 'DESC' } }); return { items, total, page: 1, pageSize: 50 }; });
-wsbridge.register('db.setupMateriaPrima', async ({ items }: any) => { await dbService.init(); const repo = AppDataSource.getRepository(MateriaPrima); return repo.save(Array.isArray(items) ? items : []); });
+wsbridge.register('db.setupMateriaPrima', async ({ items }: any) => { 
+  await dbService.init(); 
+  // Filtra apenas os campos necessários e aplica as regras de negócio
+  const processedItems = Array.isArray(items) ? items.map(item => {
+    // Garante que apenas medida é utilizada para identificar g ou kg
+    // e ignora categoria (será removida no serviço)
+    return {
+      id: item.id,
+      num: item.num,
+      produto: item.produto,
+      medida: item.medida === 0 ? 0 : 1 // 0 = gramas, 1 = kg
+    };
+  }) : [];
+  
+  return await materiaPrimaService.saveMany(processedItems); 
+});
+
+wsbridge.register('db.getMateriaPrima', async () => { 
+  // Se o modo mock estiver habilitado, usar dados mock
+  if (mockService.isMockEnabled()) {
+    return await wsbridge.executeCommand('mock.getMateriasPrimas', {});
+  }
+  
+  // Caso contrário, usar dados reais
+  return await materiaPrimaService.getAll();
+});
 wsbridge.register('sync.localToMain', async ({ limit = 500 }: any) => { await dbService.init(); const repo = AppDataSource.getRepository(Relatorio); const rows = await repo.find({ take: Number(limit) }); if (!rows || rows.length === 0) return { synced: 0 }; const inserted = await dbService.insertRelatorioRows(rows as any[], 'local-backup-sync'); return { synced: Array.isArray(inserted) ? inserted.length : rows.length }; });
+
+// Registrar endpoints do serviço de resumo
+wsbridge.register('resumo.get', async ({ areaId = null, formula = null, dateStart = null, dateEnd = null }: any) => {
+  // Se o modo mock estiver habilitado, usar dados mock
+  if (mockService.isMockEnabled()) {
+    // Obter dados mock filtrados
+    const mockData = await wsbridge.executeCommand('mock.getRelatorios', {
+      formula,
+      dateStart,
+      dateEnd
+    });
+    
+    // Processar resumo com os dados mock
+    return resumoService.processResumo(mockData.rows, areaId);
+  }
+  
+  // Caso contrário, usar dados reais
+  return await resumoService.getResumo({ areaId, formula, dateStart, dateEnd });
+});
+
+// Frontend compatibility aliases
+wsbridge.register('resumo.geral', async (filtros: any) => {
+  return await wsbridge.executeCommand('resumo.get', filtros);
+});
+
+wsbridge.register('resumo.area', async ({ areaId, ...filtros }: any) => {
+  return await wsbridge.executeCommand('resumo.get', { ...filtros, areaId });
+});
+
+// Alternância automática entre resumos
+let timerResumoId: NodeJS.Timeout | null = null;
+
+wsbridge.register('resumo.alternarComTimer', async ({ areaId, tempoExibicaoSegundos = 5, formula = null, dateStart = null, dateEnd = null }: any) => {
+  if (!areaId) throw Object.assign(new Error('areaId é obrigatório'), { status: 400 });
+  
+  // Limpar timer anterior se existir
+  if (timerResumoId) {
+    clearInterval(timerResumoId);
+    timerResumoId = null;
+  }
+  
+  // Parâmetros de filtro
+  const filtros = { formula, dateStart, dateEnd };
+  
+  // Função para alternar entre os resumos
+  const alternarResumos = async () => {
+    // Verificar qual resumo está sendo exibido atualmente (pelo último evento enviado)
+    const ultimoTipoResumo = wsbridge.getMetadata('ultimoTipoResumo') || 'geral';
+    
+    if (ultimoTipoResumo === 'geral') {
+      // Enviar resumo da área
+      let resumoArea;
+      
+      if (mockService.isMockEnabled()) {
+        // Usar dados mock
+        const mockData = await wsbridge.executeCommand('mock.getRelatorios', filtros);
+        resumoArea = resumoService.processResumo(mockData.rows, areaId);
+      } else {
+        // Usar dados reais
+        resumoArea = await resumoService.getResumo({ ...filtros, areaId });
+      }
+      
+      wsbridge.sendEvent('resumo.atualizado', { 
+        tipo: 'area',
+        dados: resumoArea
+      });
+      wsbridge.setMetadata('ultimoTipoResumo', 'area');
+    } else {
+      // Enviar resumo geral
+      let resumoGeral;
+      
+      if (mockService.isMockEnabled()) {
+        // Usar dados mock
+        const mockData = await wsbridge.executeCommand('mock.getRelatorios', filtros);
+        resumoGeral = resumoService.processResumo(mockData.rows);
+      } else {
+        // Usar dados reais
+        resumoGeral = await resumoService.getResumo(filtros);
+      }
+      
+      wsbridge.sendEvent('resumo.atualizado', { 
+        tipo: 'geral',
+        dados: resumoGeral
+      });
+      wsbridge.setMetadata('ultimoTipoResumo', 'geral');
+    }
+  };
+  
+  // Iniciar com o resumo da área
+  let resumoArea;
+  
+  if (mockService.isMockEnabled()) {
+    // Usar dados mock
+    const mockData = await wsbridge.executeCommand('mock.getRelatorios', filtros);
+    resumoArea = resumoService.processResumo(mockData.rows, areaId);
+  } else {
+    // Usar dados reais
+    resumoArea = await resumoService.getResumo({ ...filtros, areaId });
+  }
+  
+  wsbridge.sendEvent('resumo.atualizado', { 
+    tipo: 'area',
+    dados: resumoArea
+  });
+  wsbridge.setMetadata('ultimoTipoResumo', 'area');
+  
+  // Configurar o intervalo para alternar os resumos
+  timerResumoId = setInterval(alternarResumos, tempoExibicaoSegundos * 1000);
+  
+  return { success: true, message: `Timer configurado para ${tempoExibicaoSegundos} segundos` };
+});
+
+// Mock services - add all supported mock commands
+wsbridge.register('mock.toggle', async ({ enabled }: any) => {
+  return mockService.toggleMockMode(enabled);
+});
+
+wsbridge.register('mock.status', async () => {
+  return { enabled: mockService.isMockEnabled() };
+});
+
+// Frontend compatibility aliases
+wsbridge.register('mock.getStatus', async () => {
+  return { enabled: mockService.isMockEnabled() };
+});
+
+wsbridge.register('mock.setStatus', async ({ enabled }: any) => {
+  return mockService.toggleMockMode(enabled);
+});
+
+wsbridge.register('mock.configure', async (config: any) => {
+  // Configurar detalhes específicos do mock se necessário
+  return { success: true, config };
+});
+
+wsbridge.register('mock.getRelatorios', async (params: any) => {
+  return await wsbridge.executeCommand('relatorio.paginate', params);
+});
+
+wsbridge.register('mock.getMateriasPrimas', async () => {
+  return await materiaPrimaService.getAll();
+});
+
+// Registrar endpoints do serviço de unidades
+wsbridge.register('unidades.converter', async ({ valor, de, para }: any) => {
+  if (valor === undefined || de === undefined || para === undefined) {
+    throw Object.assign(new Error('Parâmetros incompletos. Necessário: valor, de, para'), { status: 400 });
+  }
+  return { 
+    original: valor,
+    convertido: unidadesService.converterUnidades(Number(valor), Number(de), Number(para)),
+    de: Number(de),
+    para: Number(para)
+  };
+});
+
+wsbridge.register('unidades.normalizarParaKg', async ({ valores, unidades }: any) => {
+  if (!valores || !unidades || typeof valores !== 'object' || typeof unidades !== 'object') {
+    throw Object.assign(new Error('Parâmetros inválidos. Necessário: valores (objeto), unidades (objeto)'), { status: 400 });
+  }
+  return { 
+    valoresOriginais: valores,
+    valoresNormalizados: unidadesService.normalizarParaKg(valores, unidades),
+    unidades
+  };
+});
+
+// Endpoint para popular o banco com dados de teste
+wsbridge.register('db.populate', async ({ 
+  tipo = 'relatorio', 
+  quantidade = 10, 
+  config = {} 
+}: any) => {
+  // Por enquanto, só suporta população de relatórios
+  if (tipo === 'relatorio') {
+    return await dataPopulationService.populateRelatorio(
+      Math.min(Math.max(1, quantidade), 1000), // Limitar entre 1 e 1000
+      config
+    );
+  }
+  
+  throw Object.assign(new Error(`Tipo de população não suportado: ${tipo}`), { status: 400 });
+});
 wsbridge.register('collector.start', async () => { startCollector(); return { started: true }; });
 wsbridge.register('collector.stop', async () => { stopCollector(); return { stopped: true }; });
 wsbridge.register('ws.loop.start', async ({ periodMs }: any) => startWsLoop(Number(periodMs || process.env.WS_HEARTBEAT_MS || 10000)));
 wsbridge.register('ws.loop.stop', async () => stopWsLoop());
 wsbridge.register('ws.status', async () => ({ port: wsbridge.getPort(), clients: wsbridge.getClientCount(), loop: WS_LOOP }));
+
+// Registrar endpoints de estoque
+configureEstoqueEndpoints(wsbridge);
 
 // Auto-start when forked from Electron main
 if (typeof (process as any)?.send === 'function') {
@@ -106,6 +335,7 @@ if (typeof (process as any)?.send === 'function') {
     .then((port) => {
       if (typeof (process as any)?.send === 'function') {
         (process as any).send({ type: 'websocket-port', port });
+        console.log(`Backend WebSocket started on port ${port}`);
       }
       fileProcessorService.addObserver({ update: async (p: ProcessPayload) => wsbridge.sendEvent('file.processed', p) });
       if (process.env.WS_LOOP_AUTO_START === 'true') startWsLoop();
@@ -117,3 +347,38 @@ if (typeof (process as any)?.send === 'function') {
 }
 
 export { WebSocketBridge, wsbridge };
+
+// If not forked (running standalone during development), start the WebSocket bridge
+if (typeof (process as any)?.send !== 'function') {
+  wsbridge
+    .start()
+    .then((port) => {
+      console.log(`[Backend] WebSocket started (standalone) on port ${port}`);
+      fileProcessorService.addObserver({ update: async (p: ProcessPayload) => wsbridge.sendEvent('file.processed', p) });
+      if (process.env.WS_LOOP_AUTO_START === 'true') startWsLoop();
+    })
+    .catch((err) => {
+      console.error('[Backend] Failed to start WebSocket server (standalone):', err);
+    });
+}
+
+// If parent process sends messages (when forked), route commands to wsbridge handlers
+if (typeof (process as any)?.on === 'function') {
+  try {
+    const sendFn: any = (process as any).send;
+    process.on('message', async (msg: any) => {
+      if (!msg || typeof msg !== 'object') return;
+      // simple RPC: { type: 'cmd', id, cmd, payload }
+      if (msg.type === 'cmd' && msg.id && msg.cmd) {
+        try {
+          const result = await wsbridge.executeCommand(msg.cmd, msg.payload);
+          if (typeof sendFn === 'function') sendFn({ id: msg.id, ok: true, data: result });
+        } catch (err: any) {
+          if (typeof sendFn === 'function') sendFn({ id: msg.id, ok: false, error: { message: err?.message || String(err), status: err?.status } });
+        }
+      }
+    });
+  } catch (e) {
+    // ignore
+  }
+}

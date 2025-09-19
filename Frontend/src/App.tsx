@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react';
 import Home from './home';
 import { GeneralConfig, IHMConfig, DatabaseConfig, AdminConfig } from './config';
 import Report from './report';
+import Estoque from './estoque';
 import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel,} from "./components/ui/sidebar";
-import { HomeIcon, Settings, Sheet} from 'lucide-react';
+import { HomeIcon, Settings, Sheet, BarChart3, Menu, X } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { ToastContainer } from 'react-toastify';
 import './index.css'
@@ -11,37 +12,31 @@ import { Factory } from 'lucide-react';
 import { Separator } from '@radix-ui/react-separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
 import { Dialog, DialogContent, DialogTrigger } from './components/ui/dialog';
-import  logo  from './public/logo.png'
+import { Button } from './components/ui/button';
+import { useMediaQuery } from './hooks/use-mobile';
+import logo from './public/logo.png'
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
 const App = () => {  
- 
-  const[view,setView] = useState('Home');
+  const navigate = useNavigate();
+  const location = useLocation();
   
-  let content;
-  switch (view) {
-    case 'Home':
-      content = <Home />;
-      break;
-    case 'Report':
-      content = <Report />;
-      break;
-    // case 'Cfg':
-    //   content = <Cfg />;
-    //   break;
-    default:
-      content = <h1>404 - Not Found</h1>;
-  }
   const items=[
     {
       title:"Início",
       icon:HomeIcon,
-      view: 'Home'
+      path: '/'
     },
     {
       title:"Relatórios",
       icon:Sheet,
-      view: 'Report'
+      path: '/report'
     },
+    {
+      title:"Estoque",
+      icon:BarChart3,
+      path: '/estoque'
+    }
   ]
   const itemsFooter=[
     {
@@ -52,22 +47,22 @@ const App = () => {
   ]
 
 
-  return (<div id='app' className='flex flex-row w-screen h-dvh'>
-    <div id='sidebar' className='flex items-end'>
-      <SidebarProvider className='flex items-end'>
-        <Sidebar className="bg-sidebar-red-600 shadow-xl h-[100vh]">
-          <SidebarHeader className="pt-6 ">
-            <div id='avatar' className='flex gap-3'>
-              <Avatar className="h-12 w-12 ml-2">
-                <AvatarImage src={logo} alt="Profile" />
-                <AvatarFallback><Factory/></AvatarFallback>
-              </Avatar>
-              <div className='flex flex-col font-semibold'>
-                <h2>Granja Murakami</h2>
-                {/* <h3></h3> */}
+  return (
+    <div id='app' className='flex flex-row w-screen h-dvh overflow-hidden'>
+      <div id='sidebar' className='h-full'>
+        <SidebarProvider>
+          <Sidebar className="bg-sidebar-red-600 shadow-xl h-full">
+            <SidebarHeader className="pt-6 ">
+              <div id='avatar' className='flex gap-3'>
+                <Avatar className="h-12 w-12 ml-2">
+                  <AvatarImage src={logo} alt="Profile" />
+                  <AvatarFallback><Factory/></AvatarFallback>
+                </Avatar>
+                <div className='flex flex-col font-semibold'>
+                  <h2>Granja Murakami</h2>
+                </div>
               </div>
-            </div>
-          </SidebarHeader>
+            </SidebarHeader>
           <SidebarContent>
              <SidebarGroup>
               <SidebarGroupLabel>Menu</SidebarGroupLabel>
@@ -77,9 +72,9 @@ const App = () => {
                     {items.map((item) => (
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
-                          onClick={() => setView(item.view)}
+                          onClick={() => navigate(item.path)}
                           className={`flex items-center gap-2 transition-colors 
-                            ${view === item.view 
+                            ${location.pathname === item.path || (item.path === '/' && location.pathname === '/home')
                               ? "bg-sidebar-accent text-sidebar-accent-foreground inset-shadow-sm" 
                               : "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"}`}
                         >
@@ -157,16 +152,22 @@ const App = () => {
           </SidebarFooter>
         </Sidebar>
       </SidebarProvider>
-       </div>
-        <div id='main-content' className='flex flex-row justify-center items-center w-[200vh] h-full overflow-auto gap-5 ml-5 py-1 overflow-hidden'>
-            {content}
-                <ToastContainer
-                  position="bottom-right"
-                  autoClose={3000}
-                  theme="light"
-                />
-        </div>   
       </div>
+      <div id='main-content' className='flex flex-1 flex-col overflow-auto w-full h-full py-2 px-2 md:px-4'>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/home" element={<Home />} />
+            <Route path="/report" element={<Report />} />
+            <Route path="/estoque" element={<Estoque />} />
+            <Route path="*" element={<h1>404 - Página não encontrada</h1>} />
+          </Routes>
+          <ToastContainer
+            position="bottom-right"
+            autoClose={3000}
+            theme="light"
+          />
+      </div>   
+    </div>
   );
 };
 export default App

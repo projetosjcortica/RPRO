@@ -19,6 +19,10 @@ export interface Filtros {
   dataInicio: string;
   dataFim: string;
   nomeFormula: string;
+  categoria?: string;
+  coluna?: string;
+  valorMin?: number;
+  valorMax?: number;
 }
 
 // Interface genérica para resposta da API
@@ -35,10 +39,31 @@ export interface ApiResponse<T = unknown> {
 export interface ReportApiResponse extends ApiResponse<ReportRow[]> {
   rows?: ReportRow[]; // Para compatibilidade
 }
-// Interface para ColLabel (mova para cá se não existir)
+
+// Interface para ColLabel
 export interface ColLabel {
   col_key: string;
   col_name: string;
   unidade?: string;
 }
 
+// Interface para Matéria-Prima
+export interface MateriaPrima {
+  id: string;
+  num: number;
+  produto: string;
+  medida: number; // 0 = gramas, 1 = kg
+  categoria?: string;
+}
+
+// Interface para informações de produto no localStorage
+export interface ProdutoInfo {
+  nome: string;
+  unidade: string;
+  categoria?: string;
+}
+
+// Interface para o mapa de informações de produtos
+export interface ProdutosInfoMap {
+  [colKey: string]: ProdutoInfo;
+}
