@@ -313,6 +313,7 @@ export const MyDocument = ({
         {/* Rodapé */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>Relatório gerado em {new Date().toLocaleString('pt-BR')} | {empresa}</Text>
+          <Image src={logoSrc} style={{ width: 80, height: 20, marginTop: 4 }} />
         </View>
         
         {/* Número da página */}

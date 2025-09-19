@@ -360,6 +360,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
       }
       return { rowIdx: r, colIdx: c, colKey, value, row };
     });
+    console.log('Dispatching table-selection event with detail:', detail);
     const ev = new CustomEvent('table-selection', { detail });
     window.dispatchEvent(ev);
   }, [selectedCells, dados, columns]);
@@ -423,7 +424,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                   <TableHead
                     key={idx}
                     className="py-1 px-1 md:py-2 md:px-3 break-words text-center border border-gray-300 font-semibold text-xs md:text-sm"
-                    style={{ width: idx === 0 ? '80px' : idx === 1 ? '70px' : '100px' }}
+                    style={{ width: idx === 0 ? '100px' : idx === 1 ? '70px' : '100px' }}
                     
                   >
                     {colLabels?.[col] ?? col}
@@ -441,12 +442,11 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                       className={`py-1 px-2 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm ${
                         isCategoriaSelecionada ? 'bg-green-100' : ''
                       }`}
-                      style={{ width: '100px', whiteSpace: 'normal', wordWrap: 'break-word' }}
+                      style={{ width: '100px', whiteSpace: 'normal', wordWrap: 'break-word', textAlign: 'center' }}
                       title={categoria ? `Categoria: ${categoria}` : ''}
                     >
-                      {/* Usa label do Products, se não existir usa colKey, se não existir fallback */}
                       <div className="flex flex-col">
-                        <span className="truncate break-words text-center">{colLabels?.[colKey] ?? colKey ?? `Coluna ${idx + 6}`}</span>
+                        <span className="break-words text-center">{colLabels?.[colKey] ?? colKey ?? `Coluna ${idx + 6}`}</span>
                         {categoria && (
                           <span className="text-xs text-gray-500 font-normal mt-1 hidden md:block truncate">
                             {categoria}
@@ -467,7 +467,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                       <TableCell
                         key={colIdx}
                         data-key={cellKey(rowIdx, colIdx)}
-                        className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
+                        className={`p-1 md:p-2 border max-h-20 border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
                           selectedCells.has(cellKey(rowIdx, colIdx))
                             ? "bg-blue-200 font-medium"
                             : rowIdx % 2 === 0

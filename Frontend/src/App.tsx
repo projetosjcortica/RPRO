@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+// import { useState, useEffect } from 'react';
 import Home from './home';
 import { GeneralConfig, IHMConfig, DatabaseConfig, AdminConfig } from './config';
 import Report from './report';
 import Estoque from './estoque';
 import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel,} from "./components/ui/sidebar";
-import { HomeIcon, Settings, Sheet, BarChart3, Menu, X } from 'lucide-react';
+// import { HomeIcon, Settings, Sheet, BarChart3, Menu, X } from 'lucide-react';
+import { HomeIcon, Settings, Sheet } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { ToastContainer } from 'react-toastify';
 import './index.css'
@@ -12,8 +13,8 @@ import { Factory } from 'lucide-react';
 import { Separator } from '@radix-ui/react-separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
 import { Dialog, DialogContent, DialogTrigger } from './components/ui/dialog';
-import { Button } from './components/ui/button';
-import { useMediaQuery } from './hooks/use-mobile';
+// import { Button } from './components/ui/button';
+// import { useMediaQuery } from './hooks/use-mobile';
 import logo from './public/logo.png'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 
@@ -32,11 +33,11 @@ const App = () => {
       icon:Sheet,
       path: '/report'
     },
-    {
-      title:"Estoque",
-      icon:BarChart3,
-      path: '/estoque'
-    }
+    // {
+    //   title:"Estoque",
+    //   icon:BarChart3,
+    //   path: '/estoque'
+    // }
   ]
   const itemsFooter=[
     {
