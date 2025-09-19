@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import fs from 'fs';
 import path from 'path';
 import { AppDataSource, dbService } from './services/dbService';
-import { backupSvc } from './services/backupService';
-import { parserService } from './services/parserService';
+import { backupSvc } from './services/BackupService';
+import { parserService } from './services/ParserService';
 import { fileProcessorService } from './services/fileProcessorService';
 import { IHMService } from './services/IHMService';
 import { materiaPrimaService } from './services/materiaPrimaService';
@@ -15,6 +15,7 @@ import { Relatorio, MateriaPrima, Batch } from './entities';
 import { postJson, ProcessPayload } from './core/utils';
 import { WebSocketBridge, wsbridge } from './websocket/WebSocketBridge';
 import { configureEstoqueEndpoints } from './websocket/estoqueEndpoints';
+import express from 'express';
 
 // Collector
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
@@ -58,10 +59,23 @@ function stopWsLoop() {
   return { stopped: true };
 }
 
+// Ensure database connection before starting WebSocket commands
+async function ensureDatabaseConnection() {
+  if (!AppDataSource.isInitialized) {
+    console.log('Initializing database connection...');
+    await AppDataSource.initialize();
+    console.log('Database connection established.');
+  }
+}
+
 // Register WebSocket commands
 wsbridge.register('ping', async () => ({ pong: true, ts: new Date().toISOString() }));
-wsbridge.register('backup.list', async () => backupSvc.listBackups());
+wsbridge.register('backup.list', async () => {
+  await ensureDatabaseConnection();
+  return backupSvc.listBackups();
+});
 wsbridge.register('file.process', async ({ filePath }: any) => {
+  await ensureDatabaseConnection();
   if (!filePath) throw Object.assign(new Error('filePath é obrigatório'), { status: 400 });
   const r = await fileProcessorService.processFile(filePath);
   return { meta: r.meta, rowsCount: r.parsed.rowsCount };
@@ -81,7 +95,7 @@ wsbridge.register('ihm.fetchLatest', async ({ ip, user = 'anonymous', password =
   const processed = await parserService.processFile(meta.workPath || meta.backupPath);
   return { meta, processed };
 });
-wsbridge.register('relatorio.paginate', async ({ page = 1, pageSize = 50, formula = null, dateStart = null, dateEnd = null, sortBy = 'Dia', sortDir = 'DESC' }: any) => {
+wsbridge.register('relatorio.paginate', async ({ page = 1, pageSize = 300, formula = null, dateStart = null, dateEnd = null, sortBy = 'Dia', sortDir = 'DESC' }: any) => {
   // Se o modo mock estiver habilitado, usar dados mock
   if (mockService.isMockEnabled()) {
     return await wsbridge.executeCommand('mock.getRelatorios', { 
@@ -382,3 +396,26 @@ if (typeof (process as any)?.on === 'function') {
     // ignore
   }
 }
+
+const app = express();
+app.use(express.json());
+
+app.get('/api/materiaprima/labels', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const materias = await materiaPrimaService.getAll();
+    // Expect materia to have properties like colKey and label or similar
+    const mapping: any = {};
+    for (const m of materias) {
+      if (m && m.colKey && m.label) mapping[m.colKey] = m.label;
+    }
+    return res.json(mapping);
+  } catch (e) {
+    console.error('Failed to get materia prima labels', e);
+    return res.status(500).json({});
+  }
+});
+
+// Start HTTP server only in dev mode if needed
+const HTTP_PORT = Number(process.env.FRONTEND_API_PORT || process.env.PORT || 3001);
+app.listen(HTTP_PORT, () => console.log(`API server running on port ${HTTP_PORT}`));

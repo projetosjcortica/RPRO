@@ -60,7 +60,8 @@ export function parseRowDateTime(row: any): Date | null {
 }
 
 export type ParserRow = {
-  datetime: string;
+  date: string | null; // Added separate date field
+  time: string | null; // Added separate time field
   label?: string | null;
   form1?: number | null;
   form2?: number | null;

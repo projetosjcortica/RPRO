@@ -4,6 +4,8 @@ import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
 export class MateriaPrima {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'int', unique: true }) num!: number;
-  @Column({ type: 'varchar', length: 30 }) produto!: string;
-  @Column({ type: 'int' }) medida!: number;
+  @Column({ type: 'varchar', length: 30, default: 'Sem Produto'}) produto!: string;
+  @Column({ type: 'int', default: 1}) medida!: number;
 }
+
+/* e aqui que os produtos são definidos por coluna (num), nome (varchar) e tipo (1[kilos] ou 0[gramas]) */

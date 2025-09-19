@@ -27,6 +27,28 @@ export class CacheService extends BaseService {
     const mtime = st?.mtime ? new Date(st.mtime).toISOString() : null;
     await this.upsert({ originalName: meta.originalName, lastHash: meta.hash || null, lastSize: meta.size || null, lastMTime: mtime, lastProcessedAt: meta.createdAt });
   }
+
+  async saveCache(entries: Array<{ name: string; size: number }>) {
+    await this.init();
+    const repo = this.ds.getRepository(CacheFile);
+    for (const entry of entries) {
+      const existing = await repo.findOne({ where: { originalName: entry.name } });
+      if (existing) {
+        existing.lastSize = entry.size;
+        await repo.save(existing);
+      } else {
+        const newRecord = repo.create({ originalName: entry.name, lastSize: entry.size });
+        await repo.save(newRecord);
+      }
+    }
+  }
+
+  async getAllCache(): Promise<Array<{ name: string; size: number }>> {
+    await this.init();
+    const repo = this.ds.getRepository(CacheFile);
+    const all = await repo.find();
+    return all.map((c) => ({ name: c.originalName, size: c.lastSize || 0 }));
+  }
 }
 
 export const cacheService = new CacheService();

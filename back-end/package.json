@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "collector:dev": "ts-node-dev --respawn --transpile-only src/collector/index.ts",
+    "collector:dev": "ts-node-dev --respawn --transpile-only src/collector/runner.ts",
     "collector:start": "node dist/collector/index.js",
     "lint": "eslint . || true",
     "test": "jest --runInBand",

@@ -195,6 +195,31 @@ export class Processador {
     });
   }
 
+  private ensureConnection(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+        resolve();
+      } else {
+        this.attemptReconnect();
+        const checkInterval = setInterval(() => {
+          if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            clearInterval(checkInterval);
+            resolve();
+          }
+        }, 100);
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          reject(new Error("WebSocket connection could not be established"));
+        }, this.responseTimeout);
+      }
+    });
+  }
+
+  public async sendWithConnectionCheck(cmd: string, payload?: any): Promise<any> {
+    await this.ensureConnection();
+    return this.send(cmd, payload);
+  }
+
   // Eventos do backend (ex.: 'file.processed', 'ready', 'config-ack')
   public onEvent(event: string, handler: (payload: any) => void) {
     this.eventHandlers.set(event, handler);
@@ -206,10 +231,9 @@ export class Processador {
   // ==== Métodos mapeando os comandos do backend ====
 
   public ping() {
-    return this.send("ping");
+    return this.sendWithConnectionCheck("ping");
   }
 
-  // Controle do loop de WebSocket (heartbeat)
   public wsLoopStart(periodMs?: number) {
     return this.send("ws.loop.start", { periodMs });
   }
@@ -246,6 +270,10 @@ export class Processador {
     return this.send("file.process", { filePath });
   }
 
+  public processFileContent(filePath: string, content: string) {
+    return this.sendWithConnectionCheck("file.processContent", { filePath, content });
+  }
+
   public ihmFetchLatest(ip: string, user = "anonymous", password = "") {
     return this.send("ihm.fetchLatest", { ip, user, password });
   }
@@ -271,6 +299,7 @@ export class Processador {
   public collectorStart() {
     return this.send("collector.start");
   }
+
   public collectorStop() {
     return this.send("collector.stop");
   }
@@ -396,7 +425,7 @@ export class Processador {
   public getTimeout(): number {
     return this.responseTimeout;
   }
-}
+} 
 
 // Singleton instance para facilitar o uso
 let globalProcessadorInstance: Processador | null = null;
@@ -407,12 +436,8 @@ let globalProcessadorInstance: Processador | null = null;
  */
 export function getProcessador(port?: number): Processador {
   if (!globalProcessadorInstance) {
-    if (!port) {
-      throw new Error(
-        "Port é obrigatória para criar a primeira instância do Processador"
-      );
-    }
-    globalProcessadorInstance = new Processador(port);
+    const defaultPort = port || 8080; // Default to 8080 if no port is provided
+    globalProcessadorInstance = new Processador(defaultPort);
   }
   return globalProcessadorInstance;
 }

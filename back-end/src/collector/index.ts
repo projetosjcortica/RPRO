@@ -2,11 +2,15 @@ import path from 'path';
 import fs from 'fs';
 import { IHMService } from '../services/IHMService';
 import { dbService } from '../services/dbService';
+import { parserService } from '../services/ParserService';
+import { setTimeout as wait } from 'timers/promises';
+import { BackupService } from '../services/BackupService';
+import { fileProcessorService } from '../services/fileProcessorService';
 
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
 const TMP_DIR = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
 const rawServer =
-  process.env.INGEST_URL || process.env.SERVER_URL || 'http://192.168.5.200';
+  process.env.INGEST_URL || process.env.SERVER_URL || 'http://192.168.5.254';
 const SERVER_URL = /^(?:https?:)\/\//i.test(rawServer)
   ? rawServer
   : `http://${rawServer}`;
@@ -26,24 +30,58 @@ const ihmService = new IHMService(
   process.env.IHM_PASSWORD || ''
 );
 
-async function fetchAndProcessData() {
-  try {
-    const newFiles = await ihmService.findAndDownloadNewFiles(TMP_DIR);
-    for (const file of newFiles) {
-      console.log(`Processing file: ${file.name}`);
-      // Process the file and insert data into the database
-      const result = await dbService.insertRelatorioRows([], file.localPath);
-      console.log(`Inserted ${result} rows from ${file.name}`);
+class Collector {
+  private fileProcessor: typeof fileProcessorService;
+  private backup: BackupService;
+
+  constructor(private ihmService: IHMService) {
+    this.fileProcessor = fileProcessorService;
+    this.backup = new BackupService();
+  }
+
+  async start() {
+    try {
+      console.log('Iniciando o processo de coleta...');
+
+      const downloaded = await this.ihmService.findAndDownloadNewFiles(TMP_DIR); // ok 
+      console.log(`${downloaded.length} arquivos baixados.`);
+
+      for (const f of downloaded) {
+        if (STOP) break;
+        console.log(`Processando arquivo: ${f.name} -> ${f.localPath}`);
+        const result = await this.fileProcessor.processFile(f.localPath);
+
+        await this.backup.backupFile({
+          originalname: f.name,
+          path: f.localPath,
+          mimetype: 'text/csv',
+          size: fs.statSync(f.localPath).size,
+        });
+
+        console.log('Processado:', result);
+      }
+
+      console.log('Processo de coleta concluído com sucesso.');
+    } catch (error) {
+      console.error('Erro durante o processo de coleta:', error);
     }
-  } catch (error) {
-    console.error('Error fetching or processing data:', error);
   }
 }
 
+const collector = new Collector(
+  new IHMService(
+    process.env.IHM_IP || '192.168.5.254',
+    process.env.IHM_USER || 'anonymous',
+    process.env.IHM_PASS || ''
+  )
+);
+
 export async function startCollector() {
+  collector.start();
+
   while (!STOP) {
-    console.log('Collector running...');
-    await fetchAndProcessData();
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
+    await wait(POLL_INTERVAL);
   }
+
+  console.log('Coletor encerrado.');
 }

@@ -8,7 +8,7 @@ import {
 } from "./components/ui/chart"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
 import { getProcessador } from './Processador'
-import { config } from './CFG'
+import { config, synchronizeMockStatus } from './CFG'
 import { Button } from "./components/ui/button"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText } from "lucide-react"
 import { useIsMobile } from "./hooks/use-mobile"
@@ -154,6 +154,25 @@ export default function Home() {
     batidas: 0
   })
 
+  const processador = getProcessador();
+
+  const startCollector = async () => {
+    try {
+      const response = await processador.sendWithConnectionCheck("collector.start");
+      console.log("Collector started:", response);
+    } catch (error) {
+      console.error("Error starting collector:", error);
+    }
+  };
+
+  const stopCollector = async () => {
+    try {
+      const response = await processador.sendWithConnectionCheck("collector.stop");
+      console.log("Collector stopped:", response);
+    } catch (error) {
+      console.error("Error stopping collector:", error);
+    }
+  };
 
   const loadData = async (_retryCount = 0) => {
     try {
@@ -225,11 +244,24 @@ export default function Home() {
   useEffect(() => {
     // Sincronizar status do mock com o backend
     if (config.contextoPid) {
-      const { synchronizeMockStatus } = require('./CFG');
       synchronizeMockStatus().catch(console.error);
     }
-    
-    loadData()
+
+    // Fetch product labels from backend and save to localStorage
+    (async () => {
+      try {
+        const res = await fetch('/api/materiaprima/labels');
+        if (res.ok) {
+          const labels = await res.json();
+          if (labels && typeof labels === 'object') {
+            localStorage.setItem('labelsMock', JSON.stringify([labels]));
+            console.log('Product labels synchronized from backend (mount)');
+          }
+        }
+      } catch (e) { /* ignore */ }
+    })();
+
+    loadData();
 
     // Configurar atualização periódica
     const intervalo = setInterval(loadData, 60000); // 1 minuto
@@ -1022,4 +1054,4 @@ export default function Home() {
       </div>
     </div>
   )
-}
+} 
