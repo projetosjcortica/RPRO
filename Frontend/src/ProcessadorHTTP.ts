@@ -32,7 +32,7 @@ export class Processador {
   private baseURL: string;
 
   constructor(port: number) {
-    this.port = 3002; // Use backend HTTP port instead of WebSocket port
+    this.port = port || 3001; // Use backend HTTP port instead of WebSocket port
     this.baseURL = `http://localhost:${this.port}`;
     
     this.connectionState = 'connected';
@@ -277,7 +277,7 @@ export class Processador {
     return this.connectionState;
   }
 
-  public async waitForConnection(_timeoutMs: number = 10000): Promise<boolean> {
+  public async waitForConnection(timeoutMs: number = 10000): Promise<boolean> {
     // For HTTP, we're always "connected"
     return true;
   }

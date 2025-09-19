@@ -95,7 +95,7 @@ wsbridge.register('ihm.fetchLatest', async ({ ip, user = 'anonymous', password =
   const processed = await parserService.processFile(meta.workPath || meta.backupPath);
   return { meta, processed };
 });
-wsbridge.register('relatorio.paginate', async ({ page = 1, pageSize = 300, formula = null, dateStart = null, dateEnd = null, sortBy = 'Dia', sortDir = 'DESC' }: any) => {
+wsbridge.register('relatorio.paginate', async ({ page = 1, pageSize = 300, formula = null, dateStart = null, dateEnd = null, sortBy = 'Dia', sortDir = 'DESC', includeProducts = false }: any) => {
   // Se o modo mock estiver habilitado, usar dados mock
   if (mockService.isMockEnabled()) {
     return await wsbridge.executeCommand('mock.getRelatorios', { 
@@ -118,8 +118,16 @@ wsbridge.register('relatorio.paginate', async ({ page = 1, pageSize = 300, formu
   const sb = allowed.has(sortBy) ? sortBy : 'Dia';
   const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
   qb.orderBy(`r.${sb}`, sd);
-  const total = await qb.getCount();
-  const rows = await qb.offset((Math.max(1, Number(page)) - 1) * Math.max(1, Number(pageSize))).limit(Math.max(1, Number(pageSize))).getMany();
+  // By default select only summary columns to reduce payload and improve query performance.
+  // To include all product columns (Prod_1..Prod_40), set `includeProducts=true` in the request.
+  if (!includeProducts) {
+    const summaryCols = ['id', 'Dia', 'Hora', 'Nome', 'Form1', 'Form2', 'processedFile'];
+    qb.select(summaryCols.map(c => `r.${c}`));
+  }
+
+  const offset = (Math.max(1, Number(page)) - 1) * Math.max(1, Number(pageSize));
+  const take = Math.max(1, Number(pageSize));
+  const [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
   return { rows, total, page, pageSize };
 });
 wsbridge.register('db.listBatches', async () => { await dbService.init(); const repo = AppDataSource.getRepository(Batch); const [items, total] = await repo.findAndCount({ take: 50, order: { fileTimestamp: 'DESC' } }); return { items, total, page: 1, pageSize: 50 }; });
@@ -404,10 +412,19 @@ app.get('/api/materiaprima/labels', async (req, res) => {
   try {
     await ensureDatabaseConnection();
     const materias = await materiaPrimaService.getAll();
-    // Expect materia to have properties like colKey and label or similar
+    // Map MateriaPrima records to frontend-friendly keys.
+    // Assumes `num` is the product index (1..n) and product columns in table start at col6 = Prod_1.
     const mapping: any = {};
+    const colOffset = 5; // Prod_1 -> col6
     for (const m of materias) {
-      if (m && m.colKey && m.label) mapping[m.colKey] = m.label;
+      if (!m) continue;
+      const num = typeof m.num === 'number' ? m.num : Number(m.num);
+      if (Number.isNaN(num)) continue;
+      const colKey = `col${num + colOffset}`;
+      mapping[colKey] = {
+        produto: m.produto ?? `Produto ${num}`,
+        medida: typeof m.medida === 'number' ? m.medida : (m.medida ? Number(m.medida) : 1),
+      };
     }
     return res.json(mapping);
   } catch (e) {
@@ -416,6 +433,236 @@ app.get('/api/materiaprima/labels', async (req, res) => {
   }
 });
 
+// --- HTTP API parity for websocket commands ---
+
+app.get('/api/ping', async (req, res) => {
+  try {
+    return res.json({ pong: true, ts: new Date().toISOString() });
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+app.get('/api/backup/list', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const data = await backupSvc.listBackups();
+    return res.json(data);
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+app.get('/api/file/process', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const filePath = String(req.query.filePath || req.query.path || '');
+    if (!filePath) return res.status(400).json({ error: 'filePath is required' });
+    const r = await fileProcessorService.processFile(filePath);
+    return res.json({ meta: r.meta, rowsCount: r.parsed.rowsCount });
+  } catch (e: any) { console.error(e); return res.status(e?.status || 500).json({ error: e?.message || 'internal' }); }
+});
+
+app.get('/api/ihm/fetchLatest', async (req, res) => {
+  try {
+    const ip = String(req.query.ip || '');
+    const user = String(req.query.user || 'anonymous');
+    const password = String(req.query.password || '');
+    if (!ip) return res.status(400).json({ error: 'ip is required' });
+    const tmpDir = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+    const ihm = new IHMService(ip, user, password);
+    const downloaded = await ihm.findAndDownloadNewFiles(tmpDir);
+    if (!downloaded || downloaded.length === 0) return res.json({ ok: true, message: 'Nenhum CSV novo encontrado' });
+    const result = downloaded[0];
+    const fileStat = fs.statSync(result.localPath);
+    const fileObj: any = { originalname: result.name, path: result.localPath, mimetype: 'text/csv', size: fileStat.size };
+    const meta = await backupSvc.backupFile(fileObj);
+    const processed = await parserService.processFile(meta.workPath || meta.backupPath);
+    return res.json({ meta, processed });
+  } catch (e: any) { console.error(e); return res.status(500).json({ error: e?.message || 'internal' }); }
+});
+
+app.get('/api/relatorio/paginate', async (req, res) => {
+  try {
+    const page = Number(req.query.page || 1);
+    const pageSize = Number(req.query.pageSize || 300);
+    const formula = req.query.formula ?? null;
+    const dateStart = req.query.dateStart ?? null;
+    const dateEnd = req.query.dateEnd ?? null;
+    const sortBy = String(req.query.sortBy || 'Dia');
+    const sortDir = String(req.query.sortDir || 'DESC');
+    const includeProducts = String(req.query.includeProducts || 'false') === 'true';
+
+    // mock handling
+    if (mockService.isMockEnabled()) {
+      const data = await wsbridge.executeCommand('mock.getRelatorios', { page, pageSize, formula, dateStart, dateEnd });
+      return res.json(data);
+    }
+
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+    const qb = repo.createQueryBuilder('r');
+    if (formula) { const f = String(formula); const n = Number(f); if (!Number.isNaN(n)) qb.andWhere('(r.Form1 = :n OR r.Form2 = :n)', { n }); else qb.andWhere('(r.Nome LIKE :f OR r.processedFile LIKE :f)', { f: `%${f}%` }); }
+    if (dateStart) qb.andWhere('r.Dia >= :ds', { ds: dateStart });
+    if (dateEnd) qb.andWhere('r.Dia <= :de', { de: dateEnd });
+    const allowed = new Set(['Dia', 'Hora', 'Nome', 'Form1', 'Form2', 'processedFile']);
+    const sb = allowed.has(sortBy) ? sortBy : 'Dia';
+    const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
+    qb.orderBy(`r.${sb}`, sd);
+    if (!includeProducts) {
+      const summaryCols = ['id', 'Dia', 'Hora', 'Nome', 'Form1', 'Form2', 'processedFile'];
+      qb.select(summaryCols.map(c => `r.${c}`));
+    }
+    const offset = (Math.max(1, Number(page)) - 1) * Math.max(1, Number(pageSize));
+    const take = Math.max(1, Number(pageSize));
+    const [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+    return res.json({ rows, total, page, pageSize });
+  } catch (e: any) { console.error(e); return res.status(500).json({ error: e?.message || 'internal' }); }
+});
+
+app.get('/api/db/listBatches', async (req, res) => {
+  try { await dbService.init(); const repo = AppDataSource.getRepository(Batch); const [items, total] = await repo.findAndCount({ take: 50, order: { fileTimestamp: 'DESC' } }); return res.json({ items, total, page: 1, pageSize: 50 }); } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+app.post('/api/db/setupMateriaPrima', async (req, res) => {
+  try {
+    await dbService.init();
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    const processedItems = items.map((item: any) => ({ id: item.id, num: item.num, produto: item.produto, medida: item.medida === 0 ? 0 : 1 }));
+    const saved = await materiaPrimaService.saveMany(processedItems);
+    return res.json(saved);
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+app.get('/api/db/getMateriaPrima', async (req, res) => {
+  try {
+    if (mockService.isMockEnabled()) {
+      const data = await wsbridge.executeCommand('mock.getMateriasPrimas', {});
+      return res.json(data);
+    }
+    const items = await materiaPrimaService.getAll();
+    return res.json(items);
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+app.get('/api/db/syncLocalToMain', async (req, res) => {
+  try {
+    await dbService.init();
+    const limit = Number(req.query.limit || 500);
+    const repo = AppDataSource.getRepository(Relatorio);
+    const rows = await repo.find({ take: Number(limit) });
+    if (!rows || rows.length === 0) return res.json({ synced: 0 });
+    const inserted = await dbService.insertRelatorioRows(rows as any[], 'local-backup-sync');
+    return res.json({ synced: Array.isArray(inserted) ? inserted.length : rows.length });
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+app.get('/api/resumo', async (req, res) => {
+  try {
+    const areaId = req.query.areaId ?? null;
+    const formula = req.query.formula ?? null;
+    const dateStart = req.query.dateStart ?? null;
+    const dateEnd = req.query.dateEnd ?? null;
+
+    if (mockService.isMockEnabled()) {
+      const mockData = await wsbridge.executeCommand('mock.getRelatorios', { formula, dateStart, dateEnd });
+      const result = resumoService.processResumo(mockData.rows, areaId as any);
+      return res.json(result);
+    }
+
+    const result = await resumoService.getResumo({ areaId, formula, dateStart, dateEnd });
+    return res.json(result);
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+app.get('/api/mock/status', async (req, res) => { try { return res.json({ enabled: mockService.isMockEnabled() }); } catch (e) { console.error(e); return res.status(500).json({}); } });
+app.post('/api/mock/toggle', async (req, res) => { try { const enabled = Boolean(req.body.enabled); return res.json(mockService.toggleMockMode(enabled)); } catch (e) { console.error(e); return res.status(500).json({}); } });
+
+app.get('/api/mock/relatorios', async (req, res) => { try { const params = req.query; const data = await wsbridge.executeCommand('mock.getRelatorios', params); return res.json(data); } catch (e) { console.error(e); return res.status(500).json({}); } });
+app.get('/api/mock/materias', async (req, res) => { try { const data = await materiaPrimaService.getAll(); return res.json(data); } catch (e) { console.error(e); return res.status(500).json({}); } });
+
+app.get('/api/unidades/converter', async (req, res) => {
+  try {
+    const valor = Number(req.query.valor);
+    const de = Number(req.query.de);
+    const para = Number(req.query.para);
+    if (isNaN(valor) || isNaN(de) || isNaN(para)) return res.status(400).json({ error: 'valor,de,para are required' });
+    return res.json({ original: valor, convertido: unidadesService.converterUnidades(Number(valor), Number(de), Number(para)), de, para });
+  } catch (e) { console.error(e); return res.status(500).json({}); }
+});
+
+app.post('/api/unidades/normalizarParaKg', async (req, res) => {
+  try {
+    const { valores, unidades } = req.body;
+    if (!valores || !unidades) return res.status(400).json({ error: 'valores and unidades required' });
+    return res.json({ valoresOriginais: valores, valoresNormalizados: unidadesService.normalizarParaKg(valores, unidades), unidades });
+  } catch (e) { console.error(e); return res.status(500).json({}); }
+});
+
+app.post('/api/db/populate', async (req, res) => {
+  try {
+    const { tipo = 'relatorio', quantidade = 10, config = {} } = req.body || {};
+    if (tipo === 'relatorio') {
+      const result = await dataPopulationService.populateRelatorio(Math.min(Math.max(1, Number(quantidade)), 1000), config);
+      return res.json(result);
+    }
+    return res.status(400).json({ error: 'tipo not supported' });
+  } catch (e) { console.error(e); return res.status(500).json({}); }
+});
+
+app.get('/api/collector/start', async (req, res) => { try { startCollector(); return res.json({ started: true }); } catch (e) { console.error(e); return res.status(500).json({}); } });
+app.get('/api/collector/stop', async (req, res) => { try { stopCollector(); return res.json({ stopped: true }); } catch (e) { console.error(e); return res.status(500).json({}); } });
+
+app.get('/api/ws/loop/start', async (req, res) => { try { const periodMs = Number(req.query.periodMs || process.env.WS_HEARTBEAT_MS || 10000); return res.json(startWsLoop(Number(periodMs))); } catch (e) { console.error(e); return res.status(500).json({}); } });
+app.get('/api/ws/loop/stop', async (req, res) => { try { return res.json(stopWsLoop()); } catch (e) { console.error(e); return res.status(500).json({}); } });
+app.get('/api/ws/status', async (req, res) => { try { return res.json({ port: wsbridge.getPort(), clients: wsbridge.getClientCount(), loop: WS_LOOP }); } catch (e) { console.error(e); return res.status(500).json({}); } });
+
+// Additional endpoints for Processador HTTP compatibility
+app.post('/api/file/processContent', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const { filePath, content } = req.body;
+    if (!filePath || !content) {
+      return res.status(400).json({ error: 'filePath and content are required' });
+    }
+    
+    // For now, just save content to a temp file and process it
+    const fs = require('fs');
+    const tempPath = `${TMP_DIR}/temp_${Date.now()}.csv`;
+    fs.writeFileSync(tempPath, content);
+    
+    const r = await fileProcessorService.processFile(tempPath);
+    
+    // Clean up temp file
+    try { fs.unlinkSync(tempPath); } catch {}
+    
+    return res.json({ meta: r.meta, rowsCount: r.parsed.rowsCount });
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+app.post('/api/config', async (req, res) => {
+  try {
+    const config = req.body;
+    // For now, just acknowledge the config
+    console.log('[config received]', config);
+    return res.json({ ok: true, config });
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+// Mount estoque endpoints also for HTTP (delegating to existing wsbridge-configured handlers is complex),
+// but we can provide a simple pass-through that executes the same registered handler if present.
+app.all('/api/estoque/*', async (req, res) => {
+  try {
+    // Map path like /api/estoque/listar -> 'estoque/listar'
+    const sub = req.path.replace('/api/estoque/', '');
+    const cmd = `estoque/${sub}`;
+    if (typeof (wsbridge as any).handlers?.[cmd] === 'function') {
+      const payload = Object.keys(req.query).length ? req.query : req.body || {};
+      const result = await wsbridge.executeCommand(cmd, payload);
+      return res.json(result);
+    }
+    return res.status(404).json({ error: 'not found' });
+  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+});
+
+
 // Start HTTP server only in dev mode if needed
-const HTTP_PORT = Number(process.env.FRONTEND_API_PORT || process.env.PORT || 3001);
+const HTTP_PORT = Number(process.env.FRONTEND_API_PORT || process.env.PORT || 3002);
 app.listen(HTTP_PORT, () => console.log(`API server running on port ${HTTP_PORT}`));

@@ -57,7 +57,7 @@
     "lucide-react": "^0.543.0",
     "next-themes": "^0.4.6",
     "process": "^0.11.10",
-    "react": "^19.1.1",
+    "react": "^18.2.0",
     "react-day-picker": "^9.10.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.62.0",
@@ -79,7 +79,7 @@
   "devDependencies": {
     "@types/axios": "^0.9.36",
     "@types/html2pdf.js": "^0.10.0",
-    "@types/react": "^19.1.13",
+    "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.21",
     "@types/recharts": "^1.8.29",
     "@typescript-eslint/eslint-plugin": "^7.1.1",

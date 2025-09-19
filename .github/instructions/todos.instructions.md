@@ -2,42 +2,21 @@
 applyTo: '**'
 ---
  
-# Tenho que fazer 
+New HTTP endpoints in index.ts (mirroring wsbridge handlers):
+GET /api/ping
+GET /api/backup/list
+GET /api/file/process?filePath=...
+GET /api/ihm/fetchLatest?ip=...&user=...
+GET /api/relatorio/paginate?... (supports same query params as relatorio.paginate, including includeProducts=true)
+GET /api/db/listBatches
+POST /api/db/setupMateriaPrima (body: { items: [...] })
+GET /api/db/getMateriaPrima
+GET /api/db/syncLocalToMain?limit=...
+GET /api/resumo?areaId=...&formula=...&dateStart=...&dateEnd=...
+GET /api/mock/status and POST /api/mock/toggle
+GET /api/mock/relatorios and GET /api/mock/materias
+GET /api/unidades/converter?valor=...&de=...&para=...
+POST /api/unidades/normalizarParaKg (body: { valores, unidades })
+POST /api/db/populate (body: { tipo, quantidade, config })
+GET /api/collector/start and GET /api/collector/stop
 
-- [x] melhorar sistema de comunicação entre backend e frontend  [completion:: 2025-09-19]
-	- [ ] configurar sistema de collector separado
-- [ ] tabela
-	- [ ] linkar gráfico
-	- [/] resumo
-	- [ ] nome dos produtos
-	- [ ] tipo dos produtos
-- [ ] formatar PDF
-	- [ ] colocar logo
-- [x] fazer o sistema de estoque  
-- [ ] criar script automatizado (windows apenas)
-	- [ ] instalar MySQL
-	- [ ] preparar banco de dados
-	- [ ] criar tabelas
-- [x] remover código morto  
-- [x] interface   
-	- [x] melhorar UI   
-	- [x] melhorar UX   
-	- [x] melhorar graficos  
-- [ ] remover de vez o sistema de mock e criar um sistema de mock dentro do backend
-- [x] deixar o sistema de comunicação entre backend e frontend facil de utilizar  
-	- [ ] facil de integrar caso seja via socket ou process_child/fork
-	- [ ] facil de integrar com qualquer backend
-- [I] criar sistema de integração com whatsapp e sms 
-
----
-
-sempre priorize utilizar Programação Orientada a Objetos (POO) e boas práticas de desenvolvimento de software.
-Sempre escreva código limpo e bem documentado.
-quero que o codigo seja bem dividido em funções e classes.
-quero que respeite e entenda o codigo que já existe mantendo a ideia e estilo do projeto.
-
----
-
-`- [ ]` significa que a tarefa vai ser feita
-`- [/]` significa que a tarefa ainda não foi decidida se vai ser feita ou não
-`- [x]` significa que a tarefa foi concluída 
