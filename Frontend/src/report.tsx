@@ -29,7 +29,7 @@ export default function Report() {
   const [colLabels, setColLabels] = useState<{ [key: string]: string }>({});
   const [view, setView] = useState<'table' | 'product'>('table');
   const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(15);
+  const [pageSize] = useState<number>(100);
 
   // Utiliza o hook para carregar matérias-primas
   const { materias, syncLabelsWithMateriaPrima } = useMateriaPrima();

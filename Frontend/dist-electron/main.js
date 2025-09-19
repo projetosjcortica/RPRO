@@ -3012,10 +3012,17 @@ function commentKeyword({ gen, schemaEnv, schema, errSchemaPath, opts }) {
     gen.code((0, codegen_1$Q._)`${names_1$9.default.self}.opts.$comment(${msg}, ${schemaPath}, ${rootName}.schema)`);
   }
 }
+<<<<<<< HEAD
 function returnResults(it) {
   const { gen, schemaEnv, validateName, ValidationError: ValidationError3, opts } = it;
   if (schemaEnv.$async) {
     gen.if((0, codegen_1$Q._)`${names_1$9.default.errors} === 0`, () => gen.return(names_1$9.default.data), () => gen.throw((0, codegen_1$Q._)`new ${ValidationError3}(${names_1$9.default.vErrors})`));
+=======
+function returnResults$1(it) {
+  const { gen, schemaEnv, validateName, ValidationError, opts } = it;
+  if (schemaEnv.$async) {
+    gen.if((0, codegen_1$X._)`${names_1$d.default.errors} === 0`, () => gen.return(names_1$d.default.data), () => gen.throw((0, codegen_1$X._)`new ${ValidationError}(${names_1$d.default.vErrors})`));
+>>>>>>> e975a0bc39eac6742883d64ef5a39efc280c4a41
   } else {
     gen.assign((0, codegen_1$Q._)`${validateName}.errors`, names_1$9.default.vErrors);
     if (opts.unevaluated)
@@ -3359,6 +3366,7 @@ function getData($data, { dataLevel, dataNames, dataPathArr }) {
 }
 validate$1.getData = getData;
 var validation_error$1 = {};
+<<<<<<< HEAD
 Object.defineProperty(validation_error$1, "__esModule", { value: true });
 let ValidationError$1 = class ValidationError extends Error {
   constructor(errors2) {
@@ -3368,6 +3376,23 @@ let ValidationError$1 = class ValidationError extends Error {
   }
 };
 validation_error$1.default = ValidationError$1;
+=======
+var hasRequiredValidation_error$1;
+function requireValidation_error$1() {
+  if (hasRequiredValidation_error$1) return validation_error$1;
+  hasRequiredValidation_error$1 = 1;
+  Object.defineProperty(validation_error$1, "__esModule", { value: true });
+  class ValidationError extends Error {
+    constructor(errors2) {
+      super("validation failed");
+      this.errors = errors2;
+      this.ajv = this.validation = true;
+    }
+  }
+  validation_error$1.default = ValidationError;
+  return validation_error$1;
+}
+>>>>>>> e975a0bc39eac6742883d64ef5a39efc280c4a41
 var ref_error$1 = {};
 Object.defineProperty(ref_error$1, "__esModule", { value: true });
 const resolve_1$3 = resolve$4;
@@ -3382,11 +3407,19 @@ ref_error$1.default = MissingRefError$1;
 var compile$1 = {};
 Object.defineProperty(compile$1, "__esModule", { value: true });
 compile$1.resolveSchema = compile$1.getCompilingSchema = compile$1.resolveRef = compile$1.compileSchema = compile$1.SchemaEnv = void 0;
+<<<<<<< HEAD
 const codegen_1$P = codegen$1;
 const validation_error_1$1 = validation_error$1;
 const names_1$8 = names$2;
 const resolve_1$2 = resolve$4;
 const util_1$L = util$1;
+=======
+const codegen_1$W = codegen$1;
+const validation_error_1$1 = requireValidation_error$1();
+const names_1$c = names$3;
+const resolve_1$3 = resolve$4;
+const util_1$P = util$1;
+>>>>>>> e975a0bc39eac6742883d64ef5a39efc280c4a41
 const validate_1$3 = validate$1;
 let SchemaEnv$1 = class SchemaEnv {
   constructor(env2) {
@@ -4339,7 +4372,7 @@ uri$3.default = uri$2;
   Object.defineProperty(exports, "CodeGen", { enumerable: true, get: function() {
     return codegen_12.CodeGen;
   } });
-  const validation_error_12 = validation_error$1;
+  const validation_error_12 = requireValidation_error$1();
   const ref_error_12 = ref_error$1;
   const rules_12 = rules$1;
   const compile_12 = compile$1;
@@ -7348,7 +7381,7 @@ jsonSchema202012.default = addMetaSchema2020;
   Object.defineProperty(exports, "CodeGen", { enumerable: true, get: function() {
     return codegen_12.CodeGen;
   } });
-  var validation_error_12 = validation_error$1;
+  var validation_error_12 = requireValidation_error$1();
   Object.defineProperty(exports, "ValidationError", { enumerable: true, get: function() {
     return validation_error_12.default;
   } });
@@ -9987,8 +10020,70 @@ function requireValidate() {
       }
     });
   }
+<<<<<<< HEAD
   function checkStrictTypes2(it, types2) {
     if (it.schemaEnv.meta || !it.opts.strictTypes)
+=======
+}
+function checkNoDefault(it) {
+  const { schema, opts } = it;
+  if (schema.default !== void 0 && opts.useDefaults && opts.strictSchema) {
+    (0, util_1$l.checkStrictMode)(it, "default is ignored in the schema root");
+  }
+}
+function updateContext(it) {
+  const schId = it.schema[it.opts.schemaId];
+  if (schId)
+    it.baseId = (0, resolve_1$2.resolveUrl)(it.opts.uriResolver, it.baseId, schId);
+}
+function checkAsyncSchema(it) {
+  if (it.schema.$async && !it.schemaEnv.$async)
+    throw new Error("async schema in sync schema");
+}
+function commentKeyword({ gen, schemaEnv, schema, errSchemaPath, opts }) {
+  const msg = schema.$comment;
+  if (opts.$comment === true) {
+    gen.code((0, codegen_1$n._)`${names_1$3.default.self}.logger.log(${msg})`);
+  } else if (typeof opts.$comment == "function") {
+    const schemaPath = (0, codegen_1$n.str)`${errSchemaPath}/$comment`;
+    const rootName = gen.scopeValue("root", { ref: schemaEnv.root });
+    gen.code((0, codegen_1$n._)`${names_1$3.default.self}.opts.$comment(${msg}, ${schemaPath}, ${rootName}.schema)`);
+  }
+}
+function returnResults(it) {
+  const { gen, schemaEnv, validateName, ValidationError, opts } = it;
+  if (schemaEnv.$async) {
+    gen.if((0, codegen_1$n._)`${names_1$3.default.errors} === 0`, () => gen.return(names_1$3.default.data), () => gen.throw((0, codegen_1$n._)`new ${ValidationError}(${names_1$3.default.vErrors})`));
+  } else {
+    gen.assign((0, codegen_1$n._)`${validateName}.errors`, names_1$3.default.vErrors);
+    if (opts.unevaluated)
+      assignEvaluated(it);
+    gen.return((0, codegen_1$n._)`${names_1$3.default.errors} === 0`);
+  }
+}
+function assignEvaluated({ gen, evaluated, props, items: items2 }) {
+  if (props instanceof codegen_1$n.Name)
+    gen.assign((0, codegen_1$n._)`${evaluated}.props`, props);
+  if (items2 instanceof codegen_1$n.Name)
+    gen.assign((0, codegen_1$n._)`${evaluated}.items`, items2);
+}
+function schemaKeywords(it, types2, typeErrors, errsCount) {
+  const { gen, schema, data, allErrors, opts, self } = it;
+  const { RULES } = self;
+  if (schema.$ref && (opts.ignoreKeywordsWithRef || !(0, util_1$l.schemaHasRulesButRef)(schema, RULES))) {
+    gen.block(() => keywordCode(it, "$ref", RULES.all.$ref.definition));
+    return;
+  }
+  if (!opts.jtd)
+    checkStrictTypes(it, types2);
+  gen.block(() => {
+    for (const group of RULES.rules)
+      groupKeywords(group);
+    groupKeywords(RULES.post);
+  });
+  function groupKeywords(group) {
+    if (!(0, applicability_1.shouldUseGroup)(schema, group))
+>>>>>>> e975a0bc39eac6742883d64ef5a39efc280c4a41
       return;
     checkContextTypes2(it, types2);
     if (!it.opts.allowUnionTypes)
@@ -10275,6 +10370,7 @@ function requireValidate() {
   return validate;
 }
 var validation_error = {};
+<<<<<<< HEAD
 Object.defineProperty(validation_error, "__esModule", { value: true });
 class ValidationError2 extends Error {
   constructor(errors2) {
@@ -10282,6 +10378,22 @@ class ValidationError2 extends Error {
     this.errors = errors2;
     this.ajv = this.validation = true;
   }
+=======
+var hasRequiredValidation_error;
+function requireValidation_error() {
+  if (hasRequiredValidation_error) return validation_error;
+  hasRequiredValidation_error = 1;
+  Object.defineProperty(validation_error, "__esModule", { value: true });
+  class ValidationError extends Error {
+    constructor(errors2) {
+      super("validation failed");
+      this.errors = errors2;
+      this.ajv = this.validation = true;
+    }
+  }
+  validation_error.default = ValidationError;
+  return validation_error;
+>>>>>>> e975a0bc39eac6742883d64ef5a39efc280c4a41
 }
 validation_error.default = ValidationError2;
 var ref_error = {};

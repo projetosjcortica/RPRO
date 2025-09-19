@@ -79,7 +79,7 @@
   "devDependencies": {
     "@types/axios": "^0.9.36",
     "@types/html2pdf.js": "^0.10.0",
-    "@types/react": "^19.1.13",
+    "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.21",
     "@types/recharts": "^1.8.29",
     "@typescript-eslint/eslint-plugin": "^7.1.1",

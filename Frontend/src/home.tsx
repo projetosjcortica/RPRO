@@ -12,7 +12,7 @@ import { config, synchronizeMockStatus } from './CFG'
 import { Button } from "./components/ui/button"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText } from "lucide-react"
 import { useIsMobile } from "./hooks/use-mobile"
-import { Input } from "./components/ui/input"
+// import { Input } from "./components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover"
 import { Calendar } from "./components/ui/calendar"
 import { format, startOfDay, endOfDay } from "date-fns"
@@ -21,6 +21,8 @@ import { cn } from "./lib/utils"
 import { type DateRange } from "react-day-picker"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./components/ui/dialog"
 import { Filtros } from "./components/types"
+
+
 
 type Entry = {
   Nome: string
@@ -54,61 +56,35 @@ function aggregate(rows: Entry[]): { chartData: ChartDatum[]; formulaSums: Formu
   const chartData = Object.entries(sums).map(([name, value]) => ({ name, value }))
   return { chartData, formulaSums: sums, validCount: valid.length }
 }
-
 function aggregateProducts(rows: Entry[]): { productData: ChartDatum[]; productSums: Record<string, number>; totalProducts: number } {
   const valid = rows.filter(r => r && Array.isArray(r.values) && r.values.length > 0);
   const productSums: Record<string, number> = {};
-  const productUnits: Record<string, 'g' | 'kg'> = {}; // Armazenar a unidade de cada produto
-
-  // Pega labels do localStorage
-  let labelsObj: { [key: string]: string } = {};
-  try {
-    const saved = localStorage.getItem('labelsMock');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      // saved pode ser um array ou um objeto
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        labelsObj = parsed[0]; // seu código salva como array com 1 objeto
-      } else if (parsed && typeof parsed === 'object') {
-        labelsObj = parsed;
-      }
-    }
-  } catch {
-    console.warn("Erro ao ler labels do localStorage, usando defaults");
-  }
+  const productUnits: Record<string, 'g' | 'kg'> = {};
 
   for (const r of valid) {
     r.values.forEach((value, index) => {
-      // col6 = index 0, col7 = index 1, etc.
-      const key = `col${index + 6}`;
-      const productKey = labelsObj[key] || `Produto ${index + 1}`;
+      const colKey = `col${index + 6}`;
+      const mpConfig = materiaPrimaConfig.find(mp => mp.colKey === colKey);
       
-      // Verificar se há informação de unidade
-      const unit = r.unidadesProdutos && r.unidadesProdutos[index] === 'g' ? 'g' : 'kg';
-      
-      // Processar valor baseado na unidade (g -> kg)
-      let v = Number(value ?? 0);
-      // Não convertemos o valor real, apenas armazenamos a unidade para exibição
-      
-      if (value <= 0) return;
-      
-      // Se o produto já existir, mantemos a mesma unidade que foi definida primeiro
+      let unit: 'g' | 'kg' = 'kg';
+      let conversionFactor = 1;
+
+      if (mpConfig) {
+        unit = mpConfig.unidade;
+        // Converter para kg se for gramas
+        conversionFactor = unit === 'g' ? 0.001 : 1;
+      }
+
+      const productKey = mpConfig?.produto || `Produto ${index + 1}`;
+      const v = Number(value ?? 0) * conversionFactor;
+
+      if (v <= 0) return;
+
       if (!productSums[productKey]) {
         productSums[productKey] = v;
-        productUnits[productKey] = unit;
+        productUnits[productKey] = 'kg'; // Sempre armazenar em kg
       } else {
-        // Para produtos existentes, ajustamos o valor conforme a unidade
-        if (unit === 'g' && productUnits[productKey] === 'kg') {
-          // Converter gramas para kg para somar
-          productSums[productKey] += (v / 1000);
-        } else if (unit === 'kg' && productUnits[productKey] === 'g') {
-          // Converter valor atual para gramas e adicionar kg
-          productSums[productKey] = (productSums[productKey] * 1000) + v;
-          productUnits[productKey] = 'kg'; // Mudar unidade para kg
-        } else {
-          // Mesma unidade, soma direta
-          productSums[productKey] += v;
-        }
+        productSums[productKey] += v;
       }
     });
   }
@@ -116,10 +92,10 @@ function aggregateProducts(rows: Entry[]): { productData: ChartDatum[]; productS
   const productData = Object.entries(productSums).map(([name, value]) => ({ 
     name, 
     value,
-    unit: productUnits[name] || 'kg' // Adicionar a unidade ao retorno
+    unit: 'kg' // Todos os valores já convertidos para kg
   }));
-  const totalProducts = Object.values(productSums).reduce((a, b) => a + b, 0);
 
+  const totalProducts = Object.values(productSums).reduce((a, b) => a + b, 0);
   return { productData, productSums, totalProducts };
 }
 
@@ -131,7 +107,11 @@ const tooltipFormatter = (value: string | number | (string | number)[], name: st
   return [name, `: ${numericValue.toLocaleString('pt-BR', {minimumFractionDigits: 3, maximumFractionDigits: 3})} ${unit}`];
 };
 
+
+
+
 export default function Home() {
+  const [materiaPrimaConfig, setMateriaPrimaConfig] = useState<any[]>([]);
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [realData, setRealData] = useState<boolean>(false)
@@ -155,6 +135,51 @@ export default function Home() {
   })
 
   const processador = getProcessador();
+
+  
+// Função para carregar configuração
+const loadMateriaPrimaConfig = async () => {
+  try {
+    // Try backend HTTP endpoint first (preferred)
+    try {
+      const res = await fetch('/api/materiaprima/labels');
+      if (res.ok) {
+        const mapping = await res.json();
+        if (mapping && typeof mapping === 'object') {
+          // Save mapping to localStorage as a plain object
+          localStorage.setItem('labelsMock', JSON.stringify(mapping));
+          // Convert mapping to an array-like config for local usage
+          const arr = Object.entries(mapping).map(([colKey, info]: any) => ({ colKey, ...info }));
+          setMateriaPrimaConfig(arr);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load materia prima labels via HTTP, falling back to processador', err);
+    }
+
+    // Fallback: request via websocket/processador
+    const cfg = await processador.sendWithConnectionCheck("materiaprima.getConfig");
+    if (cfg) {
+      // If cfg is an array of {colKey, produto, medida} keep it
+      if (Array.isArray(cfg)) {
+        const mappingObj: any = {};
+        for (const item of cfg) {
+          if (item && item.colKey) mappingObj[item.colKey] = { produto: item.produto, medida: item.medida };
+        }
+        localStorage.setItem('labelsMock', JSON.stringify(mappingObj));
+        setMateriaPrimaConfig(cfg);
+      } else if (typeof cfg === 'object') {
+        localStorage.setItem('labelsMock', JSON.stringify(cfg));
+        const arr = Object.entries(cfg).map(([colKey, info]: any) => ({ colKey, ...info }));
+        setMateriaPrimaConfig(arr);
+      }
+    }
+  } catch (error) {
+    console.error("Erro ao carregar configuração de matéria prima:", error);
+  }
+};
+
 
   const startCollector = async () => {
     try {
@@ -243,9 +268,8 @@ export default function Home() {
 
   useEffect(() => {
     // Sincronizar status do mock com o backend
-    if (config.contextoPid) {
-      synchronizeMockStatus().catch(console.error);
-    }
+    loadMateriaPrimaConfig();
+    if (config.contextoPid) synchronizeMockStatus().catch(console.error);
 
     // Fetch product labels from backend and save to localStorage
     (async () => {
@@ -262,10 +286,8 @@ export default function Home() {
     })();
 
     loadData();
-
     // Configurar atualização periódica
     const intervalo = setInterval(loadData, 60000); // 1 minuto
-
     return () => clearInterval(intervalo);
   }, [])
 
@@ -537,11 +559,8 @@ export default function Home() {
         )}
       </div> */}
 
-      {/* Diálogo para mostrar todos os produtos */}
-      {renderProductsDialog()}
-
-      {/* Dialog para mostrar todos os produtos */}
-            {renderProductsDialog()}
+  {/* Diálogo para mostrar todos os produtos */}
+  {renderProductsDialog()}
 
       {/* Dashboard principal */}
 
@@ -1004,7 +1023,7 @@ export default function Home() {
 
             // Display more products in a grid
             const displayProducts = allProducts.slice(0, 15)
-
+            
             return (
               <Card key={p.key} className="shadow-lg mx-4">
                 <CardHeader className="py-3 px-4">

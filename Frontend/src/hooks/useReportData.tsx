@@ -3,7 +3,6 @@ import { Filtros, ReportRow, ReportApiResponse } from "../components/types";
 import { mockRows } from "../Testes/mockData";
 import { api } from "../Testes/api";
 import { IS_LOCAL } from "../CFG";
-import { config } from "../CFG";
 import { getProcessador } from "../Processador";
 
 export const useReportData = (filtros: Filtros, page: number = 1, pageSize: number = 300) => {
@@ -52,19 +51,9 @@ export const useReportData = (filtros: Filtros, page: number = 1, pageSize: numb
           const pageSlice = filtered.slice(start, start + pageSize);
           setDados(pageSlice);
         } else if ((window as any).electronAPI) {
-          // Aguarda PID do backend disponível
-          let pid = config.contextoPid;
-          let attempts = 0;
-          while (!pid && attempts < 10) {
-            await new Promise(r => setTimeout(r, 200));
-            pid = (window as any).contextoPid || config.contextoPid;
-            attempts++;
-          }
-          if (!pid) throw new Error('backend-pid-unavailable');
-          config.contextoPid = pid;
-          // Usar IPC Processador
-          const p = getProcessador(pid);
-          const res = await p.getTableData(page, pageSize, {
+          // Use Processador (now HTTP-based internally)
+          const processador = getProcessador(3001);
+          const res = await processador.getTableData(page, pageSize, {
             formula: filtros.nomeFormula || null,
             dateStart: filtros.dataInicio || null,
             dateEnd: filtros.dataFim || null,
@@ -85,13 +74,8 @@ export const useReportData = (filtros: Filtros, page: number = 1, pageSize: numb
             } as ReportRow;
           });
           setDados(mapped);
-          // se o backend retornar paginação, obter total
-          try {
-            const backendTotal = (res && (res.total || res.count || res.totalRows)) || 0;
-            setTotal(backendTotal);
-          } catch (e) {
-            setTotal(mapped.length);
-          }
+          // Get total from the response
+          setTotal(res.total || mapped.length);
         } else {
           // Fallback HTTP (caso rode fora do Electron)
           const response = await api.get("/relatorio", {
