@@ -3,7 +3,8 @@ export let IS_MOCK_ENABLED = import.meta.env.VITE_USE_MOCK === "true";
 export let API_BASE_URL = "/relatorio"; // URL relativa para mesmo origin no escritório
 
 // Para compatibilidade com código existente
-export const IS_LOCAL = IS_MOCK_ENABLED;
+let isLocalMutable = IS_MOCK_ENABLED; // Mutable copy for compatibility
+export const IS_LOCAL = isLocalMutable;
 
 export const config = {
   isMockEnabled: IS_MOCK_ENABLED,
@@ -14,13 +15,13 @@ export const config = {
 // Função para atualizar as configurações com base no status do mock
 export async function updateConfig(mockEnabled: boolean) {
   IS_MOCK_ENABLED = mockEnabled;
-  
+
   // Para compatibilidade com código existente
-  (IS_LOCAL as boolean) = mockEnabled;
-  
+  isLocalMutable = mockEnabled;
+
   // Atualiza o objeto config
   config.isMockEnabled = IS_MOCK_ENABLED;
-  
+
   // Se o backend estiver conectado, envia o status do mock para o backend
   if (config.contextoPid) {
     const { getProcessador } = require('./Processador');
@@ -43,7 +44,7 @@ export async function synchronizeMockStatus() {
       const status = await p.mockGetStatus();
       if (status && typeof status.enabled === 'boolean') {
         IS_MOCK_ENABLED = status.enabled;
-        (IS_LOCAL as boolean) = status.enabled; // Para compatibilidade com código existente
+        isLocalMutable = status.enabled; // Update mutable copy
         config.isMockEnabled = IS_MOCK_ENABLED;
         console.log(`[CFG] Mock status sincronizado com o backend: ${IS_MOCK_ENABLED}`);
       }

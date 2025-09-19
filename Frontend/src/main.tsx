@@ -117,7 +117,10 @@ if ((window as any).electronAPI) {
   })
   .catch((err: unknown) => {
     console.error('Error starting backend child process', err);
-  });
+    if (err instanceof Error) {
+      console.error('Error details:', err.stack);
+    }
+  }); 
 } else {
   console.warn('electronAPI not found. Skipping backend fork (running in non-Electron context).');
   
