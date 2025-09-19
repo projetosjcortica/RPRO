@@ -16,7 +16,7 @@ import { cn } from "./lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { MyDocument } from "./Pdf";
-import logo from './public/logo.png'
+import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 // import { ResumoComponent } from "./components/ResumoComponent";
 
 export default function Report() {
@@ -246,7 +246,7 @@ export default function Report() {
                       <button
                         onClick={() => setPage(p)}
                         aria-current={isActive ? 'page' : undefined}
-                        className={cn(buttonVariants({ variant: 'default' }), isActive ? 'bg-blue-600 text-white' : 'bg-white')}
+                        className={cn(buttonVariants({ variant: 'default' }), isActive ? 'bg-red-600 text-white' : 'bg-grey-400')}
                       >
                         {p}
                       </button>
@@ -295,76 +295,69 @@ export default function Report() {
             </div>
           </div>
           <div id="retanguloProd" className="border rounded flex-grow overflow-auto">
-            <Table className="h-100">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="text-center">Produtos</TableHead>
-                  <TableHead className="text-center">Quantidade</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {tableSelection.produtos.length > 0 ? (
-                  tableSelection.produtos.map((produto, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className="py-1 px-2">{produto.nome}</TableCell>
-                      <TableCell className="py-1 px-2 text-right">
-                        {produto.qtd.toLocaleString('pt-BR', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
-                        })} kg
+            <ScrollArea>
+              <Table className="h-100">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-center">Produtos</TableHead>
+                    <TableHead className="text-center">Quantidade</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tableSelection.produtos.length > 0 ? (
+                    tableSelection.produtos.map((produto, idx) => (
+                      <TableRow key={idx}>
+                        <TableCell className="py-1 px-2">{produto.nome}</TableCell>
+                        <TableCell className="py-1 px-2 text-right">
+                          {produto.qtd.toLocaleString('pt-BR', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })} kg
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={2} className="text-center text-gray-500 py-4">
+                        Nenhum produto selecionado
                       </TableCell>
                     </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={2} className="text-center text-gray-500 py-4">
-                      Nenhum produto selecionado
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                  )}
+                </TableBody>
+              </Table>
+               <ScrollBar orientation="vertical" />
+            </ScrollArea>
           </div>
           <div id="impressao" className="flex flex-col text-center gap-2 mt-6">
             <p>Importar/Imprimir</p>
             <div id="botões" className="flex flex-row gap-2 justify-center">
-              {tableSelection.produtos.length > 0 ? (
                 <PDFDownloadLink
-                  document={
-                    <MyDocument
-                      total={Number(tableSelection.total) || 0}
-                      batidas={Number(tableSelection.batidas) || 0}
-                      horaInicio={tableSelection.horaInicial}
-                      horaFim={tableSelection.horaFinal}
-                      produtos={tableSelection.produtos}
-                      data={new Date().toLocaleDateString('pt-BR')}
-                      empresa="Empresa ABC"
-                      logoSrc={logo}
-                      orientation="landscape"
-                    />
+                    document={
+                      <MyDocument
+                        total={Number(tableSelection.total) || 0}
+                        batidas={Number(tableSelection.batidas) || 0}
+                        horaInicio={tableSelection.horaInicial}
+                        horaFim={tableSelection.horaFinal}
+                        produtos={tableSelection.produtos}
+                        data={new Date().toLocaleDateString('pt-BR')}
+                        empresa="Empresa ABC"
+                      />
                   }
-                  fileName={`relatorio_${new Date().toISOString().split('T')[0]}.pdf`}
-                  className="no-underline"
+                  fileName="relatorio.pdf"
                 >
-                  {({ loading, error }: { loading: boolean, error: Error | null }) => {
-                if (error) console.error("Erro ao gerar PDF:", error);
-                return loading ? (
-                          <Button disabled className="bg-gray-400 text-white px-4 py-2 rounded-lg">
-                            Gerando...
-                          </Button>
-                        ) : (
-                          <Button className="text-white px-4 py-2 rounded-lg">
-                            Baixar PDF
-                          </Button>
-                        );
-                      }}
+                  {({ loading }) =>
+                    loading ? (
+                      <Button className="bg-gray-400 text-white px-4 py-2 rounded">
+                        Gerando...
+                      </Button>
+                    ) : (
+                      <Button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-600">
+                        Baixar PDF
+                      </Button>
+                    )
+                  }
                 </PDFDownloadLink>
-              ) : (
-                <Button className=" text-white px-4 py-2 rounded-lg">
-                  Baixar PDF
-                </Button>
-              )}
-              <Button className="w-24 ">Imprimir PDF</Button>
+              <Button className="w-24 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Imprimir PDF</Button>
             </div>
           </div>
         </div>
