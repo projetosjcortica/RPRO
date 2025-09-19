@@ -11,6 +11,7 @@ import { useReportData } from "./hooks/useReportData";
 import { Filtros, ReportRow } from "./components/types";
 import { FilterBar } from "./components/FilterBar";
 import { useIsMobile } from "./hooks/use-mobile";
+import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 
 interface TableComponentProps {
   filtros?: Filtros;
@@ -381,7 +382,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
   return (
     <div 
       ref={tableRef} 
-      className="overflow-hidden w-full" 
+      className="overflow-hidden w-full h-full flex flex-col" 
       onMouseUp={handleMouseUp}
     >
       {/* Barra de filtros por categoria */}
@@ -411,110 +412,117 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
         </div>
       )}
       
-      <div className="w-full ">
-        <Table className="border-collapse border border-gray-300 table-fixed w-full overflow-auto">
-          <TableHeader className="bg-gray-100 sticky top-0 z-10">
-            <TableRow>
-              {fixedColumns.map((col, idx) => (
-                <TableHead
-                  key={idx}
-                  className="py-1 px-1 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm"
-                  style={{ width: idx === 0 ? '80px' : idx === 1 ? '70px' : '100px' }}
-                >
-                  {colLabels?.[col] ?? col}
-                </TableHead>
-              ))}
-              {dynamicColumns.map((colKey, idx) => {
-                // Verificar se o produto tem categoria
-                const produtoInfo = produtosInfo[colKey];
-                const categoria = produtoInfo?.categoria || '';
-                const isCategoriaSelecionada = categoria === categoriaSelecionada && categoriaSelecionada !== '';
-                
-                return (
+      {/* Container principal com altura flexível */}
+      <div className="flex-1 h-100">
+        <ScrollArea className="overflow-y-auto h-full w-full">
+          <Table className="h-100 border-collapse border border-gray-300 table-fixed w-full">
+            {/* Cabeçalho da tabela */}
+            <TableHeader className="bg-gray-100 sticky top-0 z-10">
+              <TableRow>
+                {fixedColumns.map((col, idx) => (
                   <TableHead
-                    key={idx + fixedColumns.length}
-                    className={`py-1 px-2 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm ${
-                      isCategoriaSelecionada ? 'bg-green-100' : ''
-                    }`}
-                    style={{ width: '100px' }}
-                    title={categoria ? `Categoria: ${categoria}` : ''}
+                    key={idx}
+                    className="py-1 px-1 md:py-2 md:px-3 break-words text-center border border-gray-300 font-semibold text-xs md:text-sm"
+                    style={{ width: idx === 0 ? '80px' : idx === 1 ? '70px' : '100px' }}
+                    
                   >
-                    {/* Usa label do Products, se não existir usa colKey, se não existir fallback */}
-                    <div className="flex flex-col">
-                      <span className="truncate">{colLabels?.[colKey] ?? colKey ?? `Coluna ${idx + 6}`}</span>
-                      {categoria && (
-                        <span className="text-xs text-gray-500 font-normal mt-1 hidden md:block truncate">
-                          {categoria}
-                        </span>
-                      )}
-                    </div>
+                    {colLabels?.[col] ?? col}
                   </TableHead>
-                );
-              })}
-            </TableRow>
-          </TableHeader>
-
-                      <TableBody>
-              {dados.map((row, rowIdx) => (
-                <TableRow key={rowIdx} className="hover:bg-gray-50">
-                  {/* Fixed columns */}
-                  {fixedColumns.map((col, colIdx) => (
-                    <TableCell
-                      key={colIdx}
-                      data-key={cellKey(rowIdx, colIdx)}
-                      className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
-                        selectedCells.has(cellKey(rowIdx, colIdx))
-                          ? "bg-blue-200 font-medium"
-                          : rowIdx % 2 === 0
-                          ? "bg-red-50"
-                          : "bg-white"
-                      }`}
-                      style={{ width: colIdx === 0 ? '80px' : colIdx === 1 ? '70px' : '100px' }}
-                      onClick={(e) => handleCellClick(rowIdx, colIdx, e)}
-                      onMouseDown={(e) => handleMouseDown(rowIdx, colIdx, e)}
-                      onMouseEnter={(e) => handleMouseEnter(rowIdx, colIdx, e)}
-                    >
-                      <div className="truncate">{row[col as keyof ReportRow]}</div>
-                    </TableCell>
-                  ))}
-
-                  {/* Dynamic columns */}
-                  {dynamicColumns.map((_ , dynIdx) => {
-                  // Verifica se temos o value correspondente
-                  const hasValue = row.values && dynIdx < row.values.length;
-                  const value = hasValue ? row.values[dynIdx] : "";
-                  
-                  // Verifica se este produto tem categoria
-                  const colKey = dynamicColumns[dynIdx];
+                ))}
+                {dynamicColumns.map((colKey, idx) => {
+                  // Verificar se o produto tem categoria
                   const produtoInfo = produtosInfo[colKey];
-                  const temCategoria = produtoInfo?.categoria && produtoInfo.categoria === categoriaSelecionada;
+                  const categoria = produtoInfo?.categoria || '';
+                  const isCategoriaSelecionada = categoria === categoriaSelecionada && categoriaSelecionada !== '';
                   
                   return (
-                    <TableCell
-                      key={dynIdx + fixedColumns.length}
-                      data-key={cellKey(rowIdx, dynIdx + fixedColumns.length)}
-                      className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
-                        selectedCells.has(cellKey(rowIdx, dynIdx + fixedColumns.length))
-                          ? "bg-blue-200 font-medium"
-                          : temCategoria && value
-                          ? "bg-green-50 font-medium"
-                          : rowIdx % 2 === 0
-                          ? "bg-red-50"
-                          : "bg-white"
+                    <TableHead
+                      key={idx + fixedColumns.length}
+                      className={`py-1 px-2 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm ${
+                        isCategoriaSelecionada ? 'bg-green-100' : ''
                       }`}
-                      style={{ width: '100px' }}
-                      onClick={(e) => handleCellClick(rowIdx, dynIdx + fixedColumns.length, e)}
-                      onMouseDown={(e) => handleMouseDown(rowIdx, dynIdx + fixedColumns.length, e)}
-                      onMouseEnter={(e) => handleMouseEnter(rowIdx, dynIdx + fixedColumns.length, e)}
+                      style={{ width: '100px', whiteSpace: 'normal', wordWrap: 'break-word' }}
+                      title={categoria ? `Categoria: ${categoria}` : ''}
                     >
-                      <div className="truncate">{formatValue(value)}</div>
-                    </TableCell>
+                      {/* Usa label do Products, se não existir usa colKey, se não existir fallback */}
+                      <div className="flex flex-col">
+                        <span className="truncate break-words text-center">{colLabels?.[colKey] ?? colKey ?? `Coluna ${idx + 6}`}</span>
+                        {categoria && (
+                          <span className="text-xs text-gray-500 font-normal mt-1 hidden md:block truncate">
+                            {categoria}
+                          </span>
+                        )}
+                      </div>
+                    </TableHead>
                   );
                 })}
-                </TableRow>
-              ))}
-            </TableBody>
-        </Table>
+              </TableRow>
+            </TableHeader>
+
+              <TableBody>
+                {dados.map((row, rowIdx) => (
+                  <TableRow key={rowIdx} className="hover:bg-gray-50">
+                    {/* Fixed columns */}
+                    {fixedColumns.map((col, colIdx) => (
+                      <TableCell
+                        key={colIdx}
+                        data-key={cellKey(rowIdx, colIdx)}
+                        className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
+                          selectedCells.has(cellKey(rowIdx, colIdx))
+                            ? "bg-blue-200 font-medium"
+                            : rowIdx % 2 === 0
+                            ? "bg-red-50"
+                            : "bg-white"
+                        }`}
+                        style={{ width: colIdx === 0 ? '80px' : colIdx === 1 ? '70px' : '100px' }}
+                        onClick={(e) => handleCellClick(rowIdx, colIdx, e)}
+                        onMouseDown={(e) => handleMouseDown(rowIdx, colIdx, e)}
+                        onMouseEnter={(e) => handleMouseEnter(rowIdx, colIdx, e)}
+                      >
+                        <div className="truncate">{row[col as keyof ReportRow]}</div>
+                      </TableCell>
+                    ))}
+
+                    {/* Dynamic columns */}
+                    {dynamicColumns.map((_ , dynIdx) => {
+                    // Verifica se temos o value correspondente
+                    const hasValue = row.values && dynIdx < row.values.length;
+                    const colKey = dynamicColumns[dynIdx]; // Ensure colKey is defined here
+                    const value = hasValue ? (produtosInfo[colKey]?.unidade === "g" ? row.values[dynIdx] / 1000 : row.values[dynIdx]) : "";
+                    
+                    // Verifica se este produto tem categoria
+                    const produtoInfo = produtosInfo[colKey];
+                    const temCategoria = produtoInfo?.categoria && produtoInfo.categoria === categoriaSelecionada;
+                    
+                    return (
+                      <TableCell
+                        key={dynIdx + fixedColumns.length}
+                        data-key={cellKey(rowIdx, dynIdx + fixedColumns.length)}
+                        className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
+                          selectedCells.has(cellKey(rowIdx, dynIdx + fixedColumns.length))
+                            ? "bg-blue-200 font-medium"
+                            : temCategoria && value
+                            ? "bg-green-50 font-medium"
+                            : rowIdx % 2 === 0
+                            ? "bg-red-50"
+                            : "bg-white"
+                        }`}
+                        style={{ width: '100px' }}
+                        onClick={(e) => handleCellClick(rowIdx, dynIdx + fixedColumns.length, e)}
+                        onMouseDown={(e) => handleMouseDown(rowIdx, dynIdx + fixedColumns.length, e)}
+                        onMouseEnter={(e) => handleMouseEnter(rowIdx, dynIdx + fixedColumns.length, e)}
+                      >
+                        <div className="truncate">{formatValue(value)}</div>
+                      </TableCell>
+                    );
+                  })}
+                  </TableRow>
+                ))}
+              </TableBody>
+          </Table>
+          <ScrollBar orientation="horizontal" />
+          <ScrollBar orientation="vertical" />
+        </ScrollArea>
       </div>
     </div>
   );

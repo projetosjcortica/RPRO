@@ -214,8 +214,8 @@ export default function Report() {
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 10);
 
   return (
-    <div className="overflow-hidden flex flex-col gap-7 w-full h-full">
-      <div className="h-[80%] flex flex-row justify-between w-full">
+    <div className="flex flex-col gap-7 w-full h-full">
+      <div className="h-[80dvh] flex flex-row justify-between w-full">
         <div className="flex flex-row items-end gap-2">
           <Button onClick={() => setView('table')}>Relatórios</Button>
           <Button onClick={() => setView('product')}>Produtos</Button>
@@ -227,8 +227,8 @@ export default function Report() {
         </div>
       </div>
       <div id="tabela+pag+sideInfo " className="flex flex-row gap-2 justify-start w-full">
-        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[80vh]">
-          <div className="w-full max-w-full h-full overflow-hidden shadow-md/16 flex ">
+        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[80vh] w-[68px]">
+          <div className="flex w-full h-[100dvh] overflow-hidden shadow-md/16 flex ">
             {content}
           </div>
           <div id="pagination" className="flex flex-row items-center justify-end mt-2">
@@ -262,32 +262,32 @@ export default function Report() {
             </Pagination>
           </div>
         </div>
-        <div id="sideinfo" className="h-[70vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+        <div id="sideinfo" className="h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           {/* Componente de Resumo */}
 
           <div id="quadradoInfo" className="grid grid-cols-2 gap-1 mt-2">
-            <div className="w-31 h-20 max-h-20 border-2 rounded-lg flex flex-col justify-between p-2">
+            <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Total</p>
               <p className="text-center text-lg font-bold">
                 {tableSelection.total.toLocaleString('pt-BR', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2
+                  minimumFractionDigits: 3,
+                  maximumFractionDigits: 3
                 })} kg
               </p>
             </div>
-            <div className="w-31 h-20 max-h-20 border-2 rounded-lg flex flex-col justify-between p-2">
+            <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Batidas</p>
               <p className="text-center text-lg font-bold">
                 {tableSelection.batidas}
               </p>
             </div>
-            <div className="w-31 h-20 max-h-20 border-2 rounded-lg flex flex-col justify-between p-2">
+            <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Hora inicial</p>
               <p className="text-center text-lg font-bold">
                 {tableSelection.horaInicial}
               </p>
             </div>
-            <div className="w-31 h-20 max-h-20 border-2 rounded-lg flex flex-col justify-between p-2">
+            <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Hora final</p>
               <p className="text-center text-lg font-bold">
                 {tableSelection.horaFinal}
@@ -318,7 +318,7 @@ export default function Report() {
                 ) : (
                   <TableRow>
                     <TableCell colSpan={2} className="text-center text-gray-500 py-4">
-                      Selecione células na tabela para ver o resumo
+                      Nenhum produto selecionado
                     </TableCell>
                   </TableRow>
                 )}
@@ -360,11 +360,11 @@ export default function Report() {
                       }}
                 </PDFDownloadLink>
               ) : (
-                <Button disabled className="bg-gray-400 text-white px-4 py-2 rounded-lg">
+                <Button className=" text-white px-4 py-2 rounded-lg">
                   Baixar PDF
                 </Button>
               )}
-              <Button className="w-20">Excel</Button>
+              <Button className="w-24 ">Imprimir PDF</Button>
             </div>
           </div>
         </div>
