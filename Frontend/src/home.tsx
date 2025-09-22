@@ -7,7 +7,7 @@ import {
   ChartTooltipContent,
 } from "./components/ui/chart"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
-import { getProcessador } from './Processador'
+// ...existing code...
 import { config } from './CFG'
 import { Button } from "./components/ui/button"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText } from "lucide-react"
@@ -149,7 +149,7 @@ const Home = () => {
   const loadMateriaPrimaConfig = async () => {
     try {
       try {
-        const proc = getProcessador();
+  // ...existing code...
         const mapping = await proc.sendWithConnectionCheck('materiaprima.getConfig');
         if (mapping && typeof mapping === 'object') {
           if (Array.isArray(mapping)) {
@@ -200,7 +200,7 @@ const Home = () => {
 
       if (config.contextoPid) {
         try {
-          const p = getProcessador(config.contextoPid)
+          // ...existing code...
           const tableResult = await p.getTableData(1, 300, {
             dateStart: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             dateEnd: new Date().toISOString().split('T')[0]
@@ -259,7 +259,7 @@ const Home = () => {
 
   const handlePing = async () => {
     try {
-      const p = getProcessador()
+  // ...existing code...
       const res = await p.ping()
       console.log('[Home] ping response', res)
       setProcStatus(`ok (${res.ts})`)
@@ -280,7 +280,7 @@ const Home = () => {
 
     (async () => {
       try {
-        const proc = getProcessador();
+  // ...existing code...
         const labels = await proc.sendWithConnectionCheck('materiaprima.getConfig');
         if (labels && typeof labels === 'object') {
           localStorage.setItem('productLabels', JSON.stringify(labels));
@@ -502,7 +502,7 @@ const Home = () => {
           </CardHeader>
           <CardContent className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
-              <div className="text-sm">Processador: <strong>{procStatus}</strong></div>
+              // ...existing code...
               <div className="text-sm">Última atualização: <strong>{_ultimaAtualizacao || '—'}</strong></div>
               <div className="text-sm">Relatórios carregados: <strong>{rows ? rows.length : 0}</strong></div>
             </div>

@@ -193,59 +193,13 @@ ipcMain.handle('start-fork', async (_event: IpcMainInvokeEvent, { script, args =
   // prefer the real backend project entry (back-end/dist/index.js or back-end/src/index.ts)
   try {
     const frontendBackendDir = path.join(projectRoot, 'Frontend', 'backend');
-    if (scriptPath.startsWith(frontendBackendDir)) {
-      const realCandidates = [
-        path.join(projectRoot, 'back-end', 'dist', 'index.js'),
-        path.join(projectRoot, 'back-end', 'dist', 'src', 'index.js'),
         path.join(projectRoot, 'back-end', 'src', 'index.ts'),
-        path.join(projectRoot, 'back-end', 'src', 'index.js')
-      ];
-      const found = realCandidates.find(p => fs.existsSync(p));
-      if (found) {
-        console.log('Replacing frontend shim script with real backend entry:', found);
-        scriptPath = found;
-      } else {
-        console.log('No real backend entry found, will attempt to fork provided script (may fail if AMD-wrapped)');
       }
-    }
   } catch (e) {
-    // ignore
-  }
-
-  try {
-    // Fork with stdio pipes so we can capture stdout/stderr and with IPC channel.
     // Set cwd to backend directory to use backend's package.json (CommonJS) instead of frontend's (ES module)
-    // Find the back-end directory by looking for the closest parent containing package.json
-    const initialBackendDir = path.dirname(scriptPath);
-    let backendDir = initialBackendDir;
-    let foundBackendPackage = false;
     while (backendDir && backendDir !== path.dirname(backendDir)) {
-      const packageJsonPath = path.join(backendDir, 'package.json');
-      if (fs.existsSync(packageJsonPath)) {
-        try {
-          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-          if (packageJson.name === 'backend') {
-            foundBackendPackage = true;
-            break;
-          }
-        } catch {}
       }
-      backendDir = path.dirname(backendDir);
-    }
-    // If we didn't find a 'backend' package.json, fallback to the script directory
-  if (!foundBackendPackage) backendDir = initialBackendDir;
-
-  console.log('Setting child process cwd to:', backendDir);
-  lastScriptPath = scriptPath;
-    
-    const child = fork(scriptPath, args, { 
-      stdio: ['pipe', 'pipe', 'ipc'], 
-      cwd: backendDir,
-      silent: false,
-      env: { ...process.env }
-    });
-
-    const pid = child.pid;
+          return { ok: true, pid };
     console.log('Child process forked with PID:', pid);
     
     if (typeof pid === 'number') {

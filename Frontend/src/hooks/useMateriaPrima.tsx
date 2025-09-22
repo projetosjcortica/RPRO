@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getHttpApi } from '../services/httpApi';
-import { getProcessador } from '../Processador';
+// ...existing code...
 
 export interface MateriaPrima {
   id: number | string;
@@ -31,7 +31,7 @@ export function useMateriaPrima(): UseMateriaPrimaReturn {
     setError(null);
     try {
       if (isElectron) {
-        const p = getProcessador();
+  // ...existing code...
         const res = await p.sendWithConnectionCheck('db.getMateriaPrima');
         if (Array.isArray(res)) {
           setMateriasPrimas(res as MateriaPrima[]);
@@ -66,7 +66,7 @@ export function useMateriaPrima(): UseMateriaPrimaReturn {
     setError(null);
     try {
       if (isElectron) {
-        const p = getProcessador();
+  // ...existing code...
         const res = await p.dbSetupMateriaPrima([materia as any]);
         if (Array.isArray(res) && res.length > 0) {
           await load();
@@ -98,7 +98,7 @@ export function useMateriaPrima(): UseMateriaPrimaReturn {
     setError(null);
     try {
       if (isElectron) {
-        const p = getProcessador();
+  // ...existing code...
         const res = await p.sendWithConnectionCheck('db.setupMateriaPrima', { items: [{ id, ...updates }] });
         await load();
         return Array.isArray(res) ? res[0] : null;
