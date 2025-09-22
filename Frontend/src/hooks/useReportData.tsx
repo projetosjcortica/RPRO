@@ -76,7 +76,7 @@ export const useReportData = (
           setTotal(res.total ?? mapped.length);
         } else {
           // === HTTP API ===
-          const response = await api.get<ReportApiResponse>('/api/relatorio/paginate?page=1&pageSize=300', {
+          const response = await api.get<ReportApiResponse>('192.168.5.128/api/relatorio/paginate?page=1&pageSize=300', {
             params: {
               ...(filtros.dataInicio && { data_inicio: filtros.dataInicio }),
               ...(filtros.dataFim && { data_fim: filtros.dataFim }),
