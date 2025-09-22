@@ -3,7 +3,6 @@ import { toast } from "react-toastify";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
-import { Switch } from "./components/ui/switch";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -15,20 +14,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
-// import { IpcRendererEvent } from "electron/utility";
-import { getMockStatus, setMockStatus } from "./utils/mockHelper";
-import { updateConfig } from "./CFG";
+
 
 // Formulário para as configurações de administrador
 export function AdminConfig({ configKey = "admin-config" }: { configKey?: string }) {
-  // Estado para controlar se o modo mock está ativado
-  const [isMockEnabled, setIsMockEnabled] = useState(false);
   // Estado para armazenar os dados do formulário
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<any>({
     mySqlDir: "",
     dumpDir: "",
     batchDumpDir: "",
-    mockEnabled: false
   });
   // Estado para controlar se o formulário está em modo de edição
   const [isEditing, setIsEditing] = useState(false);
@@ -43,13 +37,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           setFormData(savedData);
         }
         
-        // Carregar status do modo mock
-        const mockStatus = await getMockStatus();
-        setIsMockEnabled(mockStatus);
-        setFormData(prev => ({ ...prev, mockEnabled: mockStatus }));
-        
-        // Atualiza a configuração da aplicação
-        updateConfig(mockStatus);
+
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
       }
@@ -60,7 +48,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
 
   // Funções para manipular o formulário
   const handleChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev: typeof formData) => ({ ...prev, [field]: value }));
   };
 
   const handleEdit = () => {
@@ -92,26 +80,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
     setIsEditing(false);
   };
 
-  // Função para alternar o modo mock
-  const handleToggleMock = async (checked: boolean) => {
-    try {
-      const success = await setMockStatus(checked);
-      if (success) {
-        setIsMockEnabled(checked);
-        handleChange("mockEnabled", checked);
-        
-        // Atualiza a configuração da aplicação
-        updateConfig(checked);
-        
-        toast.success(`Modo mock ${checked ? 'ativado' : 'desativado'} com sucesso`);
-      } else {
-        toast.error("Falha ao alterar modo mock");
-      }
-    } catch (error) {
-      console.error("Erro ao alternar modo mock:", error);
-      toast.error("Erro ao alternar modo mock");
-    }
-  };
+
 
   return (
     <div id="adm" className="flex flex-col gap-4 bg-white">
@@ -195,22 +164,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           <div className="border-t border-gray-200 pt-4 mt-2">
             <h3 className="text-lg font-medium text-gray-800 mb-2">Configurações de Desenvolvimento</h3>
             
-            {/* Controle de Mock */}
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <Label htmlFor="mock-toggle" className="font-medium text-gray-700">
-                  Modo Mock
-                </Label>
-                <p className="text-sm text-gray-500">
-                  Habilita dados simulados para testes e desenvolvimento
-                </p>
-              </div>
-              <Switch
-                id="mock-toggle"
-                checked={isMockEnabled}
-                onCheckedChange={handleToggleMock}
-              />
-            </div>
+
           </div>
         </div>
       </div>

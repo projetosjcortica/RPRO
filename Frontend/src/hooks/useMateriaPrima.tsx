@@ -1,143 +1,145 @@
-import { useState, useEffect } from 'react';
-import { IS_LOCAL } from '../CFG';
-import { apiWs } from '../Testes/api';
+import { useState, useEffect, useCallback } from 'react';
+import { getHttpApi } from '../services/httpApi';
+import { getProcessador } from '../Processador';
 
-// Interface para matéria-prima
 export interface MateriaPrima {
-  id: string;
+  id: number | string;
   num: number;
   produto: string;
-  medida: number; // 0 = gramas, 1 = kg
+  medida: number; // 0 = g, 1 = kg
 }
 
-/**
- * Hook para gerenciar matérias-primas
- * Busca do backend ou localStorage dependendo do ambiente
- */
-export function useMateriaPrima() {
-  const [materias, setMaterias] = useState<MateriaPrima[]>([]);
-  const [loading, setLoading] = useState(true);
+interface UseMateriaPrimaReturn {
+  materiasPrimas: MateriaPrima[];
+  isLoading: boolean;
+  error: string | null;
+  reloadData: () => Promise<void>;
+  addMateriaPrima: (m: Omit<MateriaPrima, 'id'>) => Promise<MateriaPrima | null>;
+  updateMateriaPrima: (id: number | string, updates: Partial<MateriaPrima>) => Promise<MateriaPrima | null>;
+  deleteMateriaPrima: (id: number | string) => Promise<boolean>;
+}
+
+export function useMateriaPrima(): UseMateriaPrimaReturn {
+  const [materiasPrimas, setMateriasPrimas] = useState<MateriaPrima[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchMateriasPrimas = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        if (IS_LOCAL) {
-          // Ambiente local - tenta recuperar do localStorage
-          const savedMaterias = localStorage.getItem('materiasPrimas');
-          if (savedMaterias) {
-            try {
-              const parsed = JSON.parse(savedMaterias);
-              if (Array.isArray(parsed)) {
-                setMaterias(parsed);
-              } else {
-                setMaterias([]);
-              }
-            } catch (err) {
-              console.error('Erro ao parsear matérias-primas do localStorage:', err);
-              setMaterias([]);
-            }
-          } else {
-            // Se não houver no localStorage, tenta popular de produtosInfo
-            const produtosInfoRaw = localStorage.getItem('produtosInfo');
-            if (produtosInfoRaw) {
-              try {
-                const produtosInfo = JSON.parse(produtosInfoRaw);
-                const result: MateriaPrima[] = [];
-                
-                Object.keys(produtosInfo).forEach(key => {
-                  const colNum = parseInt(key.replace('col', ''), 10);
-                  if (!isNaN(colNum) && colNum >= 6) {
-                    const prodNum = colNum - 5;
-                    const info = produtosInfo[key];
-                    
-                    if (info && info.nome) {
-                      result.push({
-                        id: `local-${Date.now()}-${prodNum}`,
-                        num: prodNum,
-                        produto: info.nome,
-                        medida: info.unidade === 'g' ? 0 : 1
-                      });
-                    }
-                  }
-                });
-                
-                setMaterias(result);
-                localStorage.setItem('materiasPrimas', JSON.stringify(result));
-              } catch (err) {
-                console.error('Erro ao gerar matérias-primas de produtosInfo:', err);
-                setMaterias([]);
-              }
-            } else {
-              setMaterias([]);
-            }
-          }
-        } else {
-          // Ambiente de produção - busca do backend via WebSocket
-          const response = await apiWs.getMateriaPrima();
-          if (response.success && Array.isArray(response.data)) {
-            setMaterias(response.data);
-            
-            // Sincroniza com produtosInfo para manter consistência
-            sincronizarComProdutosInfo(response.data);
-          } else {
-            throw new Error('Falha ao buscar matérias-primas do backend');
-          }
-        }
-      } catch (err) {
-        console.error('Erro ao buscar matérias-primas:', err);
-        setError('Falha ao carregar matérias-primas. Tente novamente.');
-        
-        // Tenta usar dados do localStorage como fallback
-        const savedMaterias = localStorage.getItem('materiasPrimas');
-        if (savedMaterias) {
-          try {
-            const parsed = JSON.parse(savedMaterias);
-            if (Array.isArray(parsed)) {
-              setMaterias(parsed);
-            }
-          } catch {}
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
+  const isElectron = typeof (window as any).electronAPI !== 'undefined';
 
-    fetchMateriasPrimas();
-  }, []);
-
-  // Sincroniza matérias-primas do backend com produtosInfo no localStorage
-  const sincronizarComProdutosInfo = (materiasData: MateriaPrima[]) => {
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const produtosInfoRaw = localStorage.getItem('produtosInfo');
-      let produtosInfo: Record<string, any> = {};
-      
-      if (produtosInfoRaw) {
-        try {
-          produtosInfo = JSON.parse(produtosInfoRaw);
-        } catch {
-          produtosInfo = {};
+      if (isElectron) {
+        const p = getProcessador();
+        const res = await p.sendWithConnectionCheck('db.getMateriaPrima');
+        if (Array.isArray(res)) {
+          setMateriasPrimas(res as MateriaPrima[]);
+          localStorage.setItem('materiaPrima', JSON.stringify(res));
+          return;
         }
       }
-      
-      materiasData.forEach(materia => {
-        const colKey = `col${materia.num + 5}`;
-        
-        // Atualiza ou cria entrada no produtosInfo
-        produtosInfo[colKey] = {
-          nome: materia.produto,
-          unidade: materia.medida === 0 ? 'g' : 'kg'
-        };
-      });
-      
-      localStorage.setItem('produtosInfo', JSON.stringify(produtosInfo));
-    } catch (err) {
-      console.error('Erro ao sincronizar matérias-primas com produtosInfo:', err);
-    }
-  };
 
-  return { materias, loading, error, setMaterias };
+      const http = getHttpApi();
+      const data = await http.getMateriaPrima();
+      if (Array.isArray(data)) {
+        setMateriasPrimas(data as MateriaPrima[]);
+        localStorage.setItem('materiaPrima', JSON.stringify(data));
+      } else {
+        const saved = localStorage.getItem('materiaPrima');
+        if (saved) setMateriasPrimas(JSON.parse(saved));
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar matérias-primas:', err);
+      setError(String(err?.message || err));
+      const saved = localStorage.getItem('materiaPrima');
+      if (saved) setMateriasPrimas(JSON.parse(saved));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isElectron]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const addMateriaPrima = useCallback(async (materia: Omit<MateriaPrima, 'id'>) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (isElectron) {
+        const p = getProcessador();
+        const res = await p.dbSetupMateriaPrima([materia as any]);
+        if (Array.isArray(res) && res.length > 0) {
+          await load();
+          return res[0] as MateriaPrima;
+        }
+      }
+      const http = getHttpApi();
+      const created = await http.setupMateriaPrima([materia as any]);
+      if (Array.isArray(created) && created.length > 0) {
+        await load();
+        return created[0] as MateriaPrima;
+      }
+
+      const localId = `local-${Date.now()}`;
+      const entry: MateriaPrima = { id: localId, ...materia };
+      setMateriasPrimas(prev => { const next = [...prev, entry]; localStorage.setItem('materiaPrima', JSON.stringify(next)); return next; });
+      return entry;
+    } catch (err: any) {
+      console.error('Erro ao adicionar matéria-prima:', err);
+      setError(String(err?.message || err));
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isElectron, load]);
+
+  const updateMateriaPrima = useCallback(async (id: number | string, updates: Partial<MateriaPrima>) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      if (isElectron) {
+        const p = getProcessador();
+        const res = await p.sendWithConnectionCheck('db.setupMateriaPrima', { items: [{ id, ...updates }] });
+        await load();
+        return Array.isArray(res) ? res[0] : null;
+      }
+      const http = getHttpApi();
+      const res = await http.setupMateriaPrima([{ id, ...updates } as any]);
+      await load();
+      return Array.isArray(res) ? res[0] : null;
+    } catch (err: any) {
+      console.error('Erro ao atualizar matéria-prima:', err);
+      setError(String(err?.message || err));
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isElectron, load]);
+
+  const deleteMateriaPrima = useCallback(async (id: number | string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const next = materiasPrimas.filter(m => m.id !== id);
+      setMateriasPrimas(next);
+      localStorage.setItem('materiaPrima', JSON.stringify(next));
+      return true;
+    } catch (err: any) {
+      console.error('Erro ao deletar matéria-prima:', err);
+      setError(String(err?.message || err));
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [materiasPrimas]);
+
+  return {
+    materiasPrimas,
+    isLoading,
+    error,
+    reloadData: load,
+    addMateriaPrima,
+    updateMateriaPrima,
+    deleteMateriaPrima,
+  };
 }

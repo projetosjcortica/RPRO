@@ -8,7 +8,6 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   cleanDB: () => electron.ipcRenderer.invoke("clean-db"),
   // forked functions
   startFork: (script, args) => electron.ipcRenderer.invoke("start-fork", { script, args }),
-  startFork: (script, args) => electron.ipcRenderer.invoke("start-fork", { script, args }),
   // send an object/message to a forked child by pid
   sendToChild: (pid, msg) => electron.ipcRenderer.invoke("send-to-child", { pid, msg }),
   // stop/kill a forked child by pid

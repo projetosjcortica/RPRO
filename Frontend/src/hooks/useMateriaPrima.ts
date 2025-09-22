@@ -1,110 +1,138 @@
-// hooks/useMateriaPrima.ts
-import { useState, useEffect } from "react";
-import { api, apiWs } from "../Testes/api";
-import { IS_LOCAL } from "../CFG";
+import { useState, useEffect } from 'react';
+import { getHttpApi } from '../services/httpApi';
 
+// Interface para matéria-prima
 export interface MateriaPrima {
   id: string;
   num: number;
   produto: string;
-  medida: number;
-  categoria?: string;
+  medida: number; // 0 = gramas, 1 = kg
 }
 
-// Função para converter MateriaPrima para o formato de ColLabels
-export function mapMateriaPrimaToColLabels(materias: MateriaPrima[]): { [key: string]: string } {
-  const colLabels: { [key: string]: string } = {};
-  
-  materias.forEach(mp => {
-    // Cada produto tem um número (num) que corresponde à posição na coluna
-    // As colunas no frontend começam em col6, então precisamos ajustar o índice
-    const colKey = `col${mp.num + 5}`;
-    colLabels[colKey] = mp.produto;
-  });
-  
-  return colLabels;
-}
-
-// Hook para buscar matérias-primas do backend
+/**
+ * Hook para gerenciar matérias-primas
+ * Busca do backend ou localStorage dependendo do ambiente
+ */
 export function useMateriaPrima() {
   const [materias, setMaterias] = useState<MateriaPrima[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchMateriaPrima = async () => {
+    const fetchMateriasPrimas = async () => {
+      setLoading(true);
+      setError(null);
+      
       try {
-        setLoading(true);
+        const httpClient = getHttpApi();
+        const response = await httpClient.getMateriaPrima();
         
-        if (IS_LOCAL) {
-          // Tenta recuperar do localStorage primeiro
-          const saved = localStorage.getItem("materiaPrima");
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            if (Array.isArray(parsed)) {
-              setMaterias(parsed);
-              setLoading(false);
-              return;
+        if (Array.isArray(response)) {
+          setMaterias(response);
+          localStorage.setItem('materiasPrimas', JSON.stringify(response));
+          sincronizarComProdutosInfo(response);
+        } else {
+          // Fallback to localStorage
+          const savedMaterias = localStorage.getItem('materiasPrimas');
+          if (savedMaterias) {
+            try {
+              const parsed = JSON.parse(savedMaterias);
+              if (Array.isArray(parsed)) {
+                setMaterias(parsed);
+              } else {
+                setMaterias([]);
+              }
+            } catch (err) {
+              console.error('Erro ao parsear matérias-primas do localStorage:', err);
+              setMaterias([]);
             }
-          }
-        }
-        
-        // Tenta usar WebSocket primeiro, depois HTTP se falhar
-        try {
-          const data = await apiWs.getMateriaPrima();
-          if (Array.isArray(data)) {
-            setMaterias(data);
-            
-            // Salva no localStorage para uso futuro
-            if (IS_LOCAL) {
-              localStorage.setItem("materiaPrima", JSON.stringify(data));
+          } else {
+            // Se não houver no localStorage, tenta popular de produtosInfo
+            const produtosInfoRaw = localStorage.getItem('produtosInfo');
+            if (produtosInfoRaw) {
+              try {
+                const produtosInfo = JSON.parse(produtosInfoRaw);
+                const result: MateriaPrima[] = [];
+                
+                Object.keys(produtosInfo).forEach(key => {
+                  const colNum = parseInt(key.replace('col', ''), 10);
+                  if (!isNaN(colNum) && colNum >= 6) {
+                    const prodNum = colNum - 5;
+                    const info = produtosInfo[key];
+                    
+                    if (info && info.nome) {
+                      result.push({
+                        id: `local-${Date.now()}-${prodNum}`,
+                        num: prodNum,
+                        produto: info.nome,
+                        medida: info.unidade === 'g' ? 0 : 1
+                      });
+                    }
+                  }
+                });
+                
+                setMaterias(result);
+                localStorage.setItem('materiasPrimas', JSON.stringify(result));
+              } catch (err) {
+                console.error('Erro ao gerar matérias-primas de produtosInfo:', err);
+                setMaterias([]);
+              }
+            } else {
+              setMaterias([]);
             }
-            return;
-          }
-        } catch (wsError) {
-          console.log("Falha ao obter dados via WebSocket, tentando HTTP:", wsError);
-          // Fallback para HTTP se WebSocket falhar
-        }
-        
-        // Fallback para HTTP
-        const response = await api.get('/materiaprima');
-        
-        if (response.data && Array.isArray(response.data)) {
-          setMaterias(response.data);
-          
-          // Salva no localStorage para uso futuro
-          if (IS_LOCAL) {
-            localStorage.setItem("materiaPrima", JSON.stringify(response.data));
           }
         }
       } catch (err) {
-        console.error("Erro ao buscar matérias-primas:", err);
-        setError("Falha ao carregar matérias-primas");
+        console.error('Erro ao buscar matérias-primas:', err);
+        setError('Falha ao carregar matérias-primas. Tente novamente.');
+        
+        // Tenta usar dados do localStorage como fallback
+        const savedMaterias = localStorage.getItem('materiasPrimas');
+        if (savedMaterias) {
+          try {
+            const parsed = JSON.parse(savedMaterias);
+            if (Array.isArray(parsed)) {
+              setMaterias(parsed);
+            }
+          } catch {}
+        }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMateriaPrima();
+    fetchMateriasPrimas();
   }, []);
 
-  // Função para sincronizar colLabels com MateriaPrima
-  const syncLabelsWithMateriaPrima = () => {
-    if (materias.length > 0) {
-      const colLabels = mapMateriaPrimaToColLabels(materias);
+  // Sincroniza matérias-primas do backend com produtosInfo no localStorage
+  const sincronizarComProdutosInfo = (materiasData: MateriaPrima[]) => {
+    try {
+      const produtosInfoRaw = localStorage.getItem('produtosInfo');
+      let produtosInfo: Record<string, any> = {};
       
-      // Atualiza localStorage
-      localStorage.setItem("colLabels", JSON.stringify(colLabels));
+      if (produtosInfoRaw) {
+        try {
+          produtosInfo = JSON.parse(produtosInfoRaw);
+        } catch {
+          produtosInfo = {};
+        }
+      }
       
-      return colLabels;
+      materiasData.forEach(materia => {
+        const colKey = `col${materia.num + 5}`;
+        
+        // Atualiza ou cria entrada no produtosInfo
+        produtosInfo[colKey] = {
+          nome: materia.produto,
+          unidade: materia.medida === 0 ? 'g' : 'kg'
+        };
+      });
+      
+      localStorage.setItem('produtosInfo', JSON.stringify(produtosInfo));
+    } catch (err) {
+      console.error('Erro ao sincronizar matérias-primas com produtosInfo:', err);
     }
-    return null;
   };
 
-  return {
-    materias,
-    loading,
-    error,
-    syncLabelsWithMateriaPrima
-  };
+  return { materias, loading, error, setMaterias };
 }

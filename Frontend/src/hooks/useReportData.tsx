@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
-import { Filtros, ReportRow, ReportApiResponse } from "../components/types";
-import { mockRows } from "../Testes/mockData";
-import { api } from "../Testes/api";
-import { IS_LOCAL } from "../CFG";
+import { Filtros, ReportRow } from "../components/types";
+import { getHttpApi } from "../services/httpApi";
 import { getProcessador } from "../Processador";
 
 export const useReportData = (
@@ -21,6 +19,7 @@ export const useReportData = (
       setError(null);
 
       try {
+<<<<<<< HEAD
         if (IS_LOCAL) {
           // === Dados mock ===
           await new Promise((resolve) => setTimeout(resolve, 500));
@@ -54,6 +53,9 @@ export const useReportData = (
           setDados(pageSlice);
           setTotal(filtered.length);
         } else if ((window as any).electronAPI) {
+=======
+        if ((window as any).electronAPI) {
+>>>>>>> 03f452872e7741c748550edb4fdcf2777ec67120
           // === Electron/Processador ===
           const processador = getProcessador(3001);
           const res = await processador.getTableData(page, pageSize, {
@@ -90,6 +92,13 @@ export const useReportData = (
           setTotal(res.total ?? mapped.length);
         } else {
           // === HTTP API ===
+<<<<<<< HEAD
+          const httpClient = getHttpApi();
+          const result = await httpClient.getTableData(page, pageSize, {
+            formula: filtros.nomeFormula || undefined,
+            dateStart: filtros.dataInicio || undefined,
+            dateEnd: filtros.dataFim || undefined,
+=======
           const response = await api.get<ReportApiResponse>('192.168.5.128/api/relatorio/paginate?page=1&pageSize=300', {
             params: {
               ...(filtros.dataInicio && { data_inicio: filtros.dataInicio }),
@@ -98,14 +107,27 @@ export const useReportData = (
               page,
               pageSize,
             },
+>>>>>>> f51fa3474347b6306f9f5d6b994b033d1eb00991
           });
 
-          const responseData = response.data;
+          const mapped: ReportRow[] = (result.rows || []).map((r: any) => {
+            const values: number[] = [];
+            for (let i = 1; i <= 40; i++) {
+              const v = r[`Prod_${i}`];
+              values.push(typeof v === "number" ? v : v != null ? Number(v) : 0);
+            }
 
-          if (!responseData || typeof responseData !== "object") {
-            throw new Error("Resposta da API inválida");
-          }
+            return {
+              Dia: r.Dia || "",
+              Hora: r.Hora || "",
+              Nome: r.Nome || "",
+              Codigo: r.Form1 ?? 0,
+              Numero: r.Form2 ?? 0,
+              values,
+            };
+          });
 
+<<<<<<< HEAD
           // DEBUG: Verificar a estrutura da resposta da API
           console.log('Resposta da API:', responseData);
 
@@ -137,6 +159,10 @@ export const useReportData = (
 
           setDados(validatedRows);
           setTotal(responseData.total ?? validatedRows.length);
+=======
+          setDados(mapped);
+          setTotal(result.total);
+>>>>>>> 03f452872e7741c748550edb4fdcf2777ec67120
         }
       } catch (err: any) {
         console.error("Erro ao carregar dados:", err);

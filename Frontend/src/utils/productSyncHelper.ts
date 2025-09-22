@@ -1,36 +1,54 @@
 /**
- * Utilitário para sincronizar os nomes dos produtos entre o backend (MateriaPrima) e o frontend (colLabels)
+ * Utilitário para sincronizar os nomes dos produtos entre o backend export async function syncProductsToBackend(): Promise<boolean> {
+  try {
+    // Recupera materias do localStorage
+    const savedMaterias = localStorage.getItem('materiaPrima');
+    if (!savedMaterias) {
+      return true; // Nada para sincronizar
+    }
+    
+    const materias = JSON.parse(savedMaterias) as MateriaPrima[];
+    
+    // Envia para o backend
+    const httpClient = getHttpApi();
+    await httpClient.setupMateriaPrima(materias);
+    return true;
+  } catch (error) {
+    console.error('Erro ao sincronizar produtos com o backend:', error);
+    return false;
+  }
+}aPrima) e o frontend (colLabels)
  */
 
 import { MateriaPrima } from '../hooks/useMateriaPrima';
-import { apiWs } from '../Testes/api';
-import { IS_LOCAL } from '../CFG';
+import { getHttpApi } from '../services/httpApi';
 
 /**
  * Sincroniza os produtos entre o localStorage e o backend
  * @returns Promise com os labels sincronizados
  */
 export async function syncProductLabels(): Promise<{ [key: string]: string }> {
-  // Recupera os labels atuais do localStorage
-  const savedLabels = localStorage.getItem('colLabels');
+  // Recupera os labels atuais do localStorage (productLabels é o canonical)
+  const savedLabels = localStorage.getItem('productLabels') || localStorage.getItem('colLabels');
   let colLabels: { [key: string]: string } = {};
-  
+
   if (savedLabels) {
     try {
-      colLabels = JSON.parse(savedLabels);
+      const parsed = JSON.parse(savedLabels);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        colLabels = parsed[0];
+      } else if (parsed && typeof parsed === 'object') {
+        colLabels = parsed;
+      }
     } catch (e) {
-      console.error('Erro ao parsear colLabels:', e);
+      console.error('Erro ao parsear productLabels/colLabels:', e);
     }
   }
-  
-  // Se estiver usando mock local, retorna os labels do localStorage
-  if (IS_LOCAL) {
-    return colLabels;
-  }
-  
+
   try {
-    // Busca matérias-primas do backend via WebSocket
-    const materias = await apiWs.getMateriaPrima() as MateriaPrima[];
+    // Busca matérias-primas do backend via HTTP
+    const httpClient = getHttpApi();
+    const materias = await httpClient.getMateriaPrima() as MateriaPrima[];
     
     if (Array.isArray(materias) && materias.length > 0) {
       // Atualiza os labels com os dados do backend
@@ -39,8 +57,9 @@ export async function syncProductLabels(): Promise<{ [key: string]: string }> {
         colLabels[colKey] = mp.produto;
       });
       
-      // Salva os labels atualizados no localStorage
-      localStorage.setItem('colLabels', JSON.stringify(colLabels));
+  // Salva os labels atualizados no localStorage (productLabels canonical)
+  localStorage.setItem('productLabels', JSON.stringify([colLabels]));
+  localStorage.setItem('colLabels', JSON.stringify(colLabels));
       localStorage.setItem('materiaPrima', JSON.stringify(materias));
       
       return colLabels;
@@ -57,24 +76,21 @@ export async function syncProductLabels(): Promise<{ [key: string]: string }> {
  * @returns Promise com resultado da sincronização
  */
 export async function syncProductsToBackend(): Promise<boolean> {
-  if (IS_LOCAL) {
-    return true; // Em modo local, não precisa sincronizar
-  }
-  
   try {
     // Recupera materias do localStorage
     const savedMaterias = localStorage.getItem('materiaPrima');
     if (!savedMaterias) {
-      return false;
+      return true; // Nada para sincronizar
     }
     
     const materias = JSON.parse(savedMaterias) as MateriaPrima[];
     
     // Envia para o backend
-    await apiWs.setupMateriaPrima(materias);
+    const httpClient = getHttpApi();
+    await httpClient.setupMateriaPrima(materias);
     return true;
   } catch (error) {
-    console.error('Erro ao enviar produtos para o backend:', error);
+    console.error('Erro ao sincronizar produtos com o backend:', error);
     return false;
   }
 }

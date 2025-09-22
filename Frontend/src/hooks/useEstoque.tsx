@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { apiWs } from '../Testes/api';
+import { getHttpApi } from '../services/httpApi';
 
 export interface EstoqueItem {
   id: string;
@@ -51,11 +51,12 @@ export const useEstoque = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Carregar todos os itens do estoque
-  const carregarEstoque = useCallback(async (incluirInativos = false) => {
+  const carregarEstoque = useCallback(async (_incluirInativos = false) => {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiWs.estoqueListar({ incluirInativos });
+      const httpClient = getHttpApi();
+      const result = await httpClient.listarEstoque();
       if (result && Array.isArray(result)) {
         setEstoque(result);
       } else {
@@ -74,7 +75,8 @@ export const useEstoque = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiWs.estoqueBaixo({});
+      const httpClient = getHttpApi();
+      const result = await httpClient.listarEstoqueBaixo();
       if (result && Array.isArray(result)) {
         setEstoqueBaixo(result);
       } else {
@@ -98,12 +100,8 @@ export const useEstoque = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiWs.estoqueMovimentacoes({
-        materiaPrimaId,
-        tipo,
-        dataInicial,
-        dataFinal
-      });
+      const httpClient = getHttpApi();
+      const result = await httpClient.listarEstoqueMovimentacoes(materiaPrimaId, tipo, dataInicial, dataFinal);
       if (result && Array.isArray(result)) {
         setMovimentacoes(result);
       } else {
@@ -128,9 +126,8 @@ export const useEstoque = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiWs.estoqueAdicionar({
-        materiaPrimaId,
-        quantidade,
+      const httpClient = getHttpApi();
+      const result = await httpClient.adicionarEstoque(materiaPrimaId, quantidade, {
         observacoes,
         responsavel,
         documentoReferencia
@@ -160,9 +157,8 @@ export const useEstoque = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiWs.estoqueRemover({
-        materiaPrimaId,
-        quantidade,
+      const httpClient = getHttpApi();
+      const result = await httpClient.removerEstoque(materiaPrimaId, quantidade, {
         observacoes,
         responsavel,
         documentoReferencia
@@ -191,9 +187,8 @@ export const useEstoque = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiWs.estoqueAjustar({
-        materiaPrimaId,
-        quantidade,
+      const httpClient = getHttpApi();
+      const result = await httpClient.ajustarEstoque(materiaPrimaId, quantidade, {
         observacoes,
         responsavel
       });
@@ -222,10 +217,8 @@ export const useEstoque = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiWs.estoqueLimites({
-        materiaPrimaId,
-        minimo,
-        maximo,
+      const httpClient = getHttpApi();
+      const result = await httpClient.atualizarLimitesEstoque(materiaPrimaId, minimo, maximo, {
         localizacao,
         observacoes
       });
@@ -253,12 +246,8 @@ export const useEstoque = () => {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiWs.estoqueInicializar({
-        materiaPrimaId,
-        quantidade,
-        minimo,
-        maximo
-      });
+      const httpClient = getHttpApi();
+      const result = await httpClient.inicializarEstoque(materiaPrimaId, quantidade, minimo, maximo);
       
       // Atualizar o estoque local após a inicialização
       carregarEstoque();

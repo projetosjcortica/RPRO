@@ -1,16 +1,26 @@
 import { AppDataSource, dbService } from './dbService';
-import { Relatorio } from '../entities';
+import { Relatorio, MateriaPrima } from '../entities';
+import { materiaPrimaService } from './materiaPrimaService';
+
+export interface FormulaInfo {
+    numero: number;
+    nome: string;
+    quantidade: number;
+    porcentagem: number;
+}
 
 export interface ResumoTotal {
-    totalRegistros: number;
-    mediaForm1: number;
-    mediaForm2: number;
-    minForm1: number;
-    maxForm1: number;
-    minForm2: number;
-    maxForm2: number;
+    // totalRegistros: number;
     periodoInicio: string | null;
     periodoFim: string | null;
+    // Informações sobre fórmulas utilizadas
+    formulasUtilizadas: Record<string, FormulaInfo>;
+    // Campos adicionais para consumo de produtos
+    totalPesos: number;
+    batitdasTotais: number;
+    horaInicial: string | null;
+    horaFinal: string | null;
+    usosPorProduto: Record<string, { quantidade: number; label: string; unidade: string; }>;
 }
 
 export interface ResumoAreaSelecionada extends ResumoTotal {
@@ -19,6 +29,43 @@ export interface ResumoAreaSelecionada extends ResumoTotal {
 }
 
 export class ResumoService {
+    /**
+     * Aplica filtro de fórmula ao query builder
+     */
+    private applyFormulaFilter(qb: any, formula: number | null) {
+        if (formula) {
+            if (!Number.isNaN(formula)) {
+                qb.andWhere('(r.Form1 = :formula OR r.Form2 = :formula)', { formula });
+            }
+        }
+    }
+
+    /**
+     * Aplica todos os filtros ao query builder
+     */
+    private applyFilters(qb: any, filtros?: { 
+        formula?: number | null;
+        dateStart?: string | null;
+        dateEnd?: string | null;
+        areaId?: string | null;
+    }) {
+        if (filtros?.areaId) {
+            qb.andWhere('r.Area = :areaId', { areaId: filtros.areaId });
+        }
+        
+        if (filtros?.formula) {
+            this.applyFormulaFilter(qb, filtros.formula);
+        }
+        
+        if (filtros?.dateStart) {
+            qb.andWhere('r.Dia >= :dateStart', { dateStart: filtros.dateStart });
+        }
+        
+        if (filtros?.dateEnd) {
+            qb.andWhere('r.Dia <= :dateEnd', { dateEnd: filtros.dateEnd });
+        }
+    }
+
     /**
      * Gera um resumo dos dados com filtros aplicados
      */
@@ -31,45 +78,100 @@ export class ResumoService {
         await dbService.init();
         const repo = AppDataSource.getRepository(Relatorio);
         
-        // Criar query builder base
+        // Criar query builder base para estatísticas
         const qb = repo.createQueryBuilder('r');
-        
-        // Aplicar filtro de área se fornecido
-        if (filtros?.areaId) {
-            qb.andWhere('r.Area = :areaId', { areaId: filtros.areaId });
-        }
-        
-        // Aplicar filtros
-        if (filtros?.formula) {
-            const formula = Number(filtros.formula);
-            if (!Number.isNaN(formula)) {
-                qb.andWhere('(r.Form1 = :formula OR r.Form2 = :formula)', { formula });
-            }
-        }
-        
-        if (filtros?.dateStart) {
-            qb.andWhere('r.Dia >= :dateStart', { dateStart: filtros.dateStart });
-        }
-        
-        if (filtros?.dateEnd) {
-            qb.andWhere('r.Dia <= :dateEnd', { dateEnd: filtros.dateEnd });
-        }
-        
+        this.applyFilters(qb, filtros);
         
         // Selecionar dados para o resumo
         const result = await qb
             .select([
                 'COUNT(r.id) as totalRegistros',
-                'AVG(r.Form1) as mediaForm1',
-                'AVG(r.Form2) as mediaForm2',
-                'MIN(r.Form1) as minForm1',
-                'MAX(r.Form1) as maxForm1',
-                'MIN(r.Form2) as minForm2',
-                'MAX(r.Form2) as maxForm2',
                 'MIN(r.Dia) as periodoInicio',
-                'MAX(r.Dia) as periodoFim'
+                'MAX(r.Dia) as periodoFim',
+                'MIN(r.Hora) as horaInicial',
+                'MAX(r.Hora) as horaFinal'
             ])
             .getRawOne();
+        
+        // Buscar todos os registros para calcular consumo de produtos e fórmulas
+        const qbFull = repo.createQueryBuilder('r');
+        this.applyFilters(qbFull, filtros);
+        const allRows = await qbFull.getMany();
+        
+        // Buscar informações completas dos produtos da MateriaPrima
+        const materiasPrimas = await materiaPrimaService.getAll();
+        const infosProdutos: Record<string, { label: string; materia: MateriaPrima }> = {};
+        
+        for (const mp of materiasPrimas) {
+            if (mp.num && mp.produto) {
+                infosProdutos[`Produto_${mp.num}`] = {
+                    label: mp.produto,
+                    materia: mp
+                };
+            }
+        }
+        
+        // Calcular consumo total por produto e fórmulas utilizadas
+        const usosPorProduto: Record<string, { quantidade: number; label: string; unidade: string; }> = {};
+        const formulasUtilizadas: Record<string, FormulaInfo> = {};
+        let totalPesos = 0;
+        
+        for (const row of allRows) {
+            // Contar fórmulas baseado no Nome (que é único para cada fórmula)
+            if (row.Nome && row.Form1 != null) {
+                const formulaKey = row.Nome; // Usar o nome da fórmula como chave
+                if (!formulasUtilizadas[formulaKey]) {
+                    formulasUtilizadas[formulaKey] = { 
+                        numero: row.Form1, 
+                        nome: row.Nome,
+                        quantidade: 0, 
+                        porcentagem: 0 
+                    };
+                }
+                formulasUtilizadas[formulaKey].quantidade++;
+            }
+            
+            // Calcular consumo de produtos com conversão baseada na configuração
+            for (let i = 1; i <= 40; i++) {
+                const prodValue = (row as any)[`Prod_${i}`];
+                const valueOriginal = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
+                
+                if (valueOriginal > 0) {
+                    const prodKey = `Produto_${i}`;
+                    const info = infosProdutos[prodKey];
+                    
+                    // Converter valor baseado na configuração do produto
+                    let valueConverted = valueOriginal;
+                    let unidade = 'kg';
+                    
+                    if (info && info.materia) {
+                        // Se medida = 0 (gramas), converter para kg
+                        if (info.materia.medida === 0) {
+                            valueConverted = valueOriginal / 1000;
+                            unidade = 'g'; 
+                        } else {
+                            // Se medida = 1 (kg), manter valor original
+                            valueConverted = valueOriginal;
+                            unidade = 'kg';
+                        }
+                    }
+                    
+                    const label = info ? info.label : `Produto ${i}`;
+                    
+                    if (!usosPorProduto[prodKey]) {
+                        usosPorProduto[prodKey] = { quantidade: 0, label, unidade };
+                    }
+                    usosPorProduto[prodKey].quantidade += valueConverted;
+                    totalPesos += valueConverted; // Usar valor convertido para o total
+                }
+            }
+        }
+        
+        // Calcular porcentagens das fórmulas
+        const totalRegistros = Number(result.totalRegistros) || 0;
+        Object.values(formulasUtilizadas).forEach(formula => {
+            formula.porcentagem = totalRegistros > 0 ? (formula.quantidade / totalRegistros) * 100 : 0;
+        });
         
         // Se solicitado para uma área específica, buscar informações adicionais
         if (filtros?.areaId) {
@@ -81,15 +183,15 @@ export class ResumoService {
             
             // Retornar com informações da área
             return {
-                totalRegistros: Number(result.totalRegistros) || 0,
-                mediaForm1: Number(result.mediaForm1) || 0,
-                mediaForm2: Number(result.mediaForm2) || 0,
-                minForm1: Number(result.minForm1) || 0,
-                maxForm1: Number(result.maxForm1) || 0,
-                minForm2: Number(result.minForm2) || 0,
-                maxForm2: Number(result.maxForm2) || 0,
+                // totalRegistros: Number(result.totalRegistros) || 0,
+                batitdasTotais: allRows.length,
                 periodoInicio: result.periodoInicio,
                 periodoFim: result.periodoFim,
+                horaInicial: result.horaInicial,
+                horaFinal: result.horaFinal,
+                formulasUtilizadas,
+                totalPesos,
+                usosPorProduto,
                 areaId: filtros.areaId,
                 areaDescricao: areaInfo?.AreaDescricao || `Área ${filtros.areaId}`
             };
@@ -97,35 +199,35 @@ export class ResumoService {
         
         // Retornar formato padrão
         return {
-            totalRegistros: Number(result.totalRegistros) || 0,
-            mediaForm1: Number(result.mediaForm1) || 0,
-            mediaForm2: Number(result.mediaForm2) || 0,
-            minForm1: Number(result.minForm1) || 0,
-            maxForm1: Number(result.maxForm1) || 0,
-            minForm2: Number(result.minForm2) || 0,
-            maxForm2: Number(result.maxForm2) || 0,
+            // totalRegistros: Number(result.totalRegistros) || 0,
+            batitdasTotais: allRows.length,
             periodoInicio: result.periodoInicio,
-            periodoFim: result.periodoFim
+            periodoFim: result.periodoFim,
+            horaInicial: result.horaInicial,
+            horaFinal: result.horaFinal,
+            formulasUtilizadas,
+            totalPesos,
+            usosPorProduto
         };
     }
 
     /**
      * Processa um conjunto de relatórios para gerar um resumo
-     * Utilizado principalmente para processar dados mock
+     * Processa dados do CSV
      */
     processResumo(relatorios: Relatorio[], areaId?: string | null): ResumoTotal | ResumoAreaSelecionada {
         if (!relatorios || relatorios.length === 0) {
             // Retornar resumo vazio
             const resumoVazio = {
                 totalRegistros: 0,
-                mediaForm1: 0,
-                mediaForm2: 0,
-                minForm1: 0,
-                maxForm1: 0,
-                minForm2: 0,
-                maxForm2: 0,
                 periodoInicio: null,
-                periodoFim: null
+                periodoFim: null,
+                formulasUtilizadas: {},
+                totalPesos: 0,
+                batitdasTotais: 0,
+                horaInicial: null,
+                horaFinal: null,
+                usosPorProduto: {}
             };
 
             if (areaId) {
@@ -146,31 +248,30 @@ export class ResumoService {
         }
 
         // Calcular métricas
-        let minForm1 = Number.MAX_VALUE;
-        let maxForm1 = Number.MIN_VALUE;
-        let minForm2 = Number.MAX_VALUE;
-        let maxForm2 = Number.MIN_VALUE;
-        let somaForm1 = 0;
-        let somaForm2 = 0;
         let periodoInicio: string | null = null;
         let periodoFim: string | null = null;
+        let horaInicial: string | null = null;
+        let horaFinal: string | null = null;
         let areaDescricao = '';
+        
+        // Calcular consumo total por produto e fórmulas
+        const usosPorProduto: Record<string, { quantidade: number; label: string; unidade: string; }> = {};
+        const formulasUtilizadas: Record<string, FormulaInfo> = {};
+        let totalPesos = 0;
 
         for (const relatorio of dadosFiltrados) {
-            // Form1
-            const form1 = Number(relatorio.Form1 || 0);
-            if (!isNaN(form1)) {
-                somaForm1 += form1;
-                if (form1 < minForm1) minForm1 = form1;
-                if (form1 > maxForm1) maxForm1 = form1;
-            }
-
-            // Form2
-            const form2 = Number(relatorio.Form2 || 0);
-            if (!isNaN(form2)) {
-                somaForm2 += form2;
-                if (form2 < minForm2) minForm2 = form2;
-                if (form2 > maxForm2) maxForm2 = form2;
+            // Contar fórmulas baseado no Nome (que é único para cada fórmula)
+            if (relatorio.Nome && relatorio.Form1 != null) {
+                const formulaKey = relatorio.Nome; // Usar o nome da fórmula como chave
+                if (!formulasUtilizadas[formulaKey]) {
+                    formulasUtilizadas[formulaKey] = { 
+                        numero: relatorio.Form1, 
+                        nome: relatorio.Nome,
+                        quantidade: 0, 
+                        porcentagem: 0 
+                    };
+                }
+                formulasUtilizadas[formulaKey].quantidade++;
             }
 
             // Período
@@ -183,34 +284,56 @@ export class ResumoService {
                 }
             }
 
+            // Horas
+            if (relatorio.Hora) {
+                if (!horaInicial || relatorio.Hora < horaInicial) {
+                    horaInicial = relatorio.Hora;
+                }
+                if (!horaFinal || relatorio.Hora > horaFinal) {
+                    horaFinal = relatorio.Hora;
+                }
+            }
+
             // Descrição da área (para o primeiro registro que corresponder)
             if (areaId && relatorio.Area === areaId && !areaDescricao && relatorio.AreaDescricao) {
                 areaDescricao = relatorio.AreaDescricao;
             }
+            
+            // Calcular consumo de produtos
+            for (let i = 1; i <= 40; i++) {
+                const prodValue = (relatorio as any)[`Prod_${i}`];
+                const value = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
+                
+                if (value > 0) {
+                    const prodKey = `Produto_${i}`;
+                    const label = this.colLabels[`col${i+5}`]?.col_name || `Produto ${i}`;
+                    const unidade = this.colLabels[`col${i+5}`]?.unidade || 'kg';
+                    
+                    if (!usosPorProduto[prodKey]) {
+                        usosPorProduto[prodKey] = { quantidade: 0, label, unidade };
+                    }
+                    usosPorProduto[prodKey].quantidade += value;
+                    totalPesos += value;
+                }
+            }
         }
 
-        // Calcular médias
+        // Calcular porcentagens das fórmulas
         const totalRegistros = dadosFiltrados.length;
-        const mediaForm1 = totalRegistros > 0 ? somaForm1 / totalRegistros : 0;
-        const mediaForm2 = totalRegistros > 0 ? somaForm2 / totalRegistros : 0;
-
-        // Ajustar para caso de nenhum dado
-        if (minForm1 === Number.MAX_VALUE) minForm1 = 0;
-        if (maxForm1 === Number.MIN_VALUE) maxForm1 = 0;
-        if (minForm2 === Number.MAX_VALUE) minForm2 = 0;
-        if (maxForm2 === Number.MIN_VALUE) maxForm2 = 0;
+        Object.values(formulasUtilizadas).forEach(formula => {
+            formula.porcentagem = totalRegistros > 0 ? (formula.quantidade / totalRegistros) * 100 : 0;
+        });
 
         // Resumo básico
         const resumo: ResumoTotal = {
-            totalRegistros,
-            mediaForm1,
-            mediaForm2,
-            minForm1,
-            maxForm1,
-            minForm2,
-            maxForm2,
+            batitdasTotais: totalRegistros,
             periodoInicio,
-            periodoFim
+            periodoFim,
+            horaInicial,
+            horaFinal,
+            formulasUtilizadas,
+            totalPesos,
+            usosPorProduto
         };
 
         // Se for para área específica, adicionar info da área

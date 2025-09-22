@@ -1,7 +1,5 @@
 // hooks/useLabelService.ts - ATUALIZADO
-import { api } from "../Testes/api";
-import { mockLabels } from "../Testes/mockLabel";
-import { IS_LOCAL } from "../CFG";
+import { getHttpApi } from "../services/httpApi";
 import { ApiResponse } from "../components/types";
 
 export interface ColLabel {
@@ -18,37 +16,38 @@ export interface LabelsResponse extends ApiResponse<ColLabel[]> {
 
 // Busca os labels - COM TIPAGEM CORRETA
 export async function fetchLabels(): Promise<ColLabel[]> {
-  if (IS_LOCAL) {
-    const saved = localStorage.getItem("colLabels");
+  // Try backend first
+  try {
+    const httpClient = getHttpApi();
+    const response = await httpClient.getMateriaPrimaLabels();
+    if (response && typeof response === 'object') {
+      // Convert backend format to ColLabel format
+      const labels: ColLabel[] = [];
+      Object.entries(response).forEach(([col_key, info]: [string, any]) => {
+        if (info && info.produto) {
+          labels.push({
+            col_key,
+            col_name: info.produto,
+            unidade: info.medida === 0 ? 'g' : 'kg'
+          });
+        }
+      });
+      return labels;
+    }
+  } catch (err) {
+    // fallback to localStorage productLabels
+    const saved = localStorage.getItem("productLabels") || localStorage.getItem("colLabels");
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed as ColLabel[];
+        if (parsed && typeof parsed === 'object') return Object.entries(parsed).map(([col_key, col_name]: any) => ({ col_key, col_name }));
       } catch (e) {
-        console.warn("Erro ao parsear localStorage, usando mock", e);
+        console.warn("Erro ao parsear localStorage de labels:", e);
       }
     }
-    return mockLabels;
+    return [];
   }
   
-  try {
-    const response = await api.get<LabelsResponse>("/col_labels");
-    
-    // Extrai dados com tipagem segura
-    if (response.data && typeof response.data === 'object') {
-      if (Array.isArray(response.data.data)) {
-        return response.data.data;
-      }
-      if (Array.isArray(response.data.rows)) {
-        return response.data.rows;
-      }
-      if (Array.isArray(response.data)) {
-        return response.data;
-      }
-    }
-    
-    return [];
-  } catch (error) {
-    console.error("Erro ao buscar labels da API:", error);
-    throw new Error("Falha ao carregar labels");
-  }
+  return [];
 }
