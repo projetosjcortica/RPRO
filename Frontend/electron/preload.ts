@@ -31,7 +31,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   cleanDB: () => ipcRenderer.invoke("clean-db"),
   // forked functions
   
-  startFork: (script: string, args?: string[]) => ipcRenderer.invoke('start-fork', { script, args }) as Promise<StartForkResult>,startFork: (script: string, args?: string[]) => ipcRenderer.invoke('start-fork', { script, args }) as Promise<StartForkResult>,
+  startFork: (script: string, args?: string[]) => ipcRenderer.invoke('start-fork', { script, args }) as Promise<StartForkResult>,
   // send an object/message to a forked child by pid
   sendToChild: (pid: number, msg: any) => ipcRenderer.invoke('send-to-child', { pid, msg }) as Promise<{ ok: boolean; reason?: string }>,
   // stop/kill a forked child by pid

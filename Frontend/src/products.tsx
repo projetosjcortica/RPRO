@@ -6,9 +6,6 @@ import { Label } from "./components/ui/label";
 import { ColLabel } from "./hooks/useLabelService";
 import { useMateriaPrima } from "./hooks/useMateriaPrima";
 import { useUnidades } from "./hooks/useUnidades";
-import { IS_LOCAL } from "./CFG";
-import { apiWs } from "./Testes/api";
-
 interface ProductsProps {
   colLabels: { [key: string]: string };
   setColLabels: React.Dispatch<React.SetStateAction<{ [key: string]: string }>>;
@@ -20,7 +17,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   const { materias } = useMateriaPrima();
   
   // Utiliza o hook para conversão de unidades
-  const { converterUnidade } = useUnidades();
+  const { converterUnidade: _converterUnidade } = useUnidades();
   
   // Estado para controlar atualização nos produtos do backend
   const [savingProduct, setSavingProduct] = useState<string | null>(null);
@@ -72,34 +69,15 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     const fetchLabels = async () => {
       try {
         let labelsObj: { [key: string]: string } = {};
-
-        if (IS_LOCAL) {
-          const saved = localStorage.getItem("colLabels");
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed)) {
-                parsed.forEach((item: ColLabel) => {
-                  labelsObj[item.col_key] = item.col_name;
-                });
-              } else if (parsed && typeof parsed === "object") {
-                labelsObj = parsed;
-              }
-            } catch {
-              console.warn("colLabels inválido no localStorage");
-            }
-          }
-        } else {
-          const response = await fetch("/api/col_labels");
-          if (response.ok) {
-            const json: any = await response.json();
-            if (Array.isArray(json)) {
-              json.forEach((item: ColLabel) => {
-                labelsObj[item.col_key] = item.col_name;
-              });
-            } else if (json && typeof json === "object") {
-              labelsObj = json;
-            }
+        const response = await fetch("/api/col_labels");
+        if (response.ok) {
+          const json: any = await response.json();
+          if (Array.isArray(json)) {
+            json.forEach((item: ColLabel) => {
+              if (item && item.col_key) labelsObj[item.col_key] = item.col_name;
+            });
+          } else if (json && typeof json === "object") {
+            labelsObj = json;
           }
         }
 
@@ -110,7 +88,8 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
             labelsObj[key] = "";
           }
         }
-        localStorage.setItem("labelsMock", JSON.stringify([labelsObj]))
+  localStorage.setItem("productLabels", JSON.stringify([labelsObj]));
+  localStorage.setItem("colLabels", JSON.stringify(labelsObj));
         setColLabels(labelsObj);
 
         // Salva também nomes e unidades no produtosInfo
@@ -147,9 +126,8 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
       };
       localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
       
-      // Agora, sincroniza com o backend se não estivermos em modo local ou mock
-      if (!IS_LOCAL) {
-        // Extrai o número da coluna
+      // Sincroniza com o backend
+      try {
         const colNum = parseInt(colKey.replace("col", ""), 10);
         if (!isNaN(colNum)) {
           // O índice na MateriaPrima é colNum - 5
@@ -178,9 +156,17 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
             });
           }
           
-          // Usa WebSocket para salvar no backend
-          await apiWs.setupMateriaPrima(updatedMaterias);
+          // Usa HTTP para salvar no backend
+          await fetch("/api/db/setupMateriaPrima", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ items: updatedMaterias }),
+          });
         }
+      } catch (error) {
+        console.error("Erro ao salvar produto:", error);
       }
     } catch (error) {
       console.error("Erro ao salvar produto:", error);
@@ -220,44 +206,48 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     // Notifica a alteração da unidade para o componente pai
     onLabelChange(colKey, colLabels[colKey] || "", novaUnidade);
     
-    // Sincroniza com o backend (se não estiver em modo local)
-    if (!IS_LOCAL) {
-      try {
-        // Extrai o número da coluna
-        const colNum = parseInt(colKey.replace("col", ""), 10);
-        if (!isNaN(colNum)) {
-          // O índice na MateriaPrima é colNum - 5
-          const prodNum = colNum - 5;
-          
-          // Prepara matérias-primas atualizadas
-          const updatedMaterias = [...materias];
-          
-          // Tenta encontrar a matéria-prima correspondente
-          const existingIndex = updatedMaterias.findIndex(m => m.num === prodNum);
-          
-          if (existingIndex >= 0) {
-            // Atualiza o existente
-            updatedMaterias[existingIndex] = {
-              ...updatedMaterias[existingIndex],
-              medida: novaUnidade === "g" ? 0 : 1 // 0 para gramas, 1 para kg
-            };
-          } else if (colLabels[colKey]) {
-            // Adiciona novo se tiver um nome definido
-            updatedMaterias.push({
-              id: `new-${Date.now()}`,
-              num: prodNum,
-              produto: colLabels[colKey] || "",
-              medida: novaUnidade === "g" ? 0 : 1 // 0 para gramas, 1 para kg
-            });
-          }
-          
-          // Usa WebSocket para salvar no backend
-          await apiWs.setupMateriaPrima(updatedMaterias);
-          console.log(`Unidade do produto ${colKey} atualizada no backend para ${novaUnidade}`);
+    // Sincroniza com o backend
+    try {
+      // Extrai o número da coluna
+      const colNum = parseInt(colKey.replace("col", ""), 10);
+      if (!isNaN(colNum)) {
+        // O índice na MateriaPrima é colNum - 5
+        const prodNum = colNum - 5;
+        
+        // Prepara matérias-primas atualizadas
+        const updatedMaterias = [...materias];
+        
+        // Tenta encontrar a matéria-prima correspondente
+        const existingIndex = updatedMaterias.findIndex(m => m.num === prodNum);
+        
+        if (existingIndex >= 0) {
+          // Atualiza o existente
+          updatedMaterias[existingIndex] = {
+            ...updatedMaterias[existingIndex],
+            medida: novaUnidade === "g" ? 0 : 1 // 0 para gramas, 1 para kg
+          };
+        } else if (colLabels[colKey]) {
+          // Adiciona novo se tiver um nome definido
+          updatedMaterias.push({
+            id: `new-${Date.now()}`,
+            num: prodNum,
+            produto: colLabels[colKey] || "",
+            medida: novaUnidade === "g" ? 0 : 1 // 0 para gramas, 1 para kg
+          });
         }
-      } catch (error) {
-        console.error("Erro ao atualizar unidade no backend:", error);
+        
+        // Usa HTTP para salvar no backend
+        await fetch("/api/db/setupMateriaPrima", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ items: updatedMaterias }),
+        });
+        console.log(`Unidade do produto ${colKey} atualizada no backend para ${novaUnidade}`);
       }
+    } catch (error) {
+      console.error("Erro ao atualizar unidade no backend:", error);
     }
   };
 

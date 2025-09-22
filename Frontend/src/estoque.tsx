@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useEstoque, EstoqueItem, MovimentacaoEstoqueItem } from './hooks/useEstoque';
+import { useEstoque, EstoqueItem } from './hooks/useEstoque';
 import { useMateriaPrima } from './hooks/useMateriaPrima';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './components/ui/tabs';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './components/ui/table';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './components/ui/card';
 import { Badge } from './components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from './components/ui/dialog';
@@ -84,7 +84,7 @@ const MovimentacoesEstoque = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Todas</SelectItem>
-                {materias.map((mp) => (
+                {materias.map((mp: any) => (
                   <SelectItem key={mp.id} value={mp.id}>
                     {mp.produto}
                   </SelectItem>
@@ -209,7 +209,7 @@ const AdicionarEstoqueDialog = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const materiaPrima = materias.find(mp => mp.id === materiaPrimaId);
+  const materiaPrima = materias.find((mp: any) => mp.id === materiaPrimaId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -331,7 +331,7 @@ const RemoverEstoqueDialog = ({
   onComplete: () => void 
 }) => {
   const { removerEstoque } = useEstoque();
-  const { materias } = useMateriaPrima();
+  const { materias: _materias2 } = useMateriaPrima();
   const [open, setOpen] = useState(false);
   const [formState, setFormState] = useState({
     quantidade: 0,
@@ -342,7 +342,7 @@ const RemoverEstoqueDialog = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const materiaPrima = materias.find(mp => mp.id === materiaPrimaId);
+  const materiaPrima = _materias2.find((mp: any) => mp.id === materiaPrimaId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -470,7 +470,7 @@ const AjustarLimitesDialog = ({
   onComplete: () => void 
 }) => {
   const { atualizarLimites } = useEstoque();
-  const { materias } = useMateriaPrima();
+  const { materias: _materias3 } = useMateriaPrima();
   const [open, setOpen] = useState(false);
   const [formState, setFormState] = useState({
     minimo: estoqueItem.quantidade_minima,
@@ -479,7 +479,7 @@ const AjustarLimitesDialog = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const materiaPrima = materias.find(mp => mp.id === materiaPrimaId);
+  const materiaPrima = _materias3.find((mp: any) => mp.id === materiaPrimaId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -586,7 +586,7 @@ const AjustarInventarioDialog = ({
   onComplete: () => void 
 }) => {
   const { ajustarEstoque } = useEstoque();
-  const { materias } = useMateriaPrima();
+  const { materias: _materias4 } = useMateriaPrima();
   const [open, setOpen] = useState(false);
   const [formState, setFormState] = useState({
     quantidade: estoqueAtual,
@@ -596,7 +596,7 @@ const AjustarInventarioDialog = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const materiaPrima = materias.find(mp => mp.id === materiaPrimaId);
+  const materiaPrima = _materias4.find((mp: any) => mp.id === materiaPrimaId);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -713,7 +713,7 @@ export default function Estoque() {
     carregarEstoqueBaixo 
   } = useEstoque();
 
-  const { materias } = useMateriaPrima();
+  // ...existing code...
   const [activeTab, setActiveTab] = useState('geral');
 
   useEffect(() => {

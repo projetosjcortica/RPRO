@@ -1,6 +1,4 @@
 import { useState, useCallback } from 'react';
-import { apiWs } from '../Testes/api';
-import { IS_LOCAL } from '../CFG';
 
 /**
  * Hook para facilitar a conversão de unidades (g/kg)
@@ -28,26 +26,16 @@ export function useUnidades() {
       // Se as unidades forem iguais, não precisa converter
       if (de === para) return valor;
       
-      if (IS_LOCAL) {
-        // Implementação local (sem backend)
-        if (de === 0 && para === 1) {
-          // g para kg (divide por 1000)
-          return valor / 1000;
-        } else if (de === 1 && para === 0) {
-          // kg para g (multiplica por 1000)
-          return valor * 1000;
-        }
-        
-        throw new Error(`Conversão inválida: de ${de} para ${para}`);
-      } else {
-        // Usa o backend para converter
-        const response = await apiWs.unidadesConverter(valor, de, para);
-        if (response?.convertido !== undefined) {
-          return response.convertido;
-        }
-        
-        throw new Error('Resposta inválida do servidor');
+      // Implementação local de conversão
+      if (de === 0 && para === 1) {
+        // g para kg (divide por 1000)
+        return valor / 1000;
+      } else if (de === 1 && para === 0) {
+        // kg para g (multiplica por 1000)
+        return valor * 1000;
       }
+      
+      throw new Error(`Conversão inválida: de ${de} para ${para}`);
     } catch (err: any) {
       setError(err?.message || 'Erro ao converter unidade');
       console.error('Erro ao converter unidade:', err);
@@ -71,37 +59,27 @@ export function useUnidades() {
     setError(null);
     
     try {
-      if (IS_LOCAL) {
-        // Implementação local (sem backend)
-        const resultado: Record<string, number> = {};
-        
-        for (const coluna in valores) {
-          if (valores.hasOwnProperty(coluna) && unidades.hasOwnProperty(coluna)) {
-            const valor = valores[coluna];
-            const unidade = unidades[coluna];
-            
-            // Se for em gramas, converte para kg
-            if (unidade === 0) {
-              resultado[coluna] = valor / 1000;
-            } else {
-              resultado[coluna] = valor;
-            }
+      // Implementação local de normalização
+      const resultado: Record<string, number> = {};
+      
+      for (const coluna in valores) {
+        if (valores.hasOwnProperty(coluna) && unidades.hasOwnProperty(coluna)) {
+          const valor = valores[coluna];
+          const unidade = unidades[coluna];
+          
+          // Se for em gramas, converte para kg
+          if (unidade === 0) {
+            resultado[coluna] = valor / 1000;
           } else {
-            // Mantém o valor original se não houver informação de unidade
-            resultado[coluna] = valores[coluna];
+            resultado[coluna] = valor;
           }
+        } else {
+          // Mantém o valor original se não houver informação de unidade
+          resultado[coluna] = valores[coluna];
         }
-        
-        return resultado;
-      } else {
-        // Usa o backend para normalizar
-        const response = await apiWs.unidadesNormalizarParaKg(valores, unidades);
-        if (response?.valoresNormalizados) {
-          return response.valoresNormalizados;
-        }
-        
-        throw new Error('Resposta inválida do servidor');
       }
+      
+      return resultado;
     } catch (err: any) {
       setError(err?.message || 'Erro ao normalizar valores');
       console.error('Erro ao normalizar valores:', err);

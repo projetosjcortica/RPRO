@@ -9,7 +9,6 @@ import { Filtros } from "./components/types";
 import { fetchLabels, ColLabel } from "./hooks/useLabelService";
 import { useMateriaPrima } from "./hooks/useMateriaPrima";
 import { syncProductLabels } from "./utils/productSyncHelper";
-import { IS_LOCAL } from "./CFG";
 import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { cn } from "./lib/utils";
@@ -31,7 +30,7 @@ export default function Report() {
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(100);
 
-  const { materias, syncLabelsWithMateriaPrima } = useMateriaPrima();
+  const { materias } = useMateriaPrima();
 
   const [tableSelection, setTableSelection] = useState<{
     total: number;
@@ -57,36 +56,16 @@ export default function Report() {
           return;
         }
 
-        if (materias && materias.length > 0) {
-          const materiaPrimaLabels = syncLabelsWithMateriaPrima();
-          if (materiaPrimaLabels && Object.keys(materiaPrimaLabels).length > 0) {
-            setColLabels(materiaPrimaLabels);
-            return;
-          }
-        }
+        // If you need to sync labels with materia prima, implement logic here or remove this block.
+        // Example: If materias contains label info, you can process it here.
+        // Otherwise, just remove this block.
 
-        if (IS_LOCAL) {
-          const saved = localStorage.getItem("colLabels");
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (parsed && Object.keys(parsed).length > 0) {
-                setColLabels(parsed);
-                return;
-              }
-            } catch (e) {
-              console.error("Erro ao parsear colLabels do localStorage:", e);
-            }
-          }
-        }
-
+        // Busca labels do backend
         const labelsArray: ColLabel[] = await fetchLabels();
         if (labelsArray && labelsArray.length > 0) {
           const labelsObj: { [key: string]: string } = {};
           labelsArray.forEach(l => labelsObj[l.col_key] = l.col_name);
           setColLabels(labelsObj);
-
-          if (IS_LOCAL) localStorage.setItem("colLabels", JSON.stringify(labelsObj));
         }
       } catch (err) {
         console.error("Erro ao buscar labels:", err);
@@ -151,16 +130,13 @@ export default function Report() {
   const handleLabelChange = async (colKey: string, value: string, unidade?: string) => {
     setColLabels(prev => {
       const newLabels = { ...prev, [colKey]: value };
-      if (IS_LOCAL) localStorage.setItem("colLabels", JSON.stringify(newLabels));
       return newLabels;
     });
 
-    if (!IS_LOCAL) {
-      try {
-        await axios.put(`/api/col_labels/${colKey}`, { col_name: value, unidade: unidade || null });
-      } catch (error) {
-        console.error("Erro ao atualizar label:", error);
-      }
+    try {
+      await axios.put(`/api/col_labels/${colKey}`, { col_name: value, unidade: unidade || null });
+    } catch (error) {
+      console.error("Erro ao atualizar label:", error);
     }
   };
 

@@ -4,7 +4,7 @@ import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Checkbox } from "./components/ui/checkbox";
 import { Button } from "./components/ui/button";
-import { Switch } from "./components/ui/switch";
+
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -17,8 +17,6 @@ import {
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
 import { IpcRendererEvent } from "electron/utility";
-import { getMockStatus, setMockStatus } from "./utils/mockHelper";
-import { updateConfig } from "./CFG";
 
 export const initialFormData = {
   nomeCliente: "",
@@ -430,46 +428,7 @@ export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string
 /* ----------------- ADMIN ------------------- */
 export function AdminConfig({ configKey = "admin-config" }: { configKey?: string }) {
   const { formData, isEditing, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
-  const [isMockEnabled, setIsMockEnabled] = useState(false);
 
-  // Carrega o status atual do modo mock ao montar o componente
-  useEffect(() => {
-    const loadMockStatus = async () => {
-      try {
-        const status = await getMockStatus();
-        setIsMockEnabled(status);
-        onChange("mockEnabled", status);
-        
-        // Atualiza a configuração da aplicação
-        updateConfig(status);
-      } catch (error) {
-        console.error("Erro ao carregar status do mock:", error);
-      }
-    };
-
-    loadMockStatus();
-  }, []);
-
-  // Função para alternar o modo mock
-  const handleToggleMock = async (checked: boolean) => {
-    try {
-      const success = await setMockStatus(checked);
-      if (success) {
-        setIsMockEnabled(checked);
-        onChange("mockEnabled", checked);
-        
-        // Atualiza a configuração da aplicação
-        updateConfig(checked);
-        
-        toast.success(`Modo mock ${checked ? 'ativado' : 'desativado'} com sucesso`);
-      } else {
-        toast.error("Falha ao alterar modo mock");
-      }
-    } catch (error) {
-      console.error("Erro ao alternar modo mock:", error);
-      toast.error("Erro ao alternar modo mock");
-    }
-  };
 
   return (
     <div id="adm" className="flex flex-col gap-4 bg-white">
@@ -553,23 +512,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           <div className="border-t border-gray-200 pt-4 mt-2">
             <h3 className="text-lg font-medium text-gray-800 mb-2">Configurações de Desenvolvimento</h3>
             
-            {/* Controle de Mock */}
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <Label htmlFor="mock-toggle" className="font-medium text-gray-700">
-                  Modo Mock
-                </Label>
-                <p className="text-sm text-gray-500">
-                  Habilita dados simulados para testes e desenvolvimento
-                </p>
-              </div>
-              {/* O Switch de mock deve estar disponível mesmo quando não estiver em modo de edição */}
-              <Switch
-                id="mock-toggle"
-                checked={isMockEnabled}
-                onCheckedChange={handleToggleMock}
-              />
-            </div>
+
           </div>
         </div>
       </div>

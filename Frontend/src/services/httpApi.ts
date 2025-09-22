@@ -1,5 +1,5 @@
 // HTTP API client to replace WebSocket-based Processador
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
 
 export interface FilterOptions {
   dateStart?: string;
@@ -23,10 +23,10 @@ export interface ChartDataResult {
 }
 
 export class HttpApiClient {
-  private api: AxiosInstance;
+  private api: any;
   private baseURL: string;
 
-  constructor(baseURL = 'http://localhost:3002') {
+  constructor(baseURL = '') {
     this.baseURL = baseURL;
     this.api = axios.create({
       baseURL: this.baseURL,
@@ -38,8 +38,8 @@ export class HttpApiClient {
 
     // Add response interceptor for error handling
     this.api.interceptors.response.use(
-      (response) => response,
-      (error) => {
+      (response: any) => response,
+      (error: any) => {
         console.error('HTTP API Error:', error);
         throw error;
       }
@@ -141,27 +141,6 @@ export class HttpApiClient {
     return response.data;
   }
 
-  // Mock operations
-  async getMockStatus(): Promise<{ enabled: boolean }> {
-    const response = await this.api.get('/api/mock/status');
-    return response.data;
-  }
-
-  async toggleMock(enabled: boolean): Promise<{ enabled: boolean }> {
-    const response = await this.api.post('/api/mock/toggle', { enabled });
-    return response.data;
-  }
-
-  async getMockRelatorios(params?: any): Promise<any> {
-    const response = await this.api.get('/api/mock/relatorios', { params });
-    return response.data;
-  }
-
-  async getMockMaterias(): Promise<any[]> {
-    const response = await this.api.get('/api/mock/materias');
-    return response.data;
-  }
-
   // Unit conversion operations
   async converterUnidade(valor: number, de: number, para: number): Promise<{
     original: number;
@@ -236,20 +215,72 @@ export class HttpApiClient {
     return this.estoqueOperation('listar');
   }
 
+  async listarEstoqueBaixo(): Promise<any> {
+    return this.estoqueOperation('baixo');
+  }
+
+  async listarEstoqueMovimentacoes(materiaPrimaId?: string, tipo?: string, dataInicial?: string, dataFinal?: string): Promise<any> {
+    return this.estoqueOperation('movimentacoes', { materiaPrimaId, tipo, dataInicial, dataFinal });
+  }
+
   async obterEstoque(materiaPrimaId: string): Promise<any> {
     return this.estoqueOperation('obter', { materiaPrimaId });
   }
 
-  async adicionarEstoque(materiaPrimaId: string, quantidade: number, observacoes?: string): Promise<any> {
-    return this.estoqueOperation('adicionar', { materiaPrimaId, quantidade, observacoes });
+  async adicionarEstoque(materiaPrimaId: string, quantidade: number, extras: { 
+    observacoes?: string;
+    responsavel?: string;
+    documentoReferencia?: string;
+  } = {}): Promise<any> {
+    return this.estoqueOperation('adicionar', { 
+      materiaPrimaId, 
+      quantidade,
+      ...extras
+    });
   }
 
-  async removerEstoque(materiaPrimaId: string, quantidade: number, observacoes?: string): Promise<any> {
-    return this.estoqueOperation('remover', { materiaPrimaId, quantidade, observacoes });
+  async removerEstoque(materiaPrimaId: string, quantidade: number, extras: {
+    observacoes?: string;
+    responsavel?: string;
+    documentoReferencia?: string;
+  } = {}): Promise<any> {
+    return this.estoqueOperation('remover', { 
+      materiaPrimaId, 
+      quantidade,
+      ...extras
+    });
   }
 
-  async ajustarEstoque(materiaPrimaId: string, novaQuantidade: number, observacoes?: string): Promise<any> {
-    return this.estoqueOperation('ajustar', { materiaPrimaId, novaQuantidade, observacoes });
+  async ajustarEstoque(materiaPrimaId: string, quantidade: number, extras: {
+    observacoes?: string;
+    responsavel?: string;
+  } = {}): Promise<any> {
+    return this.estoqueOperation('ajustar', { 
+      materiaPrimaId, 
+      quantidade: quantidade,
+      ...extras
+    });
+  }
+
+  async atualizarLimitesEstoque(materiaPrimaId: string, minimo: number, maximo: number, extras: {
+    localizacao?: string;
+    observacoes?: string;
+  } = {}): Promise<any> {
+    return this.estoqueOperation('limites', {
+      materiaPrimaId,
+      minimo,
+      maximo,
+      ...extras
+    });
+  }
+
+  async inicializarEstoque(materiaPrimaId: string, quantidade: number = 0, minimo: number = 0, maximo: number = 0): Promise<any> {
+    return this.estoqueOperation('inicializar', {
+      materiaPrimaId,
+      quantidade,
+      minimo,
+      maximo
+    });
   }
 
   // Compatibility methods to match Processador interface
@@ -264,10 +295,7 @@ export class HttpApiClient {
         return this.getTableData(payload?.page, payload?.pageSize, payload);
       case 'db.getMateriaPrima':
         return this.getMateriaPrima();
-      case 'mock.getStatus':
-        return this.getMockStatus();
-      case 'mock.setStatus':
-        return this.toggleMock(payload?.enabled);
+
       case 'collector.start':
         return this.startCollector();
       case 'collector.stop':

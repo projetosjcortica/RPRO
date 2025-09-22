@@ -4,8 +4,6 @@ import App from './App'
 import './index.css'
 import { config } from './CFG'
 import { Processador, getProcessador, setProcessador } from './Processador'
-import { getMockStatus } from './utils/mockHelper'
-import { updateConfig } from './CFG'
 import { BrowserRouter } from 'react-router-dom'
 
 type StartForkResult = { ok: true; port: number; pid: number } | { ok: false; reason: string };
@@ -13,16 +11,7 @@ type StartForkResult = { ok: true; port: number; pid: number } | { ok: false; re
 // Export for use in other components
 export { Processador, getProcessador, setProcessador };
 
-// Inicializa a configuração do aplicativo com base no status do mock
-async function initializeAppConfig() {
-  try {
-    const mockStatus = await getMockStatus();
-    console.log('Mock status loaded:', mockStatus);
-    updateConfig(mockStatus);
-  } catch (error) {
-    console.error('Erro ao inicializar configuração do aplicativo:', error);
-  }
-}
+
 
 // Start the backend child process correctly using the preload API (only in Electron)
 if ((window as any).electronAPI) {
@@ -40,17 +29,8 @@ if ((window as any).electronAPI) {
       console.log('Initializing WebSocket Processador on port:', res.port);
       const p = setProcessador(res.port);
       
-      // Wait for WebSocket connection to be established
-      const connected = await p.waitForConnection(15000);
-      if (!connected) {
-        console.error('Failed to establish WebSocket connection within timeout');
-        return;
-      }
-      
-      console.log('WebSocket connection established successfully');
-
-      // Inicializa a configuração do aplicativo após o backend ser conectado
-      await initializeAppConfig();
+      // For HTTP-based Processador we assume reachable backend
+      await p.waitForConnection(5000);
 
       // Setup event handlers
       p.onEvent('file.processed', (e) => console.log('Arquivo processado:', e));
@@ -100,15 +80,7 @@ if ((window as any).electronAPI) {
         }
       });
 
-      // Start WS loop (optional; backend also supports env auto-start)
-      try {
-        await p.wsLoopStart(10000);
-        console.log('WebSocket heartbeat loop started');
-      } catch (e) {
-        console.warn('Could not start WS heartbeat loop:', e);
-      }
-
-      // Send configuration to backend
+      // Send configuration to backend (HTTP)
       await sendConfigurationToBackend(p);
 
     } else {
@@ -131,12 +103,11 @@ if ((window as any).electronAPI) {
     
     p.waitForConnection(5000).then(async (connected) => {
       if (connected) {
-        console.log('Connected to existing backend WebSocket');
-        await initializeAppConfig();
+          console.log('Connected to existing backend');
         
-        // Setup basic event handlers
-        p.onEvent('ready', () => console.log('Backend WebSocket is ready'));
-        p.onEvent('heartbeat', (hb) => console.log('[WS Heartbeat]', hb));
+          // Setup basic event handlers
+          p.onEvent('ready', () => console.log('Backend is ready'));
+          p.onEvent('heartbeat', (hb) => console.log('[Heartbeat]', hb));
       } else {
         console.warn('Could not connect to backend. Please start backend manually.');
       }

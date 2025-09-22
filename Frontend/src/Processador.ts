@@ -32,9 +32,8 @@ export class Processador {
   private baseURL: string;
 
   constructor(port: number) {
-    this.port = 3002; // Use backend HTTP port instead of WebSocket port
+    this.port = port || 3002; // Use provided port or backend default 3002
     this.baseURL = `http://localhost:${this.port}`;
-    
     this.connectionState = 'connected';
     console.log(`[Processador] HTTP client initialized for ${this.baseURL}`);
   }
@@ -42,34 +41,43 @@ export class Processador {
   // HTTP-based methods replacing WebSocket functionality
   private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
     try {
-      const url = `${this.baseURL}${endpoint}`;
-      const config: RequestInit = {
-        method,
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      };
-      
-      if (data && method !== 'GET') {
-        config.body = JSON.stringify(data);
-      } else if (data && method === 'GET') {
+  // Build URL and request options correctly for GET and non-GET
+  // Always use the configured base URL (absolute) so requests reach the backend
+  const base = this.baseURL.replace(/\/$/, '');
+  let url = `${base}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+      const headers: Record<string, string> = { 'Accept': 'application/json' };
+      const config: RequestInit = { method, headers };
+
+      if (method === 'GET' && data && Object.keys(data).length > 0) {
         const params = new URLSearchParams();
-        Object.keys(data).forEach(key => {
-          if (data[key] !== null && data[key] !== undefined) {
-            params.append(key, data[key].toString());
-          }
+        Object.keys(data).forEach((key) => {
+          const v = data[key];
+          if (v !== null && v !== undefined) params.append(key, String(v));
         });
-        const queryString = params.toString();
-        endpoint += queryString ? `?${queryString}` : '';
+        url += `?${params.toString()}`;
+      } else if (method !== 'GET' && data !== undefined) {
+        headers['Content-Type'] = 'application/json';
+        config.body = JSON.stringify(data);
       }
-      
-      const response = await fetch(url + (method === 'GET' && data ? `?${new URLSearchParams(data).toString()}` : ''), config);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+      try {
+        const response = await fetch(url, config);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        return await response.json();
+      } catch (err: any) {
+        // If network error (e.g. backend not reachable at absolute URL), try relative endpoint
+        const isNetworkError = err instanceof TypeError || /failed to fetch/i.test(String(err?.message || ''));
+        if (isNetworkError && endpoint.startsWith('/')) {
+          try {
+            const relResponse = await fetch(endpoint, config);
+            if (!relResponse.ok) throw new Error(`HTTP ${relResponse.status}: ${relResponse.statusText}`);
+            return await relResponse.json();
+          } catch (err2) {
+            throw err2;
+          }
+        }
+        throw err;
       }
-      
-      return await response.json();
     } catch (error: any) {
       console.error(`[Processador] HTTP request failed for ${endpoint}:`, error);
       this.connectionState = 'error';
@@ -97,6 +105,13 @@ export class Processador {
     switch (cmd) {
       case 'ping':
         return this.ping();
+      case 'materiaprima.getConfig':
+        return this.makeRequest('/api/materiaprima/labels', 'GET');
+      case 'backup.list':
+        return this.backupList();
+      case 'db.getMateriaPrima':
+        return this.getMateriaPrima();
+      // No mock/ws loop endpoints — backend does not expose these in production
       case 'relatorio.paginate':
         return this.relatorioPaginate(
           payload?.page || 1,
@@ -182,6 +197,14 @@ export class Processador {
     return this.makeRequest('/api/db/setupMateriaPrima', 'POST', { items });
   }
 
+  // Alias to match HTTP client naming
+  public listBackups() { return this.backupList(); }
+
+  // Database helpers
+  public listBatches() { return this.dbListBatches(); }
+  public getMateriaPrimaLabels() { return this.makeRequest('/api/materiaprima/labels', 'GET'); }
+  public setupMateriaPrimaItems(items: Array<{ num: number; produto: string; medida: number }>) { return this.dbSetupMateriaPrima(items); }
+
   public getMateriaPrima() {
     return this.makeRequest('/api/db/getMateriaPrima');
   }
@@ -208,21 +231,6 @@ export class Processador {
     return this.makeRequest('/api/resumo', 'GET', params);
   }
 
-  public getMockStatus() {
-    return this.makeRequest('/api/mock/status');
-  }
-
-  public toggleMock(enabled: boolean) {
-    return this.makeRequest('/api/mock/toggle', 'POST', { enabled });
-  }
-
-  public getMockRelatorios(params?: any) {
-    return this.makeRequest('/api/mock/relatorios', 'GET', params);
-  }
-
-  public getMockMaterias() {
-    return this.makeRequest('/api/mock/materias');
-  }
 
   public converterUnidade(valor: number, de: number, para: number) {
     return this.makeRequest('/api/unidades/converter', 'GET', { valor, de, para });
@@ -236,18 +244,7 @@ export class Processador {
     return this.makeRequest('/api/db/populate', 'POST', { tipo, quantidade, config });
   }
 
-  public getWsStatus() {
-    return this.makeRequest('/api/ws/status');
-  }
 
-  public startWsLoop(periodMs?: number) {
-    const params = periodMs ? { periodMs } : {};
-    return this.makeRequest('/api/ws/loop/start', 'GET', params);
-  }
-
-  public stopWsLoop() {
-    return this.makeRequest('/api/ws/loop/stop');
-  }
 
   public estoqueOperation(operation: string, payload: any = {}) {
     return this.makeRequest(`/api/estoque/${operation}`, 'POST', payload);
@@ -309,7 +306,7 @@ let globalProcessadorInstance: Processador | null = null;
  */
 export function getProcessador(port?: number): Processador {
   if (!globalProcessadorInstance) {
-    const defaultPort = port || 3001; // Default to 3001 for HTTP backend
+    const defaultPort = port || 3002; // Default to 3002 to match backend
     globalProcessadorInstance = new Processador(defaultPort);
   }
   return globalProcessadorInstance;
