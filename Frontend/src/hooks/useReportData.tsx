@@ -49,11 +49,22 @@ export const useReportData = (
           setTotal(res.total ?? mapped.length);
         } else {
           // === HTTP API ===
+<<<<<<< HEAD
           const httpClient = getHttpApi();
           const result = await httpClient.getTableData(page, pageSize, {
             formula: filtros.nomeFormula || undefined,
             dateStart: filtros.dataInicio || undefined,
             dateEnd: filtros.dataFim || undefined,
+=======
+          const response = await api.get<ReportApiResponse>('192.168.5.128/api/relatorio/paginate?page=1&pageSize=300', {
+            params: {
+              ...(filtros.dataInicio && { data_inicio: filtros.dataInicio }),
+              ...(filtros.dataFim && { data_fim: filtros.dataFim }),
+              ...(filtros.nomeFormula && { nome_formula: filtros.nomeFormula }),
+              page,
+              pageSize,
+            },
+>>>>>>> f51fa3474347b6306f9f5d6b994b033d1eb00991
           });
 
           const mapped: ReportRow[] = (result.rows || []).map((r: any) => {

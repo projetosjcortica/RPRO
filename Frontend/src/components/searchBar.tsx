@@ -69,33 +69,33 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       onAplicarFiltros(filtrosTemporarios);
     }
 
-    // Aqui você faria a chamada para a API:
-    // fetchDadosDaAPI(filtrosTemporarios);
+    //  Aqui você faria a chamada para a API:
+     fetchDadosDaAPI(filtrosTemporarios);
   };
 
-  // Exemplo de função para chamar a API
-  // const fetchDadosDaAPI = async (filtros: Filtros) => {
-  //   try {
-  //     const response = await fetch('/api/relatorios', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //       },
-  //       body: JSON.stringify({
-  //         dataInicio: filtros.dataInicio,
-  //         dataFim: filtros.dataFim,
-  //         nomeFormula: filtros.nomeFormula
-  //       })
-  //     });
+  //  Exemplo de função para chamar a API
+   const fetchDadosDaAPI = async (filtros: Filtros) => {
+     try {
+       const response = await fetch(`/api/relatorio/paginate?page=1&pageSize=100`, {
+         method: 'GET',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({
+           dateStart: filtros.dataInicio,
+           dateEnd: filtros.dataFim,
+           nomeFormula: filtros.nomeFormula,
+         }),
+       });
       
-  //     const data = await response.json();
-  //     console.log("Dados da API:", data);
-  //     // Atualize seu estado com os dados recebidos
+       const data = await response.json();
+       console.log("Dados da API:", data);
+       // Atualize seu estado com os dados recebidos
       
-  //   } catch (error) {
-  //     console.error("Erro ao buscar dados da API:", error);
-  //   }
-  // };
+     } catch (error) {
+       console.error("Erro ao buscar dados da API:", error);
+     }
+   };
 
   // Limpa todos os filtros
   const handleLimpar = () => {
