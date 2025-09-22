@@ -5,127 +5,114 @@ import { api } from "../Testes/api";
 import { IS_LOCAL } from "../CFG";
 import { getProcessador } from "../Processador";
 
-export const useReportData = (filtros: Filtros, page: number = 1, pageSize: number = 300) => {
+export const useReportData = (
+  filtros: Filtros,
+  page: number = 1,
+  pageSize: number = 300
+) => {
   const [dados, setDados] = useState<ReportRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
 
   useEffect(() => {
     const fetchData = async () => {
-      try {
-        setLoading(true);
+      setLoading(true);
+      setError(null);
 
+      try {
         if (IS_LOCAL) {
-          console.log("Usando dados mock com filtros:", filtros);
-          
-          // Simula delay de rede
-          await new Promise(resolve => setTimeout(resolve, 500));
-          // Filtra os dados mock
-          const filtered = mockRows.filter(row => {
+          // === Dados mock ===
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
+          const filtered = mockRows.filter((row) => {
             const matchesNome = filtros.nomeFormula
               ? row.Nome.toLowerCase().includes(filtros.nomeFormula.toLowerCase())
               : true;
 
-            // Converter para Date para comparação correta
-            let matchesDataInicio = true;
-            let matchesDataFim = true;
+            const matchesDataInicio = filtros.dataInicio
+              ? new Date(row.Dia) >= new Date(filtros.dataInicio)
+              : true;
 
-            if (filtros.dataInicio) {
-              const rowDate = new Date(row.Dia);
-              const inicioDate = new Date(filtros.dataInicio);
-              matchesDataInicio = rowDate >= inicioDate;
-            }
+            const matchesDataFim = filtros.dataFim
+              ? new Date(row.Dia) <= new Date(filtros.dataFim)
+              : true;
 
-            if (filtros.dataFim) {
-              const rowDate = new Date(row.Dia);
-              const fimDate = new Date(filtros.dataFim);
-              matchesDataFim = rowDate <= fimDate;
-            }
             return matchesNome && matchesDataInicio && matchesDataFim;
           });
 
-          console.log(`Dados mock: ${filtered.length} linhas após filtro`);
-          setTotal(filtered.length);
           const start = (page - 1) * pageSize;
           const pageSlice = filtered.slice(start, start + pageSize);
+
           setDados(pageSlice);
+          setTotal(filtered.length);
         } else if ((window as any).electronAPI) {
-          // Use Processador (now HTTP-based internally)
+          // === Electron/Processador ===
           const processador = getProcessador(3001);
           const res = await processador.getTableData(page, pageSize, {
             formula: filtros.nomeFormula || null,
             dateStart: filtros.dataInicio || null,
             dateEnd: filtros.dataFim || null,
           });
+
           const mapped: ReportRow[] = (res.rows || []).map((r: any) => {
             const values: number[] = [];
             for (let i = 1; i <= 40; i++) {
               const v = r[`Prod_${i}`];
-              values.push(typeof v === 'number' ? v : (v != null ? Number(v) : 0));
+              values.push(typeof v === "number" ? v : v != null ? Number(v) : 0);
             }
+
             return {
-              Dia: r.Dia || '',
-              Hora: r.Hora || '',
-              Nome: r.Nome || '',
+              Dia: r.Dia || "",
+              Hora: r.Hora || "",
+              Nome: r.Nome || "",
               Codigo: r.Form1 ?? 0,
               Numero: r.Form2 ?? 0,
               values,
-            } as ReportRow;
+            };
           });
+
           setDados(mapped);
-          // Get total from the response
-          setTotal(res.total || mapped.length);
+          setTotal(res.total ?? mapped.length);
         } else {
-          // Fallback HTTP (caso rode fora do Electron)
-          const response = await api.get("/relatorio", {
+          // === HTTP API ===
+          const response = await api.get<ReportApiResponse>("/relatorio", {
             params: {
               ...(filtros.dataInicio && { data_inicio: filtros.dataInicio }),
               ...(filtros.dataFim && { data_fim: filtros.dataFim }),
               ...(filtros.nomeFormula && { nome_formula: filtros.nomeFormula }),
+              page,
+              pageSize,
             },
           });
 
-          // Type assertion com verificação
-          const responseData = response.data as ReportApiResponse;
-          
-          // Validação dos dados
-          if (!responseData || typeof responseData !== 'object') {
-            throw new Error('Resposta da API inválida');
+          const responseData = response.data;
+
+          if (!responseData || typeof responseData !== "object") {
+            throw new Error("Resposta da API inválida");
           }
 
-          let rows: ReportRow[] = [];
-          
-          // Extrai dados com fallbacks
-          if (Array.isArray(responseData.rows)) {
-            rows = responseData.rows;
-          } else if (Array.isArray(responseData.data)) {
-            rows = responseData.data as unknown as ReportRow[];
-          } else if (Array.isArray(responseData)) {
-            rows = responseData as unknown as ReportRow[];
-          } else {
-            console.warn('Formato de resposta não esperado:', responseData);
-          }
+          const rows: ReportRow[] = Array.isArray(responseData.rows)
+            ? responseData.rows
+            : Array.isArray(responseData.data)
+            ? responseData.data
+            : [];
 
           setDados(rows);
-          setTotal(rows.length);
+          setTotal(responseData.total ?? rows.length);
         }
-
-        setError(null);
       } catch (err: any) {
-        const errorMessage = IS_LOCAL 
-          ? "Erro ao carregar dados mock" 
-          : "Erro ao carregar dados (IPC/API)";
-        
-        setError(errorMessage);
-        console.error("Erro no useReportData:", err);
+        console.error("Erro ao carregar dados:", err);
+        setError("Erro ao carregar dados da API");
+        setDados([]);
+        setTotal(0);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [filtros]);
+  }, [filtros, page, pageSize]);
 
   return { dados, loading, error, total };
 };

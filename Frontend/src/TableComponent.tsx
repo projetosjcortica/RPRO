@@ -15,7 +15,7 @@ import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 
 interface TableComponentProps {
   filtros?: Filtros;
-  colLabels: { [key: string]: string };
+  colLabels: Record<string, string>;
   // Optional: allow caller to pass pre-fetched data (for pagination control outside)
   dados?: any[];
   loading?: boolean;

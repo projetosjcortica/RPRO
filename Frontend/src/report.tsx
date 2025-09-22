@@ -31,13 +31,11 @@ export default function Report() {
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(100);
 
-  // Utiliza o hook para carregar matérias-primas
   const { materias, syncLabelsWithMateriaPrima } = useMateriaPrima();
 
-  // Estado para armazenar o resumo da seleção da tabela
   const [tableSelection, setTableSelection] = useState<{
     total: number;
-    batidas: number;
+    batidas: number
     horaInicial: string;
     horaFinal: string;
     produtos: { nome: string; qtd: number }[];
@@ -49,19 +47,16 @@ export default function Report() {
     produtos: []
   });
 
-  // Carregar labels
+  // === CARREGAR LABELS ===
   useEffect(() => {
     const loadLabels = async () => {
       try {
-        // Primeiro tenta sincronizar com o backend
         const syncedLabels = await syncProductLabels();
         if (syncedLabels && Object.keys(syncedLabels).length > 0) {
           setColLabels(syncedLabels);
           return;
         }
 
-        // Fallback para o método anterior
-        // Primeiro, verifica se temos matérias-primas e sincroniza os labels
         if (materias && materias.length > 0) {
           const materiaPrimaLabels = syncLabelsWithMateriaPrima();
           if (materiaPrimaLabels && Object.keys(materiaPrimaLabels).length > 0) {
@@ -70,8 +65,6 @@ export default function Report() {
           }
         }
 
-        // Fallback para o método anterior se não tivermos matérias-primas
-        // Prioriza localStorage se estiver usando mock
         if (IS_LOCAL) {
           const saved = localStorage.getItem("colLabels");
           if (saved) {
@@ -101,61 +94,45 @@ export default function Report() {
     };
 
     loadLabels();
-  }, [materias]); // Remova syncLabelsWithMateriaPrima da dependência
+  }, [materias]);
 
-  // Listener para eventos de seleção da tabela
+  // === SELEÇÃO DE TABELA ===
   useEffect(() => {
     const handleTableSelection = (e: CustomEvent) => {
       const selectedCells = e.detail || [];
-      if (!selectedCells.length) {
-        return; // Nenhuma célula selecionada
-      }
+      if (!selectedCells.length) return;
 
-      // Extrair informações relevantes das células selecionadas
       const rows = new Set<number>();
       const produtos: Record<string, number> = {};
-  let totalProdutos = 0;
-  let horaInicial = '23:59';
-  let horaFinal = '00:00';
+      let totalProdutos = 0;
+      let horaInicial = '23:59';
+      let horaFinal = '00:00';
 
-      // Primeiro passo: identificar todos os dados selecionados
       selectedCells.forEach((cell: any) => {
         if (!cell || !cell.row) return;
-
-        // Rastrear índices de linha
         rows.add(cell.rowIdx);
 
-        // Se for coluna de produto, somar os valores para o resumo
         if (cell.colKey?.startsWith('col') && cell.value) {
           const colNum = parseInt(cell.colKey.replace('col', ''), 10);
           if (!isNaN(colNum)) {
-            // Determinar o nome do produto (usar rótulo se disponível ou colKey)
             const prodName = colLabels[cell.colKey] || `Produto ${colNum - 5}`;
             const value = parseFloat(cell.value) || 0;
-
             if (value > 0) {
-              // Acumular por produto
               produtos[prodName] = (produtos[prodName] || 0) + value;
               totalProdutos += value;
             }
           }
         }
 
-        // Verificar horário inicial/final se esta célula contiver informação de hora
         if (cell.row.Hora) {
           if (cell.row.Hora < horaInicial) horaInicial = cell.row.Hora;
           if (cell.row.Hora > horaFinal) horaFinal = cell.row.Hora;
         }
-
-        // Verificar área se disponível (atualmente não armazenada)
       });
 
-      // área extraída, pode ser utilizada localmente se necessário
-
-      // Segundo passo: formatar o resumo para exibição
       const produtosFormatados = Object.entries(produtos)
         .map(([nome, qtd]) => ({ nome, qtd }))
-        .sort((a, b) => b.qtd - a.qtd); // Ordenar por quantidade (maior para menor)
+        .sort((a, b) => b.qtd - a.qtd);
 
       setTableSelection({
         total: totalProdutos,
@@ -166,14 +143,11 @@ export default function Report() {
       });
     };
 
-    // Registrar o listener
     window.addEventListener('table-selection', handleTableSelection as EventListener);
-
-    // Limpar na desmontagem
     return () => window.removeEventListener('table-selection', handleTableSelection as EventListener);
   }, [colLabels]);
 
-  // Função para alterar labels - CORRIGIDA
+  // === ALTERAR LABELS ===
   const handleLabelChange = async (colKey: string, value: string, unidade?: string) => {
     setColLabels(prev => {
       const newLabels = { ...prev, [colKey]: value };
@@ -183,36 +157,46 @@ export default function Report() {
 
     if (!IS_LOCAL) {
       try {
-        await axios.put(`/api/col_labels/${colKey}`, {
-          col_name: value,
-          unidade: unidade || null
-        });
+        await axios.put(`/api/col_labels/${colKey}`, { col_name: value, unidade: unidade || null });
       } catch (error) {
         console.error("Erro ao atualizar label:", error);
       }
     }
   };
 
-  let content;
-  // Fetch data here so pagination is controlled from this component
+  // === FETCH DE DADOS ===
   const { dados, loading, error, total } = useReportData(filtros, page, pageSize);
 
+  let content;
   if (view === 'table') {
     content = <TableComponent filtros={filtros} colLabels={colLabels} dados={dados} loading={loading} error={error} page={page} pageSize={pageSize} />;
   } else if (view === 'product') {
-    content = (
-      <Products
-        colLabels={colLabels}
-        setColLabels={setColLabels}
-        onLabelChange={handleLabelChange}
-      />
-    );
+    content = <Products colLabels={colLabels} setColLabels={setColLabels} onLabelChange={handleLabelChange} />;
   }
 
-  // compute pages based on total
-  const totalPages = Math.max(1, Math.ceil((total || 0) / pageSize));
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 10);
+  // === PAGINAÇÃO ===
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const maxVisiblePages = 10;
+  let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  if (endPage - startPage < maxVisiblePages - 1) {
+    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+  }
+  const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
 
+  // === soma de total de produtos ===
+const totalProdutosUtilizados = dados.reduce((acc, row) => {
+  Object.keys(row).forEach(colKey => {
+    const colNum = parseInt(colKey.replace('col', ''), 10);
+    if (!isNaN(colNum) && colNum >= 6) {
+      const value = parseFloat ((row as any)[colKey]) || 0;
+      acc += value;
+    }
+  }); 
+  return acc;
+}, 0);
+
+  // === RETORNO JSX ===
   return (
     <div className="flex flex-col gap-7 w-full h-full">
       <div className="h-[80dvh] flex flex-row justify-between w-full">
@@ -226,35 +210,40 @@ export default function Report() {
           <Button>Upload</Button>
         </div>
       </div>
-      <div id="tabela+pag+sideInfo " className="flex flex-row gap-2 justify-start w-full">
+
+      <div id="tabela+pag+sideInfo" className="flex flex-row gap-2 justify-start w-full">
         <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[80vh] w-[68px]">
-          <div className="flex w-full h-[100dvh] overflow-hidden shadow-md/16 flex ">
+          <div className="flex w-full h-[100dvh] overflow-hidden shadow-md/16 flex">
             {content}
           </div>
+
+          {/* PAGINAÇÃO */}
           <div id="pagination" className="flex flex-row items-center justify-end mt-2">
-            <Pagination className="flex flex-row justify-end" >
+            <Pagination className="flex flex-row justify-end">
               <PaginationContent>
                 <PaginationItem>
-                  <button onClick={() => setPage((s) => Math.max(1, s - 1))} aria-label="Go to previous page" className="p-1" disabled={page === 1}>
+                  <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="p-1">
                     <ChevronsLeft className="h-4 w-4" />
                   </button>
                 </PaginationItem>
-                {pages.map((p) => {
+
+                {pages.map(p => {
                   const isActive = p === page;
                   return (
                     <PaginationItem key={p}>
                       <button
                         onClick={() => setPage(p)}
                         aria-current={isActive ? 'page' : undefined}
-                        className={cn(buttonVariants({ variant: 'default' }), isActive ? 'bg-red-600 text-white' : 'bg-grey-400')}
+                        className={cn(buttonVariants({ variant: 'default' }), isActive ? 'bg-red-600 text-white' : 'bg-gray-300 text-black')}
                       >
                         {p}
                       </button>
                     </PaginationItem>
                   );
                 })}
+
                 <PaginationItem>
-                  <button onClick={() => setPage((s) => Math.min(s + 1, totalPages))} aria-label="Go to next page" className="p-1">
+                  <button onClick={() => setPage(Math.min(page + 1, totalPages))} disabled={page === totalPages} className="p-1">
                     <ChevronsRight className="h-4 w-4" />
                   </button>
                 </PaginationItem>
@@ -262,14 +251,16 @@ export default function Report() {
             </Pagination>
           </div>
         </div>
+
+        {/* SIDE INFO */}
         <div id="sideinfo" className="h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           {/* Componente de Resumo */}
 
           <div id="quadradoInfo" className="grid grid-cols-2 gap-1 mt-2">
-            <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div id="total de produtos" className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Total</p>
               <p className="text-center text-lg font-bold">
-                {tableSelection.total.toLocaleString('pt-BR', {
+                {totalProdutosUtilizados.toLocaleString('pt-BR', {
                   minimumFractionDigits: 3,
                   maximumFractionDigits: 3
                 })} kg

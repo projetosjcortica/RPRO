@@ -28,7 +28,7 @@ export interface Filtros {
 // Interface genérica para resposta da API
 export interface ApiResponse<T = unknown> {
   success: boolean;
-  data?: T;
+  data?: ReportRow[] | T;
   message?: string;
   page?: number;
   pageSize?: number;
