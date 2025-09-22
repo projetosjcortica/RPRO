@@ -26,7 +26,7 @@ export class HttpApiClient {
   private api: AxiosInstance;
   private baseURL: string;
 
-  constructor(baseURL = 'http://localhost:3001') {
+  constructor(baseURL = 'http://localhost:3002') {
     this.baseURL = baseURL;
     this.api = axios.create({
       baseURL: this.baseURL,

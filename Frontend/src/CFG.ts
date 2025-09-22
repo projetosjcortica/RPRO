@@ -1,6 +1,6 @@
 // Configuração inicial baseada na variável de ambiente
 export let IS_MOCK_ENABLED = import.meta.env.VITE_USE_MOCK === "true";
-export let API_BASE_URL = "/relatorio"; // URL relativa para mesmo origin no escritório
+export let API_BASE_URL = "/api/relatorio/paginate"; // URL relativa para mesmo origin no escritório
 
 // Para compatibilidade com código existente
 let isLocalMutable = IS_MOCK_ENABLED; // Mutable copy for compatibility

@@ -16,6 +16,7 @@ import { postJson, ProcessPayload } from './core/utils';
 import { WebSocketBridge, wsbridge } from './websocket/WebSocketBridge';
 import { configureEstoqueEndpoints } from './websocket/estoqueEndpoints';
 import express from 'express';
+import cors from 'cors';
 
 // Collector
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
@@ -408,6 +409,12 @@ if (typeof (process as any)?.on === 'function') {
 const app = express();
 app.use(express.json());
 
+app.use(cors({
+  origin: 'http://localhost:5173', // Frontend origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
+
 app.get('/api/materiaprima/labels', async (req, res) => {
   try {
     await ensureDatabaseConnection();
@@ -666,3 +673,5 @@ app.all('/api/estoque/*', async (req, res) => {
 // Start HTTP server only in dev mode if needed
 const HTTP_PORT = Number(process.env.FRONTEND_API_PORT || process.env.PORT || 3002);
 app.listen(HTTP_PORT, () => console.log(`API server running on port ${HTTP_PORT}`));
+
+app.options('*', cors());
