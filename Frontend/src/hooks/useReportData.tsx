@@ -44,6 +44,13 @@ export const useReportData = (
           const start = (page - 1) * pageSize;
           const pageSlice = filtered.slice(start, start + pageSize);
 
+          // DEBUG: Verificar a estrutura dos dados mock
+          console.log('Dados mock carregados:', pageSlice);
+          if (pageSlice.length > 0) {
+            console.log('Primeira linha:', pageSlice[0]);
+            console.log('Values da primeira linha:', pageSlice[0].values);
+          }
+
           setDados(pageSlice);
           setTotal(filtered.length);
         } else if ((window as any).electronAPI) {
@@ -55,6 +62,9 @@ export const useReportData = (
             dateEnd: filtros.dataFim || null,
           });
 
+          // DEBUG: Verificar a estrutura dos dados do processador
+          console.log('Resposta do processador:', res);
+
           const mapped: ReportRow[] = (res.rows || []).map((r: any) => {
             const values: number[] = [];
             for (let i = 1; i <= 40; i++) {
@@ -62,7 +72,7 @@ export const useReportData = (
               values.push(typeof v === "number" ? v : v != null ? Number(v) : 0);
             }
 
-            return {
+            const rowData = {
               Dia: r.Dia || "",
               Hora: r.Hora || "",
               Nome: r.Nome || "",
@@ -70,6 +80,10 @@ export const useReportData = (
               Numero: r.Form2 ?? 0,
               values,
             };
+
+            // DEBUG: Verificar cada linha mapeada
+            console.log('Linha mapeada:', rowData);
+            return rowData;
           });
 
           setDados(mapped);
@@ -92,14 +106,37 @@ export const useReportData = (
             throw new Error("Resposta da API inválida");
           }
 
+          // DEBUG: Verificar a estrutura da resposta da API
+          console.log('Resposta da API:', responseData);
+
           const rows: ReportRow[] = Array.isArray(responseData.rows)
             ? responseData.rows
             : Array.isArray(responseData.data)
             ? responseData.data
             : [];
 
-          setDados(rows);
-          setTotal(responseData.total ?? rows.length);
+          // DEBUG: Verificar as rows processadas
+          console.log('Rows processadas:', rows);
+          if (rows.length > 0) {
+            console.log('Primeira row:', rows[0]);
+            console.log('Values da primeira row:', rows[0].values);
+          }
+
+          // Garantir que cada row tenha a estrutura correta
+          const validatedRows = rows.map((row: any) => ({
+            Dia: row.Dia || "",
+            Hora: row.Hora || "",
+            Nome: row.Nome || "",
+            Codigo: row.Codigo ?? row.Form1 ?? 0,
+            Numero: row.Numero ?? row.Form2 ?? 0,
+            values: Array.isArray(row.values) ? row.values : 
+                   Array.isArray(row.Values) ? row.Values : 
+                   Array.isArray(row.valores) ? row.valores : 
+                   [] // Fallback para array vazio se não encontrar values
+          }));
+
+          setDados(validatedRows);
+          setTotal(responseData.total ?? validatedRows.length);
         }
       } catch (err: any) {
         console.error("Erro ao carregar dados:", err);
@@ -113,6 +150,15 @@ export const useReportData = (
 
     fetchData();
   }, [filtros, page, pageSize]);
+
+  // DEBUG: Log dos dados finais que serão retornados
+  useEffect(() => {
+    if (dados.length > 0) {
+      console.log('Dados finais retornados pelo hook:', dados);
+      console.log('Estrutura da primeira linha:', dados[0]);
+      console.log('Values da primeira linha:', dados[0].values);
+    }
+  }, [dados]);
 
   return { dados, loading, error, total };
 };

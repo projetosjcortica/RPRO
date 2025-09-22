@@ -16,7 +16,6 @@ import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 interface TableComponentProps {
   filtros?: Filtros;
   colLabels: Record<string, string>;
-  // Optional: allow caller to pass pre-fetched data (for pagination control outside)
   dados?: any[];
   loading?: boolean;
   error?: string | null;
@@ -71,19 +70,15 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
   // Filtrar dados por categoria quando a categoria selecionada mudar
   useEffect(() => {
     if (categoriaSelecionada && dadosOriginais.length > 0) {
-      // Identificar colunas que pertencem à categoria selecionada
       const colunasCategoria = Object.keys(produtosInfo).filter(
         colKey => produtosInfo[colKey]?.categoria === categoriaSelecionada
       );
       
-      // Filtrar registros que tenham valores nessas colunas
       const filtrados = dadosOriginais.filter(registro => {
         return colunasCategoria.some(coluna => {
-          // Extrair o número da coluna e verificar se está nos values
           const colNum = parseInt(coluna.replace('col', ''), 10);
           if (isNaN(colNum)) return false;
           
-          // O índice no array values é (colNum - 6)
           const valueIdx = colNum - 6;
           return (
             registro.values && 
@@ -102,7 +97,6 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
     }
   }, [categoriaSelecionada, dadosOriginais, produtosInfo]);
   
-  // Limpar filtros de categoria
   const limparFiltroCategoria = () => {
     setCategoriaSelecionada("");
   };
@@ -116,24 +110,52 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
   
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-// Use o maior entre: número de values ou número de colLabels
-  const numValues = dados.length > 0 ? (dados[0]?.values?.length || 0) : 0;
-  const numColLabels = Object.keys(colLabels || {}).length;
-
-  const dynamicColumns = Array.from(
-    { length: Math.max(numValues, numColLabels) }, 
-    (_, i) => `col${i + 6}`
-  ).filter((colKey, index) => {
+  // CORREÇÃO: Gerar dynamicColumns baseado nos dados reais
+  const dynamicColumns = React.useMemo(() => {
+    if (!dados || dados.length === 0) return [];
     
+    // Encontrar o máximo número de colunas baseado nos dados
+    const maxValues = Math.max(...dados.map(row => row.values?.length || 0));
+    const availableCols = Object.keys(colLabels || {});
     
-    // Mostra a coluna se tiver label OU se tiver dados
-    return colLabels[colKey] || (dados.some(row => row.values && index < row.values.length));
-  });
-  const columns = [...fixedColumns, ...dynamicColumns];
+    const cols = Array.from({ length: Math.max(maxValues, availableCols.length) }, 
+      (_, i) => `col${i + 6}`
+    ).filter(colKey => {
+      return colLabels[colKey] || dados.some(row => {
+        const colNum = parseInt(colKey.replace('col', ''), 10);
+        const valueIdx = colNum - 6;
+        return row.values && valueIdx >= 0 && valueIdx < row.values.length;
+      });
+    });
+    
+    return cols;
+  }, [dados, colLabels]);
 
   const cellKey = (rowIdx: number, colIdx: number) => `${rowIdx},${colIdx}`;
 
-  //logica selecionar celulas
+  // Função auxiliar para obter o valor de uma célula
+  const getCellValue = useCallback((row: ReportRow, colIdx: number) => {
+    if (colIdx < fixedColumns.length) {
+      // Coluna fixa
+      const colKey = fixedColumns[colIdx];
+      return row[colKey as keyof ReportRow];
+    } else {
+      // Coluna dinâmica
+      const dynIdx = colIdx - fixedColumns.length;
+      if (dynIdx < dynamicColumns.length) {
+        const colKey = dynamicColumns[dynIdx];
+        const rawValue = row.values?.[dynIdx];
+        
+        // Aplicar conversão de unidade se necessário
+        if (rawValue !== undefined && rawValue !== null) {
+          const produtoInfo = produtosInfo[colKey];
+          return produtoInfo?.unidade === "g" ? rawValue / 1000 : rawValue;
+        }
+      }
+    }
+    return undefined;
+  }, [fixedColumns, dynamicColumns, produtosInfo]);
+
   const selectCellRange = useCallback((startRow: number, startCol: number, endRow: number, endCol: number) => {
     const rowStart = Math.min(startRow, endRow);
     const rowEnd = Math.max(startRow, endRow);
@@ -247,17 +269,9 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
       for (let r = minRow; r <= maxRow; r++) {
         const rowText: string[] = [];
         for (let c = minCol; c <= maxCol; c++) {
-          const cellKeyStr = cellKey(r, c);
-          if (selectedCells.has(cellKeyStr) && dados && dados[r]) {
-            const row = dados[r];
-            if (c < columns.length) {
-              const value = row[columns[c] as keyof ReportRow];
-              rowText.push(value !== undefined && value !== null ? String(value) : "");
-            } else {
-              const valueIndex = c - columns.length;
-              const value = row.values?.[valueIndex];
-              rowText.push(value !== undefined && value !== null ? String(value) : "");
-            }
+          if (selectedCells.has(cellKey(r, c)) && dados && dados[r]) {
+            const value = getCellValue(dados[r], c);
+            rowText.push(value !== undefined && value !== null ? String(value) : "");
           } else {
             rowText.push("");
           }
@@ -272,7 +286,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
 
     document.addEventListener("copy", handleCopy);
     return () => document.removeEventListener("copy", handleCopy);
-  }, [selectedCells, dados, columns]);
+  }, [selectedCells, dados, getCellValue]);
 
   // Limpar seleção ao clicar fora
   useEffect(() => {
@@ -315,7 +329,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
         newRow = Math.max(0, row - 1);
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
-        newCol = Math.min(columns.length + (dados[0]?.values?.length || 0) - 1, col + 1);
+        newCol = Math.min(fixedColumns.length + dynamicColumns.length - 1, col + 1);
       } else if (e.key === "ArrowLeft") {
         e.preventDefault();
         newCol = Math.max(0, col - 1);
@@ -338,32 +352,42 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
     
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [lastSelected, dados, columns.length, selectCellRange]);
+  }, [lastSelected, dados, fixedColumns.length, dynamicColumns.length, selectCellRange]);
 
-  // (removed stale re-fetch effect) no-op
-
-  // Emit selection changes to the window so other components (charts) can react
+  // CORREÇÃO PRINCIPAL: Emit selection changes
   useEffect(() => {
+    if (!dados || dados.length === 0 || selectedCells.size === 0) return;
+
     const detail = Array.from(selectedCells).map((k) => {
       const [r, c] = k.split(',').map(Number);
-      // determine column key
-      const colKey = c < columns.length ? columns[c] : `col${c - columns.length + 6}`;
-      const row = dados?.[r];
-      let value: any = null;
-      if (row) {
-        if (c < columns.length) {
-          value = row[columns[c] as keyof typeof row];
-        } else {
-          const vi = c - columns.length;
-          value = row.values?.[vi];
-        }
+      const row = dados[r];
+      
+      if (!row) return null;
+
+      const value = getCellValue(row, c);
+      
+      let colKey: string;
+      if (c < fixedColumns.length) {
+        colKey = fixedColumns[c];
+      } else {
+        const dynIdx = c - fixedColumns.length;
+        colKey = dynIdx < dynamicColumns.length ? dynamicColumns[dynIdx] : `col${dynIdx + 6}`;
       }
-      return { rowIdx: r, colIdx: c, colKey, value, row };
-    });
+
+      return { 
+        rowIdx: r, 
+        colIdx: c, 
+        colKey, 
+        value, 
+        row,
+        formattedValue: formatValue(value)
+      };
+    }).filter(Boolean);
+
     console.log('Dispatching table-selection event with detail:', detail);
     const ev = new CustomEvent('table-selection', { detail });
     window.dispatchEvent(ev);
-  }, [selectedCells, dados, columns]);
+  }, [selectedCells, dados, fixedColumns, dynamicColumns, getCellValue]);
 
   if (loading) return <div className="p-4">Carregando...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
@@ -381,11 +405,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
   }
   
   return (
-    <div 
-      ref={tableRef} 
-      className="overflow-hidden w-full h-full flex flex-col" 
-      onMouseUp={handleMouseUp}
-    >
+    <div ref={tableRef} className="overflow-hidden w-full h-full flex flex-col" onMouseUp={handleMouseUp}>
       {/* Barra de filtros por categoria */}
       {categorias.length > 0 && (
         <FilterBar
@@ -401,23 +421,17 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
       <div className="text-sm mb-2 p-2 bg-gray-100 rounded">
         {selectedCells.size > 0 ? `${selectedCells.size} células selecionadas` : "Nenhuma célula selecionada"}
         <span className="hidden md:inline-block ml-4 text-gray-600 text-xs">
-          • Clique: seleciona uma célula • 
-          Ctrl+Clique: adiciona/remove células •
-          Arraste: seleciona múltiplas células
+          • Clique: seleciona uma célula • Ctrl+Clique: adiciona/remove células • Arraste: seleciona múltiplas células
         </span>
       </div>
       
       {isMobile && (
-        <div className="block text-xs text-gray-500 mb-2">
-          Deslize para ver todas as colunas
-        </div>
+        <div className="block text-xs text-gray-500 mb-2">Deslize para ver todas as colunas</div>
       )}
       
-      {/* Container principal com altura flexível */}
       <div className="flex-1 h-100">
         <ScrollArea className="overflow-y-auto h-full w-full">
           <Table className="h-100 border-collapse border border-gray-300 table-fixed w-full">
-            {/* Cabeçalho da tabela */}
             <TableHeader className="bg-gray-100 sticky top-0 z-10">
               <TableRow>
                 {fixedColumns.map((col, idx) => (
@@ -425,13 +439,11 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                     key={idx}
                     className="py-1 px-1 md:py-2 md:px-3 break-words text-center border border-gray-300 font-semibold text-xs md:text-sm"
                     style={{ width: idx === 0 ? '100px' : idx === 1 ? '70px' : '100px' }}
-                    
                   >
                     {colLabels?.[col] ?? col}
                   </TableHead>
                 ))}
                 {dynamicColumns.map((colKey, idx) => {
-                  // Verificar se o produto tem categoria
                   const produtoInfo = produtosInfo[colKey];
                   const categoria = produtoInfo?.categoria || '';
                   const isCategoriaSelecionada = categoria === categoriaSelecionada && categoriaSelecionada !== '';
@@ -446,7 +458,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                       title={categoria ? `Categoria: ${categoria}` : ''}
                     >
                       <div className="flex flex-col">
-                        <span className="break-words text-center">{colLabels?.[colKey] ?? colKey ?? `Coluna ${idx + 6}`}</span>
+                        <span className="break-words text-center">{colLabels?.[colKey] ?? colKey}</span>
                         {categoria && (
                           <span className="text-xs text-gray-500 font-normal mt-1 hidden md:block truncate">
                             {categoria}
@@ -459,66 +471,63 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
               </TableRow>
             </TableHeader>
 
-              <TableBody>
-                {dados.map((row, rowIdx) => (
-                  <TableRow key={rowIdx} className="hover:bg-gray-50">
-                    {/* Fixed columns */}
-                    {fixedColumns.map((col, colIdx) => (
+            <TableBody>
+              {dados.map((row, rowIdx) => (
+                <TableRow key={rowIdx} className="hover:bg-gray-50">
+                  {fixedColumns.map((col, colIdx) => (
+                    <TableCell
+                      key={colIdx}
+                      data-key={cellKey(rowIdx, colIdx)}
+                      className={`p-1 md:p-2 border max-h-20 border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
+                        selectedCells.has(cellKey(rowIdx, colIdx))
+                          ? "bg-blue-200 font-medium"
+                          : rowIdx % 2 === 0
+                          ? "bg-red-50"
+                          : "bg-white"
+                      }`}
+                      style={{ width: colIdx === 0 ? '80px' : colIdx === 1 ? '70px' : '100px' }}
+                      onClick={(e) => handleCellClick(rowIdx, colIdx, e)}
+                      onMouseDown={(e) => handleMouseDown(rowIdx, colIdx, e)}
+                      onMouseEnter={(e) => handleMouseEnter(rowIdx, colIdx, e)}
+                    >
+                      <div className="truncate">{row[col as keyof ReportRow]}</div>
+                    </TableCell>
+                  ))}
+
+                  {dynamicColumns.map((colKey, dynIdx) => {
+                    const colIdx = dynIdx + fixedColumns.length;
+                    const rawValue = row.values?.[dynIdx];
+                    const value = rawValue !== undefined && rawValue !== null && produtosInfo[colKey]?.unidade === "g" 
+                      ? rawValue / 1000 
+                      : rawValue;
+                    
+                    const temCategoria = produtosInfo[colKey]?.categoria === categoriaSelecionada;
+
+                    return (
                       <TableCell
                         key={colIdx}
                         data-key={cellKey(rowIdx, colIdx)}
-                        className={`p-1 md:p-2 border max-h-20 border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
+                        className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
                           selectedCells.has(cellKey(rowIdx, colIdx))
                             ? "bg-blue-200 font-medium"
-                            : rowIdx % 2 === 0
-                            ? "bg-red-50"
-                            : "bg-white"
-                        }`}
-                        style={{ width: colIdx === 0 ? '80px' : colIdx === 1 ? '70px' : '100px' }}
-                        onClick={(e) => handleCellClick(rowIdx, colIdx, e)}
-                        onMouseDown={(e) => handleMouseDown(rowIdx, colIdx, e)}
-                        onMouseEnter={(e) => handleMouseEnter(rowIdx, colIdx, e)}
-                      >
-                        <div className="truncate">{row[col as keyof ReportRow]}</div>
-                      </TableCell>
-                    ))}
-
-                    {/* Dynamic columns */}
-                    {dynamicColumns.map((_ , dynIdx) => {
-                    // Verifica se temos o value correspondente
-                    const hasValue = row.values && dynIdx < row.values.length;
-                    const colKey = dynamicColumns[dynIdx]; // Ensure colKey is defined here
-                    const value = hasValue ? (produtosInfo[colKey]?.unidade === "g" ? row.values[dynIdx] / 1000 : row.values[dynIdx]) : "";
-                    
-                    // Verifica se este produto tem categoria
-                    const produtoInfo = produtosInfo[colKey];
-                    const temCategoria = produtoInfo?.categoria && produtoInfo.categoria === categoriaSelecionada;
-                    
-                    return (
-                      <TableCell
-                        key={dynIdx + fixedColumns.length}
-                        data-key={cellKey(rowIdx, dynIdx + fixedColumns.length)}
-                        className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
-                          selectedCells.has(cellKey(rowIdx, dynIdx + fixedColumns.length))
-                            ? "bg-blue-200 font-medium"
-                            : temCategoria && value
+                            : temCategoria && value !== undefined && value !== null
                             ? "bg-green-50 font-medium"
                             : rowIdx % 2 === 0
                             ? "bg-red-50"
                             : "bg-white"
                         }`}
                         style={{ width: '100px' }}
-                        onClick={(e) => handleCellClick(rowIdx, dynIdx + fixedColumns.length, e)}
-                        onMouseDown={(e) => handleMouseDown(rowIdx, dynIdx + fixedColumns.length, e)}
-                        onMouseEnter={(e) => handleMouseEnter(rowIdx, dynIdx + fixedColumns.length, e)}
+                        onClick={(e) => handleCellClick(rowIdx, colIdx, e)}
+                        onMouseDown={(e) => handleMouseDown(rowIdx, colIdx, e)}
+                        onMouseEnter={(e) => handleMouseEnter(rowIdx, colIdx, e)}
                       >
                         <div className="truncate">{formatValue(value)}</div>
                       </TableCell>
                     );
                   })}
-                  </TableRow>
-                ))}
-              </TableBody>
+                </TableRow>
+              ))}
+            </TableBody>
           </Table>
           <ScrollBar orientation="horizontal" />
           <ScrollBar orientation="vertical" />
