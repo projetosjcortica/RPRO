@@ -1,5 +1,4 @@
-// src/components/TableComponent.tsx
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Table,
   TableHeader,
@@ -8,77 +7,153 @@ import {
   TableCell,
   TableRow,
 } from "./components/ui/table";
-import { useReportData } from "./hooks/useReportData";
 import { Filtros, ReportRow } from "./components/types";
-import { FilterBar } from "./components/FilterBar";
-import { useIsMobile } from "./hooks/use-mobile";
 import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
+// import { getProcessador } from './Processador'
+
 
 interface TableComponentProps {
   filtros?: Filtros;
-  colLabels: Record<string, string>; // { col6: 'Milho', ... }
-  dados?: any[]; // Dados externos (opcional)
-  loading?: boolean; // Estado de loading externo (opcional)
-  error?: string | null; // Estado de erro externo (opcional)
-  total?: number; // Total externo (opcional)
+  colLabels: Record<string, string>;
+  dados?: any[];
+  loading?: boolean;
+  error?: string | null;
+  total?: number;
   page?: number;
   pageSize?: number;
-  useExternalData?: boolean; // Flag para forçar o uso de dados externos
+  useExternalData?: boolean;
 }
 
-export default function TableComponent({ 
-  filtros, 
-  colLabels, 
-  dados: dadosProp, 
-  loading: loadingProp, 
-  error: errorProp, 
-  page = 1, 
-  pageSize = 300
-}: TableComponentProps) {
-  const [categoriaSelecionada, setCategoriaSelecionada] = useState<string>("");
+// Função auxiliar para garantir que sempre retorne uma string
+const safeString = (value: any): string => {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return value.toString();
+  if (typeof value === 'boolean') return value.toString();
+  if (typeof value === 'object') {
+    // Se for um objeto, tenta extrair propriedades úteis
+    if (value.produto && typeof value.produto === 'string') return value.produto;
+    if (value.nome && typeof value.nome === 'string') return value.nome;
+    if (value.label && typeof value.label === 'string') return value.label;
+    // Se não conseguir extrair, retorna string vazia para evitar erro
+    return '';
+  }
+  return String(value);
+};
 
+const receba = (col, idx) => {
+  if (idx === 3) {
+    return <div>Código do <br /> produto</div>;
+  } else if (idx === 4) {
+    return <div>Código do <br /> cliente</div>;
+  }
+  return safeString(col);
+};
+
+export default function TableComponent({ 
+  colLabels = {}, 
+  dados: dadosProp = [], 
+  loading: loadingProp, 
+  error: errorProp
+}: TableComponentProps) {
   const tableRef = useRef<HTMLDivElement>(null);
+  const [produtosInfo, setProdutosInfo] = useState<{ [key: string]: { nome: string; unidade: string } }>({});
   
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-  // Gerar dynamicColumns baseado nos dados reais e colLabels
+  // Carrega informações de unidades do localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem("produtosInfo");
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw); 
+           setProdutosInfo(parsed || {});
+        } catch (error) {
+          console.error("Erro ao carregar produtosInfo:", error);
+          setProdutosInfo({});
+        }
+      }
+    }
+  }, []);
+
+  // Função para converter valores baseado na unidade
+  const converterValor = (valor: number, colKey: string): number => {
+    if (typeof valor !== 'number') return valor;
+    
+    const unidade = produtosInfo[colKey]?.unidade || "kg";
+    
+    if (unidade === "g") {
+      return valor / 1000;
+    }
+    
+    return valor;
+  };
+
+  // Gera dynamicColumns baseado nos dados reais
   const dynamicColumns = React.useMemo(() => {
     if (!dadosProp || dadosProp.length === 0) return [];
     
-    // Encontrar o máximo número de colunas baseado nos dados
     const maxValues = Math.max(...dadosProp.map(row => row.values?.length || 0));
     
     const cols = [];
-    for (let i = 1; i < 1 + maxValues; i++) {
-        const colKey = `Produto ${i}`;
-        // colLabels[i] = colKey;
-        cols.push(colKey);
+    for (let i = 6; i < 6 + maxValues; i++) {
+      const colKey = `col${i}`;
+      cols.push(colKey);
     }
     return cols;
-  }, [dadosProp, colLabels]);
+  }, [dadosProp]);
 
-  errorProp ? console.log('erro recebido', errorProp) : null;
-
-  if (!dadosProp || dadosProp.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
-
-  function formatValue(v: unknown): string {
+  // Função para formatar valores com conversão de unidade
+  const formatValue = (v: unknown, colKey: string): string => {
     if (typeof v === "number") {
-      return v.toLocaleString("pt-BR", {
+      const valorConvertido = converterValor(v, colKey);
+      return valorConvertido.toLocaleString("pt-BR", {
         minimumFractionDigits: 3,
         maximumFractionDigits: 3,
       });
     }
-    if (typeof v === "string") return v;
-    return String(v);
-  }
+    return safeString(v);
+  };
 
-  // Helper function to generate a unique key for each cell
-  function cellKey(rowIdx: number, colIdx: number): string {
-    return `cell-${rowIdx}-${colIdx}`;
-  }
+  // Função para obter o label correto da coluna - SEMPRE retorna string
+  const getColumnLabel = (colKey: string): string => {
+    // Se for uma coluna fixa, retorna o nome direto 
+    if (fixedColumns.includes(colKey)) {
+      return colKey;
+    }
+    
+    // Se for uma coluna dinâmica, busca no colLabels ou usa fallback
+    if (colKey.startsWith('col')) {
+      // puxar do localstorage produtosInfo
+
+
+      const raw = localStorage.getItem("produtosInfo");
+      const produtosInfo = raw ? JSON.parse(raw) : {};    
+      const label = produtosInfo[colKey]?.nome;
+      const colNum = parseInt(colKey.replace('col', ''), 10);
+      // const label = colLabels[colKey];
+      return safeString(label) || `Produto ${colNum - 5}`;
+    }
+    
+    return safeString(colKey);
+  };
+
+  // Função para obter a unidade da coluna - SEMPRE retorna string
+  const getColumnUnidade = (colKey: string): string => {
+    if (colKey.startsWith('col')) {
+      return safeString(produtosInfo[colKey]?.unidade) || "kg";
+    }
+    return "";
+  };
+
+  if (loadingProp) return <div className="p-4">Carregando...</div>;
+  if (errorProp) return <div className="p-4 text-red-500">Erro: {errorProp}</div>;
+  if (!dadosProp || dadosProp.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
 
   return (
     <div ref={tableRef} className="overflow-hidden w-full h-full flex flex-col">
+<<<<<<< HEAD
       <div className="flex justify-between items-center mb-2 bg-red-100 p-2 rounded">
         {categoriaSelecionada && (
           <FilterBar
@@ -93,6 +168,8 @@ export default function TableComponent({
       </div>
       
       
+=======
+>>>>>>> 1ca84abab713a5a18301c04ad3631da956c10b44
       <div className="flex-1 h-full">
         <ScrollArea className="overflow-y-auto h-full w-full">
           <Table className="h-full border-collapse border border-gray-300 table-fixed w-full">
@@ -103,19 +180,25 @@ export default function TableComponent({
                     key={idx}
                     className="py-1 px-1 md:py-2 md:px-3 break-words text-center border border-gray-300 font-semibold text-xs md:text-sm"
                     style={{ width: idx === 0 ? '100px' : idx === 1 ? '70px' : '100px' }}
-                  >
-                    {colLabels?.[col] ?? col} {/* Placeholder se não houver label */}
+                  > 
+                    {receba(col, idx)}
                   </TableHead>
                 ))}
                 {dynamicColumns.map((colKey, idx) => {
+                  const label = getColumnLabel(colKey);
+                  const unidade = getColumnUnidade(colKey);
+                  
                   return (
                     <TableHead
-                      key={idx + fixedColumns.length}
-                      className={`py-1 px-2 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm`}
-                      style={{ width: '100px', whiteSpace: 'normal', wordWrap: 'break-word', textAlign: 'center' }}
+                      key={`${colKey}-${idx}`}
+                      className="py-1 px-2 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm"
+                      style={{ width: '100px', whiteSpace: 'normal', wordWrap: 'break-word' }}
                     >
                       <div className="flex flex-col">
-                        <span className="break-words text-center">{colLabels?.[colKey] ?? colKey}</span> {/* Placeholder */}
+                        <span className="break-words text-center">{label}</span>
+                        {/* {unidade && (
+                          <span className="text-xs text-gray-500">({unidade})</span>
+                        )} */}
                       </div>
                     </TableHead>
                   );
@@ -128,28 +211,28 @@ export default function TableComponent({
                 <TableRow key={rowIdx} className="hover:bg-gray-50">
                   {fixedColumns.map((col, colIdx) => (
                     <TableCell
-                      key={colIdx}
-                      data-key={cellKey(rowIdx, colIdx)}
-                      className={`p-1 md:p-2 border max-h-20 border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm bg-white`}
+                      key={`${rowIdx}-${colIdx}`}
+                      className="p-1 md:p-2 border max-h-20 border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm bg-white"
                       style={{ width: colIdx === 0 ? '80px' : colIdx === 1 ? '70px' : '100px' }}
                     >
-                      <div className="truncate">{row[col as keyof ReportRow]}</div>
+                      <div className="truncate">
+                        {safeString(row[col as keyof ReportRow])}
+                      </div>
                     </TableCell>
                   ))}
 
-                  {dynamicColumns.map((_, dynIdx) => {
-                    const colIdx = dynIdx + fixedColumns.length;
+                  {dynamicColumns.map((colKey, dynIdx) => {
                     const rawValue = row.values?.[dynIdx];
-                    const value = rawValue !== undefined && rawValue !== null ? rawValue : null;
-
+                    
                     return (
                       <TableCell
-                        key={colIdx}
-                        data-key={cellKey(rowIdx, colIdx)}
-                        className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm bg-white`}
+                        key={`${rowIdx}-${colKey}-${dynIdx}`}
+                        className="p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm bg-white"
                         style={{ width: '100px' }}
                       >
-                        <div className="truncate">{formatValue(value)}</div>
+                        <div className="truncate">
+                          {formatValue(rawValue, colKey)}
+                        </div>
                       </TableCell>
                     );
                   })}

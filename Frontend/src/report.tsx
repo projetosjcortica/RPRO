@@ -38,7 +38,7 @@ export default function Report() {
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
   const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
 
-  const { materias } = useMateriaPrima();
+  // const { materias } = useMateriaPrima();
 
   const [tableSelection] = useState<{
     total: number;
@@ -55,33 +55,41 @@ export default function Report() {
   });
 
   // === CARREGAR LABELS ===
-  useEffect(() => {
-    const loadLabels = async () => {
-      try {
-        const syncedLabels = await syncProductLabels();
-        if (syncedLabels && Object.keys(syncedLabels).length > 0) {
-          setColLabels(syncedLabels);
-          return;
-        }
+  // useEffect(() => {
+  //   const loadLabels = async () => {
+  //     try {
+  //       const processador = getProcessador();
+        
+  //       // Busca labels direto do processador
+  //       const labelsObj = await processador.getMateriaPrimaLabels();
+        
+  //       if (labelsObj && Object.keys(labelsObj).length > 0) {
+  //         setColLabels(labelsObj);
+  //         console.log("Labels carregadas do processador:", Object.keys(labelsObj).length);
+  //         return;
+  //       }
 
-        // If you need to sync labels with materia prima, implement logic here or remove this block.
-        // Example: If materias contains label info, you can process it here.
-        // Otherwise, just remove this block.
+  //       // Fallback: tenta usar o syncProductLabels
+  //       // const syncedLabels = await syncProductLabels();
+  //       // if (syncedLabels && Object.keys(syncedLabels).length > 0) {
+  //       //   setColLabels(syncedLabels);
+  //       //   return;
+  //       // }
 
-        // Busca labels do backend
-        const labelsArray: ColLabel[] = await fetchLabels();
-        if (labelsArray && labelsArray.length > 0) {
-          const labelsObj: { [key: string]: string } = {};
-          labelsArray.forEach(l => labelsObj[l.col_key] = l.col_name);
-          setColLabels(labelsObj);
-        }
-      } catch (err) {
-        console.error("Erro ao buscar labels:", err);
-      }
-    };
+  //       // Último fallback: busca labels do serviço antigo
+  //       const labelsArray: ColLabel[] = await fetchLabels();
+  //       if (labelsArray && labelsArray.length > 0) {
+  //         const labelsObjFallback: { [key: string]: string } = {};
+  //         labelsArray.forEach(l => labelsObjFallback[l.col_key] = l.col_name);
+  //         setColLabels(labelsObjFallback);
+  //       }
+  //     } catch (err) {
+  //       console.error("Erro ao buscar labels:", err);
+  //     }
+  //   };
 
-    loadLabels();
-  }, [materias]);
+  //   loadLabels();
+  // }, []);
 
   // // === SELEÇÃO DE TABELA ===
   // useEffect(() => {
@@ -134,41 +142,55 @@ export default function Report() {
   //   return () => window.removeEventListener('table-selection', handleTableSelection as EventListener);
   // }, [colLabels]);
 
-  // === ALTERAR LABELS ===
-  const handleLabelChange = async (colKey: string, value: string, unidade?: string) => {
-    setColLabels((prev) => {
-      const newLabels = { ...prev, [colKey]: value };
-      return newLabels;
-    });
-
-    try {
-      const processador = getProcessador();
-
-      await processador.setupMateriaPrimaItems(
-        Object.entries(colLabels).map(([col_key, col_name]) => {
-          // Extract the number from col_key (e.g., 'col6' -> 6)
-          const num = parseInt(col_key.replace('col', ''), 10);
-          return {
-            num: isNaN(num) ? 0 : num,
-            produto: col_name,
-            medida: unidade === 'kg' || !unidade ? 1 : 0 // Default to 1, adjust if you have actual medida
-          };
-        })
-      )
-    } catch (error) {
-      console.error("Erro ao atualizar label:", error);
-    }
-  };
-
   // === FETCH DE DADOS ===
   const { dados, loading, error, total } = useReportData(filtros, page, pageSize);
+
+  // === COLLECTOR FUNCTIONS ===
+  const handleCollectorToggle = async () => {
+    if (collectorLoading) return;
+    
+    setCollectorLoading(true);
+    try {
+      const processador = getProcessador();
+      
+      if (collectorRunning) {
+        await processador.collectorStop();
+        setCollectorRunning(false);
+        console.log("Collector parado");
+      } else {
+        await processador.collectorStart();
+        setCollectorRunning(true);
+        console.log("Collector iniciado");
+      }
+    } catch (error) {
+      console.error("Erro ao controlar collector:", error);
+    } finally {
+      setCollectorLoading(false);
+    }
+  };
  
+  // No componente Report, atualize a função onLabelChange:
+const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
+  setColLabels(prev => ({ ...prev, [colKey]: newName }));
+  
+  // Atualiza também o localStorage para sincronização imediata
+  if (typeof window !== "undefined") {
+    const raw = localStorage.getItem("produtosInfo");
+    const produtosInfo = raw ? JSON.parse(raw) : {};
+    produtosInfo[colKey] = {
+      nome: newName,
+      unidade: unidade || "kg"
+    };
+    localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
+  }
+};
+
 
   let content;
   if (view === 'table') {
     content = <TableComponent filtros={filtros} colLabels={colLabels} dados={dados} loading={loading} error={error} page={page} pageSize={pageSize} />;
   } else if (view === 'product') {
-    content = <Products colLabels={colLabels} setColLabels={setColLabels} onLabelChange={handleLabelChange} />;
+    content = <Products colLabels={colLabels} onLabelChange={onLabelChange} setColLabels={setColLabels}  />;
   }
 
   // === PAGINAÇÃO ===
@@ -205,10 +227,10 @@ export default function Report() {
           <Button onClick={() => setView('product')}>Produtos</Button>
         </div>
         <div className="flex flex-row items-end justify-end gap-2">
-          <FiltrosBar onAplicarFiltros={setFiltros} />
-          <Button>Automático</Button>
+          <FiltrosBar onAplicarFiltros={setFiltros} /> 
           <Button 
-            disabled={true}
+            onClick={handleCollectorToggle}
+            disabled={collectorLoading}
             className={cn(
               "flex items-center gap-2",
               collectorRunning ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
@@ -317,8 +339,8 @@ export default function Report() {
                         <TableCell className="py-1 px-2">{produto.nome}</TableCell>
                         <TableCell className="py-1 px-2 text-right">
                           {produto.qtd.toLocaleString('pt-BR', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2
+                            minimumFractionDigits: 3,
+                            maximumFractionDigits: 3
                           })} kg
                         </TableCell>
                       </TableRow>

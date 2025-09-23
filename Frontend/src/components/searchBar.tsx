@@ -84,34 +84,8 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       onAplicarFiltros(filtrosTemporarios);
     }
 
-    //  Aqui você faria a chamada para a API:
-     fetchDadosDaAPI(filtrosTemporarios);
+    // Note: Removed direct API call as it's now handled by useReportData hook
   };
-
-  //  Exemplo de função para chamar a API
-   const fetchDadosDaAPI = async (filtros: Filtros) => {
-     try {
-       const queryParams = new URLSearchParams({
-         dateStart: filtros.dataInicio,
-         dateEnd: filtros.dataFim,
-         nomeFormula: filtros.nomeFormula,
-       });
-
-       const response = await fetch(`/api/relatorio/paginate?page=1&pageSize=100&${queryParams.toString()}`, {
-         method: 'GET',
-         headers: {
-           'Content-Type': 'application/json',
-         },
-       });
-      
-       const data = await response.json();
-       console.log("Dados da API:", data);
-       // Atualize seu estado com os dados recebidos
-      
-     } catch (error) {
-       console.error("Erro ao buscar dados da API:", error);
-     }
-   };
 
   // Limpa todos os filtros
   const handleLimpar = () => {
@@ -119,6 +93,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       dataInicio: '',
       dataFim: '',
       nomeFormula: ''
+      // adicionar por numero e codigo
     };
     
     setFiltrosTemporarios(filtrosLimpos);
@@ -140,6 +115,21 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
         className="border-black w-60"
       />
+      <Input 
+        type="text" 
+        placeholder="Filtrar por Código da fórmula..."
+        value={filtrosTemporarios.codigo}
+        onChange={(e) => handleInputChange('codigo', e.target.value)}
+        className="border-black w-60"
+      />
+      <Input 
+        type="text" 
+        placeholder="Filtrar por Número da fórmula..."
+        value={filtrosTemporarios.numero}
+        onChange={(e) => handleInputChange('numero', e.target.value)}
+        className="border-black w-60"
+      />
+
       
       <Popover>
         <PopoverTrigger>

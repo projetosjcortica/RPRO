@@ -1,5 +1,5 @@
 // hooks/useLabelService.ts - ATUALIZADO
-import { getHttpApi } from "../services/httpApi";
+// import { getHttpApi } from "../services/httpApi";
 import { ApiResponse } from "../components/types";
 import { getProcessador } from "../Processador";
 
@@ -19,9 +19,8 @@ export interface LabelsResponse extends ApiResponse<ColLabel[]> {
 export async function fetchLabels(): Promise<ColLabel[]> {
   // Try backend first
   try {
-    const p = getProcessador(); 
-    const httpClient = getHttpApi();
-    const response = await httpClient.getMateriaPrimaLabels();
+    const p = getProcessador();  
+    const response = await p.getMateriaPrimaLabels();
     if (response && typeof response === 'object') {
       // Convert backend format to ColLabel format
       const labels: ColLabel[] = [];

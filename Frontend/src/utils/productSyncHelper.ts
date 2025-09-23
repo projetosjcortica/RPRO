@@ -21,7 +21,8 @@
  */
 
 import { MateriaPrima } from '../hooks/useMateriaPrima';
-import { getHttpApi } from '../services/httpApi';
+// import { getHttpApi } from '../services/httpApi';
+import { getProcessador } from '../Processador';
 
 /**
  * Sincroniza os produtos entre o localStorage e o backend
@@ -47,9 +48,9 @@ export async function syncProductLabels(): Promise<{ [key: string]: string }> {
 
   try {
     // Busca matérias-primas do backend via HTTP
-    const httpClient = getHttpApi();
-    const materias = await httpClient.getMateriaPrima() as MateriaPrima[];
-    
+    const processador = getProcessador();
+    const materias = await processador.getMateriaPrima();
+
     if (Array.isArray(materias) && materias.length > 0) {
       // Atualiza os labels com os dados do backend
       materias.forEach(mp => {
@@ -86,8 +87,8 @@ export async function syncProductsToBackend(): Promise<boolean> {
     const materias = JSON.parse(savedMaterias) as MateriaPrima[];
     
     // Envia para o backend
-    const httpClient = getHttpApi();
-    await httpClient.setupMateriaPrima(materias);
+    const processador = getProcessador();
+    await processador.dbSetupMateriaPrima(materias);
     return true;
   } catch (error) {
     console.error('Erro ao sincronizar produtos com o backend:', error);

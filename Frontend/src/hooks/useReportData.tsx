@@ -1,5 +1,5 @@
 // src/hooks/useReportData.tsx
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Filtros, ReportRow } from "../components/types";
 import { getProcessador, FilterOptions } from "../Processador";
 
@@ -31,29 +31,43 @@ export const useReportData = (
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
-    (async () => {
 
-    try {
-      const processador = getProcessador(); // Usa a instância padrão
+  // Create a stable dependency key for filtros to prevent unnecessary re-renders
+  const filtrosKey = useMemo(() => 
+    JSON.stringify(filtros), 
+    [filtros]
+  );
 
-      // Chama o endpoint correto via sendWithConnectionCheck
-      const result = await processador.relatorioPaginate(page, pageSize, filtros as FilterOptions);
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      setError(null);
 
-      if (result && Array.isArray(result.rows)) {
-        const mappedRows: ReportRow[] = result.rows.map(mapRawRowToReportRow);
-        setDados(mappedRows);
-        setTotal(result.total);
-      } else {
-        throw new Error("Formato de resposta inesperado do backend. Resposta: " + JSON.stringify(result));
+      try {
+        const processador = getProcessador(); // Usa a instância padrão
+
+        // Chama o endpoint correto via sendWithConnectionCheck
+        const result = await processador.relatorioPaginate(page, pageSize, filtros as FilterOptions);
+
+        if (result && Array.isArray(result.rows)) {
+          const mappedRows: ReportRow[] = result.rows.map(mapRawRowToReportRow);
+          setDados(mappedRows);
+          setTotal(result.total);
+        } else {
+          throw new Error("Formato de resposta inesperado do backend. Resposta: " + JSON.stringify(result));
+        }
+      } catch (err: any) {
+        console.error("[useReportData] Erro ao carregar dados:", err);
+        setError(err.message || "Falha ao conectar com o servidor ou erro ao carregar dados.");
+        setDados([]); // Limpa dados antigos em caso de erro
+        setTotal(0);
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      console.error("[useReportData] Erro ao carregar dados:", err);
-      setError(err.message || "Falha ao conectar com o servidor ou erro ao carregar dados.");
-      setDados([]); // Limpa dados antigos em caso de erro
-      setTotal(0);
-    }
-    })()
+    };
 
+    fetchData();
+  }, [filtrosKey, page, pageSize]); // Use stable filtrosKey instead of filtros object
 
   // Retorna um objeto com os dados, estado e uma função para rebuscar
   return { dados, loading, error, total };
