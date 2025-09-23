@@ -19,6 +19,8 @@ export interface Filtros {
   dataInicio: string;
   dataFim: string;
   nomeFormula: string;
+  codigo?: string;
+  numero?: string;
   categoria?: string;
   coluna?: string;
   valorMin?: number;

@@ -1,3 +1,4 @@
+// src/components/MyDocument.tsx
 import { Document, Page, Text, StyleSheet, View, Image } from "@react-pdf/renderer";
 
 const styles = StyleSheet.create({
@@ -181,6 +182,8 @@ interface MyDocumentProps {
   observacoes?: string;
   logoSrc?: string;
   orientation?: 'portrait' | 'landscape';
+  chartData?: { name: string; value: number }[];
+  formulaSums?: Record<string, number>;
 }
 
 export const MyDocument = ({
@@ -194,6 +197,8 @@ export const MyDocument = ({
   observacoes = "",
   logoSrc,
   orientation = 'portrait',
+  chartData = [],
+  formulaSums = {},
 }: MyDocumentProps) => {
   // Agrupar produtos por categoria (se houver)
   const produtosPorCategoria: Record<string, typeof produtos> = {};
@@ -233,7 +238,7 @@ export const MyDocument = ({
             <View style={styles.infoItem}>
               <View style={styles.infoRow}>
                 <Text style={styles.label}>Total:</Text>
-                <Text style={styles.value}>{total ?? 0}</Text>
+                <Text style={styles.value}>{(total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</Text>
               </View>
             </View>
             <View style={styles.infoItem}>
@@ -257,11 +262,30 @@ export const MyDocument = ({
           </View>
         </View>
 
+        {/* Resumo de Fórmulas */}
+        {Object.keys(formulaSums).length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Resumo por Fórmula</Text>
+            <View style={styles.table}>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableColHeader}>Fórmula</Text>
+                <Text style={styles.tableColHeaderSmall}>Total</Text>
+              </View>
+              {Object.entries(formulaSums).map(([formula, valor], i) => (
+                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                  <Text style={styles.tableCol}>{formula}</Text>
+                  <Text style={styles.tableColSmall}>{Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Produtos */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos</Text>
           
-              {produtos.length === 0 ? (
+          {produtos.length === 0 ? (
             <Text>Nenhum produto registrado neste período</Text>
           ) : categorias.length <= 1 ? (
             <View style={styles.table}>
@@ -311,13 +335,13 @@ export const MyDocument = ({
         )}
         
         {/* Rodapé */}
-        <View style={styles.footer}>
+        <View style={styles.footer} fixed> {/* fixed para aparecer em todas as páginas */}
           <Text style={styles.footerText}>Relatório gerado em {new Date().toLocaleString('pt-BR')} | {empresa}</Text>
-          <Image src={logoSrc} style={{ width: 80, height: 20, marginTop: 4 }} />
+          {logoSrc && <Image src={logoSrc} style={{ width: 80, height: 20, marginTop: 4 }} />}
         </View>
         
         {/* Número da página */}
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }: { pageNumber: number, totalPages: number }) => `${pageNumber} / ${totalPages}`} />
+        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }: { pageNumber: number, totalPages: number }) => `${pageNumber} / ${totalPages}`} fixed />
       </Page>
     </Document>
   );

@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import fs from 'fs';
 import path from 'path';
 import { AppDataSource, dbService } from './services/dbService';
-import { backupSvc } from './services/BackupService';
-import { parserService } from './services/ParserService';
+import { backupSvc } from './services/backupService';
+import { parserService } from './services/parserService';
 import { fileProcessorService } from './services/fileProcessorService';
 import { IHMService } from './services/IHMService';
 import { materiaPrimaService } from './services/materiaPrimaService';
@@ -309,7 +309,7 @@ app.post('/api/config', async (req, res) => {
 });
 
 // Start HTTP server
-const HTTP_PORT = Number(process.env.FRONTEND_API_PORT || process.env.PORT || 3002);
+const HTTP_PORT = Number(process.env.FRONTEND_API_PORT || process.env.PORT || 3000);
 
 // Setup file processor observer for notifications (simplified without WebSocket)
 fileProcessorService.addObserver({ 

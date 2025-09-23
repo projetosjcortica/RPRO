@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { useFiltros } from "../hooks/useFiltros";
@@ -23,6 +23,21 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
     from: startOfDay(new Date()),
     to: endOfDay(new Date()),
   });
+
+  // Debounced auto-apply for text inputs
+  const debouncedApply = useCallback((filtros: Filtros) => {
+    if (onAplicarFiltros) {
+      onAplicarFiltros(filtros);
+    }
+  }, [onAplicarFiltros]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      debouncedApply(filtrosTemporarios);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [filtrosTemporarios.codigo, filtrosTemporarios.numero, filtrosTemporarios.nomeFormula, debouncedApply]);
 
   // Atualiza os filtros temporários quando os inputs mudam
   const handleInputChange = (nome: keyof Filtros, valor: string) => {

@@ -10,13 +10,13 @@ import { fetchLabels, ColLabel } from "./hooks/useLabelService";
 import { useMateriaPrima } from "./hooks/useMateriaPrima";
 import { syncProductLabels } from "./utils/productSyncHelper";
 import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
-import { ChevronsLeft, ChevronsRight } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Play, Square, Loader2 } from "lucide-react";
 import { cn } from "./lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { MyDocument } from "./Pdf";
 import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
-// import { ResumoComponent } from "./components/ResumoComponent";
+import { getHttpApi } from "./services/httpApi";
 
 export default function Report() {
   const [filtros, setFiltros] = useState<Filtros>({
@@ -29,6 +29,10 @@ export default function Report() {
   const [view, setView] = useState<'table' | 'product'>('table');
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(100);
+  
+  // Collector state
+  const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
+  const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
 
   const { materias } = useMateriaPrima();
 
@@ -143,6 +147,26 @@ export default function Report() {
   // === FETCH DE DADOS ===
   const { dados, loading, error, total } = useReportData(filtros, page, pageSize);
 
+  // === COLLECTOR FUNCTIONS ===
+  const toggleCollector = async () => {
+    try {
+      setCollectorLoading(true);
+      const api = getHttpApi();
+      
+      if (collectorRunning) {
+        await api.stopCollector();
+        setCollectorRunning(false);
+      } else {
+        await api.startCollector();
+        setCollectorRunning(true);
+      }
+    } catch (error) {
+      console.error('Erro ao alternar collector:', error);
+    } finally {
+      setCollectorLoading(false);
+    }
+  };
+
   let content;
   if (view === 'table') {
     content = <TableComponent filtros={filtros} colLabels={colLabels} dados={dados} loading={loading} error={error} page={page} pageSize={pageSize} />;
@@ -172,6 +196,19 @@ const totalProdutosUtilizados = dados.reduce((acc, row) => {
   return acc;
 }, 0);
 
+  // === Chart data calculation ===
+  const chartData = tableSelection.produtos.map(p => ({
+    name: p.nome,
+    value: p.qtd
+  }));
+
+  const formulaSums = dados.reduce((acc, row) => {
+    if (row.Nome) {
+      acc[row.Nome] = (acc[row.Nome] || 0) + (row.values?.[0] || 0);
+    }
+    return acc;
+  }, {} as Record<string, number>);
+
   // === RETORNO JSX ===
   return (
     <div className="flex flex-col gap-7 w-full h-full">
@@ -183,7 +220,23 @@ const totalProdutosUtilizados = dados.reduce((acc, row) => {
         <div className="flex flex-row items-end justify-end gap-2">
           <FiltrosBar onAplicarFiltros={setFiltros} />
           <Button>Automático</Button>
-          <Button>Upload</Button>
+          <Button 
+            onClick={toggleCollector}
+            disabled={collectorLoading}
+            className={cn(
+              "flex items-center gap-2",
+              collectorRunning ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+            )}
+          >
+            {collectorLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : collectorRunning ? (
+              <Square className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            {collectorLoading ? "Processando..." : collectorRunning ? "Parar" : "Recarregar"}
+          </Button>
         </div>
       </div>
 
@@ -308,6 +361,8 @@ const totalProdutosUtilizados = dados.reduce((acc, row) => {
                         produtos={tableSelection.produtos}
                         data={new Date().toLocaleDateString('pt-BR')}
                         empresa="Empresa ABC"
+                        chartData={chartData}
+                        formulaSums={formulaSums}
                       />
                   }
                   fileName="relatorio.pdf"
@@ -324,7 +379,12 @@ const totalProdutosUtilizados = dados.reduce((acc, row) => {
                     )
                   }
                 </PDFDownloadLink>
-              <Button className="w-24 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Imprimir PDF</Button>
+              <Button 
+                className="w-24 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                onClick={() => window.print()}
+              >
+                Imprimir PDF
+              </Button>
             </div>
           </div>
         </div>

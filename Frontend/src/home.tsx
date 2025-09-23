@@ -7,20 +7,20 @@ import {
   ChartTooltipContent,
 } from "./components/ui/chart"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
-import { getProcessador } from './Processador'
-import { config } from './CFG'
+import { getProcessador } from './Processador' // Certifique-se que o caminho está correto
 import { Button } from "./components/ui/button"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText } from "lucide-react"
-import { useIsMobile } from "./hooks/use-mobile"
+import { useIsMobile } from "./hooks/use-mobile" // Certifique-se que o caminho está correto
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover"
 import { Calendar } from "./components/ui/calendar"
-import { format, startOfDay, endOfDay } from "date-fns"
+import { format, startOfDay, endOfDay, subDays, subMonths } from "date-fns"
 import { pt } from "date-fns/locale"
-import { cn } from "./lib/utils"
+import { cn } from "./lib/utils" // Certifique-se que o caminho está correto
 import { type DateRange } from "react-day-picker"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./components/ui/dialog"
-import { Filtros } from "./components/types"
+import { Filtros } from "./components/types" // Certifique-se que o caminho está correto
 
+// Interfaces para tipagem
 interface Entry {
   Nome: string;
   values: number[];
@@ -29,6 +29,7 @@ interface Entry {
   Form1?: number;
   Form2?: number;
   unidadesProdutos?: ('g' | 'kg')[];
+  // Adicione outros campos relevantes se precisar para outros gráficos
 }
 
 interface ChartDatum {
@@ -37,8 +38,15 @@ interface ChartDatum {
   unit?: 'g' | 'kg';
 }
 
+interface MateriaPrimaConfigItem {
+  colKey: string;
+  produto: string;
+  medida: number; // 0 para g, 1 para kg
+}
+
 type FormulaSums = Record<string, number>;
 
+// Formatação para o tooltip
 const tooltipFormatter = (value: string | number | (string | number)[], name: string, entry: any): [string, string] => {
   const numericValue = typeof value === 'string' ? parseFloat(value) : Number(value);
   const unit = entry?.payload?.unit || 'kg';
@@ -47,11 +55,13 @@ const tooltipFormatter = (value: string | number | (string | number)[], name: st
 
 const COLORS = ["#ff2626ff", "#5e5e5eff", "#d4d4d4ff", "#ffa8a8ff", "#1b1b1bff"];
 
-function aggregate(rows: Entry[]): { chartData: ChartDatum[]; formulaSums: FormulaSums; validCount: number } {
+// Função para agregar dados por fórmula (Nome)
+function aggregateByFormula(rows: Entry[]): { chartData: ChartDatum[]; formulaSums: FormulaSums; validCount: number } {
   const valid = rows.filter(r => r && r.Nome && Array.isArray(r.values) && r.values.length > 0)
   const sums: FormulaSums = {}
   for (const r of valid) {
     const key = r.Nome
+    // Assume o primeiro valor como representativo da produção da fórmula para o gráfico
     const v = Number(r.values[0] ?? r.Form1 ?? 0)
     sums[key] = (sums[key] || 0) + v
   }
@@ -60,314 +70,259 @@ function aggregate(rows: Entry[]): { chartData: ChartDatum[]; formulaSums: Formu
   return { chartData, formulaSums: sums, validCount: valid.length }
 }
 
-function aggregateProducts(rows: Entry[], materiaPrimaConfig: any[] = []): { productData: ChartDatum[]; productSums: Record<string, number>; totalProducts: number } {
+// Função para agregar dados por produto (materia prima)
+function aggregateProducts(rows: Entry[], materiaPrimaConfig: MateriaPrimaConfigItem[]): { productData: ChartDatum[]; productSums: Record<string, number>; totalProducts: number } {
   const valid = rows.filter(r => r && Array.isArray(r.values) && r.values.length > 0);
   const productSums: Record<string, number> = {};
   const productUnits: Record<string, 'g' | 'kg'> = {};
 
   for (const r of valid) {
     r.values.forEach((value, index) => {
+      // Produtos começam em Prod_1, que mapeia para col6 (index 0 -> col6)
       const colKey = `col${index + 6}`;
       const mpConfig = materiaPrimaConfig.find(mp => mp.colKey === colKey);
-    
-      let unit: 'g' | 'kg' = 'kg';
+
+      let unit: 'g' | 'kg' = 'kg'; // Default para kg
       let conversionFactor = 1;
 
       if (mpConfig) {
         unit = mpConfig.medida === 0 ? 'g' : 'kg';
+        // Se a unidade original for g, convertemos para kg para padronizar
         conversionFactor = unit === 'g' ? 0.001 : 1;
       }
 
       const productKey = mpConfig?.produto || `Produto ${index + 1}`;
+      // Converte o valor para kg para padronização
       const v = Number(value ?? 0) * conversionFactor;
 
+      // Somente considera valores positivos
       if (v <= 0) return;
 
       if (!productSums[productKey]) {
         productSums[productKey] = v;
-        productUnits[productKey] = 'kg';
+        productUnits[productKey] = 'kg'; // Armazena sempre em kg
       } else {
         productSums[productKey] += v;
       }
     });
   }
 
-  const productData = Object.entries(productSums).map(([name, value]) => ({ 
-    name, 
+  // Prepara os dados para o gráfico, garantindo que a unidade seja 'kg'
+  const productData = Object.entries(productSums).map(([name, value]) => ({
+    name,
     value,
     unit: 'kg' as 'kg'
   }));
 
+  // Calcula o total de produtos em kg
   const totalProducts = Object.values(productSums).reduce((a, b) => a + b, 0);
   return { productData, productSums, totalProducts };
 }
 
 const Home = () => {
-  const [materiaPrimaConfig, setMateriaPrimaConfig] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true)
-  const [_error, setError] = useState<string | null>(null)
-  const [_realData, setRealData] = useState<boolean>(false)
-  const [rows, setRows] = useState<Entry[] | null>(null)
-  const [dataIsEmpty, setDataIsEmpty] = useState<boolean>(false)
-  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
-  const [_contadorRelatorios, setContadorRelatorios] = useState<number>(0)
-  const [_ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null)
-  const [showAllProducts, setShowAllProducts] = useState<boolean>(false)
+  const [materiaPrimaConfig, setMateriaPrimaConfig] = useState<MateriaPrimaConfigItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [rows, setRows] = useState<Entry[]>([]); // Inicia como array vazio
+  const [dataIsEmpty, setDataIsEmpty] = useState<boolean>(false);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
+  const [contadorRelatorios, setContadorRelatorios] = useState<number>(0);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null);
+  const [showAllProducts, setShowAllProducts] = useState<boolean>(false);
   const [allProductsDialogData, setAllProductsDialogData] = useState<{
-    products: ChartDatum[],
-    title: string,
-    total: number,
-    batidas: number
+    products: ChartDatum[];
+    title: string;
+    total: number;
+    batidas: number;
   }>({
     products: [],
     title: '',
     total: 0,
     batidas: 0
-  })
+  });
 
-  const [activeReportIndex, setActiveReportIndex] = useState<number>(0);
-  const [customStartDate, setCustomStartDate] = useState<string>("");
-  const [customEndDate, setCustomEndDate] = useState<string>("");
+  const [activeReportIndex, setActiveReportIndex] = useState<number>(0); // Padrão para '30dias'
   const isMobile = useIsMobile();
   const [viewMode, setViewMode] = useState<'compact' | 'carousel'>('compact');
+
+  // Estados para o DateRangePicker
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: customStartDate ? new Date(customStartDate) : startOfDay(new Date()),
-    to: customEndDate ? new Date(customEndDate) : endOfDay(new Date()),
+    from: subDays(new Date(), 30), // Padrão: últimos 30 dias
+    to: new Date(),
   });
+
+  // Estados para datas formatadas para envio ao backend
   const [reportFilter, setReportFilter] = useState<Filtros>({
-    dataInicio: "",
-    dataFim: "",
+    dataInicio: format(subDays(new Date(), 30), "yyyy-MM-dd"),
+    dataFim: format(new Date(), "yyyy-MM-dd"),
     nomeFormula: ""
   });
 
-  const periods = [
+  // Definição dos períodos
+  const periods = useMemo(() => [
     { key: 'ontem', label: 'Ontem' },
     { key: '30dias', label: '30 dias' },
     { key: 'personalizado', label: 'Personalizado' },
-  ]
+  ], []);
 
+  // Carrega a configuração de matérias-primas
   const loadMateriaPrimaConfig = async () => {
     try {
-      try {
-        const proc = getProcessador();
-        const mapping = await proc.sendWithConnectionCheck('materiaprima.getConfig');
-        if (mapping && typeof mapping === 'object') {
-          if (Array.isArray(mapping)) {
-            const mappingObj: any = {};
-            for (const item of mapping) {
-              if (item && item.colKey) mappingObj[item.colKey] = { produto: item.produto, medida: item.medida };
-            }
-            localStorage.setItem('productLabels', JSON.stringify(mappingObj));
-            setMateriaPrimaConfig(mapping.map((m: any) => ({ colKey: m.colKey, produto: m.produto, medida: m.medida })));
-            return;
-          }
+      const proc = getProcessador();
+      const labelsResponse = await proc.sendWithConnectionCheck('materiaprima.getConfig');
+      // Assume que o backend retorna um objeto { colKey: { produto, medida } }
+      // Ou um array [{ colKey, produto, medida }]
+      let configArray: MateriaPrimaConfigItem[] = [];
 
-          localStorage.setItem('productLabels', JSON.stringify(mapping));
-          const arr = Object.entries(mapping).map(([colKey, info]: any) => ({ colKey, ...info }));
-          setMateriaPrimaConfig(arr);
-          return;
-        }
-      } catch (err) {
-        console.warn('Processador HTTP fetch for materia prima failed, falling back to direct fetch', err);
+      if (Array.isArray(labelsResponse)) {
+         configArray = labelsResponse;
+      } else if (labelsResponse && typeof labelsResponse === 'object') {
+         configArray = Object.entries(labelsResponse).map(([colKey, info]: any) => ({
+           colKey,
+           produto: info.produto,
+           medida: info.medida,
+         }));
       }
-
-      try {
-        const res = await fetch('/api/materiaprima/labels');
-        if (res.ok) {
-          const mapping = await res.json();
-          if (mapping && typeof mapping === 'object') {
-            localStorage.setItem('productLabels', JSON.stringify(mapping));
-            const arr = Object.entries(mapping).map(([colKey, info]: any) => ({ colKey, ...info }));
-            setMateriaPrimaConfig(arr);
-          }
-        }
-      } catch (err) {
-        console.warn('Direct HTTP fetch for materia prima labels failed', err);
-      }
-    } catch (error) {
-      console.error("Erro ao carregar configuração de matéria prima:", error);
+      setMateriaPrimaConfig(configArray);
+      // Opcional: Salvar no localStorage para uso offline
+      localStorage.setItem('productLabels', JSON.stringify(configArray));
+    } catch (err) {
+       console.error("Erro ao carregar configuração de matéria prima:", err);
+       setError("Falha ao carregar configurações de produtos.");
     }
   };
 
-  const loadData = async (_retryCount = 0) => {
+  // Carrega os dados dos relatórios do backend
+  const loadData = async (dateStart: string, dateEnd: string) => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true)
-      setError(null)
-      console.log('[Home] Starting loadData')
+      const proc = getProcessador();
 
-      let loadedRows: Entry[] = []
-      let usingRealData = false
+      // Usa o endpoint correto do backend para buscar dados paginados
+      const result = await proc.sendWithConnectionCheck('relatorio.paginate', {
+        page: 1,
+        pageSize: 10000, // Ajuste se necessário ou implemente paginação real
+        dateStart: dateStart,
+        dateEnd: dateEnd,
+        // sortBy e sortDir podem ser adicionados conforme necessário
+      });
 
-      if (config.contextoPid) {
-        try {
-          const p = getProcessador(config.contextoPid)
-          const tableResult = await p.getTableData(1, 300, {
-            dateStart: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            dateEnd: new Date().toISOString().split('T')[0]
-          })
+      console.log('[Home] Dados recebidos do backend:', result);
 
-          console.log('[Home] tableResult received', { tableResult })
+      if (result && Array.isArray(result.rows)) {
+        const mappedRows: Entry[] = result.rows.map((r: any) => {
+          const values: number[] = [];
+          // Extrai valores de Prod_1 a Prod_40
+          for (let i = 1; i <= 40; i++) {
+            const v = r[`Prod_${i}`];
+            values.push(typeof v === 'number' ? v : (v != null ? Number(v) : 0));
+          }
+          return {
+            Nome: r.Nome ?? 'Desconhecido',
+            values,
+            Dia: r.Dia,
+            Hora: r.Hora,
+            Form1: r.Form1 ?? undefined,
+            Form2: r.Form2 ?? undefined,
+            // unidadesProdutos pode ser preenchido se necessário, mas não é usado na agregação atual
+          };
+        });
 
-          setContadorRelatorios(tableResult.total || 0)
-          setUltimaAtualizacao(new Date().toLocaleString('pt-BR'))
-
-          const mapped: Entry[] = (tableResult.rows || []).map((r: any) => {
-            const values: number[] = [];
-            const unidadesProdutos: ('g' | 'kg')[] = [];
-          
-            for (let i = 1; i <= 40; i++) {
-              const v = r[`Prod_${i}`];
-              const unidade = r[`Unidade_${i}`] === 'g' ? 'g' : 'kg';
-              unidadesProdutos.push(unidade);
-              values.push(typeof v === 'number' ? v : (v != null ? Number(v) : 0));
-            }
-            return {
-              Nome: r.Nome ?? 'Desconhecido',
-              values,
-              unidadesProdutos,
-              Dia: r.Dia,
-              Hora: r.Hora,
-              Form1: r.Form1 ?? undefined,
-              Form2: r.Form2 ?? undefined,
-            } as Entry
-          })
-
-          loadedRows = mapped
-          console.log('[Home] Mapped rows length', mapped.length)
-          usingRealData = true
-        } catch (e) {
-          console.error('Falha ao carregar dados do backend:', e)
-          setError('Não foi possível obter dados do backend. Verifique a conexão.')
-        }
+        setRows(mappedRows);
+        setContadorRelatorios(result.total || 0);
+        setUltimaAtualizacao(new Date().toLocaleString('pt-BR'));
+        setDataIsEmpty(mappedRows.length === 0);
       } else {
-        setError('Erro de configuração: contextoPid não está definido')
+        throw new Error('Formato de resposta inesperado do backend.');
       }
-
-      setRows(loadedRows)
-      setRealData(usingRealData)
-      setDataIsEmpty(!loadedRows || loadedRows.length === 0)
     } catch (err: any) {
-      console.error('Erro ao carregar dados:', err)
-      setError('Erro ao carregar dados')
+      console.error('[Home] Erro ao carregar dados:', err);
+      setError(err.message || 'Falha ao carregar dados do servidor.');
+      setRows([]); // Limpa dados antigos em caso de erro
+      setDataIsEmpty(true);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  // Debug / status helpers
-  const [procStatus, setProcStatus] = useState<string>('unknown')
+  // Efeito para carregar configuração inicial e dados
+  useEffect(() => {
+    const initialize = async () => {
+      await loadMateriaPrimaConfig();
+      // Carrega dados iniciais (últimos 30 dias)
+      const initialStart = format(subDays(new Date(), 30), "yyyy-MM-dd");
+      const initialEnd = format(new Date(), "yyyy-MM-dd");
+      await loadData(initialStart, initialEnd);
+    };
 
-  const handlePing = async () => {
-    try {
-      const p = getProcessador()
-      const res = await p.ping()
-      console.log('[Home] ping response', res)
-      setProcStatus(`ok (${res.ts})`)
-      alert('Ping ok: ' + JSON.stringify(res))
-    } catch (err) {
-      console.error('[Home] ping failed', err)
-      setProcStatus('error')
-      alert('Ping falhou: ' + String(err))
+    initialize();
+  }, []);
+
+  // Efeito para atualizar dados quando o filtro de data muda
+  useEffect(() => {
+    if (reportFilter.dataInicio && reportFilter.dataFim) {
+      loadData(reportFilter.dataInicio, reportFilter.dataFim);
     }
-  }
+  }, [reportFilter.dataInicio, reportFilter.dataFim]); // Dependências
 
-  const handleManualRefresh = async () => {
-    await loadData()
-  }
-
+  // Efeito para escutar seleção de tabela (se aplicável)
   useEffect(() => {
-    loadMateriaPrimaConfig();
-
-    (async () => {
-      try {
-        const proc = getProcessador();
-        const labels = await proc.sendWithConnectionCheck('materiaprima.getConfig');
-        if (labels && typeof labels === 'object') {
-          localStorage.setItem('productLabels', JSON.stringify(labels));
-          console.log('Product labels synchronized from backend (mount)');
-        }
-      } catch (e) { /* ignore */ }
-    })();
-
-    loadData();
-    const intervalo = setInterval(loadData, 60000);
-    return () => clearInterval(intervalo);
-  }, [])
-
-  useEffect(() => {
-    function onTableSelection(e: any) {
-      const detail = e?.detail || []
-      const prodSet = new Set<string>()
+    const onTableSelection = (e: CustomEvent) => {
+      const detail = e?.detail || [];
+      const prodSet = new Set<string>();
       for (const item of detail) {
-        if (!item || !item.colKey) continue
+        if (!item || !item.colKey) continue;
         if (/^col\d+$/.test(item.colKey)) {
-          let labelsObj: { [k: string]: string } = {}
-          try { 
-            const saved = localStorage.getItem('productLabels'); 
-            if (saved) { 
-              const parsed = JSON.parse(saved); 
-              if (Array.isArray(parsed) && parsed.length > 0) labelsObj = parsed[0]; 
-              else if (parsed && typeof parsed === 'object') labelsObj = parsed 
-            } 
-          } catch { }
-          const productLabel = labelsObj[item.colKey] || item.colKey
-          prodSet.add(productLabel)
+          // Tenta encontrar o nome do produto usando a configuração
+          const mpItem = materiaPrimaConfig.find(mp => mp.colKey === item.colKey);
+          const productLabel = mpItem ? mpItem.produto : item.colKey;
+          prodSet.add(productLabel);
         }
       }
-      setSelectedProducts(prodSet)
-    }
-    window.addEventListener('table-selection', onTableSelection as EventListener)
-    return () => window.removeEventListener('table-selection', onTableSelection as EventListener)
-  }, [])
+      setSelectedProducts(prodSet);
+    };
 
+    window.addEventListener('table-selection', onTableSelection as EventListener);
+    return () => window.removeEventListener('table-selection', onTableSelection as EventListener);
+  }, [materiaPrimaConfig]); // Dependência da configuração
+
+  // Memoiza a agregação por fórmula
   const { formulaSums } = useMemo(() => {
-    if (!rows) return { chartData: [] as ChartDatum[], formulaSums: {}, validCount: 0 }
-    return aggregate(rows)
-  }, [rows])
+    return aggregateByFormula(rows);
+  }, [rows]);
 
+  // Memoiza a configuração do gráfico
   const chartConfig: ChartConfig = useMemo(() => ({
     visitors: { label: "Visitors" },
     ...Object.fromEntries(
       Object.keys(formulaSums).map((k, i) => [k.toLowerCase().replace(/\s+/g, "-"), { label: k, color: COLORS[i % COLORS.length] }])
     ),
-  }), [formulaSums])
+  }), [formulaSums]);
 
+  // Manipulador de mudança de data no calendário
   const handleDateChange = (range: DateRange | undefined) => {
     setDateRange(range);
 
     if (!range?.from || !range?.to) {
-      setCustomStartDate("");
-      setCustomEndDate("");
+      // Se o range estiver incompleto, não aplica o filtro ainda
       return;
     }
 
     const startDateString = format(range.from, "yyyy-MM-dd");
     const endDateString = format(range.to, "yyyy-MM-dd");
 
-    setCustomStartDate(startDateString);
-    setCustomEndDate(endDateString);
+    setReportFilter(prev => ({
+      ...prev,
+      dataInicio: startDateString,
+      dataFim: endDateString
+    }));
   };
 
-  const applyCustomFilter = () => {
-    if (!customStartDate || !customEndDate) {
-      alert("Por favor, selecione as datas inicial e final");
-      return;
-    }
-  
-    setReportFilter({
-      ...reportFilter,
-      dataInicio: customStartDate,
-      dataFim: customEndDate
-    });
-  
-    if (isMobile) {
-      setActiveReportIndex(periods.findIndex(p => p.key === 'personalizado'));
-    }
-  };
-
+  // Manipulador para mostrar todos os produtos no modal
   const handleShowAllProducts = (products: ChartDatum[], title: string, total: number, batidas: number) => {
     setAllProductsDialogData({
-      products: products.slice().sort((a, b) => b.value - a.value),
+      products: products.slice().sort((a, b) => b.value - a.value), // Ordena por valor
       title,
       total,
       batidas
@@ -375,67 +330,32 @@ const Home = () => {
     setShowAllProducts(true);
   };
 
+  // Manipulador para gerar relatório (placeholder)
   const handleGenerateReport = () => {
     const { products, title } = allProductsDialogData;
     alert(`Relatório de ${title} será gerado com ${products.length} produtos`);
   };
 
-  function aggregateForRange(periodKey: string) {
-    if (!rows) return { chartData: [] as ChartDatum[], sums: {} as FormulaSums, total: 0, productData: [] as ChartDatum[], productTotal: 0, filteredCount: 0 }
+  // Função para calcular agregações para um período específico
+  const aggregateForRange = (periodKey: string) => {
+    // A agregação agora é feita em cima dos `rows` já filtrados pelo backend
+    // através do `reportFilter`. Esta função pode ser simplificada ou removida
+    // se o backend fizer toda a agregação. Para manter a lógica do frontend:
+    const { chartData, formulaSums: sums } = aggregateByFormula(rows);
+    const { productData, totalProducts } = aggregateProducts(rows, materiaPrimaConfig);
+    const total = Object.values(sums).reduce((a, b) => a + b, 0);
 
-    let filtered: Entry[]
+    return {
+      chartData,
+      sums,
+      total,
+      productData,
+      productTotal: totalProducts,
+      filteredCount: rows.length // O backend já filtrou, então é o total de rows
+    };
+  };
 
-    switch (periodKey) {
-      case '30dias':
-        filtered = rows
-        break
-
-      case 'ontem':
-        filtered = rows.filter(r => {
-          if (!r.Dia) return false
-          const dayMatch = r.Dia.match(/^(\d{1,2})\//)
-          if (!dayMatch) return false
-          const day = parseInt(dayMatch[1], 10)
-          return day === 19 || day === 18
-        })
-        break
-
-      case 'personalizado':
-        filtered = rows.filter(r => {
-          if (!r.Dia || (!customStartDate && !customEndDate)) return true;
-
-          try {
-            const parts = r.Dia.split('/');
-            if (parts.length !== 3) return false;
-
-            const day = parts[0].padStart(2, '0');
-            const month = parts[1].padStart(2, '0');
-            const year = parseInt(parts[2], 10) < 100 ? `20${parts[2].padStart(2, '0')}` : parts[2];
-            const rowDateStr = `${year}-${month}-${day}`;
-
-            if (customStartDate && rowDateStr < customStartDate) return false;
-            if (customEndDate && rowDateStr > customEndDate) return false;
-
-            return true;
-          } catch (e) {
-            console.error("Erro ao processar data", r.Dia, e);
-            return false;
-          }
-        })
-        break
-
-      default:
-        filtered = rows
-        break
-    }
-
-    const { chartData, formulaSums } = aggregate(filtered)
-    const { productData, totalProducts } = aggregateProducts(filtered, materiaPrimaConfig)
-    const total = Object.values(formulaSums).reduce((a, b) => a + b, 0)
-
-    return { chartData, sums: formulaSums, total, productData, productTotal: totalProducts, filteredCount: filtered.length }
-  }
-
+  // Renderiza o modal de todos os produtos
   const renderProductsDialog = () => {
     return (
       <Dialog open={showAllProducts} onOpenChange={setShowAllProducts}>
@@ -443,7 +363,7 @@ const Home = () => {
           <DialogHeader>
             <DialogTitle>Todos os Produtos - {allProductsDialogData.title}</DialogTitle>
             <DialogDescription>
-              Lista completa de produtos - Total: {allProductsDialogData.total.toLocaleString("pt-BR", {minimumFractionDigits: 3, maximumFractionDigits: 3})} {allProductsDialogData.products[0]?.unit || 'kg'} | Batidas: {allProductsDialogData.batidas}
+              Lista completa de produtos - Total: {allProductsDialogData.total.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg | Batidas: {allProductsDialogData.batidas}
             </DialogDescription>
           </DialogHeader>
 
@@ -454,7 +374,7 @@ const Home = () => {
                   <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: COLORS[index % COLORS.length] }} />
                   <span className="font-medium">{product.name}</span>
                 </div>
-                <div className="font-bold">{product.value.toLocaleString("pt-BR", {minimumFractionDigits: 3, maximumFractionDigits: 3})} {product.unit || 'kg'}</div>
+                <div className="font-bold">{product.value.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {product.unit || 'kg'}</div>
               </div>
             ))}
           </div>
@@ -473,7 +393,8 @@ const Home = () => {
     );
   };
 
-  if (loading) {
+  // Renderização condicional de loading
+  if (loading && rows.length === 0) { // Mostra loading apenas na primeira carga
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
@@ -482,19 +403,34 @@ const Home = () => {
           <p className="mt-2 text-gray-500 text-sm">Conectando ao backend...</p>
         </div>
       </div>
-    )
+    );
+  }
+
+  // Renderização condicional de erro
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-red-500">Erro</CardTitle>
+            <CardDescription>{error}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => loadData(reportFilter.dataInicio, reportFilter.dataFim)} className="w-full">
+              Tentar Novamente
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
     <div className="w-full">
       {renderProductsDialog()}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6 px-2 md:px-4">
-        {/* Área reservada para futuros componentes */}
-      </div>
-
-      {/* Debug / Status Panel */}
-      <div className="px-4 mb-4">
+      {/* Cabeçalho com Status (opcional) */}
+      {/* <div className="px-4 mb-4">
         <Card>
           <CardHeader>
             <CardTitle>Status do Backend</CardTitle>
@@ -502,24 +438,24 @@ const Home = () => {
           </CardHeader>
           <CardContent className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div>
-              <div className="text-sm">Processador: <strong>{procStatus}</strong></div>
-              <div className="text-sm">Última atualização: <strong>{_ultimaAtualizacao || '—'}</strong></div>
-              <div className="text-sm">Relatórios carregados: <strong>{rows ? rows.length : 0}</strong></div>
+              <div className="text-sm">Última atualização: <strong>{ultimaAtualizacao || '—'}</strong></div>
+              <div className="text-sm">Relatórios carregados: <strong>{contadorRelatorios}</strong></div>
             </div>
             <div className="flex gap-2">
-              <Button onClick={handlePing} variant="outline">Ping</Button>
-              <Button onClick={handleManualRefresh}>Atualizar</Button>
+              <Button onClick={() => loadData(reportFilter.dataInicio, reportFilter.dataFim)}>Atualizar</Button>
             </div>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
 
+      {/* Mensagem de dados vazios */}
       {dataIsEmpty && (
         <div className="px-4 text-sm text-gray-600">Nenhum dado disponível para o período selecionado.</div>
       )}
 
-      <div className="mb-8">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-4 px-4">
+      {/* Seletor de Visualização e Navegação */}
+      <div className="mb-8 px-4">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-4">
           <div className="flex items-center gap-2 mt-2 md:mt-0">
             <span className="text-sm text-gray-500">Visualização:</span>
             <div className="bg-gray-100 rounded-lg p-1 flex">
@@ -539,104 +475,77 @@ const Home = () => {
           </div>
         </div>
 
-        {/* Mobile Navigation */}
-        <div className={`flex flex-col items-center px-4 mb-4 ${isMobile ? 'flex' : 'hidden'}`}>
-          <div className="flex items-center justify-between w-full mb-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setActiveReportIndex(prev => (prev > 0 ? prev - 1 : periods.length - 1))}
-              aria-label="Relatório anterior"
-              className="h-10 w-10 rounded-full"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </Button>
-            <span className="text-base font-medium">{periods[activeReportIndex]?.label}</span>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setActiveReportIndex(prev => (prev < periods.length - 1 ? prev + 1 : 0))}
-              aria-label="Próximo relatório"
-              className="h-10 w-10 rounded-full"
-            >
-              <ChevronRight className="h-6 w-6" />
-            </Button>
-          </div>
-
-          <div className="flex space-x-2 mt-2">
-            {periods.map((_, index) => (
-              <button
-                key={index}
-                className={`h-2 rounded-full transition-all ${index === activeReportIndex ? 'w-8 bg-blue-600' : 'w-2 bg-gray-300'}`}
-                onClick={() => setActiveReportIndex(index)}
-                aria-label={`Ir para relatório ${index + 1}`}
-              />
-            ))}
-          </div>
-
-          {/* Date Picker for Personalized Period */}
-          {((isMobile && periods[activeReportIndex]?.key === 'personalizado') || (!isMobile)) && (
-            <div className={`${periods[activeReportIndex]?.key === 'personalizado' || !isMobile ? 'flex' : 'hidden'} flex-col md:flex-row gap-4 mb-4 px-4 md:justify-center items-end`}>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Selecionar período</label>
-                <Popover>
-                  <PopoverTrigger>
-                    <Button
-                      id="date"
-                      variant="outline"
-                      className={cn(
-                        "w-[240px] justify-start text-left font-normal border border-gray-300",
-                        !dateRange && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateRange?.from ? (
-                        dateRange.to ? (
-                          <>
-                            {format(dateRange.from, "dd/MM/yyyy")} -{" "}
-                            {format(dateRange.to, "dd/MM/yyyy")}
-                          </>
-                        ) : (
-                          format(dateRange.from, "dd/MM/yyyy")
-                        )
-                      ) : (
-                        <span>Selecione uma data</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      autoFocus
-                      mode="range"
-                      locale={pt}
-                      defaultMonth={dateRange?.from}
-                      selected={dateRange}
-                      onSelect={handleDateChange}
-                      numberOfMonths={1}
-                      className="rounded-md border"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div>
+        {/* Seletor de Data */}
+        <div className="flex flex-col md:flex-row gap-4 mb-6 items-end">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Selecionar período</label>
+            <Popover>
+              <PopoverTrigger asChild>
                 <Button
-                  className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={applyCustomFilter}
+                  id="date"
+                  variant="outline"
+                  className={cn(
+                    "w-[240px] justify-start text-left font-normal border border-gray-300",
+                    !dateRange && "text-muted-foreground"
+                  )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  Aplicar Filtro
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "dd/MM/yyyy")} -{" "}
+                        {format(dateRange.to, "dd/MM/yyyy")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "dd/MM/yyyy")
+                    )
+                  ) : (
+                    <span>Selecione uma data</span>
+                  )}
                 </Button>
-              </div>
-            </div>
-          )}
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  autoFocus
+                  mode="range"
+                  locale={pt}
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={handleDateChange}
+                  numberOfMonths={1}
+                  className="rounded-md border"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          {/* Botão de aplicar filtro pode ser opcional, pois o filtro é aplicado automaticamente ao selecionar */}
+          {/* <div>
+            <Button
+              className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => {}} // Não é mais necessário um clique explícito
+              disabled={loading}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              Aplicar Filtro
+            </Button>
+          </div> */}
+        </div>
 
-          {/* Compact View */}
+        {/* Conteúdo Principal - Gráficos */}
+        <div className="w-full">
+          {/* Visualização Compacta */}
           <div className={viewMode === 'compact' ? 'block' : 'hidden'}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-              {periods.map((p) => {
-                const agg = aggregateForRange(p.key)
-                const allProductsForChart = agg.productData.slice().sort((a, b) => b.value - a.value)
-                const batidas = agg.filteredCount || 0
+              {periods.map((p, index) => {
+                // Simula a mudança de período alterando o filtro de data
+                // Na prática, o usuário escolhe o período no calendário
+                // Este bloco pode ser simplificado ou removido se o calendário for o único controle
+                // Vamos manter para demonstrar a funcionalidade, mas ele não muda os dados diretamente
+                // Os dados são filtrados pelo `reportFilter` que é controlado pelo calendário.
+
+                const agg = aggregateForRange(p.key);
+                const allProductsForChart = agg.productData.slice().sort((a, b) => b.value - a.value);
+                const batidas = agg.filteredCount || 0;
 
                 return (
                   <Card key={p.key} className="shadow-lg">
@@ -668,29 +577,19 @@ const Home = () => {
                         </ChartContainer>
                       </div>
                       <div className="mt-2 text-center">
-                        <div className="text-lg font-bold text-gray-900">Total: {agg.productTotal.toLocaleString('pt-BR')} kg</div>
+                        <div className="text-lg font-bold text-gray-900">Total: {agg.productTotal.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</div>
                         <div className="text-sm text-gray-600">Batidas: {batidas}</div>
                       </div>
                     </CardContent>
                   </Card>
-                )
+                );
               })}
             </div>
           </div>
 
-          {/* Carousel View */}
+          {/* Visualização em Carrossel */}
           <div className={viewMode === 'carousel' ? 'block' : 'hidden'}>
-            <div className="flex justify-center mb-4">
-              <Button
-                onClick={() => {
-                  setActiveReportIndex(periods.findIndex(p => p.key === 'personalizado'));
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 px-4 py-2 rounded-md shadow-md"
-              >
-                <span>Ir para Relatório Personalizado</span>
-              </Button>
-            </div>
-
+            {/* Seletor de Período no Carrossel */}
             <div className="flex items-center justify-between px-4 mb-3">
               <Button
                 variant="outline"
@@ -724,16 +623,18 @@ const Home = () => {
               ))}
             </div>
 
+            {/* Conteúdo do Carrossel */}
             {periods.map((p, index) => {
               if (index !== activeReportIndex) return null;
 
-              const agg = aggregateForRange(p.key)
-              const allProductsForChart = agg.productData.slice().sort((a, b) => b.value - a.value)
-              const batidas = agg.filteredCount || 0
-              const limitedProducts = allProductsForChart.slice(0, 12)
+              const agg = aggregateForRange(p.key);
+              const allProductsForChart = agg.productData.slice().sort((a, b) => b.value - a.value);
+              const batidas = agg.filteredCount || 0;
+              const limitedProducts = allProductsForChart.slice(0, 12);
 
               return (
                 <div key={p.key} className="flex flex-col md:flex-row gap-4 px-4">
+                  {/* Gráfico de Pizza */}
                   <Card className="shadow-lg w-full md:w-1/2">
                     <CardHeader className="text-center py-3">
                       <CardTitle className="text-lg font-semibold text-gray-800">{p.label}</CardTitle>
@@ -763,12 +664,13 @@ const Home = () => {
                         </ChartContainer>
                       </div>
                       <div className="mt-3 text-center">
-                        <div className="text-lg font-bold text-gray-900">Total: {agg.productTotal.toLocaleString('pt-BR')} kg</div>
+                        <div className="text-lg font-bold text-gray-900">Total: {agg.productTotal.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</div>
                         <div className="text-sm text-gray-600">Batidas: {batidas}</div>
                       </div>
                     </CardContent>
                   </Card>
 
+                  {/* Lista de Produtos */}
                   <Card className="shadow-lg w-full md:w-1/2">
                     <CardHeader className="py-3">
                       <CardTitle className="text-lg font-semibold text-gray-800">Produtos - {p.label}</CardTitle>
@@ -782,11 +684,11 @@ const Home = () => {
                               <div className="w-2 h-2 md:w-3 md:h-3 rounded-full mr-2" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                               <span className="font-medium truncate max-w-[100px] md:max-w-[120px]">{t.name}</span>
                             </div>
-                            <div className="font-bold">{t.value.toLocaleString("pt-BR", {minimumFractionDigits: 3, maximumFractionDigits: 3})} {t.unit || 'kg'}</div>
+                            <div className="font-bold">{t.value.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {t.unit || 'kg'}</div>
                           </div>
                         ))}
                         {allProductsForChart.length > 12 && (
-                          <div 
+                          <div
                             className="text-center text-xs text-blue-600 p-1 col-span-1 md:col-span-2 cursor-pointer hover:underline"
                             onClick={() => handleShowAllProducts(allProductsForChart, p.label, agg.productTotal, batidas)}
                           >
@@ -802,7 +704,7 @@ const Home = () => {
                       <div className="text-xs md:text-sm text-gray-600 border-t pt-2 mt-2">
                         <div className="flex justify-between">
                           <span>Total Produtos:</span>
-                          <span className="font-bold">{agg.productTotal.toLocaleString("pt-BR", {minimumFractionDigits: 3, maximumFractionDigits: 3})} kg</span>
+                          <span className="font-bold">{agg.productTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Batidas:</span>
@@ -812,7 +714,7 @@ const Home = () => {
                     </CardContent>
                   </Card>
                 </div>
-              )
+              );
             })}
           </div>
         </div>

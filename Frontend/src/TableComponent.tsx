@@ -1,3 +1,4 @@
+// src/components/TableComponent.tsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Table,
@@ -6,20 +7,20 @@ import {
   TableBody,
   TableCell,
   TableRow,
-} from "./components/ui/table";
-import { useReportData } from "./hooks/useReportData";
-import { Filtros, ReportRow } from "./components/types";
-import { FilterBar } from "./components/FilterBar";
-import { useIsMobile } from "./hooks/use-mobile";
-import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
+} from "./components/ui/table"; // Ajuste o caminho conforme sua estrutura
+import { useReportData } from "./hooks/useReportData"; // Ajuste o caminho
+import { Filtros, ReportRow } from "./types"; // Ajuste o caminho
+import { FilterBar } from "./components/FilterBar"; // Ajuste o caminho
+import { useIsMobile } from "./hooks/use-mobile"; // Ajuste o caminho
+import { ScrollArea, ScrollBar } from "./components/ui/scroll-area"; // Ajuste o caminho
 
 interface TableComponentProps {
   filtros?: Filtros;
-  colLabels: Record<string, string>;
-  dados?: any[];
-  loading?: boolean;
-  error?: string | null;
-  total?: number;
+  colLabels: Record<string, string>; // { col6: 'Milho', ... }
+  dados?: any[]; // Dados externos (opcional)
+  loading?: boolean; // Estado de loading externo (opcional)
+  error?: string | null; // Estado de erro externo (opcional)
+  total?: number; // Total externo (opcional)
   page?: number;
   pageSize?: number;
 }
@@ -45,22 +46,23 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
   // Carregar informações de produtos do localStorage
   useEffect(() => {
     try {
-      const produtosInfoRaw = localStorage.getItem('produtosInfo');
+      const produtosInfoRaw = localStorage.getItem('productLabels'); // Usando a chave correta
       if (produtosInfoRaw) {
+        // productLabels do backend é um objeto { col6: { produto: '...', medida: 1 }, ... }
         const infoObj = JSON.parse(produtosInfoRaw);
         setProdutosInfo(infoObj);
         
         // Extrair categorias únicas
         const categoriasSet = new Set<string>();
         Object.keys(infoObj).forEach(key => {
-          if (infoObj[key]?.categoria) {
+          if (infoObj[key]?.categoria) { // Assumindo que 'categoria' existe nos dados
             categoriasSet.add(infoObj[key].categoria);
           }
         });
         setCategorias(Array.from(categoriasSet).sort());
       }
     } catch (error) {
-      console.error('Erro ao carregar informações de produtos:', error);
+      console.error('Erro ao carregar informações de produtos do localStorage:', error);
     }
   }, []);
   
@@ -79,7 +81,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
           const colNum = parseInt(coluna.replace('col', ''), 10);
           if (isNaN(colNum)) return false;
           
-          const valueIdx = colNum - 6;
+          const valueIdx = colNum - 6; // Prod_1 -> col6 -> index 0
           return (
             registro.values && 
             valueIdx >= 0 && 
@@ -110,24 +112,26 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
   
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-  // CORREÇÃO: Gerar dynamicColumns baseado nos dados reais
+  // Gerar dynamicColumns baseado nos dados reais e colLabels
   const dynamicColumns = React.useMemo(() => {
     if (!dados || dados.length === 0) return [];
     
     // Encontrar o máximo número de colunas baseado nos dados
     const maxValues = Math.max(...dados.map(row => row.values?.length || 0));
-    const availableCols = Object.keys(colLabels || {});
     
-    const cols = Array.from({ length: Math.max(maxValues, availableCols.length) }, 
-      (_, i) => `col${i + 6}`
-    ).filter(colKey => {
-      return colLabels[colKey] || dados.some(row => {
-        const colNum = parseInt(colKey.replace('col', ''), 10);
-        const valueIdx = colNum - 6;
-        return row.values && valueIdx >= 0 && valueIdx < row.values.length;
-      });
-    });
-    
+    // Gerar colunas dinâmicas baseadas no padrão col6, col7, ..., colN
+    // e verificar se elas existem em colLabels ou têm dados
+    const cols = [];
+    for (let i = 6; i < 6 + maxValues; i++) { // Começa em col6
+        const colKey = `col${i}`;
+        // Adiciona se tiver label ou se tiver valor nos dados
+        if (colLabels[colKey] || dados.some(row => {
+            const valueIdx = i - 6;
+            return row.values && valueIdx >= 0 && valueIdx < row.values.length && row.values[valueIdx] !== undefined;
+        })) {
+            cols.push(colKey);
+        }
+    }
     return cols;
   }, [dados, colLabels]);
 
@@ -149,7 +153,8 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
         // Aplicar conversão de unidade se necessário
         if (rawValue !== undefined && rawValue !== null) {
           const produtoInfo = produtosInfo[colKey];
-          return produtoInfo?.unidade === "g" ? rawValue / 1000 : rawValue;
+          // Se a unidade original for 'g' (medida: 0), converte para kg para padronização
+          return produtoInfo?.medida === 0 ? rawValue / 1000 : rawValue;
         }
       }
     }
@@ -160,7 +165,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
     const rowStart = Math.min(startRow, endRow);
     const rowEnd = Math.max(startRow, endRow);
     const colStart = Math.min(startCol, endCol);
-    const colEnd = Math.max(startCol, endCol)
+    const colEnd = Math.max(startCol, endCol);
     const newSet = new Set<string>();
     for (let r = rowStart; r <= rowEnd; r++) {
       for (let c = colStart; c <= colEnd; c++) {
@@ -347,7 +352,9 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
       setLastSelected([newRow, newCol]);
       
       const cellElement = document.querySelector(`[data-key="${cellKey(newRow, newCol)}"]`);
-      cellElement?.scrollIntoView({ block: "nearest", inline: "nearest" });
+      if (cellElement) {
+        cellElement.scrollIntoView({ block: "nearest", inline: "nearest" });
+      }
     }
     
     window.addEventListener("keydown", handleKeyDown);
@@ -356,16 +363,16 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
 
   // CORREÇÃO PRINCIPAL: Emit selection changes
   useEffect(() => {
-    if (!dados || dados.length === 0 || selectedCells.size === 0) return;
+    if (!dados || dados.length === 0) return; // Não emite se não houver dados
 
-    const detail = Array.from(selectedCells).map((k) => {
-      const [r, c] = k.split(',').map(Number);
+    const detail = Array.from(selectedCells).map((key) => {
+      const [r, c] = key.split(',').map(Number);
       const row = dados[r];
-      
+
       if (!row) return null;
 
       const value = getCellValue(row, c);
-      
+
       let colKey: string;
       if (c < fixedColumns.length) {
         colKey = fixedColumns[c];
@@ -374,20 +381,20 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
         colKey = dynIdx < dynamicColumns.length ? dynamicColumns[dynIdx] : `col${dynIdx + 6}`;
       }
 
-      return { 
-        rowIdx: r, 
-        colIdx: c, 
-        colKey, 
-        value, 
+      return {
+        rowIdx: r,
+        colIdx: c,
+        colKey,
+        value,
         row,
         formattedValue: formatValue(value)
       };
-    }).filter(Boolean);
+    }).filter(item => item !== null); // Remove itens nulos
 
-    console.log('Dispatching table-selection event with detail:', detail);
-    const ev = new CustomEvent('table-selection', { detail });
-    window.dispatchEvent(ev);
-  }, [selectedCells, dados, fixedColumns, dynamicColumns, getCellValue]);
+    // Dispara o evento customizado com os detalhes da seleção
+    window.dispatchEvent(new CustomEvent('table-selection', { detail }));
+
+  }, [selectedCells, dados, getCellValue, fixedColumns, dynamicColumns]); // Dependências corretas
 
   if (loading) return <div className="p-4">Carregando...</div>;
   if (error) return <div className="p-4 text-red-500">{error}</div>;
@@ -401,9 +408,9 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
       });
     }
     if (typeof v === "string") return v;
-    return "";
+    return String(v);
   }
-  
+
   return (
     <div ref={tableRef} className="overflow-hidden w-full h-full flex flex-col" onMouseUp={handleMouseUp}>
       {/* Barra de filtros por categoria */}
@@ -429,9 +436,9 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
         <div className="block text-xs text-gray-500 mb-2">Deslize para ver todas as colunas</div>
       )}
       
-      <div className="flex-1 h-100">
+      <div className="flex-1 h-full">
         <ScrollArea className="overflow-y-auto h-full w-full">
-          <Table className="h-100 border-collapse border border-gray-300 table-fixed w-full">
+          <Table className="h-full border-collapse border border-gray-300 table-fixed w-full">
             <TableHeader className="bg-gray-100 sticky top-0 z-10">
               <TableRow>
                 {fixedColumns.map((col, idx) => (
@@ -440,7 +447,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                     className="py-1 px-1 md:py-2 md:px-3 break-words text-center border border-gray-300 font-semibold text-xs md:text-sm"
                     style={{ width: idx === 0 ? '100px' : idx === 1 ? '70px' : '100px' }}
                   >
-                    {colLabels?.[col] ?? col}
+                    {colLabels?.[col] ?? col} {/* Placeholder se não houver label */}
                   </TableHead>
                 ))}
                 {dynamicColumns.map((colKey, idx) => {
@@ -458,7 +465,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                       title={categoria ? `Categoria: ${categoria}` : ''}
                     >
                       <div className="flex flex-col">
-                        <span className="break-words text-center">{colLabels?.[colKey] ?? colKey}</span>
+                        <span className="break-words text-center">{colLabels?.[colKey] ?? colKey}</span> {/* Placeholder */}
                         {categoria && (
                           <span className="text-xs text-gray-500 font-normal mt-1 hidden md:block truncate">
                             {categoria}
@@ -497,7 +504,8 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                   {dynamicColumns.map((colKey, dynIdx) => {
                     const colIdx = dynIdx + fixedColumns.length;
                     const rawValue = row.values?.[dynIdx];
-                    const value = rawValue !== undefined && rawValue !== null && produtosInfo[colKey]?.unidade === "g" 
+                    // Aplica conversão para kg se necessário, para exibição
+                    const value = rawValue !== undefined && rawValue !== null && produtosInfo[colKey]?.medida === 0 
                       ? rawValue / 1000 
                       : rawValue;
                     
@@ -510,7 +518,7 @@ export default function TableComponent({ filtros, colLabels, dados: dadosProp, l
                         className={`p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm ${
                           selectedCells.has(cellKey(rowIdx, colIdx))
                             ? "bg-blue-200 font-medium"
-                            : temCategoria && value !== undefined && value !== null
+                            : temCategoria && value !== undefined && value !== null && value > 0 // Destaca se tiver valor e categoria
                             ? "bg-green-50 font-medium"
                             : rowIdx % 2 === 0
                             ? "bg-red-50"

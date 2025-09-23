@@ -32,14 +32,8 @@ export class Processador {
   private baseURL: string;
 
   constructor(port: number) {
-<<<<<<< HEAD
-    this.port = 3002; // Use backend HTTP port instead of WebSocket port
-    this.baseURL = `http://192.168.5.128:${this.port}`;
-    
-=======
     this.port = port || 3002; // Use provided port or backend default 3002
     this.baseURL = `http://localhost:${this.port}`;
->>>>>>> 03f452872e7741c748550edb4fdcf2777ec67120
     this.connectionState = 'connected';
     console.log(`[Processador] HTTP client initialized for ${this.baseURL}`);
   }
