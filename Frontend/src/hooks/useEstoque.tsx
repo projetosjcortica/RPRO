@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getHttpApi } from '../services/httpApi';
+// import { getHttpApi } from '../services/httpApi';
+import { getProcessador } from '../Processador';
 
 export interface EstoqueItem {
   id: string;
@@ -55,8 +56,8 @@ export const useEstoque = () => {
     setLoading(true);
     setError(null);
     try {
-      const httpClient = getHttpApi();
-      const result = await httpClient.listarEstoque();
+      const processador = getProcessador();
+      const result = await processador.listarEstoque();
       if (result && Array.isArray(result)) {
         setEstoque(result);
       } else {

@@ -2,8 +2,8 @@ import 'reflect-metadata';
 import fs from 'fs';
 import path from 'path';
 import { AppDataSource, dbService } from './services/dbService';
-import { backupSvc } from './services/backupService';
-import { parserService } from './services/parserService';
+import { backupSvc } from './services/BackupService';
+import { parserService } from './services/ParserService';
 import { fileProcessorService } from './services/fileProcessorService';
 import { IHMService } from './services/IHMService';
 import { materiaPrimaService } from './services/materiaPrimaService';
@@ -88,6 +88,28 @@ app.get('/api/ping', async (req, res) => {
   } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
 });
 
+app.get('/api/db/status', async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+    const count = await repo.count();
+    return res.json({ 
+      status: 'connected', 
+      isInitialized: AppDataSource.isInitialized,
+      relatorioCount: count,
+      ts: new Date().toISOString() 
+    });
+  } catch (e: any) { 
+    console.error('[db/status] Error:', e); 
+    return res.status(500).json({ 
+      status: 'error', 
+      error: e?.message || 'internal',
+      isInitialized: AppDataSource.isInitialized,
+      ts: new Date().toISOString() 
+    }); 
+  }
+});
+
 app.get('/api/backup/list', async (req, res) => {
   try {
     await ensureDatabaseConnection();
@@ -128,8 +150,18 @@ app.get('/api/ihm/fetchLatest', async (req, res) => {
 
 app.get('/api/relatorio/paginate', async (req, res) => {
   try {
-    const page = Number(req.query.page || 1);
-    const pageSize = Number(req.query.pageSize || 100);
+    // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
+    const pageRaw = req.query.page;
+    const pageSizeRaw = req.query.pageSize;
+    const pageNum = ((): number => {
+      const n = Number(pageRaw);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+    })();
+    const pageSizeNum = ((): number => {
+      const n = Number(pageSizeRaw);
+      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100;
+    })();
+
     const formula = req.query.formula ?? null;
     const dateStart = req.query.dateStart ?? null;
     const dateEnd = req.query.dateEnd ?? null;
@@ -137,21 +169,46 @@ app.get('/api/relatorio/paginate', async (req, res) => {
     const sortDir = String(req.query.sortDir || 'DESC');
     const includeProducts = String(req.query.includeProducts || 'true') === 'true'; // Default to true for values
 
-    await dbService.init();
+    try {
+      await dbService.init();
+    } catch (dbError: any) {
+      console.error('[relatorio/paginate] Database initialization failed:', dbError);
+      return res.status(500).json({ error: 'Database connection failed', details: dbError?.message });
+    }
+
     const repo = AppDataSource.getRepository(Relatorio);
     const qb = repo.createQueryBuilder('r');
-    if (formula) { const f = String(formula); const n = Number(f); if (!Number.isNaN(n)) qb.andWhere('(r.Form1 = :n OR r.Form2 = :n)', { n }); else qb.andWhere('(r.Nome LIKE :f OR r.processedFile LIKE :f)', { f: `%${f}%` }); }
+    
+    if (formula) { 
+      const f = String(formula); 
+      const n = Number(f); 
+      if (!Number.isNaN(n)) {
+        qb.andWhere('(r.Form1 = :n OR r.Form2 = :n)', { n });
+      } else {
+        qb.andWhere('(r.Nome LIKE :f OR r.processedFile LIKE :f)', { f: `%${f}%` });
+      }
+    }
     if (dateStart) qb.andWhere('r.Dia >= :ds', { ds: dateStart });
     if (dateEnd) qb.andWhere('r.Dia <= :de', { de: dateEnd });
+    
     const allowed = new Set(['Dia', 'Hora', 'Nome', 'Form1', 'Form2', 'processedFile']);
     const sb = allowed.has(sortBy) ? sortBy : 'Dia';
     const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
     qb.orderBy(`r.${sb}`, sd);
-    
+
     // Always include products for values mapping
-    const offset = (Math.max(1, Number(page)) - 1) * Math.max(1, Number(pageSize));
-    const take = Math.max(1, Number(pageSize));
-    const [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+    const offset = (pageNum - 1) * pageSizeNum;
+    const take = pageSizeNum;
+    
+    let rows: any[] = [];
+    let total = 0;
+    
+    try {
+      [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+    } catch (queryError: any) {
+      console.error('[relatorio/paginate] Query execution failed:', queryError);
+      return res.status(500).json({ error: 'Database query failed', details: queryError?.message });
+    }
     
     // Map rows to include values array from Prod_1 to Prod_40
     const mappedRows = rows.map((row: any) => {
@@ -167,17 +224,17 @@ app.get('/api/relatorio/paginate', async (req, res) => {
         Nome: row.Nome || '',
         Codigo: row.Form1 ?? 0,
         Numero: row.Form2 ?? 0,
-        values,
-        // Include original fields if needed
-        id: row.id,
-        processedFile: row.processedFile
+        values
       };
     });
     
-    const totalPages = Math.ceil(total / pageSize); // Calcula o número total de páginas
+    const totalPages = Math.ceil(total / pageSizeNum);
 
-    return res.json({ rows: mappedRows, total, page, pageSize, totalPages });
-  } catch (e: any) { console.error(e); return res.status(500).json({ error: e?.message || 'internal' }); }
+    return res.json({ rows: mappedRows, total, page: pageNum, pageSize: pageSizeNum, totalPages });
+  } catch (e: any) { 
+    console.error('[relatorio/paginate] Unexpected error:', e); 
+    return res.status(500).json({ error: e?.message || 'internal' }); 
+  }
 });
 
 app.get('/api/db/listBatches', async (req, res) => {
@@ -198,14 +255,32 @@ app.post('/api/db/setupMateriaPrima', async (req, res) => {
     await dbService.init();
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
-    const processedItems = items.map((item: any) => ({
-      num: item.num,
-      produto: item.produto,
-      medida: item.medida === 0 ? 0 : 1  // 0 = gramas, 1 = kilos
-    }));
+    // Sanitize and validate items
+    const processedItems = items
+      .map((item: any) => ({
+        num: item.num,
+        produto: typeof item.produto === 'string' ? item.produto : '',
+        medida: item.medida === 0 ? 0 : 1  // 0 = gramas, 1 = kilos
+      }))
+      .filter((it: any) => {
+        const n = Number(it.num);
+        if (!Number.isFinite(n)) {
+          console.warn('[setupMateriaPrima] skipping invalid item (num not numeric):', it);
+          return false;
+        }
+        return true;
+      });
 
-    const saved = await materiaPrimaService.saveMany(processedItems);
-    return res.json(saved);
+    try {
+      const saved = await materiaPrimaService.saveMany(processedItems);
+      return res.json(saved);
+    } catch (err: any) {
+      console.error('[setupMateriaPrima] saveMany error', err?.message || err);
+      if (err?.code === 'ER_DUP_ENTRY' || err?.driverError?.code === 'ER_DUP_ENTRY') {
+        return res.status(400).json({ error: 'duplicate_num', message: 'One or more provided "num" values already exist' });
+      }
+      return res.status(500).json({ error: 'internal' });
+    }
   } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
 });
 

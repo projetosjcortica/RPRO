@@ -45,7 +45,7 @@ export class Processador {
 
   const headers: Record<string, string> = { 'Accept': 'application/json' };
   const config: RequestInit = { method, headers };
-
+  
   if (method === 'GET' && data && Object.keys(data).length > 0) {
     const params = new URLSearchParams();
     Object.keys(data).forEach((key) => {
