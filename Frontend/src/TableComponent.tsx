@@ -153,23 +153,6 @@ export default function TableComponent({
 
   return (
     <div ref={tableRef} className="overflow-hidden w-full h-full flex flex-col">
-<<<<<<< HEAD
-      <div className="flex justify-between items-center mb-2 bg-red-100 p-2 rounded">
-        {categoriaSelecionada && (
-          <FilterBar
-            categoriaSelecionada={categoriaSelecionada}
-            onCategoriaChange={setCategoriaSelecionada}
-            onClear={() => setCategoriaSelecionada("")}
-            total={dadosProp.length}
-            filtrado={dadosProp.length}
-            categorias={[]} // Passando array vazio para evitar erro de propriedade ausente
-          />
-        )}
-      </div>
-      
-      
-=======
->>>>>>> 1ca84abab713a5a18301c04ad3631da956c10b44
       <div className="flex-1 h-full">
         <ScrollArea className="overflow-y-auto h-full w-full">
           <Table className="h-full border-collapse border border-gray-300 table-fixed w-full">
