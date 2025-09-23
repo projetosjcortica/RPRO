@@ -202,7 +202,7 @@ const Home = () => {
       // Usa o endpoint correto do backend para buscar dados paginados
       const result = await proc.sendWithConnectionCheck('relatorio.paginate', {
         page: 1,
-        pageSize: 10000, // Ajuste se necessário ou implemente paginação real
+        pageSize: 100, // Ajuste se necessário ou implemente paginação real
         dateStart: dateStart,
         dateEnd: dateEnd,
         // sortBy e sortDir podem ser adicionados conforme necessário

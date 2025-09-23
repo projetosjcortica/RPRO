@@ -1,22 +1,26 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+
 import TableComponent from "./TableComponent";
-import { useReportData } from "./hooks/useReportData";
 import Products from "./products";
-import FiltrosBar from "./components/searchBar";
-import { Button, buttonVariants } from "./components/ui/button";
-import { Filtros } from "./components/types";
+import { getProcessador } from "./Processador";
+
 import { fetchLabels, ColLabel } from "./hooks/useLabelService";
 import { useMateriaPrima } from "./hooks/useMateriaPrima";
-import { syncProductLabels } from "./utils/productSyncHelper";
-import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
-import { ChevronsLeft, ChevronsRight, Play, Square, Loader2 } from "lucide-react";
+import { useReportData } from "./hooks/useReportData";
+
 import { cn } from "./lib/utils";
+import { syncProductLabels } from "./utils/productSyncHelper";
+
+import { ChevronsLeft, ChevronsRight, Play, Square, Loader2 } from "lucide-react";
+import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./components/ui/table";
+import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
+import { Button, buttonVariants } from "./components/ui/button";
+import { Filtros } from "./components/types";
+import FiltrosBar from "./components/searchBar";
+
 import { PDFDownloadLink } from "@react-pdf/renderer";
 import { MyDocument } from "./Pdf";
-import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
-import { getHttpApi } from "./services/httpApi";
 
 export default function Report() {
   const [filtros, setFiltros] = useState<Filtros>({
@@ -36,9 +40,9 @@ export default function Report() {
 
   const { materias } = useMateriaPrima();
 
-  const [tableSelection, setTableSelection] = useState<{
+  const [tableSelection] = useState<{
     total: number;
-    batidas: number
+    batidas: number;
     horaInicial: string;
     horaFinal: string;
     produtos: { nome: string; qtd: number }[];
@@ -79,66 +83,78 @@ export default function Report() {
     loadLabels();
   }, [materias]);
 
-  // === SELEÇÃO DE TABELA ===
-  useEffect(() => {
-    const handleTableSelection = (e: CustomEvent) => {
-      const selectedCells = e.detail || [];
-      if (!selectedCells.length) return;
+  // // === SELEÇÃO DE TABELA ===
+  // useEffect(() => {
+  //   const handleTableSelection = (e: CustomEvent) => {
+  //     const selectedCells = e.detail || [];
+  //     if (!selectedCells.length) return;
 
-      const rows = new Set<number>();
-      const produtos: Record<string, number> = {};
-      let totalProdutos = 0;
-      let horaInicial = '23:59';
-      let horaFinal = '00:00';
+  //     const rows = new Set<number>();
+  //     const produtos: Record<string, number> = {};
+  //     let totalProdutos = 0;
+  //     let horaInicial = '23:59';
+  //     let horaFinal = '00:00';
 
-      selectedCells.forEach((cell: any) => {
-        if (!cell || !cell.row) return;
-        rows.add(cell.rowIdx);
+  //     selectedCells.forEach((cell: any) => {
+  //       if (!cell || !cell.row) return;
+  //       rows.add(cell.rowIdx);
 
-        if (cell.colKey?.startsWith('col') && cell.value) {
-          const colNum = parseInt(cell.colKey.replace('col', ''), 10);
-          if (!isNaN(colNum)) {
-            const prodName = colLabels[cell.colKey] || `Produto ${colNum - 5}`;
-            const value = parseFloat(cell.value) || 0;
-            if (value > 0) {
-              produtos[prodName] = (produtos[prodName] || 0) + value;
-              totalProdutos += value;
-            }
-          }
-        }
+  //       if (cell.colKey?.startsWith('col') && cell.value) {
+  //         const colNum = parseInt(cell.colKey.replace('col', ''), 10);
+  //         if (!isNaN(colNum)) {
+  //           const prodName = colLabels[cell.colKey] || `Produto ${colNum - 5}`;
+  //           const value = parseFloat(cell.value) || 0;
+  //           if (value > 0) {
+  //             produtos[prodName] = (produtos[prodName] || 0) + value;
+  //             totalProdutos += value;
+  //           }
+  //         }
+  //       }
 
-        if (cell.row.Hora) {
-          if (cell.row.Hora < horaInicial) horaInicial = cell.row.Hora;
-          if (cell.row.Hora > horaFinal) horaFinal = cell.row.Hora;
-        }
-      });
+  //       if (cell.row.Hora) {
+  //         if (cell.row.Hora < horaInicial) horaInicial = cell.row.Hora;
+  //         if (cell.row.Hora > horaFinal) horaFinal = cell.row.Hora;
+  //       }
+  //     });
 
-      const produtosFormatados = Object.entries(produtos)
-        .map(([nome, qtd]) => ({ nome, qtd }))
-        .sort((a, b) => b.qtd - a.qtd);
+  //     const produtosFormatados = Object.entries(produtos)
+  //       .map(([nome, qtd]) => ({ nome, qtd }))
+  //       .sort((a, b) => b.qtd - a.qtd);
 
-      setTableSelection({
-        total: totalProdutos,
-        batidas: rows.size,
-        horaInicial: horaInicial !== '23:59' ? horaInicial : '--:--',
-        horaFinal: horaFinal !== '00:00' ? horaFinal : '--:--',
-        produtos: produtosFormatados
-      });
-    };
+  //     setTableSelection({
+  //       total: totalProdutos,
+  //       batidas: rows.size,
+  //       horaInicial: horaInicial !== '23:59' ? horaInicial : '--:--',
+  //       horaFinal: horaFinal !== '00:00' ? horaFinal : '--:--',
+  //       produtos: produtosFormatados
+  //     });
+  //   };
 
-    window.addEventListener('table-selection', handleTableSelection as EventListener);
-    return () => window.removeEventListener('table-selection', handleTableSelection as EventListener);
-  }, [colLabels]);
+  //   window.addEventListener('table-selection', handleTableSelection as EventListener);
+  //   return () => window.removeEventListener('table-selection', handleTableSelection as EventListener);
+  // }, [colLabels]);
 
   // === ALTERAR LABELS ===
   const handleLabelChange = async (colKey: string, value: string, unidade?: string) => {
-    setColLabels(prev => {
+    setColLabels((prev) => {
       const newLabels = { ...prev, [colKey]: value };
       return newLabels;
     });
 
     try {
-      await axios.put(`/api/col_labels/${colKey}`, { col_name: value, unidade: unidade || null });
+      const processador = getProcessador();
+
+      await processador.setupMateriaPrimaItems(
+        Object.entries(colLabels).map(([col_key, col_name]) => {
+          // Extract the number from col_key (e.g., 'col6' -> 6)
+          const num = parseInt(col_key.replace('col', ''), 10);
+          return {
+            num: isNaN(num) ? 0 : num,
+            produto: col_name,
+            medida: unidade === 'kg' || !unidade ? 1 : 0 // Default to 1, adjust if you have actual medida
+          };
+        })
+      )
     } catch (error) {
       console.error("Erro ao atualizar label:", error);
     }
@@ -146,26 +162,7 @@ export default function Report() {
 
   // === FETCH DE DADOS ===
   const { dados, loading, error, total } = useReportData(filtros, page, pageSize);
-
-  // === COLLECTOR FUNCTIONS ===
-  const toggleCollector = async () => {
-    try {
-      setCollectorLoading(true);
-      const api = getHttpApi();
-      
-      if (collectorRunning) {
-        await api.stopCollector();
-        setCollectorRunning(false);
-      } else {
-        await api.startCollector();
-        setCollectorRunning(true);
-      }
-    } catch (error) {
-      console.error('Erro ao alternar collector:', error);
-    } finally {
-      setCollectorLoading(false);
-    }
-  };
+ 
 
   let content;
   if (view === 'table') {
@@ -211,8 +208,7 @@ export default function Report() {
           <FiltrosBar onAplicarFiltros={setFiltros} />
           <Button>Automático</Button>
           <Button 
-            onClick={toggleCollector}
-            disabled={collectorLoading}
+            disabled={true}
             className={cn(
               "flex items-center gap-2",
               collectorRunning ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"

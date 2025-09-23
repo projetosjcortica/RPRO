@@ -18,7 +18,7 @@ import cors from 'cors';
 // Collector
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
 const TMP_DIR = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
-const rawServer = process.env.INGEST_URL || process.env.SERVER_URL || 'http://192.168.5.200';
+const rawServer = process.env.INGEST_URL || process.env.SERVER_URL || 'http://192.168.5.254';
 const SERVER_URL = /^(?:https?:)\/\//i.test(rawServer) ? rawServer : `http://${rawServer}`;
 const INGEST_TOKEN = process.env.INGEST_TOKEN;
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
@@ -26,7 +26,7 @@ if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 let STOP = false;
 export function stopCollector() { STOP = true; }
 export async function startCollector() {
-  const ihm = new IHMService(process.env.IHM_IP || '127.0.0.1', process.env.IHM_USER || 'anonymous', process.env.IHM_PASS || '');
+  const ihm = new IHMService(process.env.IHM_IP || '192.168.5.254', process.env.IHM_USER || 'anonymous', process.env.IHM_PASS || '');
   const collector = { async cycle() {
     const downloaded = await ihm.findAndDownloadNewFiles(TMP_DIR);
     for (const f of downloaded) {
@@ -174,7 +174,9 @@ app.get('/api/relatorio/paginate', async (req, res) => {
       };
     });
     
-    return res.json({ rows: mappedRows, total, page, pageSize });
+    const totalPages = Math.ceil(total / pageSize); // Calcula o número total de páginas
+
+    return res.json({ rows: mappedRows, total, page, pageSize, totalPages });
   } catch (e: any) { console.error(e); return res.status(500).json({ error: e?.message || 'internal' }); }
 });
 

@@ -91,16 +91,17 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
   //  Exemplo de função para chamar a API
    const fetchDadosDaAPI = async (filtros: Filtros) => {
      try {
-       const response = await fetch(`/api/relatorio/paginate?page=1&pageSize=100`, {
+       const queryParams = new URLSearchParams({
+         dateStart: filtros.dataInicio,
+         dateEnd: filtros.dataFim,
+         nomeFormula: filtros.nomeFormula,
+       });
+
+       const response = await fetch(`/api/relatorio/paginate?page=1&pageSize=100&${queryParams.toString()}`, {
          method: 'GET',
          headers: {
            'Content-Type': 'application/json',
          },
-         body: JSON.stringify({
-           dateStart: filtros.dataInicio,
-           dateEnd: filtros.dataFim,
-           nomeFormula: filtros.nomeFormula,
-         }),
        });
       
        const data = await response.json();

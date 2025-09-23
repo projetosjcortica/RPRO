@@ -1,7 +1,7 @@
 // src/hooks/useReportData.tsx
 import { useState, useEffect, useCallback } from "react";
 import { Filtros, ReportRow } from "../components/types";
-import { getProcessador } from "../Processador";
+import { getProcessador, FilterOptions } from "../Processador";
 
 // Função auxiliar para mapear uma linha bruta para ReportRow
 const mapRawRowToReportRow = (rawRow: any): ReportRow => {
@@ -31,30 +31,18 @@ export const useReportData = (
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    (async () => {
 
     try {
       const processador = getProcessador(); // Usa a instância padrão
 
       // Chama o endpoint correto via sendWithConnectionCheck
-      const result = await processador.sendWithConnectionCheck('relatorio.paginate', {
-        page,
-        pageSize,
-        formula: filtros.nomeFormula || undefined,
-        dateStart: filtros.dataInicio || undefined,
-        dateEnd: filtros.dataFim || undefined,
-        // sortBy e sortDir podem ser adicionados conforme necessário
-        // sortBy: 'Dia', // Exemplo
-        // sortDir: 'DESC', // Exemplo
-      });
+      const result = await processador.relatorioPaginate(page, pageSize, filtros as FilterOptions);
 
       if (result && Array.isArray(result.rows)) {
         const mappedRows: ReportRow[] = result.rows.map(mapRawRowToReportRow);
         setDados(mappedRows);
-        setTotal(result.total ?? mappedRows.length);
+        setTotal(result.total);
       } else {
         throw new Error("Formato de resposta inesperado do backend. Resposta: " + JSON.stringify(result));
       }
@@ -63,15 +51,10 @@ export const useReportData = (
       setError(err.message || "Falha ao conectar com o servidor ou erro ao carregar dados.");
       setDados([]); // Limpa dados antigos em caso de erro
       setTotal(0);
-    } finally {
-      setLoading(false);
     }
-  }, [filtros, page, pageSize]); // Dependências corretas
+    })()
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]); // useEffect depende da função memorizada
 
   // Retorna um objeto com os dados, estado e uma função para rebuscar
-  return { dados, loading, error, total, refetch: fetchData };
+  return { dados, loading, error, total };
 };

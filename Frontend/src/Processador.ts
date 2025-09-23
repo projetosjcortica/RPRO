@@ -101,7 +101,7 @@ export class Processador {
   }
 
   // Connection check method (always returns true for HTTP)
- public async sendWithConnectionCheck(cmd: string, payload: any): Promise<any> {
+ private async sendWithConnectionCheck(cmd: string, payload: any): Promise<any> {
  
   switch (cmd) {
     case 'ping':
@@ -150,7 +150,7 @@ export class Processador {
     default:
       throw new Error(`Unknown command: ${cmd}`);
   }
-}
+  }
 
 
   // Report pagination
@@ -168,7 +168,9 @@ export class Processador {
 
     return this.makeRequest(`/api/relatorio/paginate?page=${page}&pageSize=${pageSize}`, 'GET', params);
   }
-
+/**
+ * @deprecated Usa o paginator fdp
+ */
   public async getTableData(
     page = 1,
     pageSize = 100,

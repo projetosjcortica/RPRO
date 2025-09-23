@@ -1,259 +1,95 @@
 import { useEffect, useState } from "react";
 import { Input } from "./components/ui/input";
 import { ScrollArea } from "./components/ui/scroll-area";
-import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
-import { ColLabel } from "./hooks/useLabelService";
-import { useMateriaPrima } from "./hooks/useMateriaPrima";
-import { useUnidades } from "./hooks/useUnidades";
+import { getProcessador } from "./Processador";
+import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
+
 interface ProductsProps {
-  colLabels: { [key: string]: string };
   setColLabels: React.Dispatch<React.SetStateAction<{ [key: string]: string }>>;
-  onLabelChange: (colKey: string, newName: string, unidade?: string) => void;
 }
 
-function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
-  // Utiliza o hook para carregar matérias-primas
-  const { materias } = useMateriaPrima();
-  
-  // Utiliza o hook para conversão de unidades
-  const { converterUnidade: _converterUnidade } = useUnidades();
-  
-  // Estado para controlar atualização nos produtos do backend
+function Products({ setColLabels }: ProductsProps) {
+  const processador = getProcessador();
+  const [colLabels, setLocalColLabels] = useState<{ [key: string]: string }>({});
   const [savingProduct, setSavingProduct] = useState<string | null>(null);
 
-  // Estado local para unidades
-  const unidades: { [key: string]: string } = {};
-  // Carrega unidades do localStorage (produtosInfo)
-  (() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("produtosInfo");
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          for (let i = 6; i <= 45; i++) {
-            const key = `col${i}`;
-            if (parsed[key] && parsed[key].unidade) {
-              unidades[key] = parsed[key].unidade;
-            } else {
-              unidades[key] = "kg";
-            }
-          }
-        } catch {
-          for (let i = 6; i <= 45; i++) {
-            unidades[`col${i}`] = "kg";
-          }
-        }
-      } else {
-        for (let i = 6; i <= 45; i++) {
-          unidades[`col${i}`] = "kg";
-        }
-      }
-    }
-  })();
+  // Define the type for produtosInfo to avoid implicit 'any' errors
+  interface ProdutosInfo {
+    [key: string]: {
+      unidade?: string;
+    };
+  }
 
-  // Salva o objeto completo de nomes e unidades no localStorage
-  const saveProdutosInfo = (labels: { [key: string]: string }, unids: { [key: string]: string }) => {
-    const produtosInfo: { [key: string]: { nome: string; unidade: string } } = {};
-    for (let i = 6; i <= 45; i++) {
-      const key = `col${i}`;
-      produtosInfo[key] = {
-        nome: labels[key] || "",
-        unidade: unids[key] || "kg" // padrão kg
-      };
-    }
-    localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
-  };
-
+  // Updated fetchLabels function to use the defined type
   useEffect(() => {
     const fetchLabels = async () => {
       try {
-        let labelsObj: { [key: string]: string } = {};
-        const response = await fetch("/api/col_labels");
-        if (response.ok) {
-          const json: any = await response.json();
-          if (Array.isArray(json)) {
-            json.forEach((item: ColLabel) => {
-              if (item && item.col_key) labelsObj[item.col_key] = item.col_name;
-            });
-          } else if (json && typeof json === "object") {
-            labelsObj = json;
-          }
-        }
+        const labelsObj: { [key: string]: string } = await processador.getMateriaPrimaLabels();
 
-        // 🔥 garante que do col6 até col45 existam
         for (let i = 6; i <= 45; i++) {
           const key = `col${i}`;
           if (!labelsObj[key]) {
             labelsObj[key] = "";
           }
         }
-  localStorage.setItem("productLabels", JSON.stringify([labelsObj]));
-  localStorage.setItem("colLabels", JSON.stringify(labelsObj));
-        setColLabels(labelsObj);
 
-        // Salva também nomes e unidades no produtosInfo
-        saveProdutosInfo(labelsObj, unidades);
+        localStorage.setItem("colLabels", JSON.stringify(labelsObj));
+        setColLabels(labelsObj);
+        setLocalColLabels(labelsObj);
       } catch (err) {
         console.error("Erro ao carregar labels:", err);
       }
     };
 
     fetchLabels();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setColLabels]);
 
-  // Salva nome, unidade ao alterar nome
-  const handleLabelChange = async (colKey: string, newName: string, unidade?: string) => {
-    // Marca que estamos salvando
-    setSavingProduct(colKey);
-    
-    try {
-      // Primeiro, chama o método original para atualizar o frontend
-      onLabelChange(colKey, newName, unidade);
-      
-      // Atualiza localStorage produtosInfo
-      const produtosInfoRaw = localStorage.getItem("produtosInfo");
-      let produtosInfo: { [key: string]: { nome: string; unidade: string } } = {};
-      if (produtosInfoRaw) {
-        try {
-          produtosInfo = JSON.parse(produtosInfoRaw);
-        } catch {}
-      }
-      produtosInfo[colKey] = {
-        nome: newName,
-        unidade: (unidades[colKey] || "kg")
-      };
-      localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
-      
-      // Sincroniza com o backend
+  const handleLabelChange = (col: string, value: string, unidadeAtual: string) => {
+    const produtosInfoRaw = localStorage.getItem("produtosInfo");
+    let produtosInfo: ProdutosInfo = {};
+
+    if (produtosInfoRaw) {
       try {
-        const colNum = parseInt(colKey.replace("col", ""), 10);
-        if (!isNaN(colNum)) {
-          // O índice na MateriaPrima é colNum - 5
-          const prodNum = colNum - 5;
-          
-          // Prepara matérias-primas atualizadas
-          const updatedMaterias = [...materias];
-          
-          // Tenta encontrar a matéria-prima correspondente
-          const existingIndex = updatedMaterias.findIndex(m => m.num === prodNum);
-          
-          if (existingIndex >= 0) {
-            // Atualiza o existente
-            updatedMaterias[existingIndex] = {
-              ...updatedMaterias[existingIndex],
-              produto: newName,
-              medida: unidade === "g" ? 0 : 1, // 0 para gramas, 1 para kg
-            };
-          } else {
-            // Adiciona novo
-            updatedMaterias.push({
-              id: `new-${Date.now()}`,
-              num: prodNum,
-              produto: newName,
-              medida: unidade === "g" ? 0 : 1, // 0 para gramas, 1 para kg
-            });
-          }
-          
-          // Usa HTTP para salvar no backend
-          await fetch("/api/db/setupMateriaPrima", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ items: updatedMaterias }),
-          });
-        }
-      } catch (error) {
-        console.error("Erro ao salvar produto:", error);
+        produtosInfo = JSON.parse(produtosInfoRaw);
+      } catch {
+        console.error("Erro ao parsear produtosInfo do localStorage");
       }
-    } catch (error) {
-      console.error("Erro ao salvar produto:", error);
-    } finally {
-      setSavingProduct(null);
     }
+
+    produtosInfo[col] = {
+      ...(produtosInfo[col] || {}),
+      unidade: unidadeAtual,
+    };
+
+    localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
+    const newLabels = { ...colLabels, [col]: value };
+    setLocalColLabels(newLabels);
+    setColLabels(newLabels);
   };
 
-  // Salva unidade ao alterar unidade
-  const handleUnidadeChange = async (colKey: string, unidade: string) => {
-    const novaUnidade = unidade === "1" ? "g" : "kg";
-    console.log(`Alterando unidade do produto ${colKey} para ${novaUnidade}`);
-    
-    // Atualiza unidade local
-    unidades[colKey] = novaUnidade;
-    
-    // Atualiza localStorage produtosInfo
+  const handleUnidadeChange = (col: string, value: string) => {
     const produtosInfoRaw = localStorage.getItem("produtosInfo");
-    let produtosInfo: { [key: string]: { nome: string; unidade: string } } = {};
-    
-    try {
-      if (produtosInfoRaw) {
+    let produtosInfo: ProdutosInfo = {};
+
+    if (produtosInfoRaw) {
+      try {
         produtosInfo = JSON.parse(produtosInfoRaw);
+      } catch {
+        console.error("Erro ao parsear produtosInfo do localStorage");
       }
-    } catch (error) {
-      console.error("Failed to parse produtosInfo from localStorage:", error);
     }
-    
-    produtosInfo[colKey] = {
-      nome: colLabels[colKey] || "",
-      unidade: novaUnidade
-    };
-    
+
+    if (!produtosInfo[col]) { 
+      produtosInfo[col] = {};
+    }
+
+    produtosInfo[col].unidade = value === "1" ? "g" : "kg";
     localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
-    console.log(`Informações do produto ${colKey} atualizadas:`, produtosInfo[colKey]);
-    
-    // Notifica a alteração da unidade para o componente pai
-    onLabelChange(colKey, colLabels[colKey] || "", novaUnidade);
-    
-    // Sincroniza com o backend
-    try {
-      // Extrai o número da coluna
-      const colNum = parseInt(colKey.replace("col", ""), 10);
-      if (!isNaN(colNum)) {
-        // O índice na MateriaPrima é colNum - 5
-        const prodNum = colNum - 5;
-        
-        // Prepara matérias-primas atualizadas
-        const updatedMaterias = [...materias];
-        
-        // Tenta encontrar a matéria-prima correspondente
-        const existingIndex = updatedMaterias.findIndex(m => m.num === prodNum);
-        
-        if (existingIndex >= 0) {
-          // Atualiza o existente
-          updatedMaterias[existingIndex] = {
-            ...updatedMaterias[existingIndex],
-            medida: novaUnidade === "g" ? 0 : 1 // 0 para gramas, 1 para kg
-          };
-        } else if (colLabels[colKey]) {
-          // Adiciona novo se tiver um nome definido
-          updatedMaterias.push({
-            id: `new-${Date.now()}`,
-            num: prodNum,
-            produto: colLabels[colKey] || "",
-            medida: novaUnidade === "g" ? 0 : 1 // 0 para gramas, 1 para kg
-          });
-        }
-        
-        // Usa HTTP para salvar no backend
-        await fetch("/api/db/setupMateriaPrima", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ items: updatedMaterias }),
-        });
-        console.log(`Unidade do produto ${colKey} atualizada no backend para ${novaUnidade}`);
-      }
-    } catch (error) {
-      console.error("Erro ao atualizar unidade no backend:", error);
-    }
   };
 
   const columns = Object.keys(colLabels).sort(
-    (a, b) =>
-      parseInt(a.replace("col", ""), 10) - parseInt(b.replace("col", ""), 10)
+    (a, b) => parseInt(a.replace("col", ""), 10) - parseInt(b.replace("col", ""), 10)
   );
 
   const editableColumns = columns.filter(

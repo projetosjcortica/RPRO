@@ -189,7 +189,7 @@ const processador = setProcessador(BACKEND_URL);
 // mas podemos fazer um ping para verificar conectividade.
 processador.ping()
   .then((pong) => {
-    console.log('Successfully connected to backend:', pong);
+    // console.log('Successfully connected to backend:', pong);
     // Setup basic event handlers (se o ProcessadorHTTP tiver suporte, senão remova)
     // processador.onEvent('ready', () => console.log('Backend is ready'));
     // processador.onEvent('heartbeat', (hb) => console.log('[Heartbeat]', hb));
