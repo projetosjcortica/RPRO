@@ -129,7 +129,7 @@ app.get('/api/ihm/fetchLatest', async (req, res) => {
 app.get('/api/relatorio/paginate', async (req, res) => {
   try {
     const page = Number(req.query.page || 1);
-    const pageSize = Number(req.query.pageSize || 300);
+    const pageSize = Number(req.query.pageSize || 100);
     const formula = req.query.formula ?? null;
     const dateStart = req.query.dateStart ?? null;
     const dateEnd = req.query.dateEnd ?? null;

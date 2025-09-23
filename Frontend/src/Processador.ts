@@ -32,58 +32,59 @@ export class Processador {
   private baseURL: string;
 
   constructor(port: number) {
-    this.port = port || 3002; // Use provided port or backend default 3002
+    this.port = port || 3000; // Use provided port or backend default 3000
     this.baseURL = `http://localhost:${this.port}`;
     this.connectionState = 'connected';
     console.log(`[Processador] HTTP client initialized for ${this.baseURL}`);
   }
 
   // HTTP-based methods replacing WebSocket functionality
-  private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
-    try {
-  // Build URL and request options correctly for GET and non-GET
-  // Always use the configured base URL (absolute) so requests reach the backend
+ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
   const base = this.baseURL.replace(/\/$/, '');
   let url = `${base}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-      const headers: Record<string, string> = { 'Accept': 'application/json' };
-      const config: RequestInit = { method, headers };
 
-      if (method === 'GET' && data && Object.keys(data).length > 0) {
-        const params = new URLSearchParams();
-        Object.keys(data).forEach((key) => {
-          const v = data[key];
-          if (v !== null && v !== undefined) params.append(key, String(v));
-        });
-        url += `?${params.toString()}`;
-      } else if (method !== 'GET' && data !== undefined) {
-        headers['Content-Type'] = 'application/json';
-        config.body = JSON.stringify(data);
-      }
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  const config: RequestInit = { method, headers };
 
-      try {
-        const response = await fetch(url, config);
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        return await response.json();
-      } catch (err: any) {
-        // If network error (e.g. backend not reachable at absolute URL), try relative endpoint
-        const isNetworkError = err instanceof TypeError || /failed to fetch/i.test(String(err?.message || ''));
-        if (isNetworkError && endpoint.startsWith('/')) {
-          try {
-            const relResponse = await fetch(endpoint, config);
-            if (!relResponse.ok) throw new Error(`HTTP ${relResponse.status}: ${relResponse.statusText}`);
-            return await relResponse.json();
-          } catch (err2) {
-            throw err2;
-          }
-        }
-        throw err;
-      }
-    } catch (error: any) {
-      console.error(`[Processador] HTTP request failed for ${endpoint}:`, error);
-      this.connectionState = 'error';
-      throw error;
-    }
+  if (method === 'GET' && data && Object.keys(data).length > 0) {
+    const params = new URLSearchParams();
+    Object.keys(data).forEach((key) => {
+      const v = data[key];
+      if (v !== null && v !== undefined) params.append(key, String(v));
+    });
+    url += `?${params.toString()}`;
+  } else if (method !== 'GET' && data !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    config.body = JSON.stringify(data);
   }
+
+  try {
+    const response = await fetch(url, config);
+
+    if (!response.ok) {
+      this.connectionState = 'error';
+      console.error(`[Processador] HTTP request failed for ${url}: ${response.statusText}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    // Se erro de rede e endpoint for relativo, tenta novamente
+    const isNetworkError = err instanceof TypeError || /failed to fetch/i.test(String(err?.message || ''));
+    if (isNetworkError && endpoint.startsWith('/')) {
+      const relResponse = await fetch(endpoint, config);
+      if (!relResponse.ok) {
+        this.connectionState = 'error';
+        throw new Error(`HTTP ${relResponse.status}: ${relResponse.statusText}`);
+      }
+      return await relResponse.json();
+    }
+
+    this.connectionState = 'error';
+    console.error(`[Processador] HTTP request failed for ${endpoint}:`, err);
+    throw err;
+  }
+}
 
   // Event handler methods (simplified for HTTP)
   public onEvent(event: string, handler: (payload: any) => void): void {
@@ -100,51 +101,62 @@ export class Processador {
   }
 
   // Connection check method (always returns true for HTTP)
-  public async sendWithConnectionCheck(cmd: string, payload?: any): Promise<any> {
-    // Map command to appropriate HTTP endpoint
-    switch (cmd) {
-      case 'ping':
-        return this.ping();
-      case 'materiaprima.getConfig':
-        return this.makeRequest('/api/materiaprima/labels', 'GET');
-      case 'backup.list':
-        return this.backupList();
-      case 'db.getMateriaPrima':
-        return this.getMateriaPrima();
-      // No mock/ws loop endpoints — backend does not expose these in production
-      case 'relatorio.paginate':
-        return this.relatorioPaginate(
-          payload?.page || 1,
-          payload?.pageSize || 300,
-          payload || {}
-        );
-      case 'file.process':
-        return this.processFile(payload?.filePath);
-      case 'ihm.fetchLatest':
-        return this.ihmFetchLatest(payload?.ip, payload?.user, payload?.password);
-      case 'backup.list':
-        return this.backupList();
-      case 'db.listBatches':
-        return this.dbListBatches();
-      case 'db.setupMateriaPrima':
-        return this.dbSetupMateriaPrima(payload?.items);
-      case 'sync.localToMain':
-        return this.syncLocalToMain(payload?.limit);
-      case 'collector.start':
-        return this.collectorStart();
-      case 'collector.stop':
-        return this.collectorStop();
-      case 'file.processContent':
-        return this.processFileContent(payload?.filePath, payload?.content);
-      default:
-        throw new Error(`Unknown command: ${cmd}`);
+ public async sendWithConnectionCheck(cmd: string, payload: any): Promise<any> {
+ 
+  switch (cmd) {
+    case 'ping':
+      return this.ping();
+
+    case 'materiaprima.getConfig':
+      return this.makeRequest('/api/materiaprima/labels', 'GET');
+
+    case 'backup.list':
+    case 'backup.listBackups':
+      return this.backupList();
+
+    case 'db.getMateriaPrima':
+      return this.getMateriaPrima();
+
+    case 'relatorio.paginate': {
+      // Garante valores padrão
+      const { page = 1, pageSize = 100, ...filters } = payload || {};
+      return this.relatorioPaginate(page, pageSize, filters);
     }
+
+    case 'file.process':
+      return this.processFile(payload?.filePath);
+
+    case 'file.processContent':
+      return this.processFileContent(payload?.filePath, payload?.content);
+
+    case 'ihm.fetchLatest':
+      return this.ihmFetchLatest(payload?.ip, payload?.user, payload?.password);
+
+    case 'db.listBatches':
+      return this.dbListBatches();
+
+    case 'db.setupMateriaPrima':
+      return this.dbSetupMateriaPrima(payload?.items);
+
+    case 'sync.localToMain':
+      return this.syncLocalToMain(payload?.limit);
+
+    case 'collector.start':
+      return this.collectorStart();
+
+    case 'collector.stop':
+      return this.collectorStop();
+
+    default:
+      throw new Error(`Unknown command: ${cmd}`);
   }
+}
+
 
   // Report pagination
   public async relatorioPaginate(
     page = 1,
-    pageSize = 300,
+    pageSize = 100,
     filters: FilterOptions = {}
   ): Promise<any> {
     const params: any = { page, pageSize };
@@ -153,13 +165,13 @@ export class Processador {
     if (filters.dateEnd) params.dateEnd = filters.dateEnd;
     if (filters.sortBy) params.sortBy = filters.sortBy;
     if (filters.sortDir) params.sortDir = filters.sortDir;
-    
-    return this.makeRequest('/api/relatorio/paginate', 'GET', params);
+
+    return this.makeRequest(`/api/relatorio/paginate?page=${page}&pageSize=${pageSize}`, 'GET', params);
   }
 
   public async getTableData(
     page = 1,
-    pageSize = 300,
+    pageSize = 100,
     filters: FilterOptions = {}
   ): Promise<TableDataResult> {
     const res = await this.relatorioPaginate(page, pageSize, filters);
@@ -306,7 +318,7 @@ let globalProcessadorInstance: Processador | null = null;
  */
 export function getProcessador(port?: number): Processador {
   if (!globalProcessadorInstance) {
-    const defaultPort = port || 3002; // Default to 3002 to match backend
+    const defaultPort = port || 3000; // Default to 3000 to match backend
     globalProcessadorInstance = new Processador(defaultPort);
   }
   return globalProcessadorInstance;

@@ -178,23 +178,13 @@ export default function Report() {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const maxVisiblePages = 10;
   let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
-  let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+  const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
   if (endPage - startPage < maxVisiblePages - 1) {
     startPage = Math.max(1, endPage - maxVisiblePages + 1);
   }
-  const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
 
-  // === soma de total de produtos ===
-const totalProdutosUtilizados = dados.reduce((acc, row) => {
-  Object.keys(row).forEach(colKey => {
-    const colNum = parseInt(colKey.replace('col', ''), 10);
-    if (!isNaN(colNum) && colNum >= 6) {
-      const value = parseFloat ((row as any)[colKey]) || 0;
-      acc += value;
-    }
-  }); 
-  return acc;
-}, 0);
+  const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
 
   // === Chart data calculation ===
   const chartData = tableSelection.produtos.map(p => ({
@@ -289,10 +279,11 @@ const totalProdutosUtilizados = dados.reduce((acc, row) => {
             <div id="total de produtos" className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Total</p>
               <p className="text-center text-lg font-bold">
-                {totalProdutosUtilizados.toLocaleString('pt-BR', {
+                {/* {totalProdutosUtilizados.toLocaleString('pt-BR', {
                   minimumFractionDigits: 3,
                   maximumFractionDigits: 3
-                })} kg
+                })}  */}
+                0,000 kg
               </p>
             </div>
             <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">

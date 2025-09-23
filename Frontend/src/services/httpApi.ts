@@ -77,7 +77,7 @@ export class HttpApiClient {
   // Report data - main table pagination
   async getTableData(
     page = 1, 
-    pageSize = 300, 
+    pageSize = 100, 
     filters?: FilterOptions,
     includeProducts = false
   ): Promise<TableDataResult> {

@@ -16,16 +16,16 @@ const mapRawRowToReportRow = (rawRow: any): ReportRow => {
     Dia: rawRow.Dia || "",
     Hora: rawRow.Hora || "",
     Nome: rawRow.Nome || "",
-    Codigo: rawRow.Form1 ?? 0, // Mapeando Form1 para Codigo
-    Numero: rawRow.Form2 ?? 0, // Mapeando Form2 para Numero
-    values,
+    Codigo: rawRow.Codigo ?? 0,
+    Numero: rawRow.Numero ?? 0, 
+    values: rawRow.values ?? values,
   };
 };
 
 export const useReportData = (
   filtros: Filtros,
   page: number = 1,
-  pageSize: number = 300
+  pageSize: number = 100
 ) => {
   const [dados, setDados] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -43,7 +43,7 @@ export const useReportData = (
       const result = await processador.sendWithConnectionCheck('relatorio.paginate', {
         page,
         pageSize,
-        formula: filtros.nomeFormula || undefined, // Backend espera 'formula'
+        formula: filtros.nomeFormula || undefined,
         dateStart: filtros.dataInicio || undefined,
         dateEnd: filtros.dataFim || undefined,
         // sortBy e sortDir podem ser adicionados conforme necessário
@@ -70,7 +70,7 @@ export const useReportData = (
 
   useEffect(() => {
     fetchData();
-  }, [fetchData]); // useEffect depende da função memoizada
+  }, [fetchData]); // useEffect depende da função memorizada
 
   // Retorna um objeto com os dados, estado e uma função para rebuscar
   return { dados, loading, error, total, refetch: fetchData };
