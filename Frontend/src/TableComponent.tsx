@@ -79,7 +79,7 @@ export default function TableComponent({
 
   return (
     <div ref={tableRef} className="overflow-hidden w-full h-full flex flex-col">
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-center mb-2 bg-red-100 p-2 rounded">
         {categoriaSelecionada && (
           <FilterBar
             categoriaSelecionada={categoriaSelecionada}

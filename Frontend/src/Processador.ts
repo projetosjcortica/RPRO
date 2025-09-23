@@ -169,7 +169,7 @@ export class Processador {
     return this.makeRequest(`/api/relatorio/paginate?page=${page}&pageSize=${pageSize}`, 'GET', params);
   }
 /**
- * @deprecated Usa o paginator fdp
+ * @deprecated Usa o paginator ao inves de usar isso aqui
  */
   public async getTableData(
     page = 1,
