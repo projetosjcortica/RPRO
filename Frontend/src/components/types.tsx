@@ -15,17 +15,15 @@ export interface ReportData {
   rows: ReportRow[];
 }
 
-export interface Filtros {
-  dataInicio: string;
-  dataFim: string;
-  nomeFormula: string;
+export type FilterOptions = {
+  dataInicio?: string;
+  dataFim?: string;
+  nomeFormula?: string;
   codigo?: string;
   numero?: string;
-  categoria?: string;
-  coluna?: string;
-  valorMin?: number;
-  valorMax?: number;
-}
+};
+
+export type Filtros = FilterOptions;
 
 // Interface genérica para resposta da API
 export interface ApiResponse<T = unknown> {

@@ -138,7 +138,36 @@ ipcMain.handle('clean-db', async (): Promise<boolean> => {
     }, 1000);
   });
 });
+/************/
 
+ipcMain.handle('print-pdf', async (_event: IpcMainInvokeEvent, filePath: string) => {
+  try {
+    const printWin = new BrowserWindow({
+      width: 800,
+      height: 600,
+      show: true,
+      webPreferences: {
+        plugins: true,
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    await printWin.loadFile(filePath);
+
+    printWin.webContents.on("did-finish-load", () => {
+      printWin.webContents.print({
+        silent: false, // false para mostrar diálogo de impressão
+        printBackground: true
+      });
+    });
+
+    return { ok: true };
+  } catch (err) {
+    console.error("Erro ao imprimir PDF:", err);
+    return { ok: false, error: err };
+  }
+});
 
 /***********/
 

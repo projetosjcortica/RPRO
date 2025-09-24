@@ -1,42 +1,12 @@
-// src/hooks/useReportData.tsx
-import { useState, useEffect, useMemo } from "react";
-import { Filtros, ReportRow } from "../components/types";
-import { getProcessador, FilterOptions } from "../Processador";
+import { useEffect, useState } from "react";
+import { getProcessador } from "../Processador";
+import { FilterOptions, ReportRow } from "../components/types";
 
-// Função auxiliar para mapear uma linha bruta para ReportRow
-const mapRawRowToReportRow = (rawRow: any): ReportRow => {
-  const values: number[] = [];
-  // Assumindo que os produtos vão de Prod_1 até Prod_40 conforme backend.md
-  for (let i = 1; i <= 40; i++) {
-    const v = rawRow[`Prod_${i}`];
-    values.push(typeof v === "number" ? v : (v != null ? Number(v) : 0));
-  }
-
-  return {
-    Dia: rawRow.Dia || "",
-    Hora: rawRow.Hora || "",
-    Nome: rawRow.Nome || "",
-    Codigo: rawRow.Codigo ?? 0,
-    Numero: rawRow.Numero ?? 0, 
-    values: rawRow.values ?? values,
-  };
-};
-
-export const useReportData = (
-  filtros: Filtros,
-  page: number = 1,
-  pageSize: number = 100
-) => {
+export function useReportData(filtros: FilterOptions, page: number, pageSize: number) {
   const [dados, setDados] = useState<ReportRow[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [total, setTotal] = useState<number>(0);
-
-  // Create a stable dependency key for filtros to prevent unnecessary re-renders
-  const filtrosKey = useMemo(() => 
-    JSON.stringify(filtros), 
-    [filtros]
-  );
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,31 +14,29 @@ export const useReportData = (
       setError(null);
 
       try {
-        const processador = getProcessador(); // Usa a instância padrão
+        console.log("[useReportData] Buscando dados com:", { page, pageSize, filtros });
+        
+        const processador = getProcessador();
+        const response = await processador.relatorioPaginate(page, pageSize, filtros);
 
-        // Chama o endpoint correto via sendWithConnectionCheck
-        const result = await processador.relatorioPaginate(page, pageSize, filtros as FilterOptions);
+        console.log("[useReportData] Resposta recebida:", {
+          total: response.total,
+          rows: response.rows?.length || 0
+        });
 
-        if (result && Array.isArray(result.rows)) {
-          const mappedRows: ReportRow[] = result.rows.map(mapRawRowToReportRow);
-          setDados(mappedRows);
-          setTotal(result.total);
-        } else {
-          throw new Error("Formato de resposta inesperado do backend. Resposta: " + JSON.stringify(result));
-        }
+        setDados(response.rows || []);
+        setTotal(response.total || 0);
+
       } catch (err: any) {
-        console.error("[useReportData] Erro ao carregar dados:", err);
-        setError(err.message || "Falha ao conectar com o servidor ou erro ao carregar dados.");
-        setDados([]); // Limpa dados antigos em caso de erro
-        setTotal(0);
+        console.error("Erro ao buscar dados:", err);
+        setError(err.message || "Erro ao buscar dados");
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [filtrosKey, page, pageSize]); // Use stable filtrosKey instead of filtros object
+  }, [filtros, page, pageSize]);
 
-  // Retorna um objeto com os dados, estado e uma função para rebuscar
   return { dados, loading, error, total };
-};
+}

@@ -1,12 +1,5 @@
-// ProcessadorHTTP.ts - Interface para comunicação com o backend via HTTP API (substituindo WebSocket)
-
-export interface FilterOptions {
-  formula?: string | null;
-  dateStart?: string | null;
-  dateEnd?: string | null;
-  sortBy?: string | null;
-  sortDir?: "ASC" | "DESC";
-}
+import { FilterOptions } from "./components/types";
+import axios from "axios";
 
 export interface TableDataResult {
   rows: any[];
@@ -32,61 +25,77 @@ export class Processador {
   private baseURL: string;
 
   constructor(port: number) {
-    this.port = port || 3000; // Use provided port or backend default 3000
+    this.port = port || 3000;
     this.baseURL = `http://localhost:${this.port}`;
     this.connectionState = 'connected';
     console.log(`[Processador] HTTP client initialized for ${this.baseURL}`);
   }
 
-  // HTTP-based methods replacing WebSocket functionality
- private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
-  const base = this.baseURL.replace(/\/$/, '');
-  let url = `${base}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+  // Método makeRequest corrigido
+  private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
+    const base = this.baseURL.replace(/\/$/, '');
+    let url = `${base}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
 
-  const headers: Record<string, string> = { 'Accept': 'application/json' };
-  const config: RequestInit = { method, headers };
-  
-  if (method === 'GET' && data && Object.keys(data).length > 0) {
-    const params = new URLSearchParams();
-    Object.keys(data).forEach((key) => {
-      const v = data[key];
-      if (v !== null && v !== undefined) params.append(key, String(v));
-    });
-    url += `?${params.toString()}`;
-  } else if (method !== 'GET' && data !== undefined) {
-    headers['Content-Type'] = 'application/json';
-    config.body = JSON.stringify(data);
-  }
-
-  try {
-    const response = await fetch(url, config);
-
-    if (!response.ok) {
-      this.connectionState = 'error';
-      console.error(`[Processador] HTTP request failed for ${url}: ${response.statusText}`);
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return await response.json();
-  } catch (err: any) {
-    // Se erro de rede e endpoint for relativo, tenta novamente
-    const isNetworkError = err instanceof TypeError || /failed to fetch/i.test(String(err?.message || ''));
-    if (isNetworkError && endpoint.startsWith('/')) {
-      const relResponse = await fetch(endpoint, config);
-      if (!relResponse.ok) {
-        this.connectionState = 'error';
-        throw new Error(`HTTP ${relResponse.status}: ${relResponse.statusText}`);
+    const headers: Record<string, string> = { 'Accept': 'application/json' };
+    const config: RequestInit = { method, headers };
+    
+    // PARA MÉTODO GET: sempre adicionar parâmetros na URL
+    if (method === 'GET') {
+      const params = new URLSearchParams();
+      
+      // Adicionar todos os parâmetros de data à URL
+      if (data && typeof data === 'object') {
+        Object.keys(data).forEach((key) => {
+          const value = data[key];
+          // Incluir mesmo valores vazios/zero, mas não undefined/null
+          if (value !== null && value !== undefined && value !== '') {
+            params.append(key, String(value));
+          }
+        });
       }
-      return await relResponse.json();
+      
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
+      }
+      
+      console.log(`[Processador] URL completa: ${url}`);
+      
+    } else if (method !== 'GET' && data !== undefined) {
+      // Para outros métodos (POST, PUT, etc.), enviar no body
+      headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(data);
     }
 
-    this.connectionState = 'error';
-    console.error(`[Processador] HTTP request failed for ${endpoint}:`, err);
-    throw err;
-  }
-}
+    try {
+      const response = await fetch(url, config);
 
-  // Event handler methods (simplified for HTTP)
+      if (!response.ok) {
+        this.connectionState = 'error';
+        console.error(`[Processador] HTTP request failed for ${url}: ${response.statusText}`);
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (err: any) {
+      // Se erro de rede e endpoint for relativo, tenta novamente
+      const isNetworkError = err instanceof TypeError || /failed to fetch/i.test(String(err?.message || ''));
+      if (isNetworkError && endpoint.startsWith('/')) {
+        const relResponse = await fetch(endpoint, config);
+        if (!relResponse.ok) {
+          this.connectionState = 'error';
+          throw new Error(`HTTP ${relResponse.status}: ${relResponse.statusText}`);
+        }
+        return await relResponse.json();
+      }
+
+      this.connectionState = 'error';
+      console.error(`[Processador] HTTP request failed for ${endpoint}:`, err);
+      throw err;
+    }
+  }
+
+  // Event handler methods
   public onEvent(event: string, handler: (payload: any) => void): void {
     this.eventHandlers.set(event, handler);
   }
@@ -100,77 +109,93 @@ export class Processador {
     return this.makeRequest('/api/ping');
   }
 
-  // Connection check method (always returns true for HTTP)
- private async sendWithConnectionCheck(cmd: string, payload: any): Promise<any> {
- 
-  switch (cmd) {
-    case 'ping':
-      return this.ping();
+  // Connection check method
+  private async sendWithConnectionCheck(cmd: string, payload: any): Promise<any> {
+    switch (cmd) {
+      case 'ping':
+        return this.ping();
 
-    case 'materiaprima.getConfig':
-      return this.makeRequest('/api/materiaprima/labels', 'GET');
+      case 'materiaprima.getConfig':
+        return this.makeRequest('/api/materiaprima/labels', 'GET');
 
-    case 'backup.list':
-    case 'backup.listBackups':
-      return this.backupList();
+      case 'backup.list':
+      case 'backup.listBackups':
+        return this.backupList();
 
-    case 'db.getMateriaPrima':
-      return this.getMateriaPrima();
+      case 'db.getMateriaPrima':
+        return this.getMateriaPrima();
 
-    case 'relatorio.paginate': {
-      // Garante valores padrão
-      const { page = 1, pageSize = 100, ...filters } = payload || {};
-      return this.relatorioPaginate(page, pageSize, filters);
+      case 'relatorio.paginate': {
+        const { page = 1, pageSize = 100, ...filters } = payload || {};
+        return this.relatorioPaginate(page, pageSize, filters);
+      }
+
+      case 'file.process':
+        return this.processFile(payload?.filePath);
+
+      case 'file.processContent':
+        return this.processFileContent(payload?.filePath, payload?.content);
+
+      case 'ihm.fetchLatest':
+        return this.ihmFetchLatest(payload?.ip, payload?.user, payload?.password);
+
+      case 'db.listBatches':
+        return this.dbListBatches();
+
+      case 'db.setupMateriaPrima':
+        return this.dbSetupMateriaPrima(payload?.items);
+
+      case 'sync.localToMain':
+        return this.syncLocalToMain(payload?.limit);
+
+      case 'collector.start':
+        return this.collectorStart();
+
+      case 'collector.stop':
+        return this.collectorStop();
+
+      default:
+        throw new Error(`Unknown command: ${cmd}`);
     }
-
-    case 'file.process':
-      return this.processFile(payload?.filePath);
-
-    case 'file.processContent':
-      return this.processFileContent(payload?.filePath, payload?.content);
-
-    case 'ihm.fetchLatest':
-      return this.ihmFetchLatest(payload?.ip, payload?.user, payload?.password);
-
-    case 'db.listBatches':
-      return this.dbListBatches();
-
-    case 'db.setupMateriaPrima':
-      return this.dbSetupMateriaPrima(payload?.items);
-
-    case 'sync.localToMain':
-      return this.syncLocalToMain(payload?.limit);
-
-    case 'collector.start':
-      return this.collectorStart();
-
-    case 'collector.stop':
-      return this.collectorStop();
-
-    default:
-      throw new Error(`Unknown command: ${cmd}`);
-  }
   }
 
-
-  // Report pagination
+  // Report pagination CORRIGIDO
   public async relatorioPaginate(
     page = 1,
     pageSize = 100,
     filters: FilterOptions = {}
   ): Promise<any> {
-    const params: any = { page, pageSize };
-    if (filters.formula) params.formula = filters.formula;
-    if (filters.dateStart) params.dateStart = filters.dateStart;
-    if (filters.dateEnd) params.dateEnd = filters.dateEnd;
-    if (filters.sortBy) params.sortBy = filters.sortBy;
-    if (filters.sortDir) params.sortDir = filters.sortDir;
+    // Construir objeto de parâmetros incluindo page, pageSize E filters
+    const params: any = { 
+      page, 
+      pageSize 
+    };
+    
+    // Adicionar filtros apenas se tiverem valor
+    if (filters.nomeFormula && filters.nomeFormula !== '') {
+      params.nomeFormula = filters.nomeFormula;
+    }
+    if (filters.dataInicio && filters.dataInicio !== '') {
+      params.dataInicio = filters.dataInicio;
+    }
+    if (filters.dataFim && filters.dataFim !== '') {
+      params.dataFim = filters.dataFim;
+    }
+    if (filters.codigo && filters.codigo !== '') {
+      params.codigo = filters.codigo;
+    }
+    if (filters.numero && filters.numero !== '') {
+      params.numero = filters.numero;
+    }
 
-    return this.makeRequest(`/api/relatorio/paginate?page=${page}&pageSize=${pageSize}`, 'GET', params);
+    console.log("[relatorioPaginate] Parâmetros para API:", params);
+    
+    return this.makeRequest('/api/relatorio/paginate', 'GET', params);
   }
-/**
- * @deprecated Usa o paginator ao inves de usar isso aqui
- */
+
+  /**
+   * @deprecated Usa o paginator ao inves de usar isso aqui
+   */
   public async getTableData(
     page = 1,
     pageSize = 100,
@@ -235,16 +260,15 @@ export class Processador {
     return this.makeRequest('/api/collector/stop');
   }
 
-  public getResumo(areaId?: string, formula?: string, dateStart?: string, dateEnd?: string) {
+  public getResumo(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string) {
     const params: any = {};
     if (areaId) params.areaId = areaId;
-    if (formula) params.formula = formula;
-    if (dateStart) params.dateStart = dateStart;
-    if (dateEnd) params.dateEnd = dateEnd;
+    if (nomeFormula) params.nomeFormula = nomeFormula;
+    if (dataInicio) params.dataInicio = dataInicio;
+    if (dataFim) params.dataFim = dataFim;
     
     return this.makeRequest('/api/resumo', 'GET', params);
   }
-
 
   public converterUnidade(valor: number, de: number, para: number) {
     return this.makeRequest('/api/unidades/converter', 'GET', { valor, de, para });
@@ -257,8 +281,6 @@ export class Processador {
   public populateDatabase(tipo = 'relatorio', quantidade = 10, config = {}) {
     return this.makeRequest('/api/db/populate', 'POST', { tipo, quantidade, config });
   }
-
-
 
   public estoqueOperation(operation: string, payload: any = {}) {
     return this.makeRequest(`/api/estoque/${operation}`, 'POST', payload);
@@ -273,7 +295,7 @@ export class Processador {
     return this.makeRequest('/api/config', 'POST', config);
   }
 
-  // Controle do processo (simplificado para HTTP)
+  // Controle do processo
   public async stop(): Promise<void> {
     this.eventHandlers.clear();
     this.connectionState = 'disconnected';
@@ -289,7 +311,6 @@ export class Processador {
   }
 
   public async waitForConnection(_timeoutMs: number = 10000): Promise<boolean> {
-    // For HTTP, we're always "connected"
     return true;
   }
 
@@ -311,24 +332,36 @@ export class Processador {
   }
 } 
 
-// Singleton instance para facilitar o uso
+// Singleton instance
 let globalProcessadorInstance: Processador | null = null;
 
 /**
  * Obtém a instância global do Processador
- * @param port Porta do HTTP server (obrigatória na primeira chamada)
  */
-export function getProcessador(port?: number): Processador {
-  if (!globalProcessadorInstance) {
-    const defaultPort = port || 3000; // Default to 3000 to match backend
-    globalProcessadorInstance = new Processador(defaultPort);
-  }
-  return globalProcessadorInstance;
+export function getProcessador() {
+  return {
+    relatorioPaginate(page: number, pageSize: number, filters: FilterOptions) {
+      const params = new URLSearchParams();
+
+      params.append("page", page.toString());
+      params.append("pageSize", pageSize.toString());
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value && value.trim() !== "") {
+          params.append(key, value);
+        }
+      });
+
+      const url = `/api/relatorio/paginate?${params.toString()}`;
+      console.log("[Processador] URL gerada:", url); // Debug
+
+      return axios.get(url).then(res => res.data);
+    }
+  };
 }
 
 /**
  * Redefine a instância global do Processador
- * @param port Nova porta do HTTP server
  */
 export function setProcessador(port: number): Processador {
   globalProcessadorInstance = new Processador(port);

@@ -162,9 +162,9 @@ app.get('/api/relatorio/paginate', async (req, res) => {
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100;
     })();
 
-    const formula = req.query.formula ?? null;
-    const dateStart = req.query.dateStart ?? null;
-    const dateEnd = req.query.dateEnd ?? null;
+    const nomeFormula = req.query.nomeFormula ?? null;
+    const dataInicio = req.query.dataInicio ?? null;
+    const dataFim = req.query.dataFim ?? null;
     const sortBy = String(req.query.sortBy || 'Dia');
     const sortDir = String(req.query.sortDir || 'DESC');
     const includeProducts = String(req.query.includeProducts || 'true') === 'true'; // Default to true for values
@@ -179,8 +179,8 @@ app.get('/api/relatorio/paginate', async (req, res) => {
     const repo = AppDataSource.getRepository(Relatorio);
     const qb = repo.createQueryBuilder('r');
     
-    if (formula) { 
-      const f = String(formula); 
+    if (nomeFormula) { 
+      const f = String(nomeFormula); 
       const n = Number(f); 
       if (!Number.isNaN(n)) {
         qb.andWhere('(r.Form1 = :n OR r.Form2 = :n)', { n });
@@ -188,8 +188,8 @@ app.get('/api/relatorio/paginate', async (req, res) => {
         qb.andWhere('(r.Nome LIKE :f OR r.processedFile LIKE :f)', { f: `%${f}%` });
       }
     }
-    if (dateStart) qb.andWhere('r.Dia >= :ds', { ds: dateStart });
-    if (dateEnd) qb.andWhere('r.Dia <= :de', { de: dateEnd });
+    if (dataInicio) qb.andWhere('r.Dia >= :ds', { ds: dataInicio });
+    if (dataFim) qb.andWhere('r.Dia <= :de', { de: dataFim });
     
     const allowed = new Set(['Dia', 'Hora', 'Nome', 'Form1', 'Form2', 'processedFile']);
     const sb = allowed.has(sortBy) ? sortBy : 'Dia';
@@ -307,14 +307,14 @@ app.get('/api/resumo', async (req, res) => {
   try {
     const areaId = req.query.areaId ? String(req.query.areaId) : null;
     const formula = req.query.formula ? String(req.query.formula) : null;
-    const dateStart = req.query.dateStart ? String(req.query.dateStart) : null;
-    const dateEnd = req.query.dateEnd ? String(req.query.dateEnd) : null;
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : null;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : null;
 
     const result = await resumoService.getResumo({ 
       areaId, 
       formula: formula ? Number(formula) : null, 
-      dateStart, 
-      dateEnd 
+      dataInicio, 
+      dataFim 
     });
     
     return res.json(result);

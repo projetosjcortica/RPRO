@@ -27,6 +27,8 @@ export default function Report() {
     dataInicio: "",
     dataFim: "",
     nomeFormula: "",
+    codigo: "",
+    numero: "",
   });
 
   const [colLabels, setColLabels] = useState<{ [key: string]: string }>({});
@@ -143,6 +145,11 @@ export default function Report() {
   // }, [colLabels]);
 
   // === FETCH DE DADOS ===
+   const handleAplicarFiltros = (novosFiltros: Filtros) => {
+    setPage(1); // Reset para primeira página
+    setFiltros(novosFiltros);
+  };
+
   const { dados, loading, error, total } = useReportData(filtros, page, pageSize);
 
   // === COLLECTOR FUNCTIONS ===
@@ -227,7 +234,7 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
           <Button onClick={() => setView('product')}>Produtos</Button>
         </div>
         <div className="flex flex-row items-end justify-end gap-2">
-          <FiltrosBar onAplicarFiltros={setFiltros} /> 
+           <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
           <Button 
             onClick={handleCollectorToggle}
             disabled={collectorLoading}
@@ -388,10 +395,37 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
                     )
                   }
                 </PDFDownloadLink>
-              <Button 
+              <Button
                 className="w-24 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-                onClick={() => window.print()}
-              >
+                onClick={async () => {
+                  const { pdf } = await import("@react-pdf/renderer");
+                  const { MyDocument } = await import("./Pdf");
+
+                  const blob = await pdf(
+                    <MyDocument
+                      total={Number(tableSelection.total) || 0}
+                      batidas={Number(tableSelection.batidas) || 0}
+                      horaInicio={tableSelection.horaInicial}
+                      horaFim={tableSelection.horaFinal}
+                      produtos={tableSelection.produtos}
+                      data={new Date().toLocaleDateString("pt-BR")}
+                      empresa="Empresa ABC"
+                      chartData={chartData}
+                      formulaSums={formulaSums}
+                    />
+                  ).toBlob();
+
+                  const buffer = await blob.arrayBuffer();
+                  const fs = window.require("fs");
+                  const path = window.require("path");
+                  const os = window.require("os");
+
+                  const filePath = path.join(os.tmpdir(), "relatorio.pdf");
+                  fs.writeFileSync(filePath, Buffer.from(buffer));
+
+                  window.electronAPI.printPDF("/");
+                  }}
+                >
                 Imprimir PDF
               </Button>
             </div>

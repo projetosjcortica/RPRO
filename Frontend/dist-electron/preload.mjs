@@ -6,6 +6,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   selectFolder: () => electron.ipcRenderer.invoke("select-folder"),
   selectFile: () => electron.ipcRenderer.invoke("select-file"),
   cleanDB: () => electron.ipcRenderer.invoke("clean-db"),
+  //printer
+  printPDF: (filePath) => electron.ipcRenderer.invoke("print-pdf", filePath),
   // forked functions
   startFork: (script, args) => electron.ipcRenderer.invoke("start-fork", { script, args }),
   // send an object/message to a forked child by pid

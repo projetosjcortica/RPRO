@@ -50,16 +50,24 @@ const receba = (col, idx) => {
   return safeString(col);
 };
 
-export default function TableComponent({ 
-  colLabels = {}, 
+export default function TableComponent({  
   dados: dadosProp = [], 
   loading: loadingProp, 
-  error: errorProp
+  error: errorProp,
+  filtros,
 }: TableComponentProps) {
   const tableRef = useRef<HTMLDivElement>(null);
   const [produtosInfo, setProdutosInfo] = useState<{ [key: string]: { nome: string; unidade: string } }>({});
   
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
+
+  useEffect(() => {
+    console.log("TableComponent recebeu dados:", dadosProp?.length);
+    if (filtros) {
+      console.log("Filtros ativos:", filtros);
+    }
+  }, [dadosProp, filtros]);
+
 
   // Carrega informações de unidades do localStorage
   useEffect(() => {
