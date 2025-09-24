@@ -284,7 +284,7 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
               </p>
             </div>
           </div>
-          <div id="retanguloProd" className="border rounded flex-grow overflow-auto scrollbar-custom">
+          <div id="retanguloProd" className="border rounded flex-grow overflow-auto scrollbar-custom ">
             <ScrollArea>
               <Table className="h-100">
                 <TableHeader>
