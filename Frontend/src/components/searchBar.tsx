@@ -11,6 +11,7 @@ import { CalendarIcon } from "lucide-react";
 import * as React from "react";
 import { type DateRange } from "react-day-picker";
 import { pt } from "date-fns/locale";
+import { Select, SelectContent , SelectGroup , SelectItem , SelectLabel , SelectTrigger , SelectValue } from "./ui/select";
 
 interface FiltrosBarProps {
   onAplicarFiltros?: (filtros: Filtros) => void;
@@ -96,14 +97,44 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
   };
 
   return (
-    <div className="flex flex-row items-end justify-end gap-2">
+    <div className="flex flex-row items-end justify-end gap-1">
       <Input
         type="text"
-        placeholder="Filtrar por nome da fórmula..."
+        placeholder="Filtrar por nome da fórmula"
         value={filtrosTemporarios.nomeFormula}
         onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
-        className="border-black w-60"
+        className="border-black w-50"
       />
+
+      <Select>
+        <SelectTrigger className="w-40 border-black">
+          <SelectValue placeholder="Filtrar por Código" />
+        </SelectTrigger>
+        <SelectContent>
+        <SelectGroup>
+          <SelectLabel>Códigos</SelectLabel>
+          <SelectItem value="1">1</SelectItem>
+          <SelectItem value="2">2</SelectItem>
+          <SelectItem value="3">3</SelectItem>
+        </SelectGroup>
+      </SelectContent>
+      </Select>
+
+      <Select>
+        <SelectTrigger className="w-42 border-black">
+          <SelectValue placeholder="Filtrar por Número" />
+        </SelectTrigger>
+        <SelectContent>
+        <SelectGroup>
+          <SelectLabel>Códigos</SelectLabel>
+          <SelectItem value="1">001</SelectItem>
+          <SelectItem value="2">002</SelectItem>
+          <SelectItem value="3">003</SelectItem>
+        </SelectGroup>
+      </SelectContent>
+      </Select>
+
+{/*input antigo codigo e numero
       <Input
         type="text"
         placeholder="Filtrar por Código da fórmula..."
@@ -117,7 +148,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         value={filtrosTemporarios.numero}
         onChange={(e) => handleInputChange('numero', e.target.value)}
         className="border-black w-60"
-      />
+      /> */}
 
       <Popover>
         <PopoverTrigger>

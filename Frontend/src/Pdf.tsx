@@ -226,8 +226,8 @@ export const MyDocument = ({
             </View>
           )}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Relatório de Produção</Text>
-            <Text style={styles.subtitle}>{empresa} - {data}</Text>
+            <Text style={styles.title}>{empresa} - {data}</Text>
+            <Text style={styles.subtitle}>Relatório de Produção</Text>
           </View>
         </View>
 

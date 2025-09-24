@@ -32,68 +32,40 @@ export class Processador {
   }
 
   // Método makeRequest corrigido
-  private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
-    const base = this.baseURL.replace(/\/$/, '');
-    let url = `${base}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
+  let url: string;
 
-    const headers: Record<string, string> = { 'Accept': 'application/json' };
-    const config: RequestInit = { method, headers };
+  // Se endpoint for URL absoluta, usar diretamente
+  if (/^https?:\/\//i.test(endpoint)) {
+    url = endpoint;
+  } else {
+    // Endpoint relativo → combinar com baseURL
     
-    // PARA MÉTODO GET: sempre adicionar parâmetros na URL
-    if (method === 'GET') {
-      const params = new URLSearchParams();
-      
-      // Adicionar todos os parâmetros de data à URL
-      if (data && typeof data === 'object') {
-        Object.keys(data).forEach((key) => {
-          const value = data[key];
-          // Incluir mesmo valores vazios/zero, mas não undefined/null
-          if (value !== null && value !== undefined && value !== '') {
-            params.append(key, String(value));
-          }
-        });
-      }
-      
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
-      
-      console.log(`[Processador] URL completa: ${url}`);
-      
-    } else if (method !== 'GET' && data !== undefined) {
-      // Para outros métodos (POST, PUT, etc.), enviar no body
-      headers['Content-Type'] = 'application/json';
-      config.body = JSON.stringify(data);
-    }
-
-    try {
-      const response = await fetch(url, config);
-
-      if (!response.ok) {
-        this.connectionState = 'error';
-        console.error(`[Processador] HTTP request failed for ${url}: ${response.statusText}`);
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (err: any) {
-      // Se erro de rede e endpoint for relativo, tenta novamente
-      const isNetworkError = err instanceof TypeError || /failed to fetch/i.test(String(err?.message || ''));
-      if (isNetworkError && endpoint.startsWith('/')) {
-        const relResponse = await fetch(endpoint, config);
-        if (!relResponse.ok) {
-          this.connectionState = 'error';
-          throw new Error(`HTTP ${relResponse.status}: ${relResponse.statusText}`);
-        }
-        return await relResponse.json();
-      }
-
-      this.connectionState = 'error';
-      console.error(`[Processador] HTTP request failed for ${endpoint}:`, err);
-      throw err;
-    }
+    url = `${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
   }
+
+  const headers: Record<string, string> = { 'Accept': 'application/json' };
+  const config: RequestInit = { method, headers };
+
+  // GET → colocar parâmetros na URL
+  if (method === 'GET' && data) {
+    const params = new URLSearchParams();
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== null && v !== undefined && v !== '') params.append(k, String(v));
+    });
+    const queryString = params.toString();
+    if (queryString) url += `?${queryString}`;
+  } else if (method !== 'GET' && data !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    config.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(url, config);
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  return await response.json();
+}
+
+
 
   // Event handler methods
   public onEvent(event: string, handler: (payload: any) => void): void {
@@ -335,42 +307,19 @@ export class Processador {
 // Singleton instance
 let globalProcessadorInstance: Processador | null = null;
 
-/**
- * Obtém a instância global do Processador
- */
-export function getProcessador() {
-  return {
-    relatorioPaginate(page: number, pageSize: number, filters: FilterOptions) {
-      const params = new URLSearchParams();
-
-      params.append("page", page.toString());
-      params.append("pageSize", pageSize.toString());
-
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value && value.trim() !== "") {
-          params.append(key, value);
-        }
-      });
-
-      const url = `/api/relatorio/paginate?${params.toString()}`;
-      console.log("[Processador] URL gerada:", url); // Debug
-
-      return axios.get(url).then(res => res.data);
-    }
-  };
+export function getProcessador(): Processador {
+  if (!globalProcessadorInstance) {
+    // Cria a instância padrão na porta 3000
+    globalProcessadorInstance = new Processador(3000);
+  }
+  return globalProcessadorInstance;
 }
 
-/**
- * Redefine a instância global do Processador
- */
 export function setProcessador(port: number): Processador {
   globalProcessadorInstance = new Processador(port);
   return globalProcessadorInstance;
 }
 
-/**
- * Limpa a instância global do Processador
- */
 export function clearProcessador(): void {
   if (globalProcessadorInstance) {
     globalProcessadorInstance.stop().catch(console.error);
