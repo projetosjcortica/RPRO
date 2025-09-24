@@ -61,7 +61,6 @@ export default function TableComponent({
   
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-
   // Carrega informações de unidades do localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
