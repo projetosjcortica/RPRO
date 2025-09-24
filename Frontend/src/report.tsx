@@ -58,95 +58,7 @@ export default function Report() {
 
   // Resumo vindo do backend (side info)
   const [resumo, setResumo] = useState<any | null>(null);
-
-  // === CARREGAR LABELS ===
-  // useEffect(() => {
-  //   const loadLabels = async () => {
-  //     try {
-  //       const processador = getProcessador();
-        
-  //       // Busca labels direto do processador
-  //       const labelsObj = await processador.getMateriaPrimaLabels();
-        
-  //       if (labelsObj && Object.keys(labelsObj).length > 0) {
-  //         setColLabels(labelsObj);
-  //         console.log("Labels carregadas do processador:", Object.keys(labelsObj).length);
-  //         return;
-  //       }
-
-  //       // Fallback: tenta usar o syncProductLabels
-  //       // const syncedLabels = await syncProductLabels();
-  //       // if (syncedLabels && Object.keys(syncedLabels).length > 0) {
-  //       //   setColLabels(syncedLabels);
-  //       //   return;
-  //       // }
-
-  //       // Último fallback: busca labels do serviço antigo
-  //       const labelsArray: ColLabel[] = await fetchLabels();
-  //       if (labelsArray && labelsArray.length > 0) {
-  //         const labelsObjFallback: { [key: string]: string } = {};
-  //         labelsArray.forEach(l => labelsObjFallback[l.col_key] = l.col_name);
-  //         setColLabels(labelsObjFallback);
-  //       }
-  //     } catch (err) {
-  //       console.error("Erro ao buscar labels:", err);
-  //     }
-  //   };
-
-  //   loadLabels();
-  // }, []);
-
-  // // === SELEÇÃO DE TABELA ===
-  // useEffect(() => {
-  //   const handleTableSelection = (e: CustomEvent) => {
-  //     const selectedCells = e.detail || [];
-  //     if (!selectedCells.length) return;
-
-  //     const rows = new Set<number>();
-  //     const produtos: Record<string, number> = {};
-  //     let totalProdutos = 0;
-  //     let horaInicial = '23:59';
-  //     let horaFinal = '00:00';
-
-  //     selectedCells.forEach((cell: any) => {
-  //       if (!cell || !cell.row) return;
-  //       rows.add(cell.rowIdx);
-
-  //       if (cell.colKey?.startsWith('col') && cell.value) {
-  //         const colNum = parseInt(cell.colKey.replace('col', ''), 10);
-  //         if (!isNaN(colNum)) {
-  //           const prodName = colLabels[cell.colKey] || `Produto ${colNum - 5}`;
-  //           const value = parseFloat(cell.value) || 0;
-  //           if (value > 0) {
-  //             produtos[prodName] = (produtos[prodName] || 0) + value;
-  //             totalProdutos += value;
-  //           }
-  //         }
-  //       }
-
-  //       if (cell.row.Hora) {
-  //         if (cell.row.Hora < horaInicial) horaInicial = cell.row.Hora;
-  //         if (cell.row.Hora > horaFinal) horaFinal = cell.row.Hora;
-  //       }
-  //     });
-
-  //     const produtosFormatados = Object.entries(produtos)
-  //       .map(([nome, qtd]) => ({ nome, qtd }))
-  //       .sort((a, b) => b.qtd - a.qtd);
-
-  //     setTableSelection({
-  //       total: totalProdutos,
-  //       batidas: rows.size,
-  //       horaInicial: horaInicial !== '23:59' ? horaInicial : '--:--',
-  //       horaFinal: horaFinal !== '00:00' ? horaFinal : '--:--',
-  //       produtos: produtosFormatados
-  //     });
-  //   };
-
-  //   window.addEventListener('table-selection', handleTableSelection as EventListener);
-  //   return () => window.removeEventListener('table-selection', handleTableSelection as EventListener);
-  // }, [colLabels]);
-
+  
   // === FETCH DE DADOS ===
    const handleAplicarFiltros = (novosFiltros: Filtros) => {
     setPage(1); // Reset para primeira página
@@ -163,7 +75,7 @@ export default function Report() {
         const processador = getProcessador();
         // Map filtros to resumo params. nomeFormula may be an id or name; backend will coerce to Number if provided.
         const dateStart = filtros.dataInicio || undefined;
-        
+
         const dateEnd = filtros.dataFim || undefined;
         const formula = filtros.nomeFormula || undefined;
         // areaId is not present in filtros by default, but if exists pass it
@@ -189,15 +101,14 @@ export default function Report() {
     if (collectorLoading) return;
     
     setCollectorLoading(true);
-    try {
-      const processador = getProcessador();
+    try { 
       
       if (collectorRunning) {
-        await processador.collectorStop();
+        await fetch('/api/collector/stop', { method: 'GET' });
         setCollectorRunning(false);
         console.log("Collector parado");
       } else {
-        await processador.collectorStart();
+        await fetch('/api/collector/start', { method: 'GET' });
         setCollectorRunning(true);
         console.log("Collector iniciado");
       }
@@ -341,7 +252,7 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
         </div>
 
         {/* SIDE INFO */}
-        <div id="sideinfo" className="h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+        <div id="sideinfo" className="h-[74vh]  flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           {/* Componente de Resumo */}
 
           <div id="quadradoInfo" className="grid grid-cols-2 gap-1 mt-2">

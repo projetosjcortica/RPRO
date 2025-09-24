@@ -2,8 +2,8 @@ import fs from "fs";
 import path from "path";
 import { BaseService } from "../core/baseService";
 import { ProcessPayload, hashBufferHex } from "../core/utils";
-import { backupSvc } from "./backupService";
-import { parserService } from "./parserService";
+import { backupSvc } from "./BackupService";
+import { parserService } from "./ParserService";
 import { dbService } from "./dbService";
 import { cacheService } from "./CacheService";
 
@@ -120,7 +120,27 @@ export class FileProcessorService extends BaseService {
           processedFile: fileTag,
         };
       });
-      await dbService.insertRelatorioRows(mappedRows, fileTag);
+      try {
+        await dbService.insertRelatorioRows(mappedRows, fileTag);
+      } catch (err) {
+        console.error('Failed to insert relatorio rows into DB:', err);
+        try {
+          const errDir = path.join(path.dirname(fullPath), 'errors');
+          if (!fs.existsSync(errDir)) fs.mkdirSync(errDir, { recursive: true });
+          const errPath = path.join(errDir, path.basename(fullPath) + '.error.json');
+          const dump = {
+            error: String(err),
+            file: originalName,
+            sampleRows: mappedRows.slice(0, 20),
+          };
+          fs.writeFileSync(errPath, JSON.stringify(dump, null, 2), 'utf8');
+          console.log(`Wrote error dump to: ${errPath}`);
+        } catch (fsErr) {
+          console.error('Failed to write error dump:', fsErr);
+        }
+        // Rethrow so higher-level caller is aware, or optionally continue
+        throw err;
+      }
       const lastRow = newRows[newRows.length - 1];
       await cacheService.upsert({
         originalName,

@@ -54,7 +54,6 @@ function aggregate(rows: Entry[]): { chartData: ChartDatum[]; formulaSums: Formu
   }
 
   const chartData = Object.entries(sums).map(([name, value]) => ({ name, value }))
-  console.log("this is data:", chartData)
   return { chartData, formulaSums: sums, validCount: valid.length }
 }
 function aggregateProducts(rows: Entry[]): { productData: ChartDatum[]; productSums: Record<string, number>; totalProducts: number } {
@@ -462,12 +461,6 @@ const loadMateriaPrimaConfig = async () => {
     const { chartData, formulaSums } = aggregate(filtered)
     const { productData, totalProducts } = aggregateProducts(filtered)
     const total = Object.values(formulaSums).reduce((a, b) => a + b, 0)
-
-    console.log('Final result:', {
-      filteredCount: filtered.length,
-      productDataLength: productData.length,
-      totalProducts
-    })
 
     return { chartData, sums: formulaSums, total, productData, productTotal: totalProducts, filteredCount: filtered.length }
   }
