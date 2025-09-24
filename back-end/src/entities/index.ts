@@ -5,3 +5,4 @@ export * from './Row';
 export * from './CacheFile';
 export * from './Estoque';
 export * from './MovimentacaoEstoque';
+export * from './Setting';
