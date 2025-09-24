@@ -10,180 +10,150 @@ Font.register({
   ],
 });
 
-// Paleta de Cores Sóbrias
-const COLORS = {
-  TEXT_DARK: "#333333",
-  TEXT_MEDIUM: "#666666",
-  BLUE_DARK: "#004080",
-  GREY_LIGHT: "#EEEEEE",
-  GREY_MEDIUM: "#CCCCCC",
-  GREY_EXTRA_LIGHT: "#F9F9F9",
-};
-
 const styles = StyleSheet.create({
   page: {
     padding: 30,
-    fontSize: 10,
+    fontSize: 12,
     fontFamily: "Roboto",
-    color: COLORS.TEXT_DARK,
+    color: "#333",
     lineHeight: 1.5,
   },
-  // --- Cabeçalho ---
   header: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GREY_MEDIUM,
+    borderBottomWidth: 2,
+    borderBottomColor: "#d1d5db",
     paddingBottom: 10,
   },
   logo: {
-    width: 60,
-    height: 60,
+    width: 80,
+    height: 80,
     marginRight: 15,
-    borderRadius: 0,
+    borderRadius: 8,
     objectFit: "cover",
   },
   titleContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: "bold",
-    color: COLORS.BLUE_DARK,
+    color: "#1e40af",
   },
   subtitle: {
-    fontSize: 12,
-    color: COLORS.TEXT_MEDIUM,
+    fontSize: 14,
+    color: "#6b7280",
     marginTop: 4,
   },
-  // --- Seções ---
   section: {
-    marginBottom: 15,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "bold",
-    backgroundColor: COLORS.GREY_LIGHT,
-    padding: 4,
-    borderRadius: 0,
-    marginBottom: 8,
-    color: COLORS.TEXT_DARK,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.BLUE_DARK,
+    backgroundColor: "#f3f4f6",
+    padding: 6,
+    borderRadius: 4,
+    marginBottom: 10,
+    color: "#1e40af",
   },
-  // --- Informações Gerais ---
-  // CORREÇÃO: Removendo infoRow, label e value para usar um layout flexível limpo
-  // e corrigindo a forma como os Textos eram aninhados.
-  infoRowContainer: { 
+  infoRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 6,
-    paddingHorizontal: 5,
+    marginBottom: 8,
   },
-  infoLabel: {
+  label: {
     fontWeight: "bold",
-    color: COLORS.TEXT_DARK,
-    fontSize: 11,
+    color: "#374151",
     width: "40%",
   },
-  infoValue: {
-    fontWeight: "bold",
-    color: COLORS.BLUE_DARK,
-    textAlign: "right",
+  value: {
     width: "60%",
-    fontSize: 11,
+    textAlign: "right",
   },
-  // --- Tabela ---
   table: {
     width: "100%",
     borderStyle: "solid",
-    borderColor: COLORS.GREY_MEDIUM,
-    borderWidth: 0,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
+    borderColor: "#d1d5db",
+    borderWidth: 1,
+    borderRightWidth: 0,
+    borderBottomWidth: 0,
     flexDirection: "column",
+    borderRadius: 4,
+    overflow: "hidden",
   },
   tableRow: {
     flexDirection: "row",
   },
   tableRowEven: {
     flexDirection: "row",
-    backgroundColor: COLORS.GREY_EXTRA_LIGHT,
+    backgroundColor: "#f9fafb",
   },
   tableColHeader: {
     width: "70%",
     borderStyle: "solid",
-    borderColor: COLORS.GREY_MEDIUM,
+    borderColor: "#d1d5db",
     borderBottomWidth: 1,
-    backgroundColor: COLORS.GREY_LIGHT,
-    padding: 6,
+    backgroundColor: "#e5e7eb",
+    padding: 8,
     fontWeight: "bold",
-    color: COLORS.TEXT_DARK,
-    textTransform: "uppercase",
-    fontSize: 10,
+    color: "#1e40af",
   },
   tableColHeaderSmall: {
     width: "30%",
     borderStyle: "solid",
-    borderColor: COLORS.GREY_MEDIUM,
+    borderColor: "#d1d5db",
     borderBottomWidth: 1,
-    backgroundColor: COLORS.GREY_LIGHT,
-    padding: 6,
+    backgroundColor: "#e5e7eb",
+    padding: 8,
     fontWeight: "bold",
-    color: COLORS.TEXT_DARK,
+    color: "#1e40af",
     textAlign: "right",
-    textTransform: "uppercase",
-    fontSize: 10,
   },
   tableCol: {
     width: "70%",
     borderStyle: "solid",
-    borderColor: COLORS.GREY_MEDIUM,
+    borderColor: "#d1d5db",
     borderBottomWidth: 1,
-    borderRightWidth: 1,
-    padding: 6,
+    padding: 8,
   },
   tableColSmall: {
     width: "30%",
     borderStyle: "solid",
-    borderColor: COLORS.GREY_MEDIUM,
+    borderColor: "#d1d5db",
     borderBottomWidth: 1,
-    padding: 6,
+    padding: 8,
     textAlign: "right",
-    fontWeight: "bold",
   },
   category: {
-    fontSize: 12,
+    fontSize: 14,
     marginTop: 10,
     marginBottom: 5,
     fontWeight: "bold",
-    color: COLORS.BLUE_DARK,
-    padding: 2,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.GREY_MEDIUM,
+    color: "#1e3a8a",
+    backgroundColor: "#e0e7ff",
+    padding: 4,
+    borderRadius: 3,
   },
-  // --- Rodapé ---
   footer: {
     position: "absolute",
     bottom: 20,
     left: 30,
     right: 30,
-    fontSize: 8,
-    color: COLORS.TEXT_MEDIUM,
+    fontSize: 10,
+    color: "#6b7280",
     borderTopWidth: 1,
-    borderTopColor: COLORS.GREY_MEDIUM,
+    borderTopColor: "#d1d5db",
     paddingTop: 6,
-    textAlign: "left",
+    textAlign: "center",
   },
   pageNumber: {
     position: "absolute",
     bottom: 20,
     right: 30,
-    fontSize: 8,
-    color: COLORS.TEXT_MEDIUM,
-    textAlign: "right",
+    fontSize: 10,
+    color: "#6b7280",
   },
 });
 
@@ -222,55 +192,39 @@ export const MyDocument = ({
 }: MyDocumentProps) => {
   const produtosPorCategoria: Record<string, Produto[]> = {};
   produtos.forEach((p) => {
-    const cat = p.categoria || "Sem Categoria";
+    const cat = p.categoria || "Sem categoria";
     if (!produtosPorCategoria[cat]) produtosPorCategoria[cat] = [];
     produtosPorCategoria[cat].push(p);
   });
   const categorias = Object.keys(produtosPorCategoria).sort();
-
-  // Função utilitária para formatação
-  const formatNumber = (num: number | undefined) =>
-    (num ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 3 });
 
   return (
     <Document>
       <Page size="A4" style={styles.page} orientation={orientation}>
         {/* Cabeçalho */}
         <View style={styles.header}>
-          {logoSrc ? <Image src={logoSrc} style={styles.logo} /> : <View style={[styles.logo, { backgroundColor: COLORS.GREY_LIGHT, justifyContent: "center", alignItems: "center" }]}><Text style={{ color: COLORS.TEXT_MEDIUM }}>LOGO</Text></View>}
+          {logoSrc ? <Image src={logoSrc} style={styles.logo} /> : <View style={[styles.logo, { backgroundColor: "#f3f4f6", justifyContent: "center", alignItems: "center" }]}><Text>LOGO</Text></View>}
           <View style={styles.titleContainer}>
             <Text style={styles.title}>{empresa}</Text>
             <Text style={styles.subtitle}>Relatório de Produção - {data}</Text>
           </View>
         </View>
 
-        {/* Informações gerais - CORRIGIDO */}
+        {/* Informações gerais */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informações Gerais</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
-            
-            {/* Linha Total */}
-            <View style={{ width: "48%", ...styles.infoRowContainer }}>
-              <Text style={styles.infoLabel}>Total:</Text>
-              <Text style={styles.infoValue}>{formatNumber(total)}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            <View style={{ width: "50%" }}>
+              <Text style={styles.label}>Total: <Text style={styles.value}>{(total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}</Text></Text>
             </View>
-            
-            {/* Linha Batidas */}
-            <View style={{ width: "48%", ...styles.infoRowContainer }}>
-              <Text style={styles.infoLabel}>Batidas:</Text>
-              <Text style={styles.infoValue}>{batidas ?? 0}</Text>
+            <View style={{ width: "50%" }}>
+              <Text style={styles.label}>Batidas: <Text style={styles.value}>{batidas ?? 0}</Text></Text>
             </View>
-            
-            {/* Linha Hora inicial */}
-            <View style={{ width: "48%", ...styles.infoRowContainer }}>
-              <Text style={styles.infoLabel}>Hora inicial:</Text>
-              <Text style={styles.infoValue}>{horaInicio ?? "-"}</Text>
+            <View style={{ width: "50%" }}>
+              <Text style={styles.label}>Hora inicial: <Text style={styles.value}>{horaInicio ?? "-"}</Text></Text>
             </View>
-            
-            {/* Linha Hora final */}
-            <View style={{ width: "48%", ...styles.infoRowContainer }}>
-              <Text style={styles.infoLabel}>Hora final:</Text>
-              <Text style={styles.infoValue}>{horaFim ?? "-"}</Text>
+            <View style={{ width: "50%" }}>
+              <Text style={styles.label}>Hora final: <Text style={styles.value}>{horaFim ?? "-"}</Text></Text>
             </View>
           </View>
         </View>
@@ -287,7 +241,7 @@ export const MyDocument = ({
               {Object.entries(formulaSums).map(([f, v], i) => (
                 <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
                   <Text style={styles.tableCol}>{f}</Text>
-                  <Text style={styles.tableColSmall}>{formatNumber(v)}</Text>
+                  <Text style={styles.tableColSmall}>{v.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}</Text>
                 </View>
               ))}
             </View>
@@ -298,7 +252,7 @@ export const MyDocument = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos</Text>
           {categorias.map((cat, idx) => (
-            <View key={idx} style={{ marginBottom: 15 }}>
+            <View key={idx} style={{ marginBottom: 10 }}>
               <Text style={styles.category}>{cat}</Text>
               <View style={styles.table}>
                 <View style={styles.tableRow}>
@@ -308,7 +262,7 @@ export const MyDocument = ({
                 {produtosPorCategoria[cat].map((p, i) => (
                   <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
                     <Text style={styles.tableCol}>{p.nome}</Text>
-                    <Text style={styles.tableColSmall}>{formatNumber(p.qtd)}</Text>
+                    <Text style={styles.tableColSmall}>{p.qtd.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}</Text>
                   </View>
                 ))}
               </View>
@@ -328,7 +282,7 @@ export const MyDocument = ({
         <Text style={styles.footer} fixed>
           Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
         </Text>
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} fixed />
+        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} fixed />
       </Page>
     </Document>
   );

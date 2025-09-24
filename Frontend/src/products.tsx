@@ -134,7 +134,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
       <h2 className="text-2xl md:text-3xl font-semibold mb-4">Editar Produtos</h2>
       
       <ScrollArea className="h-[72vh] max-h-[calc(100vh-140px)]">
-        <div className="rounded p-3 grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-3 shadow-xl/20 mb-12">
+        <div className="rounded p-3 grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-2 gap-3 shadow-xl/20 mb-12">
           {editableColumns.map((col) => {
             const colNumber = parseInt(col.replace("col", ""), 10);
             const produtoNumber = colNumber - 5;
@@ -143,7 +143,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
 
             return (
               <div key={col}>
-                <div className="flex flex-col justify-center items-start gap-2 border border-black rounded-lg px-2 py-3">
+                <div className="flex flex-col justify-center items-start gap-2 border border-black rounded-lg px-2 py-3 w-120">
                   <div className="flex w-full gap-2">
                     <div className="relative flex-1">
                       <Input
