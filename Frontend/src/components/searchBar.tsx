@@ -126,7 +126,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         </SelectTrigger>
         <SelectContent>
         <SelectGroup>
-          <SelectLabel>Códigos</SelectLabel>
+          <SelectLabel>Números</SelectLabel>
           <SelectItem value="1">001</SelectItem>
           <SelectItem value="2">002</SelectItem>
           <SelectItem value="3">003</SelectItem>

@@ -449,7 +449,7 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
                       horaFim={tableSelection.horaFinal}
                       produtos={tableSelection.produtos}
                       data={new Date().toLocaleDateString("pt-BR")}
-                      empresa="Empresa ABC"
+                      empresa="Empresa ABCDE"
                       chartData={chartData}
                       formulaSums={formulaSums}
                     />

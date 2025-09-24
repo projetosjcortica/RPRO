@@ -1,87 +1,108 @@
 // src/components/MyDocument.tsx
-import { Document, Page, Text, StyleSheet, View, Image } from "@react-pdf/renderer";
+import { Document, Page, Text, StyleSheet, View, Image, Font } from "@react-pdf/renderer";
+
+// Registrar fonte elegante
+Font.register({
+  family: "Roboto",
+  fonts: [
+    { src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf" },
+    { src: "https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc9.ttf", fontWeight: "bold" },
+  ],
+});
+
+// Paleta de Cores Sóbrias
+const COLORS = {
+  TEXT_DARK: "#333333",
+  TEXT_MEDIUM: "#666666",
+  BLUE_DARK: "#004080",
+  GREY_LIGHT: "#EEEEEE",
+  GREY_MEDIUM: "#CCCCCC",
+  GREY_EXTRA_LIGHT: "#F9F9F9",
+};
 
 const styles = StyleSheet.create({
   page: {
     padding: 30,
-    fontSize: 12,
-    fontFamily: "Helvetica",
-    color: "#333",
+    fontSize: 10,
+    fontFamily: "Roboto",
+    color: COLORS.TEXT_DARK,
+    lineHeight: 1.5,
   },
+  // --- Cabeçalho ---
   header: {
     flexDirection: "row",
     alignItems: "center",
     marginBottom: 20,
-    borderBottomWidth: 2,
-    borderBottomColor: "#ddd",
-    borderBottomStyle: "solid",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.GREY_MEDIUM,
     paddingBottom: 10,
   },
   logo: {
-    width: 80,
-    height: 80,
+    width: 60,
+    height: 60,
     marginRight: 15,
+    borderRadius: 0,
+    objectFit: "cover",
   },
   titleContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "bold",
-    color: "#1a56db",
+    color: COLORS.BLUE_DARK,
   },
   subtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 5,
+    fontSize: 12,
+    color: COLORS.TEXT_MEDIUM,
+    marginTop: 4,
   },
+  // --- Seções ---
   section: {
-    marginBottom: 20,
+    marginBottom: 15,
   },
   sectionTitle: {
-    fontSize: 16,
-    marginBottom: 10,
+    fontSize: 14,
     fontWeight: "bold",
-    backgroundColor: "#f3f4f6",
-    padding: 5,
-    borderRadius: 2,
+    backgroundColor: COLORS.GREY_LIGHT,
+    padding: 4,
+    borderRadius: 0,
+    marginBottom: 8,
+    color: COLORS.TEXT_DARK,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.BLUE_DARK,
   },
-  infoRow: {
+  // --- Informações Gerais ---
+  // CORREÇÃO: Removendo infoRow, label e value para usar um layout flexível limpo
+  // e corrigindo a forma como os Textos eram aninhados.
+  infoRowContainer: { 
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#eee",
-    borderBottomStyle: "solid",
-    paddingBottom: 5,
+    alignItems: "center",
+    marginBottom: 6,
+    paddingHorizontal: 5,
   },
-  label: {
+  infoLabel: {
     fontWeight: "bold",
+    color: COLORS.TEXT_DARK,
+    fontSize: 11,
     width: "40%",
   },
-  value: {
-    width: "60%",
-  },
-  infoGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  infoItem: {
-    width: "50%",
-    marginBottom: 8,
-  },
-  produtosTitle: {
-    fontSize: 16,
-    marginBottom: 12,
+  infoValue: {
     fontWeight: "bold",
+    color: COLORS.BLUE_DARK,
+    textAlign: "right",
+    width: "60%",
+    fontSize: 11,
   },
+  // --- Tabela ---
   table: {
     width: "100%",
     borderStyle: "solid",
-    borderColor: "#bfbfbf",
-    borderWidth: 1,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
+    borderColor: COLORS.GREY_MEDIUM,
+    borderWidth: 0,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
     flexDirection: "column",
   },
   tableRow: {
@@ -89,100 +110,100 @@ const styles = StyleSheet.create({
   },
   tableRowEven: {
     flexDirection: "row",
-    backgroundColor: "#f9fafb",
+    backgroundColor: COLORS.GREY_EXTRA_LIGHT,
   },
   tableColHeader: {
     width: "70%",
     borderStyle: "solid",
-    borderColor: "#bfbfbf",
-    borderBottomColor: "#000",
-    borderWidth: 1,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    backgroundColor: "#e5e7eb",
-    padding: 8,
+    borderColor: COLORS.GREY_MEDIUM,
+    borderBottomWidth: 1,
+    backgroundColor: COLORS.GREY_LIGHT,
+    padding: 6,
     fontWeight: "bold",
-    color: "#374151",
+    color: COLORS.TEXT_DARK,
+    textTransform: "uppercase",
+    fontSize: 10,
   },
   tableColHeaderSmall: {
     width: "30%",
     borderStyle: "solid",
-    borderColor: "#bfbfbf",
-    borderBottomColor: "#000",
-    borderWidth: 1,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    backgroundColor: "#e5e7eb",
-    padding: 8,
-    textAlign: "right",
+    borderColor: COLORS.GREY_MEDIUM,
+    borderBottomWidth: 1,
+    backgroundColor: COLORS.GREY_LIGHT,
+    padding: 6,
     fontWeight: "bold",
-    color: "#374151",
+    color: COLORS.TEXT_DARK,
+    textAlign: "right",
+    textTransform: "uppercase",
+    fontSize: 10,
   },
   tableCol: {
     width: "70%",
     borderStyle: "solid",
-    borderColor: "#bfbfbf",
-    borderWidth: 1,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    padding: 8,
+    borderColor: COLORS.GREY_MEDIUM,
+    borderBottomWidth: 1,
+    borderRightWidth: 1,
+    padding: 6,
   },
   tableColSmall: {
     width: "30%",
     borderStyle: "solid",
-    borderColor: "#bfbfbf",
-    borderWidth: 1,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    padding: 8,
+    borderColor: COLORS.GREY_MEDIUM,
+    borderBottomWidth: 1,
+    padding: 6,
     textAlign: "right",
+    fontWeight: "bold",
   },
+  category: {
+    fontSize: 12,
+    marginTop: 10,
+    marginBottom: 5,
+    fontWeight: "bold",
+    color: COLORS.BLUE_DARK,
+    padding: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.GREY_MEDIUM,
+  },
+  // --- Rodapé ---
   footer: {
     position: "absolute",
-    bottom: 30,
+    bottom: 20,
     left: 30,
     right: 30,
-    fontSize: 10,
-    color: "#666",
+    fontSize: 8,
+    color: COLORS.TEXT_MEDIUM,
     borderTopWidth: 1,
-    borderTopColor: "#ddd",
-    borderTopStyle: "solid",
-    paddingTop: 10,
-  },
-  footerText: {
-    textAlign: "center",
+    borderTopColor: COLORS.GREY_MEDIUM,
+    paddingTop: 6,
+    textAlign: "left",
   },
   pageNumber: {
     position: "absolute",
-    bottom: 30,
+    bottom: 20,
     right: 30,
-    fontSize: 10,
-    color: "#666",
-  },
-  category: {
-    fontSize: 14,
-    marginTop: 15,
-    marginBottom: 5,
-    fontWeight: "bold",
-    color: "#4b5563",
-    backgroundColor: "#f3f4f6",
-    padding: 4,
-    borderRadius: 2,
+    fontSize: 8,
+    color: COLORS.TEXT_MEDIUM,
+    textAlign: "right",
   },
 });
+
+interface Produto {
+  nome: string;
+  qtd: number;
+  categoria?: string;
+}
 
 interface MyDocumentProps {
   total?: number;
   batidas?: number;
   horaInicio?: string;
   horaFim?: string;
-  produtos?: { nome: string; qtd: number; categoria?: string }[];
+  produtos?: Produto[];
   data?: string;
   empresa?: string;
   observacoes?: string;
   logoSrc?: string;
-  orientation?: 'portrait' | 'landscape';
-  chartData?: { name: string; value: number }[];
+  orientation?: "portrait" | "landscape";
   formulaSums?: Record<string, number>;
 }
 
@@ -192,77 +213,69 @@ export const MyDocument = ({
   horaInicio,
   horaFim,
   produtos = [],
-  data = new Date().toLocaleDateString('pt-BR'),
+  data = new Date().toLocaleDateString("pt-BR"),
   empresa = "Empresa",
   observacoes = "",
   logoSrc,
-  orientation = 'portrait',
-  chartData = [],
+  orientation = "portrait",
   formulaSums = {},
 }: MyDocumentProps) => {
-  // Agrupar produtos por categoria (se houver)
-  const produtosPorCategoria: Record<string, typeof produtos> = {};
-  
-  produtos.forEach(produto => {
-    const categoria = produto.categoria || 'Sem categoria';
-    if (!produtosPorCategoria[categoria]) {
-      produtosPorCategoria[categoria] = [];
-    }
-    produtosPorCategoria[categoria].push(produto);
+  const produtosPorCategoria: Record<string, Produto[]> = {};
+  produtos.forEach((p) => {
+    const cat = p.categoria || "Sem Categoria";
+    if (!produtosPorCategoria[cat]) produtosPorCategoria[cat] = [];
+    produtosPorCategoria[cat].push(p);
   });
-  
   const categorias = Object.keys(produtosPorCategoria).sort();
-  
+
+  // Função utilitária para formatação
+  const formatNumber = (num: number | undefined) =>
+    (num ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 3 });
+
   return (
     <Document>
       <Page size="A4" style={styles.page} orientation={orientation}>
-        {/* Cabeçalho com Logo */}
+        {/* Cabeçalho */}
         <View style={styles.header}>
-          {logoSrc ? (
-            <Image src={logoSrc} style={styles.logo} />
-          ) : (
-            <View style={[styles.logo, { backgroundColor: "#f3f4f6", justifyContent: "center", alignItems: "center" }]}>
-              <Text style={{ textAlign: "center" }}>LOGO</Text>
-            </View>
-          )}
+          {logoSrc ? <Image src={logoSrc} style={styles.logo} /> : <View style={[styles.logo, { backgroundColor: COLORS.GREY_LIGHT, justifyContent: "center", alignItems: "center" }]}><Text style={{ color: COLORS.TEXT_MEDIUM }}>LOGO</Text></View>}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>{empresa} - {data}</Text>
-            <Text style={styles.subtitle}>Relatório de Produção</Text>
+            <Text style={styles.title}>{empresa}</Text>
+            <Text style={styles.subtitle}>Relatório de Produção - {data}</Text>
           </View>
         </View>
 
-        {/* Informações gerais */}
+        {/* Informações gerais - CORRIGIDO */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Informações Gerais</Text>
-          <View style={styles.infoGrid}>
-            <View style={styles.infoItem}>
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Total:</Text>
-                <Text style={styles.value}>{(total ?? 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</Text>
-              </View>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" }}>
+            
+            {/* Linha Total */}
+            <View style={{ width: "48%", ...styles.infoRowContainer }}>
+              <Text style={styles.infoLabel}>Total:</Text>
+              <Text style={styles.infoValue}>{formatNumber(total)}</Text>
             </View>
-            <View style={styles.infoItem}>
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Batidas:</Text>
-                <Text style={styles.value}>{batidas ?? 0}</Text>
-              </View>
+            
+            {/* Linha Batidas */}
+            <View style={{ width: "48%", ...styles.infoRowContainer }}>
+              <Text style={styles.infoLabel}>Batidas:</Text>
+              <Text style={styles.infoValue}>{batidas ?? 0}</Text>
             </View>
-            <View style={styles.infoItem}>
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Hora inicial:</Text>
-                <Text style={styles.value}>{horaInicio ?? "-"}</Text>
-              </View>
+            
+            {/* Linha Hora inicial */}
+            <View style={{ width: "48%", ...styles.infoRowContainer }}>
+              <Text style={styles.infoLabel}>Hora inicial:</Text>
+              <Text style={styles.infoValue}>{horaInicio ?? "-"}</Text>
             </View>
-            <View style={styles.infoItem}>
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Hora final:</Text>
-                <Text style={styles.value}>{horaFim ?? "-"}</Text>
-              </View>
+            
+            {/* Linha Hora final */}
+            <View style={{ width: "48%", ...styles.infoRowContainer }}>
+              <Text style={styles.infoLabel}>Hora final:</Text>
+              <Text style={styles.infoValue}>{horaFim ?? "-"}</Text>
             </View>
           </View>
         </View>
 
-        {/* Resumo de Fórmulas */}
+        {/* Fórmulas */}
         {Object.keys(formulaSums).length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Resumo por Fórmula</Text>
@@ -271,10 +284,10 @@ export const MyDocument = ({
                 <Text style={styles.tableColHeader}>Fórmula</Text>
                 <Text style={styles.tableColHeaderSmall}>Total</Text>
               </View>
-              {Object.entries(formulaSums).map(([formula, valor], i) => (
+              {Object.entries(formulaSums).map(([f, v], i) => (
                 <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                  <Text style={styles.tableCol}>{formula}</Text>
-                  <Text style={styles.tableColSmall}>{Number(valor).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</Text>
+                  <Text style={styles.tableCol}>{f}</Text>
+                  <Text style={styles.tableColSmall}>{formatNumber(v)}</Text>
                 </View>
               ))}
             </View>
@@ -284,64 +297,38 @@ export const MyDocument = ({
         {/* Produtos */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos</Text>
-          
-          {produtos.length === 0 ? (
-            <Text>Nenhum produto registrado neste período</Text>
-          ) : categorias.length <= 1 ? (
-            <View style={styles.table}>
-              {/* Cabeçalho tabela */}
-              <View style={styles.tableRow}>
-                <Text style={styles.tableColHeader}>Nome</Text>
-                <Text style={styles.tableColHeaderSmall}>Quantidade</Text>
-              </View>
-              {/* Linhas */}
-              {produtos.map((p, i) => (
-                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                  <Text style={styles.tableCol}>{p.nome}</Text>
-                  <Text style={styles.tableColSmall}>{Number(p.qtd).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</Text>
+          {categorias.map((cat, idx) => (
+            <View key={idx} style={{ marginBottom: 15 }}>
+              <Text style={styles.category}>{cat}</Text>
+              <View style={styles.table}>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableColHeader}>Nome</Text>
+                  <Text style={styles.tableColHeaderSmall}>Quantidade</Text>
                 </View>
-              ))}
-            </View>
-          ) : (
-            // Produtos por categoria
-            categorias.map((categoria, catIndex) => (
-              <View key={catIndex} style={{ marginBottom: 10 }}>
-                <Text style={styles.category}>{categoria}</Text>
-                <View style={styles.table}>
-                  {/* Cabeçalho tabela */}
-                  <View style={styles.tableRow}>
-                    <Text style={styles.tableColHeader}>Nome</Text>
-                    <Text style={styles.tableColHeaderSmall}>Quantidade</Text>
+                {produtosPorCategoria[cat].map((p, i) => (
+                  <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                    <Text style={styles.tableCol}>{p.nome}</Text>
+                    <Text style={styles.tableColSmall}>{formatNumber(p.qtd)}</Text>
                   </View>
-                  {/* Linhas */}
-                  {produtosPorCategoria[categoria].map((p, i) => (
-                    <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                      <Text style={styles.tableCol}>{p.nome}</Text>
-                      <Text style={styles.tableColSmall}>{Number(p.qtd).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</Text>
-                    </View>
-                  ))}
-                </View>
+                ))}
               </View>
-            ))
-          )}
+            </View>
+          ))}
         </View>
-        
-        {/* Observações (se houver) */}
+
+        {/* Observações */}
         {observacoes && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Observações</Text>
             <Text>{observacoes}</Text>
           </View>
         )}
-        
+
         {/* Rodapé */}
-        <View style={styles.footer} fixed> {/* fixed para aparecer em todas as páginas */}
-          <Text style={styles.footerText}>Relatório gerado em {new Date().toLocaleString('pt-BR')} | {empresa}</Text>
-          {logoSrc && <Image src={logoSrc} style={{ width: 80, height: 20, marginTop: 4 }} />}
-        </View>
-        
-        {/* Número da página */}
-        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }: { pageNumber: number, totalPages: number }) => `${pageNumber} / ${totalPages}`} fixed />
+        <Text style={styles.footer} fixed>
+          Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
+        </Text>
+        <Text style={styles.pageNumber} render={({ pageNumber, totalPages }) => `Página ${pageNumber} de ${totalPages}`} fixed />
       </Page>
     </Document>
   );
