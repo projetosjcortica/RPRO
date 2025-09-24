@@ -26,8 +26,8 @@ const App = () => {
   useEffect(() => {
     const fetchSideInfo = async () => {
       try {
-        const granjaRes = await fetch('http://localhost:3001/api/config/granja');
-        const proprietarioRes = await fetch('http://localhost:3001/api/config/proprietario');
+        const granjaRes = await fetch('http://localhost:3000/api/config/granja');
+        const proprietarioRes = await fetch('http://localhost:3000/api/config/proprietario');
 
         const granjaData = await granjaRes.json();
         const proprietarioData = await proprietarioRes.json();

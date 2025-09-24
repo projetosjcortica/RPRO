@@ -161,8 +161,8 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     }
 
     console.log("[relatorioPaginate] Parâmetros para API:", params);
-    
-    return this.makeRequest('/api/relatorio/paginate', 'GET', params);
+
+    return this.makeRequest('/api/relatorio/paginate', 'POST', { params });
   }
 
   /**

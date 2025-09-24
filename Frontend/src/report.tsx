@@ -283,7 +283,7 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
             disabled={collectorLoading}
             className={cn(
               "flex items-center gap-2",
-              collectorRunning ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
+              collectorRunning ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-gray-700"
             )}
           >
             {collectorLoading ? (

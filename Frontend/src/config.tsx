@@ -16,7 +16,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
-import { IpcRendererEvent } from "electron/utility";
 
 export const initialFormData = {
   nomeCliente: "",
@@ -50,40 +49,118 @@ export interface FormData {
   mySqlDir: string;
   dumpDir: string;
   batchDumpDir: string;
-  mockEnabled?: boolean; // Nova propriedade para controle de mocks
-}
-
-declare global {
-  interface Window {
-    electronAPI: { 
-      onChildStdout: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => void;
-      onChildStderr: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => void;
-      onChildExit: (fn: (evt: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => void) => void;
-      onChildMessage: (fn: (evt: IpcRendererEvent, data: { pid: number; data?: any } | { pid: number; code?: number | null; signal?: string | null }) => void) => void;
-      sendToChild: (pid: number, msg: any) => Promise<{ ok: boolean; reason?: string }>;
-      startFork(arg0: { script: string; args: never[]; }): unknown;
-      loadData: (key: string) => Promise<FormData>;
-      saveData: (key: string, data: FormData) => Promise<boolean>;
-      selectFolder: () => Promise<string>;
-      selectFile: () => Promise<string>;
-      cleanDB: () => Promise<boolean>;
-    };
-  }
+  mockEnabled?: boolean;
 }
 
 type FormDataKey = keyof FormData;
 
-// Custom hook to manage form state with persistence
+// API Service para comunicação HTTP
+const configService = {
+  async loadConfig(key: string): Promise<FormData | null> {
+    try {
+      const response = await fetch(`/api/config/${key}`);
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.value;
+    } catch (error) {
+      console.error("Failed to load config:", error);
+      throw error;
+    }
+  },
+
+  async saveConfig(key: string, data: FormData): Promise<boolean> {
+    try {
+      const response = await fetch("/api/config", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ key, value: data }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      return result.success === true;
+    } catch (error) {
+      console.error("Failed to save config:", error);
+      throw error;
+    }
+  },
+
+  async cleanDB(): Promise<boolean> {
+    try {
+      // Você precisará implementar este endpoint no backend
+      const response = await fetch("/api/database/clean", {
+        method: "POST",
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      return result.success === true;
+    } catch (error) {
+      console.error("Failed to clean database:", error);
+      throw error;
+    }
+  },
+
+  async selectFolder(): Promise<string> {
+    // Para seleção de pastas/arquivos, você pode:
+    // 1. Implementar endpoints específicos no backend
+    // 2. Usar input type="file" nativo do browser
+    // 3. Implementar um diálogo customizado
+    
+    // Exemplo simplificado usando input file
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.webkitdirectory = true;
+      input.onchange = (e: any) => {
+        if (e.target.files.length > 0) {
+          resolve(e.target.files[0].webkitRelativePath.split('/')[0]);
+        }
+      };
+      input.click();
+    });
+  },
+
+  async selectFile(): Promise<string> {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.onchange = (e: any) => {
+        if (e.target.files.length > 0) {
+          resolve(e.target.files[0].name);
+        }
+      };
+      input.click();
+    });
+  }
+};
+
+// Custom hook to manage form state with persistence via HTTP
 function usePersistentForm(key: string) {
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isEditing, setIsEditing] = useState(false);
   const [originalData, setOriginalData] = useState<FormData>(initialFormData);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load data on component mount
   useEffect(() => {
     const loadFormData = async () => {
       try {
-        const savedData = await window.electronAPI.loadData(key);
+        setIsLoading(true);
+        const savedData = await configService.loadConfig(key);
         if (savedData) {
           setFormData(savedData);
           setOriginalData(savedData);
@@ -91,6 +168,8 @@ function usePersistentForm(key: string) {
       } catch (error) {
         console.error("Failed to load data:", error);
         toast.error("Failed to load saved data");
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -108,7 +187,7 @@ function usePersistentForm(key: string) {
 
   const onSave = async () => {
     try {
-      const success = await window.electronAPI.saveData(key, formData);
+      const success = await configService.saveConfig(key, formData);
       if (success) {
         setOriginalData(formData);
         setIsEditing(false);
@@ -130,6 +209,7 @@ function usePersistentForm(key: string) {
   return {
     formData,
     isEditing,
+    isLoading,
     onChange,
     onEdit,
     onSave,
@@ -140,10 +220,14 @@ function usePersistentForm(key: string) {
 /* ----------------- GERAL ------------------- */
 
 export function GeneralConfig({ configKey = "general-config" }: { configKey?: string }) {
-  const { formData, isEditing, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center p-8">Loading...</div>;
+  }
 
   return (
-    <div id="geral" className="flex flex-col gap-4  bg-white ">
+    <div id="geral" className="flex flex-col gap-4 bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">Configuração Geral</h2>
       
       <Label className="text-lg font-semibold">
@@ -245,7 +329,11 @@ export function GeneralConfig({ configKey = "general-config" }: { configKey?: st
 
 /* ----------------- IHM ------------------- */
 export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) {
-  const { formData, isEditing, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center p-8">Loading...</div>;
+  }
 
   return (
     <div id="webCfg" className="flex flex-col gap-4 bg-white">
@@ -296,7 +384,7 @@ export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) 
           />
           <Button
             onClick={async () => {
-              const path = await window.electronAPI.selectFolder();
+              const path = await configService.selectFolder();
               if (path) onChange("localCSV", path);
             }}
             disabled={!isEditing}
@@ -342,7 +430,11 @@ export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) 
 
 /* ----------------- BANCO DE DADOS ------------------- */
 export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string }) {
-  const { formData, isEditing, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center p-8">Loading...</div>;
+  }
 
   return (
     <div id="dbCfg" className="flex flex-col gap-4 bg-white">
@@ -427,8 +519,11 @@ export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string
 
 /* ----------------- ADMIN ------------------- */
 export function AdminConfig({ configKey = "admin-config" }: { configKey?: string }) {
-  const { formData, isEditing, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
 
+  if (isLoading) {
+    return <div className="flex justify-center items-center p-8">Loading...</div>;
+  }
 
   return (
     <div id="adm" className="flex flex-col gap-4 bg-white">
@@ -449,7 +544,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
               <Button
                 type="button"
                 onClick={async () => {
-                  const path = await window.electronAPI.selectFile();
+                  const path = await configService.selectFile();
                   if (path) onChange("mySqlDir", path);
                 }}
                 disabled={!isEditing}
@@ -473,7 +568,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
               <Button
                 type="button"
                 onClick={async () => {
-                  const path = await window.electronAPI.selectFile();
+                  const path = await configService.selectFile();
                   if (path) onChange("dumpDir", path);
                 }}
                 disabled={!isEditing}
@@ -497,7 +592,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
               <Button
                 type="button"
                 onClick={async () => {
-                  const path = await window.electronAPI.selectFile();
+                  const path = await configService.selectFile();
                   if (path) onChange("batchDumpDir", path);
                 }}
                 disabled={!isEditing}
@@ -506,13 +601,6 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
                 Selecionar arquivo
               </Button>
             </div>
-          </div>
-          
-          {/* Separador para seção de desenvolvimento */}
-          <div className="border-t border-gray-200 pt-4 mt-2">
-            <h3 className="text-lg font-medium text-gray-800 mb-2">Configurações de Desenvolvimento</h3>
-            
-
           </div>
         </div>
       </div>
@@ -550,7 +638,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
               <AlertDialogAction
                 onClick={async () => {
                   try {
-                    const sucesso = await window.electronAPI.cleanDB();
+                    const sucesso = await configService.cleanDB();
                     if (sucesso) {
                       toast.success("Banco de dados zerado com sucesso!");
                     } else {

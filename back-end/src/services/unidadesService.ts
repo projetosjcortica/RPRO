@@ -36,6 +36,9 @@ export class UnidadesService extends BaseService {
    * @param valores Objeto com valores por coluna
    * @param unidades Objeto com unidades por coluna (0 = g, 1 = kg)
    * @returns Objeto com valores normalizados em kg
+   * @example valores = { col6: 500, col7: 2 }, 
+   * unidades = { col6: 0, col7: 1 } 
+   * => { col6: 0.5, col7: 2 }
    */
   normalizarParaKg(valores: Record<string, number>, unidades: Record<string, number>): Record<string, number> {
     const resultado: Record<string, number> = {};
@@ -45,7 +48,6 @@ export class UnidadesService extends BaseService {
         const valor = valores[coluna];
         const unidade = unidades[coluna];
         
-        // Se for em gramas, converte para kg
         if (unidade === 0) {
           resultado[coluna] = valor / 1000;
         } else {
