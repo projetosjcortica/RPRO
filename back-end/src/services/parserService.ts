@@ -25,8 +25,23 @@ export class ParserService extends BaseService {
   }
   async processFile(filePath: string, opts?: { sinceTs?: string }): Promise<ParserResult> {
     console.log(`Processing file: ${filePath}`);
-    const raw = fs.readFileSync(filePath, 'utf8');
-    console.log('Raw file content:', raw.slice(0, 500)); // Log the first 500 characters of the file
+    const buffer = fs.readFileSync(filePath);
+
+    // Try UTF-8 first. If the decoded text contains replacement chars, fall back to latin1.
+    let raw = buffer.toString('utf8');
+    if (raw.includes('\uFFFD')) {
+      console.warn('UTF-8 decoding produced replacement characters, falling back to latin1');
+      raw = buffer.toString('latin1');
+    }
+
+    // Strip common BOMs and normalize
+    if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
+    try { raw = raw.normalize('NFC'); } catch (e) { /* ignore if not supported */ }
+
+    // Remove control characters except common whitespace (tab, LF, CR)
+    raw = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+
+    console.log('Raw file content (first 500 chars):', raw.slice(0, 500));
 
     const delim = this.detectDelimiter(raw);
     console.log('Detected delimiter:', delim);
@@ -55,12 +70,30 @@ export class ParserService extends BaseService {
 
   private parseRow(parts: string[]): ParserRow | null {
     try {
-      const date = parts[0] || null;
-      const time = parts[1] || null;
-      const label = parts[2] || null;
-      const form1 = parts[3] ? Number(parts[3]) : null;
-      const form2 = parts[4] ? Number(parts[4]) : null;
-      const values = parts.slice(5, 45).map((v) => (v ? Number(v) : 0)); // Map Prod_1 to Prod_40
+      const sanitize = (s: string | undefined | null) => {
+        if (s === undefined || s === null) return null;
+        let t = String(s);
+        t = t.replace(/\uFFFD/g, ''); // remove replacement chars
+        t = t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, ''); // control chars
+        t = t.trim();
+        return t.length ? t : null;
+      };
+
+      const safeNumber = (s: string | undefined | null) => {
+        if (s === undefined || s === null) return null;
+        const n = Number(s);
+        return Number.isFinite(n) ? n : null;
+      };
+
+      const date = sanitize(parts[0]);
+      const time = sanitize(parts[1]);
+      const label = sanitize(parts[2]);
+      const form1 = safeNumber(parts[3]);
+      const form2 = safeNumber(parts[4]);
+      const values = parts.slice(5, 45).map((v) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+      }); // Map Prod_1 to Prod_40
 
       return { date, time, label, form1, form2, values };
     } catch (error) {

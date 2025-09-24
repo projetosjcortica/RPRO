@@ -42,6 +42,7 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     // Endpoint relativo → combinar com baseURL
     
     url = `${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+    console.log(`[Processador] Making request to ${url} with method ${method} and data:`, data);
   }
 
   const headers: Record<string, string> = { 'Accept': 'application/json' };

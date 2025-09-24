@@ -19,12 +19,6 @@ import { configService } from "./services/configService";
 // Collector
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || "60000");
 const TMP_DIR = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || "tmp");
-const rawServer =
-  process.env.INGEST_URL || process.env.SERVER_URL || "http://192.168.5.254";
-const SERVER_URL = /^(?:https?:)\/\//i.test(rawServer)
-  ? rawServer
-  : `http://${rawServer}`;
-const INGEST_TOKEN = process.env.INGEST_TOKEN;
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
 let STOP = false;
@@ -42,15 +36,6 @@ export async function startCollector() {
       const downloaded = await ihm.findAndDownloadNewFiles(TMP_DIR);
       for (const f of downloaded) {
         const res = await fileProcessorService.processFile(f.localPath);
-        if (process.env.INGEST_URL) {
-          try {
-            await postJson(
-              `${SERVER_URL}/api/ingest`,
-              { meta: res.meta, count: res.parsed.rowsCount },
-              INGEST_TOKEN
-            );
-          } catch {}
-        }
       }
     },
   };

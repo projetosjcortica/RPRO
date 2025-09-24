@@ -61,14 +61,6 @@ export default function TableComponent({
   
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-  useEffect(() => {
-    console.log("TableComponent recebeu dados:", dadosProp?.length);
-    if (filtros) {
-      console.log("Filtros ativos:", filtros);
-    }
-  }, [dadosProp, filtros]);
-
-
   // Carrega informações de unidades do localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -138,6 +130,7 @@ export default function TableComponent({
 
       const raw = localStorage.getItem("produtosInfo");
       const produtosInfo = raw ? JSON.parse(raw) : {};    
+
       const label = produtosInfo[colKey]?.nome;
       const colNum = parseInt(colKey.replace('col', ''), 10);
       // const label = colLabels[colKey];
