@@ -163,6 +163,7 @@ export default function Report() {
         const processador = getProcessador();
         // Map filtros to resumo params. nomeFormula may be an id or name; backend will coerce to Number if provided.
         const dateStart = filtros.dataInicio || undefined;
+        
         const dateEnd = filtros.dataFim || undefined;
         const formula = filtros.nomeFormula || undefined;
         // areaId is not present in filtros by default, but if exists pass it

@@ -83,7 +83,7 @@ const MovimentacoesEstoque = () => {
                 <SelectValue placeholder="Todas" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todas</SelectItem>
+                <SelectItem value="__all">Todas</SelectItem>
                 {materias.map((mp: any) => (
                   <SelectItem key={mp.id} value={mp.id}>
                     {mp.produto}
@@ -102,7 +102,7 @@ const MovimentacoesEstoque = () => {
                 <SelectValue placeholder="Todos" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Todos</SelectItem>
+                <SelectItem value="__all">Todos</SelectItem>
                 <SelectItem value="entrada">Entrada</SelectItem>
                 <SelectItem value="saida">Saída</SelectItem>
                 <SelectItem value="ajuste">Ajuste</SelectItem>

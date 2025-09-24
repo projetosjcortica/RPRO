@@ -22,6 +22,9 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
 
   const [filtrosTemporarios, setFiltrosTemporarios] = useState<Filtros>(filtros);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const [codigosOptions, setCodigosOptions] = useState<string[]>([]);
+  const [numerosOptions, setNumerosOptions] = useState<string[]>([]);
+  const [loadingFiltros, setLoadingFiltros] = useState<boolean>(false);
 
   // Inicializar dateRange baseado nos filtros existentes
   useEffect(() => {
@@ -32,6 +35,37 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       });
     }
   }, [filtros.dataInicio, filtros.dataFim]);
+
+  // Fetch available filters (codigos, numeros) from backend
+  useEffect(() => {
+    let mounted = true;
+    const fetchFiltros = async () => {
+      setLoadingFiltros(true);
+      try {
+        const params = new URLSearchParams();
+        if (filtrosTemporarios.dataInicio) params.set('dateStart', filtrosTemporarios.dataInicio);
+        if (filtrosTemporarios.dataFim) params.set('dateEnd', filtrosTemporarios.dataFim);
+        const url = `/api/filtrosAvaliable?${params.toString()}`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Failed to fetch filtrosAvaliable');
+        const body = await resp.json();
+        if (!mounted) return;
+        const cods = Array.isArray(body.codigos) ? body.codigos.map((c: any) => String(c)) : [];
+        const nums = Array.isArray(body.numeros) ? body.numeros.map((n: any) => String(n)) : [];
+        setCodigosOptions(cods);
+        setNumerosOptions(nums);
+      } catch (err) {
+        console.error('[FiltrosBar] erro ao buscar filtros disponíveis', err);
+        setCodigosOptions([]);
+        setNumerosOptions([]);
+      } finally {
+        if (mounted) setLoadingFiltros(false);
+      }
+    };
+
+    fetchFiltros();
+    return () => { mounted = false; };
+  }, [filtrosTemporarios.dataInicio, filtrosTemporarios.dataFim]);
 
   const handleInputChange = (nome: keyof Filtros, valor: string) => {
     setFiltrosTemporarios(prev => ({
@@ -67,8 +101,8 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
     const filtrosParaAplicar = {
       ...filtrosTemporarios,
       nomeFormula: filtrosTemporarios.nomeFormula || undefined,
-      codigo: filtrosTemporarios.codigo || undefined,
-      numero: filtrosTemporarios.numero || undefined,
+      codigo: filtrosTemporarios.codigo && filtrosTemporarios.codigo !== '__all' ? filtrosTemporarios.codigo : undefined,
+      numero: filtrosTemporarios.numero && filtrosTemporarios.numero !== '__all' ? filtrosTemporarios.numero : undefined,
       dataInicio: filtrosTemporarios.dataInicio || undefined,
       dataFim: filtrosTemporarios.dataFim || undefined,
     };
@@ -106,32 +140,40 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         className="border-black w-50"
       />
 
-      <Select>
+      <Select
+        value={filtrosTemporarios.codigo}
+        onValueChange={(v) => setFiltrosTemporarios(prev => ({ ...prev, codigo: v }))}
+      >
         <SelectTrigger className="w-40 border-black">
-          <SelectValue placeholder="Filtrar por Código" />
+          <SelectValue placeholder={loadingFiltros ? 'Carregando...' : 'Filtrar por Código'} />
         </SelectTrigger>
         <SelectContent>
-        <SelectGroup>
-          <SelectLabel>Códigos</SelectLabel>
-          <SelectItem value="1">1</SelectItem>
-          <SelectItem value="2">2</SelectItem>
-          <SelectItem value="3">3</SelectItem>
-        </SelectGroup>
-      </SelectContent>
+          <SelectGroup>
+            <SelectLabel>Códigos</SelectLabel>
+            <SelectItem value="__all">Todos</SelectItem>
+            {codigosOptions.map((c) => (
+              <SelectItem key={c} value={c}>{c}</SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
       </Select>
 
-      <Select>
+      <Select
+        value={filtrosTemporarios.numero}
+        onValueChange={(v) => setFiltrosTemporarios(prev => ({ ...prev, numero: v }))}
+      >
         <SelectTrigger className="w-42 border-black">
-          <SelectValue placeholder="Filtrar por Número" />
+          <SelectValue placeholder={loadingFiltros ? 'Carregando...' : 'Filtrar por Número'} />
         </SelectTrigger>
         <SelectContent>
-        <SelectGroup>
-          <SelectLabel>Números</SelectLabel>
-          <SelectItem value="1">001</SelectItem>
-          <SelectItem value="2">002</SelectItem>
-          <SelectItem value="3">003</SelectItem>
-        </SelectGroup>
-      </SelectContent>
+          <SelectGroup>
+            <SelectLabel>Números</SelectLabel>
+            <SelectItem value="__all">Todos</SelectItem>
+            {numerosOptions.map((n) => (
+              <SelectItem key={n} value={n}>{String(n).padStart(3, '0')}</SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
       </Select>
 
 {/*input antigo codigo e numero
