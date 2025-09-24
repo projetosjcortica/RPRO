@@ -345,7 +345,7 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
           {/* Componente de Resumo */}
 
           <div id="quadradoInfo" className="grid grid-cols-2 gap-1 mt-2">
-            <div id="total de produtos" className="w-33 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div id="total de produtos" className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Total</p>
               <p className="text-center text-lg font-bold">
                 {(resumo && typeof resumo.totalPesos === 'number' ? resumo.totalPesos : tableSelection.total).toLocaleString('pt-BR', {
@@ -354,26 +354,26 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
                 })} kg
               </p>
             </div>
-            <div className="w-33 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Batidas</p>
               <p className="text-center text-lg font-bold">
                 {(resumo && typeof resumo.batitdasTotais === 'number' ? resumo.batitdasTotais : tableSelection.batidas)}
               </p>
             </div>
-            <div className="w-33 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Hora inicial</p>
               <p className="text-center text-lg font-bold">
                 {resumo && resumo.horaInicial ? resumo.horaInicial : tableSelection.horaInicial}
               </p>
             </div>
-            <div className="w-33 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Hora final</p>
               <p className="text-center text-lg font-bold">
                 {resumo && resumo.horaFinal ? resumo.horaFinal : tableSelection.horaFinal}
               </p>
             </div>
           </div>
-          <div id="retanguloProd" className="border rounded flex-grow overflow-auto">
+          <div id="retanguloProd" className="border rounded flex-grow overflow-auto scrollbar-custom">
             <ScrollArea>
               <Table className="h-100">
                 <TableHeader>

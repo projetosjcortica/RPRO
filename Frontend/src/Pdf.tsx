@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#1e40af",
+    color: "#af1e1eff",
   },
   subtitle: {
     fontSize: 14,
@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 4,
     marginBottom: 10,
-    color: "#1e40af",
+    color: "#af1e1eff",
   },
   infoRow: {
     flexDirection: "row",
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#e5e7eb",
     padding: 8,
     fontWeight: "bold",
-    color: "#1e40af",
+    color: "#af1e1eff",
   },
   tableColHeaderSmall: {
     width: "30%",
@@ -108,7 +108,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#e5e7eb",
     padding: 8,
     fontWeight: "bold",
-    color: "#1e40af",
+    color: "#af1e1eff",
     textAlign: "right",
   },
   tableCol: {
@@ -131,7 +131,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 5,
     fontWeight: "bold",
-    color: "#1e3a8a",
+    color: "#af1e1eff",
     backgroundColor: "#e0e7ff",
     padding: 4,
     borderRadius: 3,
