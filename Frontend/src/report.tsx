@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 import TableComponent from "./TableComponent";
 import Products from "./products";
@@ -55,6 +55,9 @@ export default function Report() {
     horaFinal: '--:--',
     produtos: []
   });
+
+  // Resumo vindo do backend (side info)
+  const [resumo, setResumo] = useState<any | null>(null);
 
   // === CARREGAR LABELS ===
   // useEffect(() => {
@@ -152,6 +155,34 @@ export default function Report() {
 
   const { dados, loading, error, total } = useReportData(filtros, page, pageSize);
 
+  // Fetch resumo sempre que os filtros mudarem
+  useEffect(() => {
+    let mounted = true;
+    const fetchResumo = async () => {
+      try {
+        const processador = getProcessador();
+        // Map filtros to resumo params. nomeFormula may be an id or name; backend will coerce to Number if provided.
+        const dateStart = filtros.dataInicio || undefined;
+        const dateEnd = filtros.dataFim || undefined;
+        const formula = filtros.nomeFormula || undefined;
+        // areaId is not present in filtros by default, but if exists pass it
+        const areaId = (filtros as any).areaId || undefined;
+
+        const result = await processador.getResumo(areaId as string | undefined, formula as string | undefined, dateStart as string | undefined, dateEnd as string | undefined);
+        if (!mounted) return;
+        setResumo(result || null);
+      } catch (err) {
+        console.error('Erro ao buscar resumo:', err);
+        if (mounted) setResumo(null);
+      } finally {
+        // no loading state maintained here
+      }
+    };
+
+    fetchResumo();
+    return () => { mounted = false; };
+  }, [filtros]);
+
   // === COLLECTOR FUNCTIONS ===
   const handleCollectorToggle = async () => {
     if (collectorLoading) return;
@@ -217,6 +248,18 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
     name: p.nome,
     value: p.qtd
   }));
+
+  const displayProducts = useMemo(() => {
+    if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
+      return Object.entries(resumo.usosPorProduto).map(([key, val]: any) => ({
+        nome: val.label || key,
+        qtd: Number(val.quantidade) || 0,
+        unidade: val.unidade || 'kg'
+      }));
+    }
+    // fallback to tableSelection
+    return tableSelection.produtos.map(p => ({ nome: p.nome, qtd: p.qtd, unidade: 'kg' }));
+  }, [resumo, tableSelection]);
 
   const formulaSums = dados.reduce((acc, row) => {
     if (row.Nome) {
@@ -304,29 +347,28 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
             <div id="total de produtos" className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Total</p>
               <p className="text-center text-lg font-bold">
-                {/* {totalProdutosUtilizados.toLocaleString('pt-BR', {
+                {(resumo && typeof resumo.totalPesos === 'number' ? resumo.totalPesos : tableSelection.total).toLocaleString('pt-BR', {
                   minimumFractionDigits: 3,
                   maximumFractionDigits: 3
-                })}  */}
-                0,000 kg
+                })} kg
               </p>
             </div>
             <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Batidas</p>
               <p className="text-center text-lg font-bold">
-                {tableSelection.batidas}
+                {(resumo && typeof resumo.batitdasTotais === 'number' ? resumo.batitdasTotais : tableSelection.batidas)}
               </p>
             </div>
             <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Hora inicial</p>
               <p className="text-center text-lg font-bold">
-                {tableSelection.horaInicial}
+                {resumo && resumo.horaInicial ? resumo.horaInicial : tableSelection.horaInicial}
               </p>
             </div>
             <div className="w-31 h-20 max-h-20 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Hora final</p>
               <p className="text-center text-lg font-bold">
-                {tableSelection.horaFinal}
+                {resumo && resumo.horaFinal ? resumo.horaFinal : tableSelection.horaFinal}
               </p>
             </div>
           </div>
@@ -340,24 +382,22 @@ const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tableSelection.produtos.length > 0 ? (
-                    tableSelection.produtos.map((produto, idx) => (
+                  {displayProducts && displayProducts.length > 0 ? displayProducts.map((produto, idx) => (
                       <TableRow key={idx}>
                         <TableCell className="py-1 px-2">{produto.nome}</TableCell>
                         <TableCell className="py-1 px-2 text-right">
-                          {produto.qtd.toLocaleString('pt-BR', {
+                          {Number(produto.qtd).toLocaleString('pt-BR', {
                             minimumFractionDigits: 3,
                             maximumFractionDigits: 3
-                          })} kg
+                          })} {produto.unidade || 'kg'}
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={2} className="text-center text-gray-500 py-4">
-                        Nenhum produto selecionado
-                      </TableCell>
-                    </TableRow>
+                    )) : (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-center text-gray-500 py-4">
+                          Nenhum produto selecionado
+                        </TableCell>
+                      </TableRow>
                   )}
                 </TableBody>
               </Table>

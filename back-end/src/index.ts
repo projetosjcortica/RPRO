@@ -14,6 +14,7 @@ import { Relatorio, MateriaPrima, Batch } from './entities';
 import { postJson, ProcessPayload } from './core/utils';
 import express from 'express';
 import cors from 'cors';
+import { configService } from './services/configService';
 
 // Collector
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
@@ -376,13 +377,31 @@ app.post('/api/file/processContent', async (req, res) => {
   } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
 });
 
+app.get('/api/config/:key', async (req, res) => {
+  try {
+    const value = await configService.getSetting(req.params.key);
+    if (value === null) {
+      return res.status(404).json({ error: 'Setting not found' });
+    }
+    res.json({ key: req.params.key, value });
+  } catch (e) {
+    console.error(`Failed to get setting ${req.params.key}`, e);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
 app.post('/api/config', async (req, res) => {
   try {
-    const config = req.body;
-    // For now, just acknowledge the config
-    console.log('[config received]', config);
-    return res.json({ ok: true, config });
-  } catch (e) { console.error(e); return res.status(500).json({ error: 'internal' }); }
+    const { key, value } = req.body;
+    if (!key || value === undefined) {
+      return res.status(400).json({ error: 'Missing key or value' });
+    }
+    await configService.setSetting(key, value);
+    res.json({ success: true });
+  } catch (e) {
+    console.error('Failed to set setting', e);
+    res.status(500).json({ error: 'internal' });
+  }
 });
 
 // Start HTTP server

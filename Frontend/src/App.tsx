@@ -1,4 +1,4 @@
-// import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import Home from './home';
 import { GeneralConfig, IHMConfig, DatabaseConfig, AdminConfig } from './config';
 import Report from './report';
@@ -21,6 +21,28 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 const App = () => {  
   const navigate = useNavigate();
   const location = useLocation();
+  const [sideInfo, setSideInfo] = useState({ granja: 'Granja', proprietario: 'Proprietario' });
+
+  useEffect(() => {
+    const fetchSideInfo = async () => {
+      try {
+        const granjaRes = await fetch('http://localhost:3001/api/config/granja');
+        const proprietarioRes = await fetch('http://localhost:3001/api/config/proprietario');
+
+        const granjaData = await granjaRes.json();
+        const proprietarioData = await proprietarioRes.json();
+
+        setSideInfo({
+          granja: granjaData.value || 'Granja',
+          proprietario: proprietarioData.value || 'Proprietario',
+        });
+      } catch (error) {
+        console.error('Failed to fetch side info:', error);
+      }
+    };
+
+    fetchSideInfo();
+  }, []);
   
   const items=[
     {
@@ -60,7 +82,8 @@ const App = () => {
                   <AvatarFallback><Factory/></AvatarFallback>
                 </Avatar>
                 <div className='flex flex-col font-semibold'>
-                  <h2>Granja Murakami</h2>
+                  <h2>{sideInfo.granja}</h2>
+                  <p className='text-sm'>{sideInfo.proprietario}</p>
                 </div>
               </div>
             </SidebarHeader>
