@@ -26,15 +26,15 @@ const App = () => {
   useEffect(() => {
     const fetchSideInfo = async () => {
       try {
-        const granjaRes = await fetch('http://localhost:3000/api/config/granja');
-        const proprietarioRes = await fetch('http://localhost:3000/api/config/proprietario');
+        const granjaRes =  /* await fetch('http://localhost:3000/api/config/granja') ||*/ "Granja";
+        const proprietarioRes = /* await fetch('http://localhost:3000/api/config/proprietario') || */ "Proprietario";
 
-        const granjaData = await granjaRes.json();
-        const proprietarioData = await proprietarioRes.json();
+        const granjaData = await granjaRes;
+        const proprietarioData = await proprietarioRes;
 
         setSideInfo({
-          granja: granjaData.value || 'Granja',
-          proprietario: proprietarioData.value || 'Proprietario',
+          granja: granjaData || 'Granja',
+          proprietario: proprietarioData || 'Proprietario',
         });
       } catch (error) {
         console.error('Failed to fetch side info:', error);
