@@ -1,4 +1,5 @@
 import { Document, Page, Text, StyleSheet, View, Image, Font } from "@react-pdf/renderer";
+import type { FC } from "react";
 
 Font.register({
   family: "Roboto",
@@ -123,7 +124,7 @@ interface Produto {
   categoria?: string;
 }
 
-interface MyDocumentProps {
+export interface MyDocumentProps {
   total?: number;
   batidas?: number;
   horaInicio?: string;
@@ -135,11 +136,11 @@ interface MyDocumentProps {
   observacoes?: string;
   logoSrc?: string;
   orientation?: "portrait" | "landscape";
-  // formulaSums?: Record<string, number>;
+  formulaSums?: Record<string, number>;
   chartData?: { name: string; value: number }[];
 }
 
-export const MyDocument = ({
+export const MyDocument: FC<MyDocumentProps> = ({
   total,
   batidas,
   horaInicio,
@@ -151,7 +152,7 @@ export const MyDocument = ({
   observacoes = "",
   logoSrc,
   orientation = "portrait",
-  // formulaSums = {},
+  formulaSums = {},
   chartData = [],
 }: MyDocumentProps) => {
   const produtosPorCategoria: Record<string, Produto[]> = {};
@@ -234,6 +235,27 @@ export const MyDocument = ({
               <Text style={styles.tableCol}>{f.nome}</Text>
               <Text style={styles.tableColSmall}>
                 {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    )}
+
+    {/* Somatória calculada (por fórmula) — pode vir do cálculo direto no frontend */}
+    {formulaSums && Object.keys(formulaSums).length > 0 && (
+      <View style={styles.section} wrap={true}>
+        <Text style={styles.sectionTitle}>Somatória por Fórmula (cálculo)</Text>
+        <View style={styles.table}>
+          <View style={styles.tableRow}>
+            <Text style={styles.tableColHeader}>Fórmula</Text>
+            <Text style={styles.tableColHeaderSmall}>Total</Text>
+          </View>
+          {Object.entries(formulaSums).map(([nome, val], i) => (
+            <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+              <Text style={styles.tableCol}>{nome}</Text>
+              <Text style={styles.tableColSmall}>
+                {Number(val).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
               </Text>
             </View>
           ))}

@@ -4,6 +4,8 @@ import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Checkbox } from "./components/ui/checkbox";
 import { Button } from "./components/ui/button";
+import useAuth from './hooks/useAuth';
+import { resolvePhotoUrl } from './lib/photoUtils';
 
 import {
   AlertDialog,
@@ -278,7 +280,58 @@ export function usePersistentForm(key: string) {
 /* ----------------- GERAL ------------------- */
 
 export function GeneralConfig({ configKey = "general-config" }: { configKey?: string }) {
-  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+  const { formData, isEditing, isLoading, onChange } = usePersistentForm(configKey);
+  const { user, updateUser } = useAuth();
+
+  // local preview state for selected photo
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
+
+  useEffect(() => {
+    setPreviewUrl(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
+  }, [user]);
+
+  const saveProfileName = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch('http://localhost:3000/api/auth/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user.username, displayName: formData.nomeCliente }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`update failed: ${res.status} ${txt}`);
+      }
+      const data = await res.json();
+      updateUser(data);
+      // Also persist into general config formData if needed
+      onChange('nomeCliente', data.displayName || formData.nomeCliente);
+    } catch (err) {
+      console.error('Failed to save profile name from general config', err);
+    }
+  };
+
+  const uploadProfilePhoto = async () => {
+    if (!user) return;
+    if (!selectedFile) return;
+    const fd = new FormData();
+    fd.append('username', user.username);
+    fd.append('photo', selectedFile);
+    try {
+      const res = await fetch('http://localhost:3000/api/auth/photo', { method: 'POST', body: fd });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`upload failed: ${res.status} ${txt}`);
+      }
+      const data = await res.json();
+  updateUser(data);
+  setPreviewUrl(data.photoPath ? resolvePhotoUrl(data.photoPath) : previewUrl);
+      setSelectedFile(null);
+    } catch (err) {
+      console.error('Failed to upload profile photo from general config', err);
+    }
+  };
 
   if (isLoading) {
     return <div className="flex justify-center items-center p-8">Loading...</div>;
@@ -300,87 +353,45 @@ export function GeneralConfig({ configKey = "general-config" }: { configKey?: st
         />
       </Label>
 
-      {/* Container MFC agora está no Geral */}
-      <div id="containerMFC" className="flex flex-col md:flex-row justify-between items-center gap-4 p-4 border rounded-lg bg-gray-50 mt-4">
-        <div id="CsvMethod" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
-          <Label className="mb-2 font-medium text-gray-700">Método CSV</Label>
-          <div className="flex gap-4">
-            <Label className="flex items-center gap-1">
-              <input
-                type="radio"
-                value="1"
-                checked={formData.metodoCSV === "1"}
-                onChange={(e) => onChange("metodoCSV", e.target.value)}
-                disabled={!isEditing}
-                className="rounded-full text-blue-600 focus:ring-blue-500"
-              />
-              Único
-            </Label>
-            <Label className="flex items-center gap-1">
-              <input
-                type="radio"
-                value="2"
-                checked={formData.metodoCSV === "2"}
-                onChange={(e) => onChange("metodoCSV", e.target.value)}
-                disabled={!isEditing}
-                className="rounded-full text-blue-600 focus:ring-blue-500"
-              />
-              Mensal
-            </Label>
+      {/* Profile preview + controls inside Geral */}
+      <div className="mt-4 border rounded p-3 bg-gray-50">
+        <h3 className="font-semibold">Meu perfil</h3>
+        <div className="flex items-center gap-4 mt-2">
+          <img src={previewUrl || '/public/logo.png'} alt="avatar" className="w-16 h-16 rounded-full object-cover" />
+          <div className="flex-grow">
+            <div className="text-sm font-medium">{user?.displayName || user?.username}</div>
+            <div className="text-xs text-gray-500">{user?.username}</div>
+            <div className="mt-2 flex gap-2">
+              <input type="file" onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)} />
+              <Button onClick={uploadProfilePhoto} disabled={!selectedFile} className="bg-green-600">Enviar</Button>
+            </div>
           </div>
         </div>
+        <div className="mt-3">
+          <Label className="font-medium">Usar nome do cliente como meu nome</Label>
+          <div className="flex gap-2 mt-2">
+            <Button onClick={() => saveProfileName()} disabled={!user} className="bg-blue-600">Sincronizar nome</Button>
+          </div>
+        </div>
+      </div>
 
-        <div id="formule" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
-          <Label className="font-medium text-gray-700">Fórmula</Label>
-          <Label className="flex items-center gap-2 mt-2">
-            <Checkbox
-              id="formula"
-              checked={formData.habilitarCSV}
-              onCheckedChange={(checked) => onChange("habilitarCSV", !!checked)}
+      {/* Admin-only: definir nome da granja */}
+      {user?.isAdmin && (
+        <div className="mt-4 border rounded p-3 bg-white">
+          <h3 className="font-semibold">Configurações da granja (Admin)</h3>
+          <Label className="mt-2">
+            Nome da granja
+            <Input
+              type="text"
+              value={formData.nomeCliente || ''}
+              onChange={(e) => onChange('nomeCliente', e.target.value)}
               disabled={!isEditing}
-              className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+              className="mt-2"
             />
-            Habilitar
           </Label>
         </div>
+      )}
 
-        <div id="CsvImport" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
-          <Label className="font-medium text-gray-700">Importar CSV</Label>
-          <Button disabled={!isEditing} className="w-full mt-2 bg-blue-600 hover:bg-blue-700">
-            Importar
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex gap-2 justify-end mt-6">
-        {isEditing ? (
-          <>
-            <Button 
-              id="cancel" 
-              onClick={onCancel}
-              variant="outline"
-              className="border-gray-300 text-gray-700 hover:bg-gray-100"
-            >
-              Cancelar
-            </Button>
-            <Button 
-              id="save" 
-              onClick={onSave}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Salvar
-            </Button>
-          </>
-        ) : (
-          <Button 
-            id="edit" 
-            onClick={onEdit}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            Editar
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
@@ -715,7 +726,61 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           </AlertDialogContent>
         </AlertDialog>
       </div>
+       
+
       
+      {/* Container MFC agora está no Geral */}
+      <div id="containerMFC" className="flex flex-col md:flex-row justify-between items-center gap-4 p-4 border rounded-lg bg-gray-50 mt-4">
+        <div id="CsvMethod" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
+          <Label className="mb-2 font-medium text-gray-700">Método CSV</Label>
+          <div className="flex gap-4">
+            <Label className="flex items-center gap-1">
+              <input
+                type="radio"
+                value="1"
+                checked={formData.metodoCSV === "1"}
+                onChange={(e) => onChange("metodoCSV", e.target.value)}
+                disabled={!isEditing}
+                className="rounded-full text-blue-600 focus:ring-blue-500"
+              />
+              Único
+            </Label>
+            <Label className="flex items-center gap-1">
+              <input
+                type="radio"
+                value="2"
+                checked={formData.metodoCSV === "2"}
+                onChange={(e) => onChange("metodoCSV", e.target.value)}
+                disabled={!isEditing}
+                className="rounded-full text-blue-600 focus:ring-blue-500"
+              />
+              Mensal
+            </Label>
+          </div>
+        </div>
+
+        <div id="formule" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
+          <Label className="font-medium text-gray-700">Fórmula</Label>
+          <Label className="flex items-center gap-2 mt-2">
+            <Checkbox
+              id="formula"
+              checked={formData.habilitarCSV}
+              onCheckedChange={(checked) => onChange("habilitarCSV", !!checked)}
+              disabled={!isEditing}
+              className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+            />
+            Habilitar
+          </Label>
+        </div>
+
+        <div id="CsvImport" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
+          <Label className="font-medium text-gray-700">Importar CSV</Label>
+          <Button disabled={!isEditing} className="w-full mt-2 bg-blue-600 hover:bg-blue-700">
+            Importar
+          </Button>
+        </div>
+      </div>
+
       <div className="flex gap-2 justify-end mt-6">
         {isEditing ? (
           <>
@@ -745,6 +810,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           </Button>
         )}
       </div>
+
     </div>
   );
 }

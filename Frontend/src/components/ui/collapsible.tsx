@@ -12,6 +12,9 @@ function CollapsibleTrigger({
   return (
     <CollapsiblePrimitive.CollapsibleTrigger
       data-slot="collapsible-trigger"
+      // use the child element as the trigger to avoid creating an extra
+      // <button> (prevents nested <button> warnings when children are buttons)
+      asChild
       {...props}
     />
   )

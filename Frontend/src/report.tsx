@@ -35,7 +35,7 @@ import { Button, buttonVariants } from "./components/ui/button";
 import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
 
-import { PDFDownloadLink } from "@react-pdf/renderer";
+import { PDFDownloadLink, pdf } from "@react-pdf/renderer";
 import { MyDocument } from "./Pdf";
 
 export default function Report() {
@@ -582,9 +582,7 @@ export default function Report() {
               <Button
                 className="w-24 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
                 onClick={async () => {
-                  const { pdf } = await import("@react-pdf/renderer");
-                  const { MyDocument } = await import("./Pdf");
-
+                  // Use the statically imported pdf and MyDocument to avoid double-import warnings
                   const blob = await pdf(
                     <MyDocument
                       total={Number(tableSelection.total) || 0}

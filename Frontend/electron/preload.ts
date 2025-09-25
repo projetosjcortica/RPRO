@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
-
+import { IpcRendererEvent } from 'electron';
+const { contextBridge, ipcRenderer } = require('electron');
 export type FormData = {
   nomeCliente: string;
   ip: string;
@@ -17,6 +17,7 @@ export type FormData = {
   dumpDir: string;
   batchDumpDir: string;
 }; 
+
 type ChildEvent = { pid: number; data?: any } | { pid: number; code?: number | null; signal?: string | null };
 
 type StartForkResult = { ok: true; pid: number } | { ok: false; reason: string };
@@ -42,8 +43,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // stop/kill a forked child by pid
   stopChild: (pid: number) => ipcRenderer.invoke('stop-child', { pid }) as Promise<{ ok: boolean; reason?: string }>,
   // event listeners from main (forwarded from child)
-  onChildMessage: (fn: (evt: IpcRendererEvent, data: ChildEvent) => void) => ipcRenderer.on('child-message', (e, data) => fn(e, data)),
-  onChildStdout: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => ipcRenderer.on('child-stdout', (e, data) => fn(e, data)),
-  onChildStderr: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => ipcRenderer.on('child-stderr', (e, data) => fn(e, data)),
-  onChildExit: (fn: (evt: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => void) => ipcRenderer.on('child-exit', (e, data) => fn(e, data)),
+  onChildMessage: (fn: (evt: IpcRendererEvent, data: ChildEvent) => void) => ipcRenderer.on('child-message', (e: IpcRendererEvent, data: ChildEvent) => fn(e, data)),
+  onChildStdout: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => ipcRenderer.on('child-stdout', (e: IpcRendererEvent, data: { pid: number; data: string }) => fn(e, data)),
+  onChildStderr: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => ipcRenderer.on('child-stderr', (e: IpcRendererEvent, data: { pid: number; data: string }) => fn(e, data)),
+  onChildExit: (fn: (evt: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => void) => ipcRenderer.on('child-exit', (e: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => fn(e, data)),
 });

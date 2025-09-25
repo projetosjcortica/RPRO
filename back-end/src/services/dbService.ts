@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
-import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting } from '../entities/index';
+import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User } from '../entities/index';
 import { getRuntimeConfig } from '../core/runtimeConfig';
 
 export class DBService extends BaseService {
@@ -43,7 +43,7 @@ export class DBService extends BaseService {
           database: finalDb,
           synchronize: true,
           logging: false,
-          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
+          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User],
         });
       } else {
         const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
@@ -55,7 +55,7 @@ export class DBService extends BaseService {
           database: absPath,
           synchronize: shouldSync,
           logging: false,
-          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
+          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User],
         });
       }
       await this.ds.initialize();
@@ -73,7 +73,7 @@ export class DBService extends BaseService {
             database: absPath,
             synchronize: true,
             logging: false,
-            entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
+            entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User],
           });
           await this.ds.initialize();
           this.useMysql = false;

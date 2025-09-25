@@ -6,3 +6,4 @@ export * from './CacheFile';
 export * from './Estoque';
 export * from './MovimentacaoEstoque';
 export * from './Setting';
+export * from './User';

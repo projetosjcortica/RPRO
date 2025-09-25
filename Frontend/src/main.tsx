@@ -170,6 +170,7 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { RuntimeConfigProvider } from './hooks/useRuntimeConfig';
+import { AuthProvider } from './hooks/useAuth';
 import { Processador, getProcessador, setProcessador } from './Processador' // Ajuste o caminho se necessário
 import { BrowserRouter } from 'react-router-dom' // Se estiver usando rotas
 
@@ -204,9 +205,11 @@ processador.ping()
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RuntimeConfigProvider>
-    <BrowserRouter> {/* Se estiver usando rotas */}
-      <App />
-    </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter> {/* Se estiver usando rotas */}
+          <App />
+        </BrowserRouter>
+      </AuthProvider>
     </RuntimeConfigProvider>
   </React.StrictMode>,
 )
