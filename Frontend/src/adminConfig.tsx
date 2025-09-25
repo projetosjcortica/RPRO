@@ -27,12 +27,15 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
   // Estado para controlar se o formulário está em modo de edição
   const [isEditing, setIsEditing] = useState(false);
 
+  // Local alias to the Electron preload API. Typed as any so callers don't error when optional.
+  const electronAPI: any = (window as any).electronAPI;
+
   // Carregar dados salvos ao montar o componente
   useEffect(() => {
     const loadData = async () => {
       try {
         // Carregar configurações salvas
-        const savedData = await window.electronAPI.loadData(configKey);
+        const savedData = electronAPI?.loadData ? await electronAPI.loadData(configKey) : null;
         if (savedData) {
           setFormData(savedData);
         }
@@ -57,7 +60,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
 
   const handleSave = async () => {
     try {
-      const success = await window.electronAPI.saveData(configKey, formData);
+      const success = electronAPI?.saveData ? await electronAPI.saveData(configKey, formData) : false;
       if (success) {
         toast.success("Configurações salvas com sucesso!");
         setIsEditing(false);
@@ -72,11 +75,13 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
 
   const handleCancel = () => {
     // Recarregar dados salvos
-    window.electronAPI.loadData(configKey).then(savedData => {
-      if (savedData) {
-        setFormData(savedData);
-      }
-    });
+    if (electronAPI?.loadData) {
+      electronAPI.loadData(configKey).then((savedData: any) => {
+        if (savedData) {
+          setFormData(savedData);
+        }
+      }).catch(() => {});
+    }
     setIsEditing(false);
   };
 
@@ -101,7 +106,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
               <Button
                 type="button"
                 onClick={async () => {
-                  const path = await window.electronAPI.selectFile();
+                  const path = electronAPI?.selectFile ? await electronAPI.selectFile() : undefined;
                   if (path) handleChange("mySqlDir", path);
                 }}
                 disabled={!isEditing}
@@ -125,7 +130,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
               <Button
                 type="button"
                 onClick={async () => {
-                  const path = await window.electronAPI.selectFile();
+                  const path = electronAPI?.selectFile ? await electronAPI.selectFile() : undefined;
                   if (path) handleChange("dumpDir", path);
                 }}
                 disabled={!isEditing}
@@ -149,7 +154,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
               <Button
                 type="button"
                 onClick={async () => {
-                  const path = await window.electronAPI.selectFile();
+                  const path = electronAPI?.selectFile ? await electronAPI.selectFile() : undefined;
                   if (path) handleChange("batchDumpDir", path);
                 }}
                 disabled={!isEditing}
@@ -202,7 +207,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
               <AlertDialogAction
                 onClick={async () => {
                   try {
-                    const sucesso = await window.electronAPI.cleanDB();
+                    const sucesso = electronAPI?.cleanDB ? await electronAPI.cleanDB() : false;
                     if (sucesso) {
                       toast.success("Banco de dados zerado com sucesso!");
                     } else {

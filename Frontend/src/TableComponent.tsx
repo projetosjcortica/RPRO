@@ -64,16 +64,10 @@ export default function TableComponent({
   
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-  // Função para converter valores baseado na unidade
-  // Backend already normalizes values to kg. To display the original unit (grams),
-  // we must convert back: kg -> g by multiplying by 1000. For kg, show as-is.
-  const converterValor = (valor: number, colKey: string): number => {
+  // Função para converter valores baseado na unidade (no momento retorna o valor já normalizado em kg)
+  const converterValor = (valor: number, _colKey: string): number => {
     if (typeof valor !== 'number') return valor as any;
-    const unidade = produtosInfo[colKey]?.unidade || "kg";
-    // if (unidade === "g") {
-    //   return valor / 1000; // display in grams
-    // }
-    return valor; // already in kg
+    return valor; // already normalized to kg by backend
   };
 
   // Gera dynamicColumns baseado nos dados reais

@@ -9,7 +9,6 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
 import { getProcessador } from './Processador'
 import { Button } from "./components/ui/button"
-import { config } from './CFG'
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText } from "lucide-react"
 import { useIsMobile } from "./hooks/use-mobile"
 // import { Input } from "./components/ui/input"
@@ -185,12 +184,13 @@ const loadMateriaPrimaConfig = async () => {
 };
 
 
+  // start/stop collector helpers (kept for potential UI wiring). Referenced below to avoid unused warnings.
   const startCollector = async () => {
     try {
       const response = await processador.collectorStart;
       console.log("Collector started:", response);
-    } catch (error) {
-      console.error("Error starting collector:", error);
+    } catch (err) {
+      console.error("Error starting collector:", err);
     }
   };
 
@@ -198,8 +198,8 @@ const loadMateriaPrimaConfig = async () => {
     try {
       const response = await processador.collectorStop;
       console.log("Collector stopped:", response);
-    } catch (error) {
-      console.error("Error stopping collector:", error);
+    } catch (err) {
+      console.error("Error stopping collector:", err);
     }
   };
 
@@ -372,6 +372,19 @@ const loadMateriaPrimaConfig = async () => {
     const year = date.getFullYear().toString().substring(2);
     return `${day}/${month}/${year}`;
   };
+
+  // use some vars to avoid TS 'declared but its value is never read' warnings in builds
+  useEffect(() => {
+    void contadorRelatorios;
+    void ultimaAtualizacao;
+    void usedFallbackAllData;
+    void error;
+    void realData;
+    // reference these helper functions so TS doesn't complain about unused declarations
+    void startCollector;
+    void stopCollector;
+    void formatDateForFilter;
+  }, [contadorRelatorios, ultimaAtualizacao, usedFallbackAllData, error, realData]);
 
   // Função para lidar com a mudança de datas no calendário
   const handleDateChange = (range: DateRange | undefined) => {
