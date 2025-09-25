@@ -2,8 +2,8 @@ import "reflect-metadata";
 import fs from "fs";
 import path from "path";
 import { AppDataSource, dbService } from "./services/dbService";
-import { backupSvc } from "./services/BackupService";
-import { parserService } from "./services/ParserService";
+import { backupSvc } from "./services/backupService";
+import { parserService } from "./services/parserService";
 import { fileProcessorService } from "./services/fileProcessorService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
@@ -14,7 +14,9 @@ import { Relatorio, MateriaPrima, Batch } from "./entities";
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
 import cors from "cors";
+import multer from 'multer';
 import { configService } from "./services/configService";
+import { setRuntimeConfigs } from './core/runtimeConfig';
 
 // Collector
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || "60000");
@@ -52,10 +54,13 @@ export async function startCollector() {
 
 // Ensure database connection before starting
 async function ensureDatabaseConnection() {
-  if (!AppDataSource.isInitialized) {
-    console.log("Initializing database connection...");
-    await AppDataSource.initialize();
-    console.log("Database connection established.");
+  try {
+    // dbService.init() handles MySQL initialization and will fallback to SQLite
+    await dbService.init();
+    console.log("Database connection established (via dbService)");
+  } catch (e) {
+    console.warn('[DB] ensureDatabaseConnection failed:', String(e));
+    throw e;
   }
 }
 
@@ -111,8 +116,8 @@ app.get("/api/materiaprima/labels", async (req, res) => {
           typeof m.medida === "number"
             ? m.medida
             : m.medida
-            ? Number(m.medida)
-            : 1,
+              ? Number(m.medida)
+              : 1,
       };
     }
     return res.json(mapping);
@@ -179,6 +184,32 @@ app.get("/api/file/process", async (req, res) => {
     return res
       .status(e?.status || 500)
       .json({ error: e?.message || "internal" });
+  }
+});
+
+// Upload CSV and import into DB. Form field: `file` (multipart/form-data)
+const upload = multer({ dest: TMP_DIR });
+app.post('/api/file/upload', upload.single('file'), async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const f: any = req.file;
+    if (!f) return res.status(400).json({ error: 'file is required (field name: file)' });
+    // Determine the saved path (multer uses f.path in some setups, otherwise use destination+filename)
+    const savedPath = f.path || (f.destination ? path.join(f.destination, f.filename) : null);
+    if (!savedPath || !fs.existsSync(savedPath)) return res.status(500).json({ error: 'uploaded file not found on server' });
+
+    // Backup the uploaded file
+    const meta = await backupSvc.backupFile({ originalname: f.originalname || f.filename, path: savedPath, size: f.size });
+    // Parse
+    const parsed = await parserService.processFile(savedPath);
+    // Insert into DB
+    if (parsed.rows && parsed.rows.length > 0) {
+      await dbService.insertRelatorioRows(parsed.rows as any[], meta.workPath || meta.backupPath || path.basename(savedPath));
+    }
+    return res.json({ ok: true, meta, processed: { rowsCount: parsed.rows.length, processedPath: parsed.processedPath } });
+  } catch (e: any) {
+    console.error('[api/file/upload] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
 
@@ -283,7 +314,7 @@ app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GE
         const fStr = String(formulaRaw).toLowerCase();
         qb.andWhere("LOWER(r.Nome) LIKE :fStr", { fStr: `%${fStr}%` });
       }
-    } 
+    }
 
     if (dataInicio) qb.andWhere("r.Dia >= :ds", { ds: dataInicio });
     if (dataFim) qb.andWhere("r.Dia <= :de", { de: dataFim });
@@ -317,17 +348,25 @@ app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GE
     }
 
     // Map rows to include values array from Prod_1 to Prod_40
+    // Normalize product values according to MateriaPrima.measure (grams->kg)
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
     const mappedRows = rows.map((row: any) => {
       const values: number[] = [];
       for (let i = 1; i <= 40; i++) {
         const prodValue = row[`Prod_${i}`];
-        values.push(
-          typeof prodValue === "number"
-            ? prodValue
-            : prodValue != null
-            ? Number(prodValue)
-            : 0
-        );
+        let v = typeof prodValue === 'number' ? prodValue : prodValue != null ? Number(prodValue) : 0;
+        const materia = materiasByNum[i];
+        // If materia exists and medida===0 (grams), normalize to kg by dividing 1000
+        if (materia && Number(materia.medida) === 0 && v) {
+          v = v / 1000;
+        }
+        values.push(v);
       }
 
       return {
@@ -448,17 +487,24 @@ app.post("/api/relatorio/paginate", async (req, res) => {// quero que seja pro G
     }
 
     // Map rows to include values array from Prod_1 to Prod_40
+    // Normalize product values according to MateriaPrima.measure (grams->kg)
+    const materiasPost = await materiaPrimaService.getAll();
+    const materiasByNumPost: Record<number, any> = {};
+    for (const m of materiasPost) {
+      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNumPost[n] = m;
+    }
+
     const mappedRows = rows.map((row: any) => {
       const values: number[] = [];
       for (let i = 1; i <= 40; i++) {
         const prodValue = row[`Prod_${i}`];
-        values.push(
-          typeof prodValue === "number"
-            ? prodValue
-            : prodValue != null
-            ? Number(prodValue)
-            : 0
-        );
+        let v = typeof prodValue === 'number' ? prodValue : prodValue != null ? Number(prodValue) : 0;
+        const materia = materiasByNumPost[i];
+        if (materia && Number(materia.medida) === 0 && v) {
+          v = v / 1000;
+        }
+        values.push(v);
       }
 
       return {
@@ -592,14 +638,27 @@ app.get("/api/resumo", async (req, res) => {
   try {
     const areaId = req.query.areaId ? String(req.query.areaId) : null;
     const formula = req.query.formula ? String(req.query.formula) : null;
+    const nomeFormula = req.query.nomeFormula ? String(req.query.nomeFormula) : null;
+    const codigo = req.query.codigo != null ? Number(String(req.query.codigo)) : null;
+    const numero = req.query.numero != null ? Number(String(req.query.numero)) : null;
     const dataInicio = req.query.dataInicio
       ? String(req.query.dataInicio)
       : null;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : null;
 
+    // If nomeFormula looks like a number, prefer numeric formula filtering
+    let numericFormula: number | null = null;
+    if (nomeFormula != null && nomeFormula !== '') {
+      const nf = Number(nomeFormula);
+      if (Number.isFinite(nf)) numericFormula = nf;
+    }
+
     const result = await resumoService.getResumo({
       areaId,
-      formula: formula ? Number(formula) : null,
+      formula: numericFormula != null ? numericFormula : (formula !== null && formula !== '' ? Number(formula) : null),
+      formulaName: numericFormula == null ? nomeFormula : null,
+      codigo: Number.isFinite(codigo) ? codigo : null,
+      numero: Number.isFinite(numero) ? numero : null,
       dateStart: dataInicio,
       dateEnd: dataFim,
     });
@@ -701,14 +760,14 @@ app.get('/api/filtrosAvaliable', async (req, res) => {
     // Use resumoService to compute formulas used in the given period
     const resumo = await resumoService.getResumo({ dateStart, dateEnd });
 
-  const formulasObj = resumo.formulasUtilizadas || {};
-  const formulasAll = Object.values(formulasObj).map((f: any) => ({ nome: f.nome, codigo: Number(f.numero) }));
-  const formulas = formulasAll.filter((f: any) => !Number.isNaN(f.codigo));
+    const formulasObj = resumo.formulasUtilizadas || {};
+    const formulasAll = Object.values(formulasObj).map((f: any) => ({ nome: f.nome, codigo: Number(f.numero) }));
+    const formulas = formulasAll.filter((f: any) => !Number.isNaN(f.codigo));
 
-  // Extract unique codigos (Form1) from formulas
-  const codigosSet = new Set<number>();
-  formulas.forEach((f) => codigosSet.add(f.codigo));
-  const codigos = Array.from(codigosSet).sort((a, b) => a - b);
+    // Extract unique codigos (Form1) from formulas
+    const codigosSet = new Set<number>();
+    formulas.forEach((f) => codigosSet.add(f.codigo));
+    const codigos = Array.from(codigosSet).sort((a, b) => a - b);
 
     // For numeros (Form2) we need to query DB for distinct Form2 values within date range
     await dbService.init();
@@ -751,7 +810,7 @@ app.post("/api/file/processContent", async (req, res) => {
     // Clean up temp file
     try {
       fs.unlinkSync(tempPath);
-    } catch {}
+    } catch { }
 
     return res.json({ meta: r.meta, rowsCount: r.parsed.rowsCount });
   } catch (e) {
@@ -759,35 +818,112 @@ app.post("/api/file/processContent", async (req, res) => {
     return res.status(500).json({ error: "internal" });
   }
 });
-
-app.get("/api/config/:key", async (req, res) => {
+// envie a config inteira
+app.get("/api/config/", async (req, res) => {
   try {
-    const value = await configService.getSetting(req.params.key);
-    if (value === null) {
-      return res.status(404).json({ error: "Setting not found" });
-    }
-    res.json({ key: req.params.key, value });
+    const config = await configService.getAllSettings();
+    res.json(config);
   } catch (e) {
-    console.error(`Failed to get setting ${req.params.key}`, e);
+    console.error("Failed to get config", e);
     res.status(500).json({ error: "internal" });
   }
 });
 
-/**
- * @example { "key": "ipIhm", "value": "192.168.0.1" }
- * 
- */
+app.get('/api/config/:key', async (req, res) => {
+  try {
+    const key = req.params.key;
+    if (!key) {
+      return res.status(400).json({ error: "Key parameter is required" });
+    }
+    const value = await configService.getSetting(key);
+
+    // If value is null (not set), return an empty object instead of 404 so frontend
+    // can handle missing configs gracefully without noisy 404s.
+    if (value === null) {
+      return res.json({ key, value: {} });
+    }
+
+    res.json({ key, value });
+  } catch (e) {
+    console.error("Failed to get setting", e);
+    res.status(500).json({ error: "internal" });
+  }
+}
+);
+
+
 app.post("/api/config", async (req, res) => {
   try {
-    const { key, value } = req.body;
-    if (!key || value === undefined) {
-      return res.status(400).json({ error: "Missing key or value" });
+    const configObj = req.body;
+    if (!configObj || typeof configObj !== "object" || Array.isArray(configObj)) {
+      return res.status(400).json({ error: "Request body must be a JSON object with config keys/values" });
     }
-    await configService.setSetting(key, value);
-    res.json({ success: true });
+    const keys = Object.keys(configObj);
+    if (keys.length === 0) {
+      return res.status(400).json({ error: "No config keys provided" });
+    }
+    // Salva todas as configurações de uma vez e atualiza runtime
+    await configService.setSettings(configObj);
+    try { setRuntimeConfigs(configObj); } catch (e) { /* ignore */ }
+    res.json({ success: true, saved: keys });
   } catch (e) {
-    console.error("Failed to set setting", e);
+    console.error("Failed to set settings", e);
     res.status(500).json({ error: "internal" });
+  }
+});
+
+// Provide chart-oriented data for frontend dashboards
+app.get('/api/chartdata', async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    // Optional query params: limit, dateStart, dateEnd
+    const limit = Number(req.query.limit || 500);
+    const dateStart = req.query.dateStart ? String(req.query.dateStart) : null;
+    const dateEnd = req.query.dateEnd ? String(req.query.dateEnd) : null;
+
+    const qb = repo.createQueryBuilder('r').orderBy('r.Dia', 'DESC').addOrderBy('r.Hora', 'DESC').take(limit);
+    if (dateStart) qb.andWhere('r.Dia >= :ds', { ds: dateStart });
+    if (dateEnd) qb.andWhere('r.Dia <= :de', { de: dateEnd });
+
+    const rows = await qb.getMany();
+
+    // Load materia prima units
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    const mapped = rows.map((r: any) => {
+      const values: number[] = [];
+      const units: Record<string, string> = {};
+      for (let i = 1; i <= 40; i++) {
+        const v = typeof r[`Prod_${i}`] === 'number' ? r[`Prod_${i}`] : (r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0);
+        // Provide units per product (g or kg). Use medida==0 => 'g', else 'kg'
+        const mp = materiasByNum[i];
+        const unidade = mp && Number(mp.medida) === 0 ? 'g' : 'kg';
+        values.push(v);
+        units[`Unidade_${i}`] = unidade;
+      }
+
+      return {
+        Nome: r.Nome || '',
+        values,
+        Dia: r.Dia || '',
+        Hora: r.Hora || '',
+        Form1: r.Form1 ?? null,
+        Form2: r.Form2 ?? null,
+        ...units,
+      };
+    });
+
+    return res.json({ rows: mapped, total: mapped.length, ts: new Date().toISOString() });
+  } catch (e) {
+    console.error('[api/chartdata] error', e);
+    return res.status(500).json({ error: 'internal' });
   }
 });
 
@@ -803,6 +939,18 @@ fileProcessorService.addObserver({
   },
 });
 
-app.listen(HTTP_PORT, () =>
-  console.log(`API server running on port ${HTTP_PORT}`)
-);
+// Load saved config into runtime store before starting
+(async () => {
+  try {
+    await ensureDatabaseConnection();
+    const all = await configService.getAllSettings();
+    setRuntimeConfigs(all);
+    console.log('[Server] Loaded runtime configs from DB:', Object.keys(all).length);
+  } catch (e) {
+    console.warn('[Server] Could not load runtime configs at startup:', String(e));
+  }
+
+  app.listen(HTTP_PORT, () =>
+    console.log(`API server running on port ${HTTP_PORT}`)
+  );
+})();

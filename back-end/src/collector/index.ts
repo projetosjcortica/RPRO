@@ -2,20 +2,13 @@ import path from 'path';
 import fs from 'fs';
 import { IHMService } from '../services/IHMService';
 import { dbService } from '../services/dbService';
-import { parserService } from '../services/ParserService';
+import { parserService } from '../services/parserService';
 import { setTimeout as wait } from 'timers/promises';
-import { BackupService } from '../services/BackupService';
+import { BackupService } from '../services/backupService';
 import { fileProcessorService } from '../services/fileProcessorService';
 
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
 const TMP_DIR = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
-const rawServer =
-  process.env.INGEST_URL || process.env.SERVER_URL || 'http://192.168.5.254';
-const SERVER_URL = /^(?:https?:)\/\//i.test(rawServer)
-  ? rawServer
-  : `http://${rawServer}`;
-const INGEST_TOKEN = process.env.INGEST_TOKEN;
-
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
 let STOP = false;

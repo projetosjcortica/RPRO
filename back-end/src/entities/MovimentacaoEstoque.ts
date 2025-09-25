@@ -27,11 +27,9 @@ export class MovimentacaoEstoque {
   @Column({ type: 'varchar', length: 36 })
   materia_prima_id!: string;
 
-  @Column({
-    type: 'enum',
-    enum: TipoMovimentacao,
-    default: TipoMovimentacao.ENTRADA
-  })
+  // Use varchar for portability: SQLite doesn't support enum types.
+  // Keep the TypeScript enum for typing and use the enum values as defaults.
+  @Column({ type: 'varchar', length: 20, default: TipoMovimentacao.ENTRADA })
   tipo!: TipoMovimentacao;
 
   @Column({ type: 'decimal', precision: 10, scale: 3 })

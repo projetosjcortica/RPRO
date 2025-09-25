@@ -56,7 +56,7 @@ function aggregate(rows: Entry[]): { chartData: ChartDatum[]; formulaSums: Formu
   const chartData = Object.entries(sums).map(([name, value]) => ({ name, value }))
   return { chartData, formulaSums: sums, validCount: valid.length }
 }
-function aggregateProducts(rows: Entry[]): { productData: ChartDatum[]; productSums: Record<string, number>; totalProducts: number } {
+function aggregateProducts(rows: Entry[], materiaPrimaConfig: any[] = []): { productData: ChartDatum[]; productSums: Record<string, number>; totalProducts: number } {
   const valid = rows.filter(r => r && Array.isArray(r.values) && r.values.length > 0);
   const productSums: Record<string, number> = {};
   const productUnits: Record<string, 'g' | 'kg'> = {};
@@ -64,14 +64,16 @@ function aggregateProducts(rows: Entry[]): { productData: ChartDatum[]; productS
   for (const r of valid) {
     r.values.forEach((value, index) => {
       const colKey = `col${index + 6}`;
-      const mpConfig = materiaPrimaConfig.find(mp => mp.colKey === colKey);
-      
+      const mpConfig = materiaPrimaConfig.find((mp: any) => mp.colKey === colKey);
+
+      // Prefer per-row unit metadata if available, otherwise fallback to materiaPrimaConfig
       let unit: 'g' | 'kg' = 'kg';
       let conversionFactor = 1;
-
-      if (mpConfig) {
-        unit = mpConfig.unidade;
-        // Converter para kg se for gramas
+      if (r.unidadesProdutos && r.unidadesProdutos[index]) {
+        unit = r.unidadesProdutos[index];
+        conversionFactor = unit === 'g' ? 0.001 : 1;
+      } else if (mpConfig) {
+        unit = (mpConfig.unidade || mpConfig.medida) === 'g' ? 'g' : 'kg';
         conversionFactor = unit === 'g' ? 0.001 : 1;
       }
 
@@ -120,6 +122,7 @@ export default function Home() {
   const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set())
   const [contadorRelatorios, setContadorRelatorios] = useState<number>(0)
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<string | null>(null)
+  const [usedFallbackAllData, setUsedFallbackAllData] = useState<boolean>(false)
   // Estado para o diálogo de todos os produtos
   const [showAllProducts, setShowAllProducts] = useState<boolean>(false)
   const [allProductsDialogData, setAllProductsDialogData] = useState<{
@@ -135,6 +138,7 @@ export default function Home() {
   })
 
   const processador = getProcessador();
+  // prefira usar fetch('/api/xyz') para chamadas HTTP normais
 
   
 // Função para carregar configuração
@@ -206,53 +210,71 @@ const loadMateriaPrimaConfig = async () => {
 
       let loadedRows: Entry[] = []
       let usingRealData = false
+      // Preferred: fetch chart data from backend /api/chartdata
+      try {
+        const params = new URLSearchParams();
+        params.set('limit', '500');
+        // optionally pass date range (last 30 days)
+        const dateStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const dateEnd = new Date().toISOString().split('T')[0];
+        params.set('dateStart', dateStart);
+        params.set('dateEnd', dateEnd);
 
-      if (config.contextoPid) {
-        try {
-          const p = getProcessador(config.contextoPid)
-          const tableResult = await p.relatorioPaginate(1, 300, {
-            dateStart: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            dateEnd: new Date().toISOString().split('T')[0]
-          })
+        // First attempt: date-limited fetch
+        const res = await fetch(`/api/chartdata?${params.toString()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        let rowsResp = Array.isArray(body.rows) ? body.rows : [];
 
-          // Atualizar contador de relatórios
-          setContadorRelatorios(tableResult.total || 0)
-
-          // Definir data da última atualização
-          setUltimaAtualizacao(new Date().toLocaleString('pt-BR'))
-
-          const mapped: Entry[] = (tableResult.rows || []).map((r: any) => {
-            const values: number[] = [];
-            // Capturar as unidades dos produtos (g ou kg)
-            const unidadesProdutos: ('g' | 'kg')[] = [];
-            
-            for (let i = 1; i <= 40; i++) {
-              const v = r[`Prod_${i}`];
-              // Capturar unidade do produto do backend, padrão é 'kg' se não especificado
-              const unidade = r[`Unidade_${i}`] === 'g' ? 'g' : 'kg';
-              unidadesProdutos.push(unidade);
-              
-              values.push(typeof v === 'number' ? v : (v != null ? Number(v) : 0));
+        // If date-limited returned no rows, as a last resort retry without date filters
+        if ((!rowsResp || rowsResp.length === 0) && (dateStart || dateEnd)) {
+          console.debug('chartdata: date-limited fetch returned 0 rows — attempting fallback to all data');
+          try {
+            const res2 = await fetch(`/api/chartdata?limit=500`);
+            if (res2.ok) {
+              const body2 = await res2.json();
+              rowsResp = Array.isArray(body2.rows) ? body2.rows : [];
+              if (rowsResp && rowsResp.length > 0) {
+                setUsedFallbackAllData(true);
+                console.debug('chartdata: fallback fetch returned', rowsResp.length, 'rows');
+              }
             }
-            return {
-              Nome: r.Nome ?? 'Desconhecido',
-              values,
-              unidadesProdutos,
-              Dia: r.Dia,
-              Hora: r.Hora,
-              Form1: r.Form1 ?? undefined,
-              Form2: r.Form2 ?? undefined,
-            } as Entry
-          })
-
-          loadedRows = mapped
-          usingRealData = true
-        } catch (e) {
-          console.error('Falha ao carregar dados do backend:', e)
-          setError('Não foi possível obter dados do backend. Verifique a conexão.')
+          } catch (fbErr) {
+            console.warn('chartdata: fallback fetch failed', fbErr);
+          }
         }
-      } else {
-        setError('Erro de configuração: contextoPid não está definido')
+
+        setContadorRelatorios(rowsResp.length || 0);
+        setUltimaAtualizacao(new Date().toLocaleString('pt-BR'));
+
+        const mapped: Entry[] = rowsResp.map((r: any) => {
+          const values: number[] = [];
+          const unidadesProdutos: ('g' | 'kg')[] = [];
+          for (let i = 1; i <= 40; i++) {
+            const v = r.values && r.values[i - 1] != null ? Number(r.values[i - 1]) : 0;
+            const unidade = r[`Unidade_${i}`] === 'g' ? 'g' : 'kg';
+            unidadesProdutos.push(unidade);
+            values.push(v);
+          }
+          return {
+            Nome: r.Nome ?? 'Desconhecido',
+            values,
+            unidadesProdutos,
+            Dia: r.Dia,
+            Hora: r.Hora,
+            Form1: r.Form1 ?? undefined,
+            Form2: r.Form2 ?? undefined,
+          } as Entry;
+        });
+
+        // debug: expose a quick sample in console for troubleshooting
+        try { console.debug('chartdata loaded, rows:', mapped.length, mapped[0]); } catch (e) {}
+
+        loadedRows = mapped;
+        usingRealData = true;
+      } catch (e) {
+        console.error('Falha ao carregar dados do backend (chartdata):', e);
+        setError('Não foi possível obter dados do backend. Verifique a conexão.');
       }
 
       setRows(loadedRows)
@@ -267,8 +289,13 @@ const loadMateriaPrimaConfig = async () => {
   }
 
   useEffect(() => {
-
-    loadData();
+    // Ensure materia prima labels/config is loaded first (preferred) then load data
+    loadMateriaPrimaConfig().then(() => {
+      loadData();
+    }).catch(() => {
+      // if config load fails, still attempt to load data
+      loadData();
+    });
     // Configurar atualização periódica
     const intervalo = setInterval(loadData, 60000); // 1 minuto
     return () => clearInterval(intervalo);
@@ -459,7 +486,7 @@ const loadMateriaPrimaConfig = async () => {
     }
 
     const { chartData, formulaSums } = aggregate(filtered)
-    const { productData, totalProducts } = aggregateProducts(filtered)
+  const { productData, totalProducts } = aggregateProducts(filtered, materiaPrimaConfig)
     const total = Object.values(formulaSums).reduce((a, b) => a + b, 0)
 
     return { chartData, sums: formulaSums, total, productData, productTotal: totalProducts, filteredCount: filtered.length }
@@ -517,6 +544,11 @@ const loadMateriaPrimaConfig = async () => {
 
   return (
     <div className="w-full">
+      {usedFallbackAllData && (
+        <div className="bg-yellow-100 border-l-4 border-yellow-400 p-3 mb-4">
+          <div className="text-sm text-yellow-800">Aviso: não foi possível filtrar por data — exibindo todos os dados disponíveis como último recurso.</div>
+        </div>
+      )}
       {/* Status bar */}
       {/* <div className="p-2 md:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
         <div className="text-sm text-gray-600 mb-2 sm:mb-0">
@@ -698,8 +730,8 @@ const loadMateriaPrimaConfig = async () => {
                           />
                           <Pie
                             data={allProductsForChart.map(d => ({ produtos: d.name, quantidade: d.value }))}
-                            dataKey="produtos"
-                            nameKey="quantidade"
+                            dataKey="quantidade"
+                            nameKey="produtos"
                             outerRadius={70}
                             innerRadius={35}
                             labelLine={false}

@@ -75,12 +75,15 @@ const configService = {
 
   async saveConfig(key: string, data: FormData): Promise<boolean> {
     try {
+      // backend now accepts a plain object with multiple keys -> POST { [key]: data }
+      const payload: any = {};
+      payload[key] = data;
       const response = await fetch("/api/config", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ key, value: data }),
+        body: JSON.stringify(payload),
       });
       
       if (!response.ok) {
@@ -91,6 +94,50 @@ const configService = {
       return result.success === true;
     } catch (error) {
       console.error("Failed to save config:", error);
+      throw error;
+    }
+  },
+
+  async saveAllConfigs(): Promise<boolean> {
+    try {
+      // Known config keys used by the frontend
+      const keys = ["general-config", "ihm-config", "db-config", "admin-config"];
+      const combined: Record<string, any> = {};
+
+      for (const k of keys) {
+        try {
+          const res = await fetch(`/api/config/${encodeURIComponent(k)}`);
+          if (!res.ok) continue; // skip missing
+          const js = await res.json();
+          if (js && js.value !== undefined) combined[k] = js.value;
+        } catch (e) {
+          // ignore individual fetch errors
+          console.warn(`Failed to load config for ${k}:`, e);
+        }
+      }
+
+      // Also include any configs stored in localStorage under 'produtosInfo' or similar if needed
+      try {
+        const prodInfo = localStorage.getItem('produtosInfo');
+        if (prodInfo) combined['produtosInfo'] = JSON.parse(prodInfo);
+      } catch (e) {
+        // ignore localStorage parse errors
+      }
+
+      // If nothing to save, return true
+      if (Object.keys(combined).length === 0) return true;
+
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(combined),
+      });
+
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      const result = await response.json();
+      return result.success === true;
+    } catch (error) {
+      console.error('Failed to save all configs:', error);
       throw error;
     }
   },
@@ -192,6 +239,12 @@ function usePersistentForm(key: string) {
         setOriginalData(formData);
         setIsEditing(false);
         toast.success("Data saved successfully!");
+        // After saving this section, attempt to persist all frontend configs to backend
+        try {
+          await configService.saveAllConfigs();
+        } catch (err) {
+          console.warn('Failed to save all configs after section save:', err);
+        }
       } else {
         toast.error("Failed to save data");
       }

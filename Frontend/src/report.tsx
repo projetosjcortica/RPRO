@@ -4,12 +4,10 @@ import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
 
-import { fetchLabels, ColLabel } from "./hooks/useLabelService";
-import { useMateriaPrima } from "./hooks/useMateriaPrima";
 import { useReportData } from "./hooks/useReportData";
 
 import { cn } from "./lib/utils";
-import { syncProductLabels } from "./utils/productSyncHelper";
+// product labels are persisted server-side now
 
 import {
   ChevronsLeft,
@@ -50,7 +48,7 @@ export default function Report() {
 
   const [colLabels, setColLabels] = useState<{ [key: string]: string }>({});
   const [produtosInfo, setProdutosInfo] = useState<
-    Record<string, { nome?: string; unidade?: string }>
+    Record<string, { nome?: string; unidade?: string; num?: number }>
   >({});
   const [view, setView] = useState<"table" | "product">("table");
   const [page, setPage] = useState<number>(1);
@@ -109,9 +107,15 @@ export default function Report() {
           areaId as string | undefined,
           formula as string | undefined,
           dateStart as string | undefined,
-          dateEnd as string | undefined
+          dateEnd as string | undefined,
+          (filtros && filtros.codigo !== undefined && filtros.codigo !== '') ? filtros.codigo : undefined,
+          (filtros && filtros.numero !== undefined && filtros.numero !== '') ? filtros.numero : undefined,
         );
         if (!mounted) return;
+        // Debug: log applied filters from backend if present
+        try {
+          console.debug('[resumo] backend result:', result?._appliedFilters, 'matchedRows:', result?._matchedRows);
+        } catch (e) {}
         setResumo(result || null);
       } catch (err) {
         console.error("Erro ao buscar resumo:", err);
@@ -153,48 +157,71 @@ export default function Report() {
   const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
     setColLabels((prev) => ({ ...prev, [colKey]: newName }));
 
-    // Atualiza também o localStorage para sincronização imediata
-    if (typeof window !== "undefined") {
-      const raw = localStorage.getItem("produtosInfo");
-      const produtosInfo = raw ? JSON.parse(raw) : {};
-      produtosInfo[colKey] = {
-        nome: newName,
-        unidade: unidade || "kg",
-      };
-      localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
+    // Update local state immediately
+    setProdutosInfo((prev) => ({
+      ...prev,
+      [colKey]: { ...(prev[colKey] || {}), nome: newName, unidade: unidade || 'kg' },
+    }));
+
+    // Also persist change to backend by mapping colKey back to num and sending a save request
+    try {
+      const match = colKey.match(/^col(\d+)$/);
+      if (match) {
+        const colIndex = Number(match[1]);
+        const num = colIndex - 5; // reverse colOffset used in backend
+        if (!Number.isNaN(num) && num > 0) {
+          // Send a single-item save to /api/db/setupMateriaPrima with the updated item
+          fetch('/api/db/setupMateriaPrima', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: [{ num, produto: newName, medida: unidade === 'g' ? 0 : 1 }] }),
+          }).then(async (r) => {
+            if (!r.ok) {
+              const txt = await r.text();
+              console.warn('Failed to persist product label to backend', txt);
+            }
+          }).catch(e => console.error('Failed to persist label', e));
+        }
+      }
+    } catch (e) {
+      console.warn('Could not persist product label change to backend', e);
     }
   };
 
   // Load produtosInfo from localStorage once
+  // Load produtosInfo from backend on mount
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const raw = localStorage.getItem("produtosInfo");
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw);
-          setProdutosInfo(parsed || {});
-        } catch (error) {
-          console.error("Erro ao carregar produtosInfo:", error);
-          setProdutosInfo({});
-        }
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetch('/api/materiaprima/labels');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!mounted) return;
+        // data is mapping colKey -> { produto, medida }
+        const parsed: Record<string, any> = {};
+        Object.entries(data).forEach(([colKey, val]: any) => {
+          const medida = typeof val.medida === 'number' ? val.medida : Number(val.medida || 1);
+          const numMatch = colKey.match(/^col(\d+)$/);
+          const num = numMatch ? Number(numMatch[1]) - 5 : undefined;
+          parsed[colKey] = { nome: val.produto || `Produto ${num}`, unidade: medida === 0 ? 'g' : 'kg', num };
+        });
+        setProdutosInfo(parsed);
+      } catch (e) {
+        console.warn('Failed to load product labels from backend', e);
       }
-    }
+    };
+    load();
+    return () => { mounted = false; };
   }, []);
 
   // Função para converter valores baseado na unidade
   const converterValor = (valor: number, colKey?: string): number => {
     if (typeof valor !== "number") return valor;
-
-    let unidade = "kg";
-    if (colKey) {
-      const info = produtosInfo[colKey];
-      if (info && info.unidade) unidade = info.unidade;
-    }
-
-    if (unidade === "g") {
-      return valor / 1000;
-    }
-
+    // When backend normalization is applied, values are already in kg for produtos with medida=0 (server divides by 1000)
+    // But if we still have local info (e.g., fallback), apply conversion here as safety.
+    let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
+    if (unidade === 'g') return valor / 1000;
     return valor;
   };
 
@@ -209,6 +236,7 @@ export default function Report() {
         error={error}
         page={page}
         pageSize={pageSize}
+        produtosInfo={produtosInfo}
       />
     );
   } else if (view === "product") {
@@ -255,12 +283,12 @@ export default function Report() {
         produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
         label = produtosInfo[produtoId]?.nome || key;
 
-        return {
-          colKey: produtoId,
-          nome: label,
-          qtd: Number(val.quantidade) || 0,
-          unidade: val.unidade || "kg",
-        };
+          return {
+            colKey: produtoId,
+            nome: label,
+            qtd: Number(val.quantidade) || 0,
+            unidade: val.unidade || "kg",
+          };
       });
     }
     // fallback to tableSelection
@@ -279,7 +307,6 @@ export default function Report() {
     return acc;
   }, {} as Record<string, number>);
 
-  // === RETORNO JSX ===
   return (
     <div className="flex flex-col gap-7 w-full h-full">
       <div className="h-[80dvh] flex flex-row justify-between w-full">
@@ -408,18 +435,18 @@ export default function Report() {
               </p>
             </div>
             <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
-              <p className="text-center font-semibold">Hora inicial</p>
+              <p className="text-center font-semibold">Periodo inicial</p>
               <p className="text-center text-lg font-bold">
-                {resumo && resumo.horaInicial
-                  ? resumo.horaInicial
+                {resumo && resumo.periodoInicio
+                  ? resumo.periodoInicio
                   : tableSelection.horaInicial}
               </p>
             </div>
             <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
-              <p className="text-center font-semibold">Hora final</p>
+              <p className="text-center font-semibold">Periodo final</p>
               <p className="text-center text-lg font-bold">
-                {resumo && resumo.horaFinal
-                  ? resumo.horaFinal
+                {resumo && resumo.periodoFim
+                  ? resumo.periodoFim
                   : tableSelection.horaFinal}
               </p>
             </div>
@@ -441,16 +468,11 @@ export default function Report() {
                           {produto.nome}
                         </TableCell>
                         <TableCell className="py-1 px-2 text-right">
-                          {Number(
-                            converterValor(Number(produto.qtd), produto.colKey)
-                          ).toLocaleString("pt-BR", {
+                          {Number(produto.qtd).toLocaleString("pt-BR", {
                             minimumFractionDigits: 3,
                             maximumFractionDigits: 3,
                           })}{" "}
-                          {(produto.colKey &&
-                            produtosInfo[produto.colKey]?.unidade) ||
-                            produto.unidade ||
-                            "kg"}
+                          {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || produto.unidade || "kg"}
                         </TableCell>
                       </TableRow>
                     ))
@@ -528,7 +550,7 @@ export default function Report() {
                   const filePath = path.join(os.tmpdir(), "relatorio.pdf");
                   fs.writeFileSync(filePath, Buffer.from(buffer));
 
-                  window.electronAPI.printPDF("/");
+                  (window as any).electronAPI?.printPDF("/");
                 }}
               >
                 Imprimir PDF
