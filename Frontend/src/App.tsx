@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import Home from './home';
 import { GeneralConfig, IHMConfig, DatabaseConfig, AdminConfig } from './config';
 import Report from './report';
@@ -22,27 +23,15 @@ const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [sideInfo, setSideInfo] = useState({ granja: 'Granja', proprietario: 'Proprietario' });
+  const runtime = useRuntimeConfig();
 
   useEffect(() => {
-    const fetchSideInfo = async () => {
-      try {
-        const granjaRes =  /* await fetch('http://localhost:3000/api/config/granja') ||*/ "Granja";
-        const proprietarioRes = /* await fetch('http://localhost:3000/api/config/proprietario') || */ "Proprietario";
-
-        const granjaData = await granjaRes;
-        const proprietarioData = await proprietarioRes;
-
-        setSideInfo({
-          granja: granjaData || 'Granja',
-          proprietario: proprietarioData || 'Proprietario',
-        });
-      } catch (error) {
-        console.error('Failed to fetch side info:', error);
-      }
-    };
-
-    fetchSideInfo();
-  }, []);
+    // If runtime configs are loaded, prefer those values
+    if (!runtime || runtime.loading) return;
+    const g = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
+    const p = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
+    setSideInfo({ granja: g, proprietario: p });
+  }, [runtime]);
   
   const items=[
     {

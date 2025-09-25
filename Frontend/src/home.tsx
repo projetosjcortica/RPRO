@@ -269,7 +269,7 @@ const loadMateriaPrimaConfig = async () => {
 
         // debug: expose a quick sample in console for troubleshooting
         try { console.debug('chartdata loaded, rows:', mapped.length, mapped[0]); } catch (e) {}
-
+        
         loadedRows = mapped;
         usingRealData = true;
       } catch (e) {
@@ -544,8 +544,13 @@ const loadMateriaPrimaConfig = async () => {
 
   return (
     <div className="w-full">
+<<<<<<< HEAD
       {/* Status bar */}
       {/* <div className="p-2 md:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
+=======
+      {/* Status bar */
+      /* <div className="p-2 md:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
+>>>>>>> 4eb554abb94543c7650eb667149d8f3d54f5ef9f
         <div className="text-sm text-gray-600 mb-2 sm:mb-0">
           {realData ? (
             <span className="px-2 py-1 rounded bg-green-100 text-green-700">Dados reais do backend</span>

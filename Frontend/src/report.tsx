@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { format as formatDateFn } from 'date-fns';
 
 import TableComponent from "./TableComponent";
 import Products from "./products";
@@ -153,6 +154,27 @@ export default function Report() {
   }
 }, [resumo, produtosInfo]);
 
+  // Helper to format date strings to dd/MM/yy for user-friendly sideinfo
+  const formatShortDate = (raw?: string | null) => {
+    if (!raw) return "";
+    const s = String(raw).trim();
+    try {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const [y, m, d] = s.split('-').map(Number);
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+      }
+      if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+        const [d, m, y] = s.split('-').map(Number);
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+      }
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yy');
+      return s;
+    } catch (e) {
+      return s;
+    }
+  };
+
 
   // === COLLECTOR FUNCTIONS ===
   const handleCollectorToggle = async () => {
@@ -278,6 +300,9 @@ export default function Report() {
     (_, i) => startPage + i
   );
 
+  // === Chart data calculation ===
+  // chartData was previously computed here but is not used in this component.
+  // Keep calculations localized where needed (e.g., PDF/Chart components).
 
   const displayProducts = useMemo(() => {
     if (
@@ -447,7 +472,7 @@ export default function Report() {
               <p className="text-center font-semibold">Periodo inicial</p>
               <p className="text-center text-lg font-bold">
                 {resumo && resumo.periodoInicio
-                  ? resumo.periodoInicio
+                  ? formatShortDate(resumo.periodoInicio)
                   : tableSelection.horaInicial}
               </p>
             </div>
@@ -455,7 +480,7 @@ export default function Report() {
               <p className="text-center font-semibold">Periodo final</p>
               <p className="text-center text-lg font-bold">
                 {resumo && resumo.periodoFim
-                  ? resumo.periodoFim
+                  ? formatShortDate(resumo.periodoFim)
                   : tableSelection.horaFinal}
               </p>
             </div>
@@ -476,13 +501,13 @@ export default function Report() {
                         <TableCell className="py-1 px-2">
                           {produto.nome}
                         </TableCell>
-                        <TableCell className="py-1 px-2 text-right">
-                          {Number(produto.qtd).toLocaleString("pt-BR", {
-                            minimumFractionDigits: 3,
-                            maximumFractionDigits: 3,
-                          })}{" "}
-                          {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || produto.unidade || "kg"}
-                        </TableCell>
+                            <TableCell className="py-1 px-2 text-right">
+                              {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
+                                minimumFractionDigits: 3,
+                                maximumFractionDigits: 3,
+                              })}{" "}
+                              {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || produto.unidade || "kg"}
+                            </TableCell>
                       </TableRow>
                     ))
                   ) : (

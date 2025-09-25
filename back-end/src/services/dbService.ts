@@ -4,54 +4,64 @@ import path from 'path';
 import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
 import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting } from '../entities/index';
+import { getRuntimeConfig } from '../core/runtimeConfig';
 
 export class DBService extends BaseService {
   ds: DataSource;
   useMysql: boolean;
   sqlitePath?: string;
-  constructor(
-    host = process.env.MYSQL_HOST || 'localhost',
-    port = Number(process.env.MYSQL_PORT || 3306),
-    username = process.env.MYSQL_USER || 'root',
-    password = process.env.MYSQL_PASSWORD || 'root',
-    database = process.env.MYSQL_DB || 'cadastro'
-  ) {
+  constructor() {
     super('DBService');
+    // Do not create DataSource here. We'll initialize it lazily inside init()
+    // so runtime-provided 'db-config' values (loaded at server startup) are used.
+    // Initialize ds with a placeholder; real DataSource will be created in init().
+    // @ts-ignore - assign later in init
+    this.ds = {} as DataSource;
     this.useMysql = process.env.USE_SQLITE !== 'true';
-    if (this.useMysql) {
-      this.ds = new DataSource({
-        type: 'mysql',
-        host,
-        port,
-        username,
-        password,
-        database,
-        synchronize: true,
-        logging: false,
-  entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
-      });
-    } else {
-      const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
-      const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
-      this.sqlitePath = absPath;
-      const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
-      this.ds = new DataSource({
-        type: 'sqlite',
-        database: absPath,
-        synchronize: shouldSync,
-        logging: false,
-  entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
-      });
-    }
   }
   async init() {
-    if (this.ds.isInitialized) return;
+    // If ds already initialized, skip
+    // @ts-ignore
+    if ((this.ds && (this.ds as any).isInitialized)) return;
+
+    // Read runtime DB config (frontend may have saved 'db-config')
+    const runtimeDb = getRuntimeConfig('db-config') || {};
+    const finalHost = runtimeDb.serverDB ?? process.env.MYSQL_HOST ?? 'localhost';
+    const finalPort = Number(runtimeDb.port ?? process.env.MYSQL_PORT ?? 3306);
+    const finalUser = runtimeDb.userDB ?? process.env.MYSQL_USER ?? 'root';
+    const finalPass = runtimeDb.passwordDB ?? process.env.MYSQL_PASSWORD ?? 'root';
+    const finalDb = runtimeDb.database ?? process.env.MYSQL_DB ?? 'cadastro';
+
     try {
+      if (this.useMysql) {
+        this.ds = new DataSource({
+          type: 'mysql',
+          host: finalHost,
+          port: finalPort,
+          username: finalUser,
+          password: finalPass,
+          database: finalDb,
+          synchronize: true,
+          logging: false,
+          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
+        });
+      } else {
+        const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
+        const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
+        this.sqlitePath = absPath;
+        const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
+        this.ds = new DataSource({
+          type: 'sqlite',
+          database: absPath,
+          synchronize: shouldSync,
+          logging: false,
+          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
+        });
+      }
       await this.ds.initialize();
       return;
     } catch (err) {
-      // If MySQL init failed and we intended to use MySQL, fallback to SQLite automatically
-  console.warn('[DBService] DataSource initialization failed:', String(err));
+      console.warn('[DBService] DataSource initialization failed:', String(err));
       if (this.useMysql) {
         try {
           const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
@@ -80,8 +90,35 @@ export class DBService extends BaseService {
   async insertRelatorioRows(rows: any[], processedFile: string) {
     await this.init();
     const repo = this.ds.getRepository(Relatorio);
+    // Helper to normalize a variety of incoming date string formats to YYYY-MM-DD
+    const normalizeDateString = (s: any): string | null => {
+      if (s === undefined || s === null) return null;
+      const str = String(s).trim();
+      if (!str) return null;
+      // Already ISO
+      if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+      // DD-MM-YYYY or DD/MM/YYYY
+      const m1 = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
+      if (m1) {
+        let [_, dd, mm, yy] = m1;
+        dd = dd.padStart(2, '0');
+        mm = mm.padStart(2, '0');
+        if (yy.length === 2) yy = '20' + yy;
+        return `${yy}-${mm}-${dd}`;
+      }
+      // Fallback to Date parse
+      const dt = new Date(str);
+      if (!isNaN(dt.getTime())) {
+        const yy = dt.getFullYear();
+        const mm = String(dt.getMonth() + 1).padStart(2, '0');
+        const dd = String(dt.getDate()).padStart(2, '0');
+        return `${yy}-${mm}-${dd}`;
+      }
+      return null;
+    };
+
     const mapped = rows.map((r: any) => ({
-      Dia: r.Dia ?? null,
+      Dia: normalizeDateString(r.Dia) ?? r.Dia ?? null,
       Hora: r.Hora ?? null,
       Nome: r.Nome ?? r.label ?? null,
       Form1: r.Form1 ?? r.form1 ?? null,

@@ -2,8 +2,8 @@ import "reflect-metadata";
 import fs from "fs";
 import path from "path";
 import { AppDataSource, dbService } from "./services/dbService";
-import { backupSvc } from "./services/backupService";
-import { parserService } from "./services/parserService";
+import { backupSvc } from "./services/BackupService";
+import { parserService } from "./services/ParserService";
 import { fileProcessorService } from "./services/fileProcessorService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
@@ -14,13 +14,23 @@ import { Relatorio, MateriaPrima, Batch } from "./entities";
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
 import cors from "cors";
-import multer from 'multer';
+import multer from "multer";
 import { configService } from "./services/configService";
-import { setRuntimeConfigs } from './core/runtimeConfig';
+import { setRuntimeConfigs, getRuntimeConfig } from "./core/runtimeConfig";
 
 // Collector
-const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || "60000");
-const TMP_DIR = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || "tmp");
+// Prefer runtime-config values (set via POST /api/config) and fall back to environment variables
+const POLL_INTERVAL = Number(
+  getRuntimeConfig("poll_interval_ms") ??
+    process.env.POLL_INTERVAL_MS ??
+    "60000"
+);
+const TMP_DIR = path.resolve(
+  process.cwd(),
+  String(
+    getRuntimeConfig("collector_tmp") ?? process.env.COLLECTOR_TMP ?? "tmp"
+  )
+);
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
 let STOP = false;
@@ -28,10 +38,12 @@ export function stopCollector() {
   STOP = true;
 }
 export async function startCollector() {
+  // Prefer the 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
+  const runtimeIhm = getRuntimeConfig('ihm-config') || {};
   const ihm = new IHMService(
-    process.env.IHM_IP || "192.168.5.254",
-    process.env.IHM_USER || "anonymous",
-    process.env.IHM_PASS || ""
+    String(runtimeIhm.ip ?? getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? '192.168.5.254'),
+    String(runtimeIhm.user ?? getRuntimeConfig('ihm_user') ?? process.env.IHM_USER ?? 'anonymous'),
+    String(runtimeIhm.password ?? getRuntimeConfig('ihm_pass') ?? process.env.IHM_PASS ?? '')
   );
   const collector = {
     async cycle() {
@@ -59,7 +71,7 @@ async function ensureDatabaseConnection() {
     await dbService.init();
     console.log("Database connection established (via dbService)");
   } catch (e) {
-    console.warn('[DB] ensureDatabaseConnection failed:', String(e));
+    console.warn("[DB] ensureDatabaseConnection failed:", String(e));
     throw e;
   }
 }
@@ -83,15 +95,15 @@ function normalizeDateParam(d: any): string | null {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   // If in DD-MM-YYYY convert
   if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
-    const parts = s.split('-');
+    const parts = s.split("-");
     return `${parts[2]}-${parts[1]}-${parts[0]}`;
   }
   // Try Date parse fallback
   const dt = new Date(s);
   if (!isNaN(dt.getTime())) {
     const yy = dt.getFullYear();
-    const mm = String(dt.getMonth() + 1).padStart(2, '0');
-    const dd = String(dt.getDate()).padStart(2, '0');
+    const mm = String(dt.getMonth() + 1).padStart(2, "0");
+    const dd = String(dt.getDate()).padStart(2, "0");
     return `${yy}-${mm}-${dd}`;
   }
   return null;
@@ -116,8 +128,8 @@ app.get("/api/materiaprima/labels", async (req, res) => {
           typeof m.medida === "number"
             ? m.medida
             : m.medida
-              ? Number(m.medida)
-              : 1,
+            ? Number(m.medida)
+            : 1,
       };
     }
     return res.json(mapping);
@@ -189,27 +201,48 @@ app.get("/api/file/process", async (req, res) => {
 
 // Upload CSV and import into DB. Form field: `file` (multipart/form-data)
 const upload = multer({ dest: TMP_DIR });
-app.post('/api/file/upload', upload.single('file'), async (req, res) => {
+app.post("/api/file/upload", upload.single("file"), async (req, res) => {
   try {
     await ensureDatabaseConnection();
     const f: any = req.file;
-    if (!f) return res.status(400).json({ error: 'file is required (field name: file)' });
+    if (!f)
+      return res
+        .status(400)
+        .json({ error: "file is required (field name: file)" });
     // Determine the saved path (multer uses f.path in some setups, otherwise use destination+filename)
-    const savedPath = f.path || (f.destination ? path.join(f.destination, f.filename) : null);
-    if (!savedPath || !fs.existsSync(savedPath)) return res.status(500).json({ error: 'uploaded file not found on server' });
+    const savedPath =
+      f.path || (f.destination ? path.join(f.destination, f.filename) : null);
+    if (!savedPath || !fs.existsSync(savedPath))
+      return res
+        .status(500)
+        .json({ error: "uploaded file not found on server" });
 
     // Backup the uploaded file
-    const meta = await backupSvc.backupFile({ originalname: f.originalname || f.filename, path: savedPath, size: f.size });
+    const meta = await backupSvc.backupFile({
+      originalname: f.originalname || f.filename,
+      path: savedPath,
+      size: f.size,
+    });
     // Parse
     const parsed = await parserService.processFile(savedPath);
     // Insert into DB
     if (parsed.rows && parsed.rows.length > 0) {
-      await dbService.insertRelatorioRows(parsed.rows as any[], meta.workPath || meta.backupPath || path.basename(savedPath));
+      await dbService.insertRelatorioRows(
+        parsed.rows as any[],
+        meta.workPath || meta.backupPath || path.basename(savedPath)
+      );
     }
-    return res.json({ ok: true, meta, processed: { rowsCount: parsed.rows.length, processedPath: parsed.processedPath } });
+    return res.json({
+      ok: true,
+      meta,
+      processed: {
+        rowsCount: parsed.rows.length,
+        processedPath: parsed.processedPath,
+      },
+    });
   } catch (e: any) {
-    console.error('[api/file/upload] error:', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[api/file/upload] error:", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
@@ -247,8 +280,8 @@ app.get("/api/ihm/fetchLatest", async (req, res) => {
   }
 });
 
-
-app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GET e POST
+app.get("/api/relatorio/paginate", async (req, res) => {
+  // quero que seja pro GET e POST
   try {
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
     const pageRaw = req.query.page;
@@ -268,9 +301,13 @@ app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GE
     const formulaRaw = req.query.formula ?? null;
     const dataInicio = req.query.dataInicio ?? null;
     const dataFim = req.query.dataFim ?? null;
+    // Normalize date params to yyyy-mm-dd when present
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
     const sortBy = String(req.query.sortBy || "Dia");
     const sortDir = String(req.query.sortDir || "DESC");
-    const includeProducts = String(req.query.includeProducts || "true") === "true"; // Default to true for values
+    const includeProducts =
+      String(req.query.includeProducts || "true") === "true"; // Default to true for values
 
     try {
       await dbService.init();
@@ -279,12 +316,10 @@ app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GE
         "[relatorio/paginate] Database initialization failed:",
         dbError
       );
-      return res
-        .status(500)
-        .json({
-          error: "Database connection failed",
-          details: dbError?.message,
-        });
+      return res.status(500).json({
+        error: "Database connection failed",
+        details: dbError?.message,
+      });
     }
 
     const repo = AppDataSource.getRepository(Relatorio);
@@ -316,8 +351,28 @@ app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GE
       }
     }
 
-    if (dataInicio) qb.andWhere("r.Dia >= :ds", { ds: dataInicio });
-    if (dataFim) qb.andWhere("r.Dia <= :de", { de: dataFim });
+    if (normDataInicio) qb.andWhere("r.Dia >= :ds", { ds: normDataInicio });
+    // For inclusive end-date when Dia is date-only, compare with exclusive next day
+    if (normDataFim) {
+      // compute next day
+      const parts = normDataFim.split("-");
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFim;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
 
     const allowed = new Set([
       "Dia",
@@ -352,7 +407,7 @@ app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GE
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
-      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
@@ -360,7 +415,12 @@ app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GE
       const values: number[] = [];
       for (let i = 1; i <= 40; i++) {
         const prodValue = row[`Prod_${i}`];
-        let v = typeof prodValue === 'number' ? prodValue : prodValue != null ? Number(prodValue) : 0;
+        let v =
+          typeof prodValue === "number"
+            ? prodValue
+            : prodValue != null
+            ? Number(prodValue)
+            : 0;
         const materia = materiasByNum[i];
         // If materia exists and medida===0 (grams), normalize to kg by dividing 1000
         if (materia && Number(materia.medida) === 0 && v) {
@@ -394,8 +454,8 @@ app.get("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GE
   }
 });
 
-
-app.post("/api/relatorio/paginate", async (req, res) => {// quero que seja pro GET e POST
+app.post("/api/relatorio/paginate", async (req, res) => {
+  // quero que seja pro GET e POST
   try {
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
     const pageRaw = req.body.page;
@@ -414,6 +474,8 @@ app.post("/api/relatorio/paginate", async (req, res) => {// quero que seja pro G
     const numeroRaw = req.body.numero ?? null;
     const dataInicio = req.body.dataInicio ?? null;
     const dataFim = req.body.dataFim ?? null;
+    const normDataInicioBody = normalizeDateParam(dataInicio) || null;
+    const normDataFimBody = normalizeDateParam(dataFim) || null;
     const sortBy = String(req.body.sortBy || "Dia");
     const sortDir = String(req.body.sortDir || "DESC");
     const includeProducts =
@@ -426,12 +488,10 @@ app.post("/api/relatorio/paginate", async (req, res) => {// quero que seja pro G
         "[relatorio/paginate] Database initialization failed:",
         dbError
       );
-      return res
-        .status(500)
-        .json({
-          error: "Database connection failed",
-          details: dbError?.message,
-        });
+      return res.status(500).json({
+        error: "Database connection failed",
+        details: dbError?.message,
+      });
     }
 
     const repo = AppDataSource.getRepository(Relatorio);
@@ -455,8 +515,27 @@ app.post("/api/relatorio/paginate", async (req, res) => {// quero que seja pro G
         // if numero is not numeric, ignore it
       }
     }
-    if (dataInicio) qb.andWhere("r.Dia >= :ds", { ds: dataInicio });
-    if (dataFim) qb.andWhere("r.Dia <= :de", { de: dataFim });
+    if (normDataInicioBody)
+      qb.andWhere("r.Dia >= :ds", { ds: normDataInicioBody });
+    if (normDataFimBody) {
+      const parts = normDataFimBody.split("-");
+      let dePlus = normDataFimBody;
+      try {
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFimBody;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
 
     const allowed = new Set([
       "Dia",
@@ -491,7 +570,7 @@ app.post("/api/relatorio/paginate", async (req, res) => {// quero que seja pro G
     const materiasPost = await materiaPrimaService.getAll();
     const materiasByNumPost: Record<number, any> = {};
     for (const m of materiasPost) {
-      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNumPost[n] = m;
     }
 
@@ -499,7 +578,12 @@ app.post("/api/relatorio/paginate", async (req, res) => {// quero que seja pro G
       const values: number[] = [];
       for (let i = 1; i <= 40; i++) {
         const prodValue = row[`Prod_${i}`];
-        let v = typeof prodValue === 'number' ? prodValue : prodValue != null ? Number(prodValue) : 0;
+        let v =
+          typeof prodValue === "number"
+            ? prodValue
+            : prodValue != null
+            ? Number(prodValue)
+            : 0;
         const materia = materiasByNumPost[i];
         if (materia && Number(materia.medida) === 0 && v) {
           v = v / 1000;
@@ -589,12 +673,10 @@ app.post("/api/db/setupMateriaPrima", async (req, res) => {
         err?.code === "ER_DUP_ENTRY" ||
         err?.driverError?.code === "ER_DUP_ENTRY"
       ) {
-        return res
-          .status(400)
-          .json({
-            error: "duplicate_num",
-            message: 'One or more provided "num" values already exist',
-          });
+        return res.status(400).json({
+          error: "duplicate_num",
+          message: 'One or more provided "num" values already exist',
+        });
       }
       return res.status(500).json({ error: "internal" });
     }
@@ -638,29 +720,40 @@ app.get("/api/resumo", async (req, res) => {
   try {
     const areaId = req.query.areaId ? String(req.query.areaId) : null;
     const formula = req.query.formula ? String(req.query.formula) : null;
-    const nomeFormula = req.query.nomeFormula ? String(req.query.nomeFormula) : null;
-    const codigo = req.query.codigo != null ? Number(String(req.query.codigo)) : null;
-    const numero = req.query.numero != null ? Number(String(req.query.numero)) : null;
+    const nomeFormula = req.query.nomeFormula
+      ? String(req.query.nomeFormula)
+      : null;
+    const codigo =
+      req.query.codigo != null ? Number(String(req.query.codigo)) : null;
+    const numero =
+      req.query.numero != null ? Number(String(req.query.numero)) : null;
     const dataInicio = req.query.dataInicio
       ? String(req.query.dataInicio)
       : null;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : null;
+    const normDataInicioResumo = normalizeDateParam(dataInicio) || null;
+    const normDataFimResumo = normalizeDateParam(dataFim) || null;
 
     // If nomeFormula looks like a number, prefer numeric formula filtering
     let numericFormula: number | null = null;
-    if (nomeFormula != null && nomeFormula !== '') {
+    if (nomeFormula != null && nomeFormula !== "") {
       const nf = Number(nomeFormula);
       if (Number.isFinite(nf)) numericFormula = nf;
     }
 
     const result = await resumoService.getResumo({
       areaId,
-      formula: numericFormula != null ? numericFormula : (formula !== null && formula !== '' ? Number(formula) : null),
+      formula:
+        numericFormula != null
+          ? numericFormula
+          : formula !== null && formula !== ""
+          ? Number(formula)
+          : null,
       formulaName: numericFormula == null ? nomeFormula : null,
       codigo: Number.isFinite(codigo) ? codigo : null,
       numero: Number.isFinite(numero) ? numero : null,
-      dateStart: dataInicio,
-      dateEnd: dataFim,
+      dateStart: normDataInicioResumo,
+      dateEnd: normDataFimResumo,
     });
 
     return res.json(result);
@@ -746,22 +839,24 @@ app.get("/api/collector/stop", async (req, res) => {
   }
 });
 
-app.get("/api/relatorioPdf", async (req, res) => {
+app.get("/api/relatorioPdf", async (req, res) => {});
 
-});
-
-
-app.get('/api/filtrosAvaliable', async (req, res) => {
+app.get("/api/filtrosAvaliable", async (req, res) => {
   try {
     // Optional date filters to scope the available values
     const dateStart = req.query.dateStart ? String(req.query.dateStart) : null;
     const dateEnd = req.query.dateEnd ? String(req.query.dateEnd) : null;
+    const normDateStartFiltros = normalizeDateParam(dateStart) || null;
+    const normDateEndFiltros = normalizeDateParam(dateEnd) || null;
 
     // Use resumoService to compute formulas used in the given period
     const resumo = await resumoService.getResumo({ dateStart, dateEnd });
 
     const formulasObj = resumo.formulasUtilizadas || {};
-    const formulasAll = Object.values(formulasObj).map((f: any) => ({ nome: f.nome, codigo: Number(f.numero) }));
+    const formulasAll = Object.values(formulasObj).map((f: any) => ({
+      nome: f.nome,
+      codigo: Number(f.numero),
+    }));
     const formulas = formulasAll.filter((f: any) => !Number.isNaN(f.codigo));
 
     // Extract unique codigos (Form1) from formulas
@@ -772,9 +867,30 @@ app.get('/api/filtrosAvaliable', async (req, res) => {
     // For numeros (Form2) we need to query DB for distinct Form2 values within date range
     await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
-    const qb = repo.createQueryBuilder('r').select('DISTINCT r.Form2', 'numero');
-    if (dateStart) qb.andWhere('r.Dia >= :ds', { ds: dateStart });
-    if (dateEnd) qb.andWhere('r.Dia <= :de', { de: dateEnd });
+    const qb = repo
+      .createQueryBuilder("r")
+      .select("DISTINCT r.Form2", "numero");
+    if (normDateStartFiltros)
+      qb.andWhere("r.Dia >= :ds", { ds: normDateStartFiltros });
+    if (normDateEndFiltros) {
+      const parts = normDateEndFiltros.split("-");
+      let dePlus = normDateEndFiltros;
+      try {
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDateEndFiltros;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
     const raw = await qb.getRawMany();
     const numeros = raw
       .map((r: any) => (r && r.numero != null ? Number(r.numero) : null))
@@ -783,11 +899,10 @@ app.get('/api/filtrosAvaliable', async (req, res) => {
 
     return res.json({ formulas, codigos, numeros });
   } catch (e: any) {
-    console.error('[filtrosAvaliable] Error:', e);
-    return res.status(500).json({ error: 'internal', details: e?.message });
+    console.error("[filtrosAvaliable] Error:", e);
+    return res.status(500).json({ error: "internal", details: e?.message });
   }
 });
-
 
 // Additional endpoints for Processador HTTP compatibility
 app.post("/api/file/processContent", async (req, res) => {
@@ -810,7 +925,7 @@ app.post("/api/file/processContent", async (req, res) => {
     // Clean up temp file
     try {
       fs.unlinkSync(tempPath);
-    } catch { }
+    } catch {}
 
     return res.json({ meta: r.meta, rowsCount: r.parsed.rowsCount });
   } catch (e) {
@@ -822,41 +937,289 @@ app.post("/api/file/processContent", async (req, res) => {
 app.get("/api/config/", async (req, res) => {
   try {
     const config = await configService.getAllSettings();
-    res.json(config);
+
+    // Try to normalize stored string values into JSON/objects when possible
+    const normalized: Record<string, any> = {};
+    for (const k of Object.keys(config || {})) {
+      const raw = config[k];
+      if (raw == null) {
+        normalized[k] = raw;
+        continue;
+      }
+      // If it's already an object (shouldn't happen here) just pass through
+      if (typeof raw !== 'string') {
+        normalized[k] = raw;
+        continue;
+      }
+
+      // Try normal JSON parse
+      let out: any = raw;
+      try {
+        out = JSON.parse(raw);
+      } catch (e) {
+        // parsing failed; attempt to handle common double-encoded or numeric-indexed maps
+        try {
+          // Attempt to unescape and parse
+          const unescaped = raw.replace(/\\"/g, '"');
+          out = JSON.parse(unescaped);
+        } catch (e2) {
+          // As a last resort try to eval (should be safe as data is from DB)
+          try {
+            // eslint-disable-next-line no-eval
+            out = eval('(' + raw + ')');
+          } catch (e3) {
+            out = raw;
+          }
+        }
+      }
+
+      // If out looks like a numeric index -> char map, reconstruct string
+      if (out && typeof out === 'object' && !Array.isArray(out)) {
+        const numericKeys = Object.keys(out).filter((x) => /^\d+$/.test(x));
+        // Only reconstruct when ALL keys are numeric-indexed (indicates a char map)
+        if (numericKeys.length > 0 && numericKeys.length === Object.keys(out).length) {
+          // Build string from numeric keys in order
+          const chars: string[] = [];
+          numericKeys
+            .map((n) => Number(n))
+            .sort((a, b) => a - b)
+            .forEach((i) => {
+              const v = out[String(i)];
+              if (typeof v === 'string') chars.push(v);
+            });
+          if (chars.length > 0) {
+            const joined = chars.join('');
+            // try parse joined as json to recover nested object
+            try {
+              normalized[k] = JSON.parse(joined);
+              continue;
+            } catch {
+              normalized[k] = joined;
+              continue;
+            }
+          }
+        }
+      }
+
+      normalized[k] = out;
+    }
+
+    // Provide sensible defaults and ensure common keys are present separately
+    const defaults: Record<string, any> = {
+      'admin-config': '',
+      'db-config': '',
+      'general-config': '',
+      'ihm-config': {
+        nomeCliente: '',
+        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? '192.168.5.254'),
+        user: '',
+        password: '',
+        localCSV: '',
+        metodoCSV: '',
+        habilitarCSV: false,
+        serverDB: '',
+        database: '',
+        userDB: '',
+        passwordDB: '',
+        mySqlDir: '',
+        dumpDir: '',
+        batchDumpDir: ''
+      },
+      'produtosInfo': {}
+    };
+
+    // Merge defaults for missing keys to ensure separation (do not overwrite existing)
+    for (const k of Object.keys(defaults)) {
+      if (normalized[k] === undefined) normalized[k] = defaults[k];
+    }
+
+    res.json(normalized);
   } catch (e) {
     console.error("Failed to get config", e);
     res.status(500).json({ error: "internal" });
   }
 });
 
-app.get('/api/config/:key', async (req, res) => {
+// Return a separated default config structure (frontend can use this to initialize forms)
+app.get('/api/config/defaults', async (req, res) => {
+  try {
+    const defaults = {
+      'admin-config': '',
+      'db-config': '',
+      'general-config': '',
+      'ihm-config': {
+        nomeCliente: '',
+        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? '192.168.5.254'),
+        user: '',
+        password: '',
+        localCSV: '',
+        metodoCSV: '',
+        habilitarCSV: false,
+        serverDB: '',
+        database: '',
+        userDB: '',
+        passwordDB: '',
+        mySqlDir: '',
+        dumpDir: '',
+        batchDumpDir: ''
+      },
+      'produtosInfo': {}
+    };
+    res.json(defaults);
+  } catch (e) {
+    console.error('[config/defaults] error', e);
+    res.status(500).json({ error: 'internal' });
+  }
+});
+
+// Accept a combined config object and persist each top-level key as separate settings
+app.post('/api/config/split', async (req, res) => {
+  try {
+    const configObj = req.body;
+    if (!configObj || typeof configObj !== 'object' || Array.isArray(configObj)) {
+      return res.status(400).json({ error: 'Request body must be an object with top-level config keys' });
+    }
+    // Persist each top-level key as a separate Setting row
+    await configService.setSettings(configObj);
+    try { setRuntimeConfigs(configObj); } catch (e) { /* ignore */ }
+    return res.json({ success: true, saved: Object.keys(configObj) });
+  } catch (e) {
+    console.error('[config/split] Failed to split/save settings', e);
+    return res.status(500).json({ error: 'internal' });
+  }
+});
+
+app.get("/api/config/:key", async (req, res) => {
   try {
     const key = req.params.key;
     if (!key) {
       return res.status(400).json({ error: "Key parameter is required" });
     }
-    const value = await configService.getSetting(key);
+    const raw = await configService.getSetting(key);
 
-    // If value is null (not set), return an empty object instead of 404 so frontend
-    // can handle missing configs gracefully without noisy 404s.
-    if (value === null) {
+    // Known defaults for frontend topics
+    const knownDefaults: Record<string, any> = {
+      'admin-config': '',
+      'db-config': '',
+      'general-config': '',
+      'ihm-config': {
+        nomeCliente: '',
+        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? '192.168.5.254'),
+        user: '',
+        password: '',
+        localCSV: '',
+        metodoCSV: '',
+        habilitarCSV: false,
+        serverDB: '',
+        database: '',
+        userDB: '',
+        passwordDB: '',
+        mySqlDir: '',
+        dumpDir: '',
+        batchDumpDir: ''
+      },
+      'produtosInfo': {}
+    };
+
+    if (raw === null) {
+      // Return the known default structure if available
+      if (knownDefaults[key] !== undefined) return res.json({ key, value: knownDefaults[key] });
       return res.json({ key, value: {} });
     }
 
-    res.json({ key, value });
+    // Parse/normalize the stored value similarly to the bulk endpoint
+    let out: any = raw;
+    if (typeof raw === 'string') {
+      try {
+        out = JSON.parse(raw);
+      } catch (e) {
+        try {
+          const unescaped = raw.replace(/\\"/g, '"');
+          out = JSON.parse(unescaped);
+        } catch (e2) {
+          try {
+            // eslint-disable-next-line no-eval
+            out = eval('(' + raw + ')');
+          } catch (e3) {
+            out = raw;
+          }
+        }
+      }
+    }
+
+    // Reconstruct numeric-index char map if appropriate
+    if (out && typeof out === 'object' && !Array.isArray(out)) {
+      const numericKeys = Object.keys(out).filter((x) => /^\d+$/.test(x));
+      if (numericKeys.length > 0 && numericKeys.length === Object.keys(out).length) {
+        const chars: string[] = [];
+        numericKeys.map(n => Number(n)).sort((a,b) => a-b).forEach(i => {
+          const v = out[String(i)]; if (typeof v === 'string') chars.push(v);
+        });
+        if (chars.length > 0) {
+          const joined = chars.join('');
+          try { out = JSON.parse(joined); } catch { out = joined; }
+        }
+      }
+    }
+
+    // If the client asked for only input fields (e.g. ?inputs=true), filter
+    // the returned object to only the input-relevant keys for known topics.
+    const onlyInputs = String(req.query?.inputs || '').toLowerCase() === 'true';
+    if (onlyInputs && out && typeof out === 'object' && !Array.isArray(out)) {
+      const inputsMap: Record<string, string[]> = {
+        'ihm-config': ['ip', 'user', 'password'],
+        'general-config': ['nomeCliente', 'localCSV', 'metodoCSV', 'habilitarCSV', 'serverDB', 'database', 'userDB', 'passwordDB', 'mySqlDir', 'dumpDir', 'batchDumpDir'],
+        'admin-config': [],
+        'db-config': [],
+        'produtosInfo': []
+      };
+
+      if (Object.prototype.hasOwnProperty.call(inputsMap, key)) {
+        if (key === 'produtosInfo') {
+          // For produtosInfo return only nome and unidade per column
+          const filtered: Record<string, any> = {};
+          for (const col of Object.keys(out)) {
+            const item = out[col] || {};
+            filtered[col] = { nome: item.nome ?? '', unidade: item.unidade ?? '' };
+          }
+          out = filtered;
+        } else {
+          const fields = inputsMap[key];
+          const filtered: Record<string, any> = {};
+          for (const f of fields) {
+            // prefer value in parsed object, otherwise fallback to knownDefaults if present
+            filtered[f] = out[f] !== undefined ? out[f] : (knownDefaults[key] && knownDefaults[key][f] !== undefined ? knownDefaults[key][f] : '');
+          }
+          out = filtered;
+        }
+      }
+    }
+
+    // If known default exists and parsed out is empty, return default
+    if ((out === null || out === '' || (typeof out === 'object' && Object.keys(out).length === 0)) && knownDefaults[key] !== undefined) {
+      return res.json({ key, value: knownDefaults[key] });
+    }
+
+    return res.json({ key, value: out });
   } catch (e) {
     console.error("Failed to get setting", e);
     res.status(500).json({ error: "internal" });
   }
-}
-);
-
+});
 
 app.post("/api/config", async (req, res) => {
   try {
     const configObj = req.body;
-    if (!configObj || typeof configObj !== "object" || Array.isArray(configObj)) {
-      return res.status(400).json({ error: "Request body must be a JSON object with config keys/values" });
+    if (
+      !configObj ||
+      typeof configObj !== "object" ||
+      Array.isArray(configObj)
+    ) {
+      return res
+        .status(400)
+        .json({
+          error: "Request body must be a JSON object with config keys/values",
+        });
     }
     const keys = Object.keys(configObj);
     if (keys.length === 0) {
@@ -864,7 +1227,11 @@ app.post("/api/config", async (req, res) => {
     }
     // Salva todas as configurações de uma vez e atualiza runtime
     await configService.setSettings(configObj);
-    try { setRuntimeConfigs(configObj); } catch (e) { /* ignore */ }
+    try {
+      setRuntimeConfigs(configObj);
+    } catch (e) {
+      /* ignore */
+    }
     res.json({ success: true, saved: keys });
   } catch (e) {
     console.error("Failed to set settings", e);
@@ -873,7 +1240,7 @@ app.post("/api/config", async (req, res) => {
 });
 
 // Provide chart-oriented data for frontend dashboards
-app.get('/api/chartdata', async (req, res) => {
+app.get("/api/chartdata", async (req, res) => {
   try {
     await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
@@ -882,10 +1249,35 @@ app.get('/api/chartdata', async (req, res) => {
     const limit = Number(req.query.limit || 500);
     const dateStart = req.query.dateStart ? String(req.query.dateStart) : null;
     const dateEnd = req.query.dateEnd ? String(req.query.dateEnd) : null;
+    const normDateStartChart = normalizeDateParam(dateStart) || null;
+    const normDateEndChart = normalizeDateParam(dateEnd) || null;
 
-    const qb = repo.createQueryBuilder('r').orderBy('r.Dia', 'DESC').addOrderBy('r.Hora', 'DESC').take(limit);
-    if (dateStart) qb.andWhere('r.Dia >= :ds', { ds: dateStart });
-    if (dateEnd) qb.andWhere('r.Dia <= :de', { de: dateEnd });
+    const qb = repo
+      .createQueryBuilder("r")
+      .orderBy("r.Dia", "DESC")
+      .addOrderBy("r.Hora", "DESC")
+      .take(limit);
+    if (normDateStartChart)
+      qb.andWhere("r.Dia >= :ds", { ds: normDateStartChart });
+    if (normDateEndChart) {
+      const parts = normDateEndChart.split("-");
+      let dePlus = normDateEndChart;
+      try {
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDateEndChart;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
 
     const rows = await qb.getMany();
 
@@ -893,7 +1285,7 @@ app.get('/api/chartdata', async (req, res) => {
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
-      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
@@ -901,35 +1293,47 @@ app.get('/api/chartdata', async (req, res) => {
       const values: number[] = [];
       const units: Record<string, string> = {};
       for (let i = 1; i <= 40; i++) {
-        const v = typeof r[`Prod_${i}`] === 'number' ? r[`Prod_${i}`] : (r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0);
+        const v =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
         // Provide units per product (g or kg). Use medida==0 => 'g', else 'kg'
         const mp = materiasByNum[i];
-        const unidade = mp && Number(mp.medida) === 0 ? 'g' : 'kg';
+        const unidade = mp && Number(mp.medida) === 0 ? "g" : "kg";
         values.push(v);
         units[`Unidade_${i}`] = unidade;
       }
 
       return {
-        Nome: r.Nome || '',
+        Nome: r.Nome || "",
         values,
-        Dia: r.Dia || '',
-        Hora: r.Hora || '',
+        Dia: r.Dia || "",
+        Hora: r.Hora || "",
         Form1: r.Form1 ?? null,
         Form2: r.Form2 ?? null,
         ...units,
       };
     });
 
-    return res.json({ rows: mapped, total: mapped.length, ts: new Date().toISOString() });
+    return res.json({
+      rows: mapped,
+      total: mapped.length,
+      ts: new Date().toISOString(),
+    });
   } catch (e) {
-    console.error('[api/chartdata] error', e);
-    return res.status(500).json({ error: 'internal' });
+    console.error("[api/chartdata] error", e);
+    return res.status(500).json({ error: "internal" });
   }
 });
 
-// Start HTTP server
+// Start HTTP server (prefer runtime-config 'http_port' then env vars)
 const HTTP_PORT = Number(
-  process.env.FRONTEND_API_PORT || process.env.PORT || 3000
+  getRuntimeConfig("http_port") ??
+    process.env.FRONTEND_API_PORT ??
+    process.env.PORT ??
+    3000
 );
 
 // Setup file processor observer for notifications (simplified without WebSocket)
@@ -945,12 +1349,18 @@ fileProcessorService.addObserver({
     await ensureDatabaseConnection();
     const all = await configService.getAllSettings();
     setRuntimeConfigs(all);
-    console.log('[Server] Loaded runtime configs from DB:', Object.keys(all).length);
+    console.log(
+      "[Server] Loaded runtime configs from DB:",
+      Object.keys(all).length
+    );
   } catch (e) {
-    console.warn('[Server] Could not load runtime configs at startup:', String(e));
+    console.warn(
+      "[Server] Could not load runtime configs at startup:",
+      String(e)
+    );
   }
 
   app.listen(HTTP_PORT, () =>
-    console.log(`API server running on port ${HTTP_PORT}`)
+    console.log(`[Server] API server running on port ${HTTP_PORT}`)
   );
 })();

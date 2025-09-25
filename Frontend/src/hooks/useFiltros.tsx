@@ -54,6 +54,22 @@ export const useFiltros = () => {
     return Array.from(categoriasSet).sort();
   }, [produtosInfo]);
 
+  // Helper: parse plain date strings (YYYY-MM-DD or DD-MM-YYYY) into local Date
+  const parseToLocalDate = (input: any): Date => {
+    if (!input) return new Date(NaN);
+    const s = String(input).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+      const [d, m, y] = s.split('-').map(Number);
+      return new Date(y, m - 1, d);
+    }
+    // fallback to Date constructor
+    return new Date(s);
+  };
+
   const handleFiltroChange = (nome: keyof Filtros, valor: string | number) => {
     setFiltros(prev => ({
       ...prev,
@@ -109,24 +125,24 @@ export const useFiltros = () => {
         let dataRegistro: Date | null = null;
         
         if (registro.data) {
-          dataRegistro = new Date(registro.data);
+          dataRegistro = parseToLocalDate(registro.data);
         } else if (registro.timestamp) {
-          dataRegistro = new Date(registro.timestamp);
+          dataRegistro = parseToLocalDate(registro.timestamp);
         } else if (registro.date) {
-          dataRegistro = new Date(registro.date);
+          dataRegistro = parseToLocalDate(registro.date);
         }
         
         if (!dataRegistro) return true;
         
         // Verifica limite inferior (data início)
         if (filtros.dataInicio) {
-          const dataInicio = new Date(filtros.dataInicio);
+          const dataInicio = parseToLocalDate(filtros.dataInicio);
           if (dataRegistro < dataInicio) return false;
         }
         
         // Verifica limite superior (data fim)
         if (filtros.dataFim) {
-          const dataFim = new Date(filtros.dataFim);
+          const dataFim = parseToLocalDate(filtros.dataFim);
           dataFim.setHours(23, 59, 59, 999); // Final do dia
           if (dataRegistro > dataFim) return false;
         }
