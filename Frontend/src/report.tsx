@@ -265,7 +265,7 @@ export default function Report() {
     // When backend normalization is applied, values are already in kg for produtos with medida=0 (server divides by 1000)
     // But if we still have local info (e.g., fallback), apply conversion here as safety.
     let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
-    // if (unidade === 'g') return valor / 1000;
+    if (unidade === 'g') return valor / 1000; // convert grams to kg for internal consistency
     return valor;
   };
 
@@ -326,11 +326,10 @@ export default function Report() {
         label = produtosInfo[produtoId]?.nome || key;
 
           return {
-            colKey: produtoId,
-            nome: label,
-            qtd: Number(val.quantidade) || 0,
-            unidade: val.unidade || "kg",
-          };
+              colKey: produtoId,
+              nome: label,
+              qtd: Number(val.quantidade) || 0,
+            };
       });
     }
     // fallback to tableSelection
@@ -514,7 +513,7 @@ export default function Report() {
                                 minimumFractionDigits: 3,
                                 maximumFractionDigits: 3,
                               })}{" "}
-                              {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || produto.unidade || "kg"}
+                              {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
                             </TableCell>
                       </TableRow>
                     ))

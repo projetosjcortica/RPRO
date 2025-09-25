@@ -189,11 +189,8 @@ const processador = setProcessador(BACKEND_PORT);
 // O ProcessadorHTTP não precisa de waitForConnection para uma requisição inicial,
 // mas podemos fazer um ping para verificar conectividade.
 processador.ping()
-  .then((pong) => {
-    // console.log('Successfully connected to backend:', pong);
-    // Setup basic event handlers (se o ProcessadorHTTP tiver suporte, senão remova)
-    // processador.onEvent('ready', () => console.log('Backend is ready'));
-    // processador.onEvent('heartbeat', (hb) => console.log('[Heartbeat]', hb));
+    .then(() => {
+    // console.log('Successfully connected to backend');
   })
   .catch((err) => {
     console.warn(`Could not connect to backend at ${BACKEND_URL}. Please ensure it is running.`, err);
