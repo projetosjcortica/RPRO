@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import Home from './home';
-import { GeneralConfig, IHMConfig, DatabaseConfig, AdminConfig } from './config';
+import { GeneralConfig, IHMConfig, DatabaseConfig, AdminConfig, usePersistentForm } from './config';
 import Report from './report';
 import Estoque from './estoque';
 import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel,} from "./components/ui/sidebar";
@@ -24,7 +24,16 @@ const App = () => {
   const location = useLocation();
   const [sideInfo, setSideInfo] = useState({ granja: 'Granja', proprietario: 'Proprietario' });
   const runtime = useRuntimeConfig();
+  const { formData: generalConfigData } = usePersistentForm("general-config");
 
+  useEffect(() => {
+  if (!generalConfigData) return;
+
+  setSideInfo(prev => ({
+    granja: generalConfigData.nomeCliente || 'Granja',
+    proprietario: prev.proprietario, // mantém o valor atual do proprietário
+  }));
+}, [generalConfigData]);
   useEffect(() => {
     // If runtime configs are loaded, prefer those values
     if (!runtime || runtime.loading) return;
@@ -58,7 +67,7 @@ const App = () => {
     }
   ]
 
-
+  
   return (
     <div id='app' className='flex flex-row w-screen h-dvh overflow-hidden'>
       <div id='sidebar' className='h-full'>

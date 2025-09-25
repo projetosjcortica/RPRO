@@ -66,6 +66,7 @@ export default function Report() {
   batidas: number;
   horaInicial: string;
   horaFinal: string;
+  formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
   produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
 }>({
   total: 0,
@@ -73,6 +74,7 @@ export default function Report() {
   horaInicial: "--:--",
   horaFinal: "--:--",
   produtos: [],
+  formulas: []
 });
 
   // Resumo vindo do backend (side info)
@@ -133,12 +135,25 @@ export default function Report() {
   }, [filtros]);
 
   useEffect(() => {
+    console.log("RESUMO BACKEND:", resumo);
   if (resumo && resumo.usosPorProduto) {
+
+    const formulasFromResumo = Object.entries(resumo.formulasUtilizadas || {}).map(
+      ([nome, data]: [string, any]) => ({
+        numero: data.numero ?? 0,
+        nome,
+        quantidade: data.quantidade ?? 0,
+        porcentagem: data.porcentagem ?? 0,
+        somatoriaTotal: data.somatoriaTotal ?? 0,
+      })
+    );
+
     setTableSelection({
       total: resumo.totalPesos || 0,
       batidas: resumo.batitdasTotais || 0,
       horaInicial: resumo.horaInicial || "--:--",
       horaFinal: resumo.horaFinal || "--:--",
+      formulas: formulasFromResumo,
       produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
         const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
         const nome = produtosInfo[produtoId]?.nome || key;
@@ -364,8 +379,8 @@ export default function Report() {
             className={cn(
               "flex items-center gap-2",
               collectorRunning
-                ? "bg-red-600 hover:bg-red-700"
-                : "bg-green-600 hover:bg-gray-700"
+                ? "bg-gray-600 hover:bg-red-700"
+                : "bg-red-600 hover:bg-gray-700"
             )}
           >
             {collectorLoading ? (
@@ -543,10 +558,11 @@ export default function Report() {
                     batidas={Number(tableSelection.batidas) || 0}
                     horaInicio={tableSelection.horaInicial}
                     horaFim={tableSelection.horaFinal}
+                    formulas={tableSelection.formulas}
                     produtos={tableSelection.produtos}
                     data={new Date().toLocaleDateString("pt-BR")}
                     empresa="Empresa ABC"
-                    formulaSums={formulaSums}
+                    // formulaSums={formulaSums}
                   />
                 }
                 fileName="relatorio.pdf"

@@ -196,8 +196,9 @@ const configService = {
   }
 };
 
+
 // Custom hook to manage form state with persistence via HTTP
-function usePersistentForm(key: string) {
+export function usePersistentForm(key: string) {
   const [formData, setFormData] = useState<FormData>(initialFormData);
   const [isEditing, setIsEditing] = useState(false);
   const [originalData, setOriginalData] = useState<FormData>(initialFormData);

@@ -128,13 +128,14 @@ interface MyDocumentProps {
   batidas?: number;
   horaInicio?: string;
   horaFim?: string;
+  formulas?: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
   produtos?: Produto[];
   data?: string;
   empresa?: string;
   observacoes?: string;
   logoSrc?: string;
   orientation?: "portrait" | "landscape";
-  formulaSums?: Record<string, number>;
+  // formulaSums?: Record<string, number>;
   chartData?: { name: string; value: number }[];
 }
 
@@ -143,13 +144,14 @@ export const MyDocument = ({
   batidas,
   horaInicio,
   horaFim,
+  formulas = [],
   produtos = [],
   data = new Date().toLocaleDateString("pt-BR"),
   empresa = "Empresa",
   observacoes = "",
   logoSrc,
   orientation = "portrait",
-  formulaSums = {},
+  // formulaSums = {},
   chartData = [],
 }: MyDocumentProps) => {
   const produtosPorCategoria: Record<string, Produto[]> = {};
@@ -160,6 +162,7 @@ export const MyDocument = ({
   });
   const categorias = Object.keys(produtosPorCategoria).sort();
 
+  console.log("FORMULAS CHEGANDO:", formulas);
   return (
     
     <Document>
@@ -218,18 +221,19 @@ export const MyDocument = ({
     </View>
 
     {/* Fórmulas */}
-    {Object.keys(formulaSums).length > 0 && (      <View style={styles.section} wrap={false}>
+    {formulas.length > 0 && (
+      <View style={styles.section} wrap={true}>
         <Text style={styles.sectionTitle}>Resumo por Fórmula</Text>
         <View style={styles.table}>
           <View style={styles.tableRow}>
             <Text style={styles.tableColHeader}>Fórmula</Text>
             <Text style={styles.tableColHeaderSmall}>Total</Text>
           </View>
-          {Object.entries(formulaSums).map(([f, v], i) => (
+          {formulas.map((f, i) => (
             <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-              <Text style={styles.tableCol}>{f}</Text>
+              <Text style={styles.tableCol}>{f.nome}</Text>
               <Text style={styles.tableColSmall}>
-                {v.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+                {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
               </Text>
             </View>
           ))}
