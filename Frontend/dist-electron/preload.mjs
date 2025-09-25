@@ -1,1 +1,24 @@
-"use strict";const r=require("electron");r.contextBridge.exposeInMainWorld("electronAPI",{loadData:e=>r.ipcRenderer.invoke("load-data",e),saveData:(e,i)=>r.ipcRenderer.invoke("save-data",e,i),selectFolder:()=>r.ipcRenderer.invoke("select-folder"),selectFile:()=>r.ipcRenderer.invoke("select-file"),cleanDB:()=>r.ipcRenderer.invoke("clean-db"),printPDF:e=>r.ipcRenderer.invoke("print-pdf",e),savePdf:e=>r.ipcRenderer.invoke("save-pdf",e),startFork:(e,i)=>r.ipcRenderer.invoke("start-fork",{script:e,args:i}),sendToChild:(e,i)=>r.ipcRenderer.invoke("send-to-child",{pid:e,msg:i}),stopChild:e=>r.ipcRenderer.invoke("stop-child",{pid:e}),onChildMessage:e=>r.ipcRenderer.on("child-message",(i,d)=>e(i,d)),onChildStdout:e=>r.ipcRenderer.on("child-stdout",(i,d)=>e(i,d)),onChildStderr:e=>r.ipcRenderer.on("child-stderr",(i,d)=>e(i,d)),onChildExit:e=>r.ipcRenderer.on("child-exit",(i,d)=>e(i,d))});
+"use strict";
+const electron = require("electron");
+electron.contextBridge.exposeInMainWorld("electronAPI", {
+  loadData: (key) => electron.ipcRenderer.invoke("load-data", key),
+  saveData: (key, data) => electron.ipcRenderer.invoke("save-data", key, data),
+  selectFolder: () => electron.ipcRenderer.invoke("select-folder"),
+  selectFile: () => electron.ipcRenderer.invoke("select-file"),
+  cleanDB: () => electron.ipcRenderer.invoke("clean-db"),
+  //printer
+  printPDF: (filePath) => electron.ipcRenderer.invoke("print-pdf", filePath),
+  // Save a base64-encoded PDF buffer to a temp file and return its path
+  savePdf: (base64) => electron.ipcRenderer.invoke("save-pdf", base64),
+  // forked functions
+  startFork: (script, args) => electron.ipcRenderer.invoke("start-fork", { script, args }),
+  // send an object/message to a forked child by pid
+  sendToChild: (pid, msg) => electron.ipcRenderer.invoke("send-to-child", { pid, msg }),
+  // stop/kill a forked child by pid
+  stopChild: (pid) => electron.ipcRenderer.invoke("stop-child", { pid }),
+  // event listeners from main (forwarded from child)
+  onChildMessage: (fn) => electron.ipcRenderer.on("child-message", (e, data) => fn(e, data)),
+  onChildStdout: (fn) => electron.ipcRenderer.on("child-stdout", (e, data) => fn(e, data)),
+  onChildStderr: (fn) => electron.ipcRenderer.on("child-stderr", (e, data) => fn(e, data)),
+  onChildExit: (fn) => electron.ipcRenderer.on("child-exit", (e, data) => fn(e, data))
+});
