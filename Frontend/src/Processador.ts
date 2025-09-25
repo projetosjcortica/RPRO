@@ -244,6 +244,34 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     return this.makeRequest('/api/resumo', 'GET', params);
   }
 
+  /**
+   * Retorna um mapeamento { formulaNome: somatoriaTotalEmKg }
+   * Consultará o endpoint /api/resumo e extrairá a propriedade somatoriaTotal
+   */
+  public async getFormulaSomatoria(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string): Promise<Record<string, number>> {
+    const params: any = {};
+    if (areaId) params.areaId = areaId;
+    if (nomeFormula) params.nomeFormula = nomeFormula;
+    if (dataInicio) params.dataInicio = dataInicio;
+    if (dataFim) params.dataFim = dataFim;
+    if (codigo !== undefined && codigo !== null && String(codigo) !== '') params.codigo = codigo;
+    if (numero !== undefined && numero !== null && String(numero) !== '') params.numero = numero;
+
+    const resumo: any = await this.makeRequest('/api/resumo', 'GET', params);
+    const formulas = resumo?.formulasUtilizadas || {};
+    const out: Record<string, number> = {};
+    Object.keys(formulas).forEach((k) => {
+      const v = formulas[k];
+      if (v && typeof v === 'object') {
+        const st = v.somatoriaTotal != null ? Number(v.somatoriaTotal) : 0;
+        out[k] = Number.isFinite(st) ? st : 0;
+      } else {
+        out[k] = 0;
+      }
+    });
+    return out;
+  }
+
   public converterUnidade(valor: number, de: number, para: number) {
     return this.makeRequest('/api/unidades/converter', 'GET', { valor, de, para });
   }

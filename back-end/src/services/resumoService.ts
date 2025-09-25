@@ -7,6 +7,7 @@ export interface FormulaInfo {
     nome: string;
     quantidade: number;
     porcentagem: number;
+    somatoriaTotal?: number;
 }
 
 export interface ResumoTotal {
@@ -167,13 +168,16 @@ export class ResumoService {
                         numero: row.Form1, 
                         nome: row.Nome,
                         quantidade: 0, 
-                        porcentagem: 0 
+                        porcentagem: 0,
+                        somatoriaTotal: 0
                     };
                 }
                 formulasUtilizadas[formulaKey].quantidade++;
             }
             
             // Calcular consumo de produtos com conversão baseada na configuração
+            // accumulate per-row total in normalized kg (to attribute to the formula)
+            let rowTotalKg = 0;
             for (let i = 1; i <= 40; i++) {
                 const prodValue = (row as any)[`Prod_${i}`];
                 const valueOriginal = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
@@ -211,6 +215,14 @@ export class ResumoService {
                     }
                     usosPorProduto[prodKey].quantidade += displayQuantity;
                     totalPesos += valueForTotalKg; // accumulate normalized kg for totals
+                    rowTotalKg += valueForTotalKg; // accumulate per-row for formula attribution
+                }
+            }
+            // After summing products for this row, attribute the row total to the formula if present
+            if (row.Nome && row.Form1 != null) {
+                const fk = row.Nome;
+                if (formulasUtilizadas[fk]) {
+                    formulasUtilizadas[fk].somatoriaTotal = (formulasUtilizadas[fk].somatoriaTotal || 0) + rowTotalKg;
                 }
             }
         }
@@ -267,7 +279,7 @@ export class ResumoService {
      * Processa um conjunto de relatórios para gerar um resumo
      * Processa dados do CSV
      */
-    processResumo(relatorios: Relatorio[], areaId?: string | null): ResumoTotal | ResumoAreaSelecionada {
+    async processResumo(relatorios: Relatorio[], areaId?: string | null): Promise<ResumoTotal | ResumoAreaSelecionada> {
         if (!relatorios || relatorios.length === 0) {
             // Retornar resumo vazio
             const resumoVazio = {
@@ -311,6 +323,15 @@ export class ResumoService {
         const formulasUtilizadas: Record<string, FormulaInfo> = {};
         let totalPesos = 0;
 
+        // Buscar informações completas dos produtos da MateriaPrima para normalizar unidades (g->kg)
+        const materiasPrimas = await materiaPrimaService.getAll();
+        const infosProdutos: Record<string, { label: string; materia: MateriaPrima }> = {};
+        for (const mp of materiasPrimas) {
+            if (mp.num && mp.produto) {
+                infosProdutos[`Produto_${mp.num}`] = { label: mp.produto, materia: mp };
+            }
+        }
+
         for (const relatorio of dadosFiltrados) {
             // Contar fórmulas baseado no Nome (que é único para cada fórmula)
             if (relatorio.Nome && relatorio.Form1 != null) {
@@ -320,7 +341,8 @@ export class ResumoService {
                         numero: relatorio.Form1, 
                         nome: relatorio.Nome,
                         quantidade: 0, 
-                        porcentagem: 0 
+                        porcentagem: 0,
+                        somatoriaTotal: 0
                     };
                 }
                 formulasUtilizadas[formulaKey].quantidade++;
@@ -351,21 +373,45 @@ export class ResumoService {
                 areaDescricao = relatorio.AreaDescricao;
             }
             
-            // Calcular consumo de produtos
+            // Calcular consumo de produtos (normalizando g->kg quando necessário)
+            let rowTotalKg = 0;
             for (let i = 1; i <= 40; i++) {
                 const prodValue = (relatorio as any)[`Prod_${i}`];
-                const value = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
-                
-                if (value > 0) {
+                const rawValue = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
+
+                if (rawValue > 0) {
                     const prodKey = `Produto_${i}`;
-                    const label = `Produto ${i}`;
-                    const unidade = 'kg';
-                    
+                    const info = infosProdutos[prodKey];
+                    const label = info ? info.label : `Produto ${i}`;
+                    let unidade = 'kg';
+                    let valueForTotalKg = rawValue;
+                    let displayQuantity = rawValue;
+
+                    if (info && info.materia) {
+                        if (info.materia.medida === 0) {
+                            // stored in grams in DB -> convert to kg for totals
+                            valueForTotalKg = rawValue / 1000;
+                            displayQuantity = rawValue; // keep grams for display
+                            unidade = 'g';
+                        } else {
+                            valueForTotalKg = rawValue;
+                            unidade = 'kg';
+                        }
+                    }
+
                     if (!usosPorProduto[prodKey]) {
                         usosPorProduto[prodKey] = { quantidade: 0, label, unidade };
                     }
-                    usosPorProduto[prodKey].quantidade += value;
-                    totalPesos += value;
+                    usosPorProduto[prodKey].quantidade += displayQuantity;
+                    totalPesos += valueForTotalKg;
+                    rowTotalKg += valueForTotalKg;
+                }
+            }
+            // After summing this relatorio's products, add to formula somatoriaTotal if applicable
+            if (relatorio.Nome && relatorio.Form1 != null) {
+                const fk = relatorio.Nome;
+                if (formulasUtilizadas[fk]) {
+                    formulasUtilizadas[fk].somatoriaTotal = (formulasUtilizadas[fk].somatoriaTotal || 0) + rowTotalKg;
                 }
             }
         }
