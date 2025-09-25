@@ -8,6 +8,8 @@ import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
 
 import { cn } from "./lib/utils";
+
+import { pdf } from "@react-pdf/renderer";
 // product labels are persisted server-side now
 
 import {
@@ -323,6 +325,43 @@ export default function Report() {
     (_, i) => startPage + i
   );
 
+  const handlePrint = async () => {
+  // Generate PDF as blob
+  const blob = await pdf(
+     <MyDocument
+      total={Number(tableSelection.total) || 0}
+      batidas={Number(tableSelection.batidas) || 0}
+      horaInicio={tableSelection.horaInicial}
+      horaFim={tableSelection.horaFinal}
+      formulas={tableSelection.formulas}
+      produtos={tableSelection.produtos}
+      data={new Date().toLocaleDateString("pt-BR")}
+      empresa="Empresa ABC"
+    />
+  ).toBlob();
+  
+  // Create a blob URL
+   const blobUrl = URL.createObjectURL(blob);
+  const printWindow = window.open("", "_blank"); 
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <html>
+      <head><title>Print PDF</title></head>
+      <body style="margin:0">
+        <iframe src="${blobUrl}" style="width:100%;height:100vh;" frameborder="0"></iframe>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+
+  const iframe = printWindow.document.querySelector("iframe");
+  iframe?.addEventListener("load", () => {
+    printWindow.focus();
+    printWindow.print(); 
+  });
+};
+
   // === Chart data calculation ===
   // chartData was previously computed here but is not used in this component.
   // Keep calculations localized where needed (e.g., PDF/Chart components).
@@ -356,12 +395,12 @@ export default function Report() {
     }));
   }, [resumo, tableSelection]);
 
-  const formulaSums = dados.reduce((acc, row) => {
-    if (row.Nome) {
-      acc[row.Nome] = (acc[row.Nome] || 0) + (row.values?.[0] || 0);
-    }
-    return acc;
-  }, {} as Record<string, number>);
+  // const formulaSums = dados.reduce((acc, row) => {
+  //   if (row.Nome) {
+  //     acc[row.Nome] = (acc[row.Nome] || 0) + (row.values?.[0] || 0);
+  //   }
+  //   return acc;
+  // }, {} as Record<string, number>);
 
   return (
     <div className="flex flex-col gap-7 w-full h-full">
@@ -550,6 +589,7 @@ export default function Report() {
           <div id="impressao" className="flex flex-col text-center gap-2 mt-6">
             <p>Importar/Imprimir</p>
             <div id="botões" className="flex flex-row gap-2 justify-center">
+<<<<<<< HEAD
               <PDFDownloadLink
                 document={
                   <MyDocument
@@ -611,6 +651,9 @@ export default function Report() {
               >
                 Imprimir PDF
               </Button>
+=======
+              <Button onClick={handlePrint}>PDF</Button>
+>>>>>>> b25fa6eb939904cff4dba82952990e1c31b8f1d2
             </div>
           </div>
         </div>
