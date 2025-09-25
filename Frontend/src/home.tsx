@@ -269,7 +269,7 @@ const loadMateriaPrimaConfig = async () => {
 
         // debug: expose a quick sample in console for troubleshooting
         try { console.debug('chartdata loaded, rows:', mapped.length, mapped[0]); } catch (e) {}
-        
+
         loadedRows = mapped;
         usingRealData = true;
       } catch (e) {
