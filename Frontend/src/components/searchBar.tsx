@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { useFiltros } from "../hooks/useFiltros";
@@ -6,7 +6,7 @@ import { Filtros } from "../components/types";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { Calendar } from "../components/ui/calendar";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import * as React from "react";
 import { type DateRange } from "react-day-picker";
@@ -18,7 +18,7 @@ interface FiltrosBarProps {
 }
 
 export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
-  const { filtros, handleFiltroChange, limparFiltros } = useFiltros();
+  const { filtros, limparFiltros } = useFiltros();
 
   const [filtrosTemporarios, setFiltrosTemporarios] = useState<Filtros>(filtros);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
@@ -206,8 +206,8 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             {dateRange?.from ? (
               dateRange.to ? (
                 <>
-                  {format(dateRange.from, "dd/MM/yyyy")} -{" "}
-                  {format(dateRange.to, "dd/MM/yyyy")}
+                  {format(dateRange.from, "dd/MM/yy")} -{" "}
+                  {format(dateRange.to, "dd/MM/yy")}
                 </>
               ) : (
                 format(dateRange.from, "dd/MM/yyyy")

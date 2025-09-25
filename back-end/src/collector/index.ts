@@ -1,10 +1,11 @@
 import path from 'path';
 import fs from 'fs';
 import { IHMService } from '../services/IHMService';
+import { getRuntimeConfig } from '../core/runtimeConfig';
 import { dbService } from '../services/dbService';
-import { parserService } from '../services/parserService';
+import { parserService } from '../services/ParserService';
 import { setTimeout as wait } from 'timers/promises';
-import { BackupService } from '../services/backupService';
+import { BackupService } from '../services/BackupService';
 import { fileProcessorService } from '../services/fileProcessorService';
 
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
@@ -17,10 +18,12 @@ export function stopCollector() {
   STOP = true;
 }
 
+// Prefer runtime-config topic 'ihm-config' if present (ip, user, password)
+const ihmCfg = getRuntimeConfig('ihm-config') || {};
 const ihmService = new IHMService(
-  process.env.IHM_IP || '192.168.5.254',
-  process.env.IHM_USER || 'anonymous',
-  process.env.IHM_PASSWORD || ''
+  ihmCfg.ip || process.env.IHM_IP || '192.168.5.254',
+  ihmCfg.user || process.env.IHM_USER || 'anonymous',
+  ihmCfg.password || process.env.IHM_PASSWORD || ''
 );
 
 class Collector {
@@ -63,9 +66,9 @@ class Collector {
 
 const collector = new Collector(
   new IHMService(
-    process.env.IHM_IP || '192.168.5.254',
-    process.env.IHM_USER || 'anonymous',
-    process.env.IHM_PASS || ''
+    (getRuntimeConfig('ihm-config') || {}).ip || process.env.IHM_IP || '192.168.5.254',
+    (getRuntimeConfig('ihm-config') || {}).user || process.env.IHM_USER || 'anonymous',
+    (getRuntimeConfig('ihm-config') || {}).password || process.env.IHM_PASS || ''
   )
 );
 

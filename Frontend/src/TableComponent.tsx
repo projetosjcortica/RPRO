@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import { format as formatDateFn } from 'date-fns';
 import {
   Table,
   TableHeader,
@@ -55,7 +56,6 @@ export default function TableComponent({
   dados: dadosProp = [], 
   loading: loadingProp, 
   error: errorProp,
-  filtros,
   produtosInfo: produtosInfoProp = {},
 }: TableComponentProps) {
   const tableRef = useRef<HTMLDivElement>(null);
@@ -120,12 +120,7 @@ export default function TableComponent({
   };
 
   // Função para obter a unidade da coluna - SEMPRE retorna string
-  const getColumnUnidade = (colKey: string): string => {
-    if (colKey.startsWith('col')) {
-      return safeString(produtosInfo[colKey]?.unidade) || "kg";
-    }
-    return "";
-  };
+  // ...existing code... (removed unused getColumnUnidade)
 
   if (loadingProp) return <div className="p-4">Carregando...</div>;
   if (errorProp) return <div className="p-4 text-red-500">Erro: {errorProp}</div>;
@@ -149,7 +144,6 @@ export default function TableComponent({
                 ))}
                 {dynamicColumns.map((colKey, idx) => {
                   const label = getColumnLabel(colKey);
-                  const unidade = getColumnUnidade(colKey);
                   
                   return (
                     <TableHead
@@ -179,7 +173,30 @@ export default function TableComponent({
                       style={{ width: colIdx === 0 ? '80px' : colIdx === 1 ? '70px' : '100px' }}
                     >
                       <div className="truncate">
-                        {safeString(row[col as keyof ReportRow])}
+                            {col === 'Dia' ? (
+                              (() => {
+                                const raw = safeString(row[col as keyof ReportRow]);
+                                // Try to parse YYYY-MM-DD or DD-MM-YYYY and display as dd/MM/yy
+                                try {
+                                  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+                                    const [y, m, d] = raw.split('-').map(Number);
+                                    return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+                                  }
+                                  if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+                                    const [d, m, y] = raw.split('-').map(Number);
+                                    return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+                                  }
+                                  // fallback: try Date parse
+                                  const parsed = new Date(raw);
+                                  if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yy');
+                                  return raw;
+                                } catch (e) {
+                                  return raw;
+                                }
+                              })()
+                            ) : (
+                              safeString(row[col as keyof ReportRow])
+                            )}
                       </div>
                     </TableCell>
                   ))}

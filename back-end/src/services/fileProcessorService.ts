@@ -2,8 +2,8 @@ import fs from "fs";
 import path from "path";
 import { BaseService } from "../core/baseService";
 import { ProcessPayload, hashBufferHex } from "../core/utils";
-import { backupSvc } from "./backupService";
-import { parserService } from "./parserService";
+import { backupSvc } from "./BackupService";
+import { parserService } from "./ParserService";
 import { dbService } from "./dbService";
 import { cacheService } from "./CacheService";
 

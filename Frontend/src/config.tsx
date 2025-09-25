@@ -58,7 +58,8 @@ type FormDataKey = keyof FormData;
 const configService = {
   async loadConfig(key: string): Promise<FormData | null> {
     try {
-      const response = await fetch(`/api/config/${key}`);
+      // Request only input fields to keep payload small and match frontend form shape
+      const response = await fetch(`/api/config/${encodeURIComponent(key)}?inputs=true`);
       if (!response.ok) {
         if (response.status === 404) {
           return null;
@@ -75,10 +76,10 @@ const configService = {
 
   async saveConfig(key: string, data: FormData): Promise<boolean> {
     try {
-      // backend now accepts a plain object with multiple keys -> POST { [key]: data }
+      // Persist the single topic separately so backend stores one Setting row per topic
       const payload: any = {};
       payload[key] = data;
-      const response = await fetch("/api/config", {
+      const response = await fetch("/api/config/split", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -127,7 +128,7 @@ const configService = {
       // If nothing to save, return true
       if (Object.keys(combined).length === 0) return true;
 
-      const response = await fetch('/api/config', {
+      const response = await fetch('/api/config/split', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(combined),
@@ -209,8 +210,11 @@ function usePersistentForm(key: string) {
         setIsLoading(true);
         const savedData = await configService.loadConfig(key);
         if (savedData) {
-          setFormData(savedData);
-          setOriginalData(savedData);
+          // Merge savedData onto the initial/default form shape so that any
+          // missing fields in the saved payload don't become undefined and
+          // cause inputs to flip between uncontrolled and controlled.
+          setFormData(prev => ({ ...prev, ...(savedData as any) }));
+          setOriginalData(prev => ({ ...prev, ...(savedData as any) }));
         }
       } catch (error) {
         console.error("Failed to load data:", error);

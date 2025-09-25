@@ -269,7 +269,7 @@ const loadMateriaPrimaConfig = async () => {
 
         // debug: expose a quick sample in console for troubleshooting
         try { console.debug('chartdata loaded, rows:', mapped.length, mapped[0]); } catch (e) {}
-
+        
         loadedRows = mapped;
         usingRealData = true;
       } catch (e) {
@@ -544,13 +544,8 @@ const loadMateriaPrimaConfig = async () => {
 
   return (
     <div className="w-full">
-      {usedFallbackAllData && (
-        <div className="bg-yellow-100 border-l-4 border-yellow-400 p-3 mb-4">
-          <div className="text-sm text-yellow-800">Aviso: não foi possível filtrar por data — exibindo todos os dados disponíveis como último recurso.</div>
-        </div>
-      )}
-      {/* Status bar */}
-      {/* <div className="p-2 md:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
+      {/* Status bar */
+      /* <div className="p-2 md:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
         <div className="text-sm text-gray-600 mb-2 sm:mb-0">
           {realData ? (
             <span className="px-2 py-1 rounded bg-green-100 text-green-700">Dados reais do backend</span>

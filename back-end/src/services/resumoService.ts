@@ -89,7 +89,19 @@ export class ResumoService {
         }
 
         if (filtros?.dateEnd) {
-            qb.andWhere('r.Dia <= :dateEnd', { dateEnd: filtros.dateEnd });
+            // Use exclusive upper bound by comparing with next day so dateEnd is inclusive
+            try {
+                const parts = String(filtros.dateEnd).split('-');
+                const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                dt.setDate(dt.getDate() + 1);
+                const y = dt.getFullYear();
+                const m = String(dt.getMonth() + 1).padStart(2, '0');
+                const d = String(dt.getDate()).padStart(2, '0');
+                const dateEndPlus = `${y}-${m}-${d}`;
+                qb.andWhere('r.Dia < :dateEndPlus', { dateEndPlus });
+            } catch (e) {
+                qb.andWhere('r.Dia <= :dateEnd', { dateEnd: filtros.dateEnd });
+            }
         }
     }
 
