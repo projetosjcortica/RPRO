@@ -62,19 +62,19 @@ export default function Report() {
 
   // const { materias } = useMateriaPrima();
 
-  const [tableSelection] = useState<{
-    total: number;
-    batidas: number;
-    horaInicial: string;
-    horaFinal: string;
-    produtos: { nome: string; qtd: number }[];
-  }>({
-    total: 0,
-    batidas: 0,
-    horaInicial: "--:--",
-    horaFinal: "--:--",
-    produtos: [],
-  });
+  const [tableSelection, setTableSelection] = useState<{
+  total: number;
+  batidas: number;
+  horaInicial: string;
+  horaFinal: string;
+  produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
+}>({
+  total: 0,
+  batidas: 0,
+  horaInicial: "--:--",
+  horaFinal: "--:--",
+  produtos: [],
+});
 
   // Resumo vindo do backend (side info)
   const [resumo, setResumo] = useState<any | null>(null);
@@ -127,6 +127,28 @@ export default function Report() {
     };
   }, [filtros]);
 
+  useEffect(() => {
+  if (resumo && resumo.usosPorProduto) {
+    setTableSelection({
+      total: resumo.totalPesos || 0,
+      batidas: resumo.batitdasTotais || 0,
+      horaInicial: resumo.horaInicial || "--:--",
+      horaFinal: resumo.horaFinal || "--:--",
+      produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
+        const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
+        const nome = produtosInfo[produtoId]?.nome || key;
+        return {
+          colKey: produtoId,
+          nome,
+          qtd: Number(val.quantidade) || 0,
+          unidade: val.unidade || "kg",
+        };
+      }),
+    });
+  }
+}, [resumo, produtosInfo]);
+
+
   // === COLLECTOR FUNCTIONS ===
   const handleCollectorToggle = async () => {
     if (collectorLoading) return;
@@ -164,7 +186,7 @@ export default function Report() {
       localStorage.setItem("produtosInfo", JSON.stringify(produtosInfo));
     }
   };
-
+  
   // Load produtosInfo from localStorage once
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -482,12 +504,12 @@ export default function Report() {
                     produtos={tableSelection.produtos}
                     data={new Date().toLocaleDateString("pt-BR")}
                     empresa="Empresa ABC"
-                    chartData={chartData}
                     formulaSums={formulaSums}
                   />
                 }
                 fileName="relatorio.pdf"
               >
+
                 {({ loading }) =>
                   loading ? (
                     <Button className="bg-gray-400 text-white px-4 py-2 rounded">
@@ -515,7 +537,7 @@ export default function Report() {
                       produtos={tableSelection.produtos}
                       data={new Date().toLocaleDateString("pt-BR")}
                       empresa="Empresa ABCDE"
-                      chartData={chartData}
+                      // chartData={chartData}
                       formulaSums={formulaSums}
                     />
                   ).toBlob();
