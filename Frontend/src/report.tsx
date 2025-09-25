@@ -600,14 +600,15 @@ export default function Report() {
                   ).toBlob();
 
                   const buffer = await blob.arrayBuffer();
-                  const fs = window.require("fs");
-                  const path = window.require("path");
-                  const os = window.require("os");
-
-                  const filePath = path.join(os.tmpdir(), "relatorio.pdf");
-                  fs.writeFileSync(filePath, Buffer.from(buffer));
-
-                  (window as any).electronAPI?.printPDF("/");
+                  const base64 = Buffer.from(buffer).toString('base64');
+                  // Save the generated PDF via the preload API (main will write it to temp)
+                  const res = await (window as any).electronAPI?.savePdf(base64);
+                  if (res && res.ok && res.path) {
+                    // Ask main to open/print it
+                    await (window as any).electronAPI?.printPDF(res.path);
+                  } else {
+                    console.error('Failed to save PDF via electronAPI', res);
+                  }
                 }}
               >
                 Imprimir PDF

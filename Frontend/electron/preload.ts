@@ -32,6 +32,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   
   //printer
   printPDF: (filePath: string) => ipcRenderer.invoke("print-pdf", filePath),
+  // Save a base64-encoded PDF buffer to a temp file and return its path
+  savePdf: (base64: string) => ipcRenderer.invoke('save-pdf', base64),
   
   // forked functions
   startFork: (script: string, args?: string[]) => ipcRenderer.invoke('start-fork', { script, args }) as Promise<StartForkResult>,
