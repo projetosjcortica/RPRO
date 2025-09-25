@@ -134,6 +134,7 @@ interface MyDocumentProps {
   logoSrc?: string;
   orientation?: "portrait" | "landscape";
   formulaSums?: Record<string, number>;
+  chartData?: { name: string; value: number }[];
 }
 
 export const MyDocument = ({
@@ -148,6 +149,7 @@ export const MyDocument = ({
   logoSrc,
   orientation = "portrait",
   formulaSums = {},
+  chartData = [],
 }: MyDocumentProps) => {
   const produtosPorCategoria: Record<string, Produto[]> = {};
   produtos.forEach((p) => {
@@ -213,6 +215,15 @@ export const MyDocument = ({
         {/* Produtos */}
         <View style={styles.section} wrap>
           <Text style={styles.sectionTitle}>Produtos</Text>
+          {/* Small chart data summary (if provided) */}
+          {chartData && chartData.length > 0 && (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, color: '#374151' }}>Resumo rápido</Text>
+              {chartData.map((c, i) => (
+                <Text key={i} style={{ fontSize: 10 }}>{`${c.name}: ${c.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}`}</Text>
+              ))}
+            </View>
+          )}
           {categorias.map((cat, idx) => (
             <View key={idx} style={{ marginBottom: 10 }} wrap>
               <View style={styles.table} wrap>

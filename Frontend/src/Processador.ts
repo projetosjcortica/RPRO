@@ -1,5 +1,4 @@
 import { FilterOptions } from "./components/types";
-import axios from "axios";
 
 export interface TableDataResult {
   rows: any[];
@@ -233,13 +232,15 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     return this.makeRequest('/api/collector/stop');
   }
 
-  public getResumo(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string) {
+  public getResumo(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string) {
     const params: any = {};
     if (areaId) params.areaId = areaId;
     if (nomeFormula) params.nomeFormula = nomeFormula;
     if (dataInicio) params.dataInicio = dataInicio;
     if (dataFim) params.dataFim = dataFim;
-    
+    if (codigo !== undefined && codigo !== null && String(codigo) !== '') params.codigo = codigo;
+    if (numero !== undefined && numero !== null && String(numero) !== '') params.numero = numero;
+
     return this.makeRequest('/api/resumo', 'GET', params);
   }
 

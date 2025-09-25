@@ -3,10 +3,12 @@ import fs from 'fs';
 import path from 'path';
 import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
-import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque } from '../entities/index';
+import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting } from '../entities/index';
 
 export class DBService extends BaseService {
   ds: DataSource;
+  useMysql: boolean;
+  sqlitePath?: string;
   constructor(
     host = process.env.MYSQL_HOST || 'localhost',
     port = Number(process.env.MYSQL_PORT || 3306),
@@ -15,33 +17,66 @@ export class DBService extends BaseService {
     database = process.env.MYSQL_DB || 'cadastro'
   ) {
     super('DBService');
-    const useMysql = process.env.USE_SQLITE !== 'true';
-    if (useMysql) {
-      this.ds = new DataSource({ 
-        type: 'mysql', 
-        host, 
-        port, 
-        username, 
-        password, 
-        database, 
-        synchronize: true, 
-        logging: false, 
-        entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque] 
+    this.useMysql = process.env.USE_SQLITE !== 'true';
+    if (this.useMysql) {
+      this.ds = new DataSource({
+        type: 'mysql',
+        host,
+        port,
+        username,
+        password,
+        database,
+        synchronize: true,
+        logging: false,
+  entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
       });
     } else {
       const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
       const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
+      this.sqlitePath = absPath;
       const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
-      this.ds = new DataSource({ 
-        type: 'sqlite', 
-        database: absPath, 
-        synchronize: shouldSync, 
-        logging: false, 
-        entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque] 
+      this.ds = new DataSource({
+        type: 'sqlite',
+        database: absPath,
+        synchronize: shouldSync,
+        logging: false,
+  entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
       });
     }
   }
-  async init() { if (!this.ds.isInitialized) await this.ds.initialize(); }
+  async init() {
+    if (this.ds.isInitialized) return;
+    try {
+      await this.ds.initialize();
+      return;
+    } catch (err) {
+      // If MySQL init failed and we intended to use MySQL, fallback to SQLite automatically
+  console.warn('[DBService] DataSource initialization failed:', String(err));
+      if (this.useMysql) {
+        try {
+          const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
+          const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
+          this.sqlitePath = absPath;
+          const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
+          this.ds = new DataSource({
+            type: 'sqlite',
+            database: absPath,
+            synchronize: true,
+            logging: false,
+            entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting],
+          });
+          await this.ds.initialize();
+          this.useMysql = false;
+          console.info('[DBService] Fell back to SQLite at', absPath);
+          return;
+        } catch (err2) {
+          console.error('[DBService] SQLite fallback initialization failed:', err2);
+          throw err2;
+        }
+      }
+      throw err;
+    }
+  }
   async insertRelatorioRows(rows: any[], processedFile: string) {
     await this.init();
     const repo = this.ds.getRepository(Relatorio);
@@ -106,4 +141,24 @@ export class DBService extends BaseService {
 }
 
 export const dbService = new DBService();
-export const AppDataSource = dbService.ds;
+
+// Export a runtime proxy that forwards to the current dbService.ds instance.
+// This keeps existing imports like `AppDataSource.getRepository(...)` working
+// even if we swap datasources at runtime (MySQL -> SQLite fallback).
+export const AppDataSource: DataSource = new Proxy({} as any, {
+  get(_target, prop: string | symbol) {
+    const ds = (dbService as any).ds as DataSource | undefined;
+    if (!ds) throw new Error('DataSource not available yet');
+    // @ts-ignore
+    const val = (ds as any)[prop];
+    if (typeof val === 'function') return val.bind(ds);
+    return val;
+  },
+  set(_target, prop: string | symbol, value) {
+    const ds = (dbService as any).ds as DataSource | undefined;
+    if (!ds) throw new Error('DataSource not available yet');
+    // @ts-ignore
+    (ds as any)[prop] = value;
+    return true;
+  }
+});

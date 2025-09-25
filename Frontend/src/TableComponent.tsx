@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useRef } from "react";
 import {
   Table,
   TableHeader,
@@ -21,6 +21,7 @@ interface TableComponentProps {
   total?: number;
   page?: number;
   pageSize?: number;
+  produtosInfo?: Record<string, { nome?: string; unidade?: string; num?: number }>;
   useExternalData?: boolean;
 }
 
@@ -41,9 +42,9 @@ const safeString = (value: any): string => {
   return String(value);
 };
 
-const receba = (col, idx) => {
+const receba = (col: any, idx: number) => {
   if (idx === 3) {
-    return <div>Código do <br /> produto</div>;
+    return <div>Código do <br /> programa</div>;
   } else if (idx === 4) {
     return <div>Código do <br /> cliente</div>;
   }
@@ -55,39 +56,24 @@ export default function TableComponent({
   loading: loadingProp, 
   error: errorProp,
   filtros,
+  produtosInfo: produtosInfoProp = {},
 }: TableComponentProps) {
   const tableRef = useRef<HTMLDivElement>(null);
-  const [produtosInfo, setProdutosInfo] = useState<{ [key: string]: { nome: string; unidade: string } }>({});
+  // Use produtosInfo passed from parent (backend-provided). Keep as a const alias.
+  const produtosInfo = produtosInfoProp || {};
   
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-  // Carrega informações de unidades do localStorage
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const raw = localStorage.getItem("produtosInfo");
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw); 
-           setProdutosInfo(parsed || {});
-        } catch (error) {
-          console.error("Erro ao carregar produtosInfo:", error);
-          setProdutosInfo({});
-        }
-      }
-    }
-  }, []);
-
   // Função para converter valores baseado na unidade
+  // Backend already normalizes values to kg. To display the original unit (grams),
+  // we must convert back: kg -> g by multiplying by 1000. For kg, show as-is.
   const converterValor = (valor: number, colKey: string): number => {
-    if (typeof valor !== 'number') return valor;
-    
+    if (typeof valor !== 'number') return valor as any;
     const unidade = produtosInfo[colKey]?.unidade || "kg";
-    
     if (unidade === "g") {
-      return valor / 1000;
+      return valor * 1000; // display in grams
     }
-    
-    return valor;
+    return valor; // already in kg
   };
 
   // Gera dynamicColumns baseado nos dados reais
@@ -125,15 +111,8 @@ export default function TableComponent({
     
     // Se for uma coluna dinâmica, busca no colLabels ou usa fallback
     if (colKey.startsWith('col')) {
-      // puxar do localstorage produtosInfo
-
-
-      const raw = localStorage.getItem("produtosInfo");
-      const produtosInfo = raw ? JSON.parse(raw) : {};    
-
       const label = produtosInfo[colKey]?.nome;
       const colNum = parseInt(colKey.replace('col', ''), 10);
-      // const label = colLabels[colKey];
       return safeString(label) || `Produto ${colNum - 5}`;
     }
     

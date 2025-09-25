@@ -21,6 +21,9 @@ export interface ResumoTotal {
     horaInicial: string | null;
     horaFinal: string | null;
     usosPorProduto: Record<string, { quantidade: number; label: string; unidade: string; }>;
+    // Optional debug metadata (not used by UI by default)
+    _appliedFilters?: any;
+    _matchedRows?: number;
 }
 
 export interface ResumoAreaSelecionada extends ResumoTotal {
@@ -33,9 +36,11 @@ export class ResumoService {
      * Aplica filtro de fórmula ao query builder
      */
     private applyFormulaFilter(qb: any, formula: number | null) {
-        if (formula) {
-            if (!Number.isNaN(formula)) {
-                qb.andWhere('(r.Form1 = :formula OR r.Form2 = :formula)', { formula });
+        // Accept 0 and any finite numeric formula
+        if (formula != null) {
+            const f = Number(formula);
+            if (Number.isFinite(f)) {
+                qb.andWhere('(r.Form1 = :formula OR r.Form2 = :formula)', { formula: f });
             }
         }
     }
@@ -43,8 +48,11 @@ export class ResumoService {
     /**
      * Aplica todos os filtros ao query builder
      */
-    private applyFilters(qb: any, filtros?: { 
+    private applyFilters(qb: any, filtros?: {
         formula?: number | null;
+        formulaName?: string | null;
+        codigo?: number | null;
+        numero?: number | null;
         dateStart?: string | null;
         dateEnd?: string | null;
         areaId?: string | null;
@@ -52,15 +60,34 @@ export class ResumoService {
         if (filtros?.areaId) {
             qb.andWhere('r.Area = :areaId', { areaId: filtros.areaId });
         }
-        
-        if (filtros?.formula) {
+
+        // If explicit codigo (Form1) filter provided, apply it
+        if (filtros?.codigo != null) {
+            const c = Number(filtros.codigo);
+            if (Number.isFinite(c)) qb.andWhere('r.Form1 = :c', { c });
+        }
+
+        // If explicit numero (Form2) filter provided, apply it
+        if (filtros?.numero != null) {
+            const n = Number(filtros.numero);
+            if (Number.isFinite(n)) qb.andWhere('r.Form2 = :n', { n });
+        }
+
+        // If numeric formula was provided (including 0), apply previous behavior (Form1 OR Form2)
+        if (filtros?.formula != null) {
             this.applyFormulaFilter(qb, filtros.formula);
         }
-        
+
+        // If a textual formula filter (name) was provided, match by Nome (case-insensitive)
+        if (filtros?.formulaName) {
+            const fStr = String(filtros.formulaName).toLowerCase();
+            qb.andWhere('LOWER(r.Nome) LIKE :fStr', { fStr: `%${fStr}%` });
+        }
+
         if (filtros?.dateStart) {
             qb.andWhere('r.Dia >= :dateStart', { dateStart: filtros.dateStart });
         }
-        
+
         if (filtros?.dateEnd) {
             qb.andWhere('r.Dia <= :dateEnd', { dateEnd: filtros.dateEnd });
         }
@@ -69,8 +96,11 @@ export class ResumoService {
     /**
      * Gera um resumo dos dados com filtros aplicados
      */
-    async getResumo(filtros?: { 
+    async getResumo(filtros?: {
         formula?: number | null;
+        formulaName?: string | null;
+        codigo?: number | null;
+        numero?: number | null;
         dateStart?: string | null;
         dateEnd?: string | null;
         areaId?: string | null;
@@ -141,28 +171,34 @@ export class ResumoService {
                     const info = infosProdutos[prodKey];
                     
                     // Converter valor baseado na configuração do produto
-                    let valueConverted = valueOriginal;
+                    // Keep display quantity in the product's original unit (g or kg)
+                    // but accumulate totalPesos in normalized kg
+                    let valueForTotalKg = valueOriginal;
+                    let displayQuantity = valueOriginal;
                     let unidade = 'kg';
-                    
+
                     if (info && info.materia) {
-                        // Se medida = 0 (gramas), converter para kg
                         if (info.materia.medida === 0) {
-                            valueConverted = valueOriginal / 1000;
-                            unidade = 'g'; 
+                            // stored in grams in DB -> valueOriginal is grams
+                            // For total, convert to kg
+                            valueForTotalKg = valueOriginal / 1000;
+                            displayQuantity = valueOriginal; // keep grams
+                            unidade = 'g';
                         } else {
-                            // Se medida = 1 (kg), manter valor original
-                            valueConverted = valueOriginal;
+                            // already in kg
+                            valueForTotalKg = valueOriginal;
+                            displayQuantity = valueOriginal;
                             unidade = 'kg';
                         }
                     }
-                    
+
                     const label = info ? info.label : `Produto ${i}`;
-                    
+
                     if (!usosPorProduto[prodKey]) {
                         usosPorProduto[prodKey] = { quantidade: 0, label, unidade };
                     }
-                    usosPorProduto[prodKey].quantidade += valueConverted;
-                    totalPesos += valueConverted; // Usar valor convertido para o total
+                    usosPorProduto[prodKey].quantidade += displayQuantity;
+                    totalPesos += valueForTotalKg; // accumulate normalized kg for totals
                 }
             }
         }
@@ -197,8 +233,8 @@ export class ResumoService {
             };
         }
         
-        // Retornar formato padrão
-        return {
+        // Retornar formato padrão (inclui metadata para debugging)
+        const baseResumo: ResumoTotal = {
             // totalRegistros: Number(result.totalRegistros) || 0,
             batitdasTotais: allRows.length,
             periodoInicio: result.periodoInicio,
@@ -207,8 +243,12 @@ export class ResumoService {
             horaFinal: result.horaFinal,
             formulasUtilizadas,
             totalPesos,
-            usosPorProduto
+            usosPorProduto,
+            _appliedFilters: filtros || {},
+            _matchedRows: allRows.length
         };
+
+        return baseResumo;
     }
 
     /**
@@ -306,8 +346,8 @@ export class ResumoService {
                 
                 if (value > 0) {
                     const prodKey = `Produto_${i}`;
-                    const label = this.colLabels[`col${i+5}`]?.col_name || `Produto ${i}`;
-                    const unidade = this.colLabels[`col${i+5}`]?.unidade || 'kg';
+                    const label = `Produto ${i}`;
+                    const unidade = 'kg';
                     
                     if (!usosPorProduto[prodKey]) {
                         usosPorProduto[prodKey] = { quantidade: 0, label, unidade };
