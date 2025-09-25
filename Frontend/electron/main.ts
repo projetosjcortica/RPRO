@@ -4,6 +4,7 @@ import Store from 'electron-store';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { fork, ChildProcess } from 'child_process';
+import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, '..');
@@ -20,6 +21,8 @@ let win: BrowserWindow | null;
 let lastScriptPath: string | null = null;
 // Map to track forked child processes by PID
 const children: Map<number, ChildProcess> = new Map();
+// Track spawned backend exe when packaged
+let spawnedBackend: ChildProcessWithoutNullStreams | null = null;
 
 // Define the complete form data structure to match the frontend
 interface FormData {
@@ -469,7 +472,39 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
-  createWindow();
+  (async () => {
+    // If running packaged we will try to spawn the backend exe included in resources
+    if (app.isPackaged) {
+      try {
+        const exePath = path.join(process.resourcesPath, 'backend', 'backend.exe');
+        if (fs.existsSync(exePath)) {
+          console.log('[main] Spawning packaged backend exe at', exePath);
+          spawnedBackend = spawn(exePath, [], { env: { ...process.env, FRONTEND_API_PORT: process.env.FRONTEND_API_PORT || '3000' }, cwd: process.resourcesPath });
+          spawnedBackend.stdout.on('data', (d) => console.log('[backend exe stdout]', d.toString()));
+          spawnedBackend.stderr.on('data', (d) => console.error('[backend exe stderr]', d.toString()));
+          spawnedBackend.on('exit', (code) => console.log('[backend exe] exited', code));
+        } else {
+          console.warn('[main] packaged backend exe not found at', exePath);
+        }
+      } catch (e) {
+        console.error('[main] failed to spawn packaged backend exe', e);
+      }
+    } else {
+      // In dev, prefer to fork the backend JS so logs and IPC work as before
+      try {
+        // attempt to start a fork automatically (reuse existing start-fork handler)
+        // call the same code path used by the renderer
+        // No args -> ipcMain handler will attempt to locate the backend
+        // We send a message to ourselves via ipcMain (invoking the handler directly would require creating a fake event)
+        // Instead rely on renderer to start the fork when needed; so just log
+        console.log('[main] running in development mode, backend fork will be started by renderer when needed');
+      } catch (e) {
+        console.warn('[main] dev auto-start failed', e);
+      }
+    }
+
+    createWindow();
+  })();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -481,6 +516,23 @@ app.whenReady().then(() => {
 // Encerrar backend e app corretamente
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  // ensure spawned backend is terminated
+  try {
+    if (spawnedBackend && !spawnedBackend.killed) {
+      spawnedBackend.kill();
+      spawnedBackend = null;
+    }
+  } catch (e) {
+    console.warn('[main] error killing spawned backend', e);
+  }
+
+  // also try to kill any forked child processes
+  for (const [, child] of children.entries()) {
+    try { child.kill('SIGTERM'); } catch (e) { /* ignore */ }
+  }
 });
 
 // Logging

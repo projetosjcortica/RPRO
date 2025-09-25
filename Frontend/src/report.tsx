@@ -265,7 +265,7 @@ export default function Report() {
     // When backend normalization is applied, values are already in kg for produtos with medida=0 (server divides by 1000)
     // But if we still have local info (e.g., fallback), apply conversion here as safety.
     let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
-    if (unidade === 'g') return valor / 1000;
+    // if (unidade === 'g') return valor / 1000;
     return valor;
   };
 

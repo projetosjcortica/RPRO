@@ -10,7 +10,9 @@
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.json",
     "build": "npm run build:renderer && npm run build:main",
-    "dist": "npm run build && electron-builder"
+    "build-backend-exe": "cd ../back-end && npm install --no-audit --no-fund && npm run build && npx pkg dist/index.js --targets node18-win-x64 --output dist/backend.exe",
+    "dist": "npm run build && electron-builder",
+    "dist:all": "npm run build-backend-exe && npm run build && electron-builder"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -97,5 +99,20 @@
     "vite-plugin-electron": "^0.28.6",
     "vite-plugin-electron-renderer": "^0.14.5"
   },
-  "main": "dist-electron/main.js"
+  "main": "dist-electron/main.js",
+  "build": {
+    "extraResources": [
+      {
+        "from": "../back-end/dist/backend.exe",
+        "to": "backend/backend.exe"
+      }
+    ],
+    "asarUnpack": [
+      "backend/**"
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false
+    }
+  }
 }

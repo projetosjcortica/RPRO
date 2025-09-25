@@ -288,6 +288,39 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     return this.makeRequest(`/api/estoque/${operation}`, 'POST', payload);
   }
 
+  // Stock helpers (HTTP wrappers for /api/estoque/* endpoints)
+  public listarEstoque(incluirInativos = false) {
+    return this.estoqueOperation('listar', { incluirInativos });
+  }
+
+  public listarEstoqueBaixo() {
+    return this.estoqueOperation('baixo');
+  }
+
+  public listarEstoqueMovimentacoes(materiaPrimaId?: string, tipo?: any, dataInicial?: string, dataFinal?: string) {
+    return this.estoqueOperation('movimentacoes', { materiaPrimaId, tipo, dataInicial, dataFinal });
+  }
+
+  public adicionarEstoque(materiaPrimaId: string, quantidade: number, opts: any = {}) {
+    return this.estoqueOperation('adicionar', { materiaPrimaId, quantidade, ...opts });
+  }
+
+  public removerEstoque(materiaPrimaId: string, quantidade: number, opts: any = {}) {
+    return this.estoqueOperation('remover', { materiaPrimaId, quantidade, ...opts });
+  }
+
+  public ajustarEstoque(materiaPrimaId: string, quantidade: number, opts: any = {}) {
+    return this.estoqueOperation('ajustar', { materiaPrimaId, quantidade, ...opts });
+  }
+
+  public atualizarLimitesEstoque(materiaPrimaId: string, minimo: number, maximo: number, opts: any = {}) {
+    return this.estoqueOperation('limites', { materiaPrimaId, minimo, maximo, ...opts });
+  }
+
+  public inicializarEstoque(materiaPrimaId: string, quantidade = 0, minimo = 0, maximo = 0) {
+    return this.estoqueOperation('inicializar', { materiaPrimaId, quantidade, minimo, maximo });
+  }
+
   // Método genérico para executar comandos (mantido para compatibilidade)
   public executarWs(comando: string, parametros: any = {}) {
     return this.sendWithConnectionCheck(comando, parametros);

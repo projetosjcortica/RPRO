@@ -70,9 +70,9 @@ export default function TableComponent({
   const converterValor = (valor: number, colKey: string): number => {
     if (typeof valor !== 'number') return valor as any;
     const unidade = produtosInfo[colKey]?.unidade || "kg";
-    if (unidade === "g") {
-      return valor * 1000; // display in grams
-    }
+    // if (unidade === "g") {
+    //   return valor / 1000; // display in grams
+    // }
     return valor; // already in kg
   };
 
