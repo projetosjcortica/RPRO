@@ -467,7 +467,31 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'));
+    // When packaged, __dirname points inside app.asar. It's more reliable to resolve
+    // the index.html relative to __dirname instead of constructing a path via process.resourcesPath
+    // which may result in a file:// URL containing app.asar and trigger "Not allowed to load local resource".
+    try {
+      const packagedIndex = path.join(__dirname, '..', 'dist', 'index.html');
+      console.log('[main] loading packaged index from', packagedIndex);
+      if (fs.existsSync(packagedIndex)) {
+        win.loadFile(packagedIndex);
+      } else {
+        // Fallback to original approach if file not found
+        const alt = path.join(RENDERER_DIST, 'index.html');
+        console.warn('[main] packaged index not found at', packagedIndex, 'falling back to', alt);
+        win.loadFile(alt);
+      }
+    } catch (e) {
+      console.error('[main] failed to load packaged index.html', e);
+      // Last resort: attempt to load via resourcesPath
+      try {
+        const alt2 = path.join(process.resourcesPath, 'app.asar', 'dist', 'index.html');
+        console.log('[main] attempting alt loadFile', alt2);
+        win.loadFile(alt2);
+      } catch (e2) {
+        console.error('[main] all index.html load attempts failed', e2);
+      }
+    }
   }
 }
 
@@ -492,12 +516,35 @@ app.whenReady().then(() => {
     } else {
       // In dev, prefer to fork the backend JS so logs and IPC work as before
       try {
-        // attempt to start a fork automatically (reuse existing start-fork handler)
-        // call the same code path used by the renderer
-        // No args -> ipcMain handler will attempt to locate the backend
-        // We send a message to ourselves via ipcMain (invoking the handler directly would require creating a fake event)
-        // Instead rely on renderer to start the fork when needed; so just log
-        console.log('[main] running in development mode, backend fork will be started by renderer when needed');
+        // attempt to auto-start backend JS when running in development
+        const projectRoot = path.dirname(path.dirname(__dirname));
+        const possible = [
+          path.join(projectRoot, 'back-end', 'dist', 'index.js'),
+          path.join(projectRoot, 'back-end', 'dist', 'src', 'index.js'),
+          path.join(projectRoot, 'back-end', 'src', 'index.ts'),
+        ];
+        const scriptPath = possible.find(p => fs.existsSync(p));
+        if (scriptPath) {
+          try {
+            console.log('[main] dev auto-forking backend at', scriptPath);
+            lastScriptPath = scriptPath;
+            const backendDir = path.dirname(scriptPath);
+            const child = fork(scriptPath, [], { stdio: ['pipe', 'pipe', 'ipc'], cwd: backendDir, env: { ...process.env } });
+            const pid = child.pid;
+            if (typeof pid === 'number') {
+              children.set(pid, child);
+              console.log('[main] dev backend forked with PID', pid);
+            }
+            // forward messages/stdout/stderr to renderer
+            child.on('message', (msg) => { if (win && !win.isDestroyed()) win.webContents.send('child-message', { pid: child.pid, msg }); });
+            if (child.stdout) child.stdout.on('data', (c) => { console.log('[child stdout]', c.toString()); if (win && !win.isDestroyed()) win.webContents.send('child-stdout', { pid: child.pid, data: c.toString() }); });
+            if (child.stderr) child.stderr.on('data', (c) => { console.error('[child stderr]', c.toString()); if (win && !win.isDestroyed()) win.webContents.send('child-stderr', { pid: child.pid, data: c.toString() }); });
+          } catch (devErr) {
+            console.warn('[main] failed to auto-fork backend in dev:', devErr);
+          }
+        } else {
+          console.log('[main] running in development mode, backend fork will be started by renderer when needed (no backend script found)');
+        }
       } catch (e) {
         console.warn('[main] dev auto-start failed', e);
       }
@@ -545,4 +592,18 @@ process.on('uncaughtException', (error: Error) => {
 
 process.on('unhandledRejection', (reason: unknown) => {
   logStream.write(`[${new Date().toISOString()}] Unhandled Rejection: ${reason}\n`);
+});
+
+// Save base64 PDF data to a temp file and return the path
+ipcMain.handle('save-pdf', async (_event: IpcMainInvokeEvent, base64: string) => {
+  try {
+    const tmpDir = app.getPath('temp');
+    const filePath = path.join(tmpDir, `relatorio-${Date.now()}.pdf`);
+    const buffer = Buffer.from(base64, 'base64');
+    fs.writeFileSync(filePath, buffer);
+    return { ok: true, path: filePath };
+  } catch (err) {
+    console.error('Failed to save pdf from renderer:', err);
+    return { ok: false, error: String(err) };
+  }
 });
