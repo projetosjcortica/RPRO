@@ -544,11 +544,6 @@ const loadMateriaPrimaConfig = async () => {
 
   return (
     <div className="w-full">
-      {usedFallbackAllData && (
-        <div className="bg-yellow-100 border-l-4 border-yellow-400 p-3 mb-4">
-          <div className="text-sm text-yellow-800">Aviso: não foi possível filtrar por data — exibindo todos os dados disponíveis como último recurso.</div>
-        </div>
-      )}
       {/* Status bar */}
       {/* <div className="p-2 md:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between">
         <div className="text-sm text-gray-600 mb-2 sm:mb-0">

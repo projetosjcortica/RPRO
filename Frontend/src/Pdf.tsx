@@ -8,6 +8,7 @@ Font.register({
   ],
 });
 
+
 const styles = StyleSheet.create({
   page: {
     padding: 30,
@@ -46,7 +47,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     color: "#af1e1eff",
   },
-  infoRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
+  infoRow: { flexDirection: "column", justifyContent: "space-between", marginBottom: 8 },
   label: { fontWeight: "bold", color: "#374151", width: "40%" },
   value: { width: "60%", textAlign: "right" },
   table: {
@@ -160,111 +161,150 @@ export const MyDocument = ({
   const categorias = Object.keys(produtosPorCategoria).sort();
 
   return (
+    
     <Document>
-      <Page size="A4" style={styles.page} orientation={orientation} wrap>
-        {/* Cabeçalho */}
-        <View style={styles.header} fixed>
-          {logoSrc ? (
-            <Image src={logoSrc} style={styles.logo} />
-          ) : (
-            <View
-              style={[
-                styles.logo,
-                { backgroundColor: "#f3f4f6", justifyContent: "center", alignItems: "center" },
-              ]}
-            >
-              <Text>LOGO</Text>
-            </View>
-          )}
-          <View style={styles.titleContainer}>
-            <Text style={styles.title}>{empresa}</Text>
-            <Text style={styles.subtitle}>Relatório de Produção - {data}</Text>
-          </View>
+  {/* Página 1 fixa */}
+  <Page size="A4" style={styles.page} orientation={orientation}>
+    {/* Cabeçalho */}
+    <View style={styles.header} fixed>
+      {logoSrc ? (
+        <Image src={logoSrc} style={styles.logo} />
+      ) : (
+        <View
+          style={[
+            styles.logo,
+            { backgroundColor: "#f3f4f6", justifyContent: "center", alignItems: "center" },
+          ]}
+        >
+          <Text>LOGO</Text>
         </View>
+      )}
+      <View style={styles.titleContainer}>
+        <Text style={styles.title}>{empresa}</Text>
+        <Text style={styles.subtitle}>Relatório de Produção - {data}</Text>
+      </View>
+    </View>
 
-        {/* Informações Gerais */}
-        <View style={styles.section} wrap>
-          <Text style={styles.sectionTitle}>Informações Gerais</Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            <View style={{ width: "70%" }}>
-              <Text style={styles.label}>
-                Total:{" "}
-                <Text style={styles.value}>
-                  {(total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
-                </Text>
-              </Text>
-            </View>
-            <View style={{ width: "70%" }}>
-              <Text style={styles.label}>
-                Batidas: <Text style={styles.value}>{batidas ?? 0}</Text>
-              </Text>
-            </View>
-            <View style={{ width: "70%" }}>
-              <Text style={styles.label}>
-                Hora inicial: <Text style={styles.value}>{horaInicio ?? "-"}</Text>
-              </Text>
-            </View>
-            <View style={{ width: "70%" }}>
-              <Text style={styles.label}>
-                Hora final: <Text style={styles.value}>{horaFim ?? "-"}</Text>
-              </Text>
-            </View>
-          </View>
+    {/* Informações Gerais */}
+    <View style={styles.section} wrap={false}>
+      <Text style={styles.sectionTitle}>Informações Gerais</Text>
+      <View style={styles.infoRow}>
+        <View style={{ width: "70%" }}>
+          <Text style={styles.label}>
+            Total:{" "}
+            <Text style={styles.value}>
+              {(total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+            </Text>
+          </Text>
         </View>
+        <View style={{ width: "70%" }}>
+          <Text style={styles.label}>
+            Batidas: <Text style={styles.value}>{batidas ?? 0}</Text>
+          </Text>
+        </View>
+      </View>
+      <View style={styles.infoRow}>
+        <View style={{ width: "70%" }}>
+          <Text style={styles.label}>
+            Data inicial: <Text style={styles.value}>{horaInicio ?? "-"}</Text>
+          </Text>
+        </View>
+        <View style={{ width: "70%" }}>
+          <Text style={styles.label}>
+            Data final: <Text style={styles.value}>{horaFim ?? "-"}</Text>
+          </Text>
+        </View>
+      </View>
+    </View>
 
-        {/* Produtos */}
-        <View style={styles.section} wrap>
-          <Text style={styles.sectionTitle}>Produtos</Text>
-          {/* Small chart data summary (if provided) */}
-          {chartData && chartData.length > 0 && (
-            <View style={{ marginBottom: 8 }}>
-              <Text style={{ fontSize: 12, color: '#374151' }}>Resumo rápido</Text>
-              {chartData.map((c, i) => (
-                <Text key={i} style={{ fontSize: 10 }}>{`${c.name}: ${c.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}`}</Text>
-              ))}
-            </View>
-          )}
-          {categorias.map((cat, idx) => (
-            <View key={idx} style={{ marginBottom: 10 }} wrap>
-              <View style={styles.table} wrap>
-                <View style={styles.tableRow}>
-                  <Text style={styles.tableColHeader}>Nome</Text>
-                  <Text style={styles.tableColHeaderSmall}>Quantidade</Text>
-                </View>
-                {produtosPorCategoria[cat].map((p, i) => (
-                  <View
-                    key={i}
-                    style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
-                  >
-                    <Text style={styles.tableCol}>{p.nome}</Text>
-                    <Text style={styles.tableColSmall}>
-                      {p.qtd.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
-                    </Text>
-                  </View>
-                ))}
-              </View>
+    {/* Fórmulas */}
+    {Object.keys(formulaSums).length > 0 && (      <View style={styles.section} wrap={false}>
+        <Text style={styles.sectionTitle}>Resumo por Fórmula</Text>
+        <View style={styles.table}>
+          <View style={styles.tableRow}>
+            <Text style={styles.tableColHeader}>Fórmula</Text>
+            <Text style={styles.tableColHeaderSmall}>Total</Text>
+          </View>
+          {Object.entries(formulaSums).map(([f, v], i) => (
+            <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+              <Text style={styles.tableCol}>{f}</Text>
+              <Text style={styles.tableColSmall}>
+                {v.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+              </Text>
             </View>
           ))}
         </View>
+      </View>
+    )}
 
-        {/* Observações */}
-        {observacoes && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Observações</Text>
-            <Text>{observacoes}</Text>
+    {/* Rodapé (fixo em todas as páginas após a primeira) */}
+    <Text style={styles.footer} fixed>
+      Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
+    </Text>
+    <Text
+      style={styles.pageNumber}
+      render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+      fixed
+    />
+  </Page>
+  {/* Páginas seguintes (adaptativas) */}
+  <Page size="A4" style={styles.page} orientation={orientation} wrap>
+    {/* Produtos */}
+    <View style={styles.section}>
+      <Text style={styles.sectionTitle}>Produtos</Text>
+      {chartData && chartData.length > 0 && (
+        <View style={{ marginBottom: 8 }}>
+          <Text style={{ fontSize: 12, color: "#374151" }}>Resumo rápido</Text>
+          {chartData.map((c, i) => (
+            <Text key={i} style={{ fontSize: 10 }}>
+              {`${c.name}: ${c.value.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}`}
+            </Text>
+          ))}
+        </View>
+      )}
+      {categorias.map((cat, idx) => (
+        <View key={idx} style={{ marginBottom: 10 }} wrap>
+          <View style={styles.table} wrap>
+            <View style={styles.tableRow}>
+              <Text style={styles.tableColHeader}>Nome</Text>
+              <Text style={styles.tableColHeaderSmall}>Quantidade</Text>
+            </View>
+            {produtosPorCategoria[cat].map((p, i) => (
+              <View
+                key={i}
+                style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
+              >
+                <Text style={styles.tableCol}>{p.nome}</Text>
+                <Text style={styles.tableColSmall}>
+                  {p.qtd.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+                </Text>
+              </View>
+            ))}
           </View>
-        )}
+        </View>
+      ))}
+    </View>
 
-        {/* Rodapé */}
-        <Text style={styles.footer} fixed>
-          Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
-        </Text>
-        <Text
-          style={styles.pageNumber}
-          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
-          fixed
-        />
-      </Page>
-    </Document>
+    {/* Observações */}
+    {observacoes && (
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Observações</Text>
+        <Text>{observacoes}</Text>
+      </View>
+    )}
+
+    {/* Rodapé (fixo em todas as páginas após a primeira) */}
+    <Text style={styles.footer} fixed>
+      Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
+    </Text>
+    <Text
+      style={styles.pageNumber}
+      render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+      fixed
+    />
+  </Page>
+</Document>
+
+
   );
 };

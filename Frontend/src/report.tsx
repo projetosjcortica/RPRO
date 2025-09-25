@@ -110,6 +110,7 @@ export default function Report() {
           dateEnd as string | undefined,
           (filtros && filtros.codigo !== undefined && filtros.codigo !== '') ? filtros.codigo : undefined,
           (filtros && filtros.numero !== undefined && filtros.numero !== '') ? filtros.numero : undefined,
+          
         );
         if (!mounted) return;
         // Debug: log applied filters from backend if present
@@ -238,15 +239,6 @@ export default function Report() {
   }, []);
 
   // Função para converter valores baseado na unidade
-  const converterValor = (valor: number, colKey?: string): number => {
-    if (typeof valor !== "number") return valor;
-    // When backend normalization is applied, values are already in kg for produtos with medida=0 (server divides by 1000)
-    // But if we still have local info (e.g., fallback), apply conversion here as safety.
-    let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
-    if (unidade === 'g') return valor / 1000;
-    return valor;
-  };
-
   let content;
   if (view === "table") {
     content = (
@@ -286,11 +278,6 @@ export default function Report() {
     (_, i) => startPage + i
   );
 
-  // === Chart data calculation ===
-  const chartData = tableSelection.produtos.map((p) => ({
-    name: p.nome,
-    value: p.qtd,
-  }));
 
   const displayProducts = useMemo(() => {
     if (
@@ -521,8 +508,8 @@ export default function Report() {
                   <MyDocument
                     total={Number(tableSelection.total) || 0}
                     batidas={Number(tableSelection.batidas) || 0}
-                    horaInicio={tableSelection.horaInicial}
-                    horaFim={tableSelection.horaFinal}
+                    horaInicio={resumo?.periodoInicio || tableSelection.horaInicial}
+                    horaFim={resumo?.periodoFim || tableSelection.horaFinal}
                     produtos={tableSelection.produtos}
                     data={new Date().toLocaleDateString("pt-BR")}
                     empresa="Empresa ABC"
