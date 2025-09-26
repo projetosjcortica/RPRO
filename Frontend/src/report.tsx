@@ -37,7 +37,6 @@ import { Button, buttonVariants } from "./components/ui/button";
 import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
 
-import { PDFDownloadLink } from "@react-pdf/renderer";
 import { MyDocument } from "./Pdf";
 
 export default function Report() {

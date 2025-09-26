@@ -101,6 +101,13 @@
   },
   "main": "dist-electron/main.js",
   "build": {
+    "files": [
+      "dist-electron/**/*",
+      "dist/**/*",
+      "electron/preload.mjs",
+      "electron/main.js",
+      "node_modules/**/*"
+    ],
     "extraResources": [
       {
         "from": "../back-end/dist/backend.exe",

@@ -171,7 +171,9 @@ import App from './App'
 import './index.css'
 import { RuntimeConfigProvider } from './hooks/useRuntimeConfig';
 import { Processador, getProcessador, setProcessador } from './Processador' // Ajuste o caminho se necessário
-import { BrowserRouter } from 'react-router-dom' // Se estiver usando rotas
+// import { BrowserRouter } from 'react-router-dom' // Se estiver usando rotas
+
+import { HashRouter } from 'react-router-dom';
 
 // Export for use in other components
 export { Processador, getProcessador, setProcessador };
@@ -204,9 +206,9 @@ processador.ping()
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RuntimeConfigProvider>
-    <BrowserRouter> {/* Se estiver usando rotas */}
-      <App />
-    </BrowserRouter>
+      <HashRouter>
+          <App />
+      </HashRouter>
     </RuntimeConfigProvider>
   </React.StrictMode>,
 )

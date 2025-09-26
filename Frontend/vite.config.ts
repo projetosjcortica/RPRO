@@ -22,9 +22,22 @@ export default defineConfig({
     electron({
       main: {   
         entry: 'electron/main.ts',
+        onstart(args) {
+          args.startup()
+        }
       },
       preload: {
         input: path.join(__dirname, 'electron/preload.ts'),
+        vite: {
+          build: {
+            outDir: 'dist-electron',
+            rollupOptions: {
+              output: {
+                format: 'cjs', // Force CommonJS for preload
+              },
+            },
+          },
+        },
       },
 
       renderer: process.env.NODE_ENV === 'test'

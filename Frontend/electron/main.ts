@@ -453,8 +453,8 @@ function createWindow() {
     icon: path.join(process.env.VITE_PUBLIC!, 'electron-vite.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
-      nodeIntegration: false,
-      contextIsolation: true,
+      nodeIntegration: true,
+      contextIsolation: false,
     },
   });
 
@@ -471,7 +471,7 @@ function createWindow() {
     // the index.html relative to __dirname instead of constructing a path via process.resourcesPath
     // which may result in a file:// URL containing app.asar and trigger "Not allowed to load local resource".
     try {
-      const packagedIndex = path.join(__dirname, '..', 'dist', 'index.html');
+      const packagedIndex = path.join(process.resourcesPath, 'dist', 'index.html');
       console.log('[main] loading packaged index from', packagedIndex);
       if (fs.existsSync(packagedIndex)) {
         win.loadFile(packagedIndex);

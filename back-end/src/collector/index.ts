@@ -3,9 +3,9 @@ import fs from 'fs';
 import { IHMService } from '../services/IHMService';
 import { getRuntimeConfig } from '../core/runtimeConfig';
 import { dbService } from '../services/dbService';
-import { parserService } from '../services/ParserService';
+import { parserService } from '../services/parserService';
 import { setTimeout as wait } from 'timers/promises';
-import { BackupService } from '../services/BackupService';
+import { BackupService } from '../services/backupService';
 import { fileProcessorService } from '../services/fileProcessorService';
 
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');

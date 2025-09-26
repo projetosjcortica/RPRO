@@ -1,6 +1,6 @@
 "use strict";
 const electron = require("electron");
-electron.contextBridge.exposeInMainWorld("electronAPI", {
+globalThis.electronAPI = {
   loadData: (key) => electron.ipcRenderer.invoke("load-data", key),
   saveData: (key, data) => electron.ipcRenderer.invoke("save-data", key, data),
   selectFolder: () => electron.ipcRenderer.invoke("select-folder"),
@@ -21,4 +21,4 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   onChildStdout: (fn) => electron.ipcRenderer.on("child-stdout", (e, data) => fn(e, data)),
   onChildStderr: (fn) => electron.ipcRenderer.on("child-stderr", (e, data) => fn(e, data)),
   onChildExit: (fn) => electron.ipcRenderer.on("child-exit", (e, data) => fn(e, data))
-});
+};
