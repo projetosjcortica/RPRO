@@ -7,15 +7,15 @@ globalThis.electronAPI = {
   selectFile: () => electron.ipcRenderer.invoke("select-file"),
   cleanDB: () => electron.ipcRenderer.invoke("clean-db"),
   //printer
-  printPDF: (filePath) => electron.ipcRenderer.invoke("print-pdf", filePath),
+  printPDF: (filePath) => ipcRenderer.invoke("print-pdf", filePath),
   // Save a base64-encoded PDF buffer to a temp file and return its path
-  savePdf: (base64) => electron.ipcRenderer.invoke("save-pdf", base64),
+  savePdf: (base64) => ipcRenderer.invoke("save-pdf", base64),
   // forked functions
-  startFork: (script, args) => electron.ipcRenderer.invoke("start-fork", { script, args }),
+  startFork: (script, args) => ipcRenderer.invoke("start-fork", { script, args }),
   // send an object/message to a forked child by pid
-  sendToChild: (pid, msg) => electron.ipcRenderer.invoke("send-to-child", { pid, msg }),
+  sendToChild: (pid, msg) => ipcRenderer.invoke("send-to-child", { pid, msg }),
   // stop/kill a forked child by pid
-  stopChild: (pid) => electron.ipcRenderer.invoke("stop-child", { pid }),
+  stopChild: (pid) => ipcRenderer.invoke("stop-child", { pid }),
   // event listeners from main (forwarded from child)
   onChildMessage: (fn) => electron.ipcRenderer.on("child-message", (e, data) => fn(e, data)),
   onChildStdout: (fn) => electron.ipcRenderer.on("child-stdout", (e, data) => fn(e, data)),

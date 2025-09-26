@@ -4,6 +4,9 @@ import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Checkbox } from "./components/ui/checkbox";
 import { Button } from "./components/ui/button";
+import useAuth from "./hooks/useAuth";
+// resolvePhotoUrl not used in this file anymore
+import Profile from "./Profile";
 
 import {
   AlertDialog,
@@ -59,7 +62,9 @@ const configService = {
   async loadConfig(key: string): Promise<FormData | null> {
     try {
       // Request only input fields to keep payload small and match frontend form shape
-      const response = await fetch(`/api/config/${encodeURIComponent(key)}?inputs=true`);
+      const response = await fetch(
+        `/api/config/${encodeURIComponent(key)}?inputs=true`
+      );
       if (!response.ok) {
         if (response.status === 404) {
           return null;
@@ -86,11 +91,11 @@ const configService = {
         },
         body: JSON.stringify(payload),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
       return result.success === true;
     } catch (error) {
@@ -102,7 +107,12 @@ const configService = {
   async saveAllConfigs(): Promise<boolean> {
     try {
       // Known config keys used by the frontend
-      const keys = ["general-config", "ihm-config", "db-config", "admin-config"];
+      const keys = [
+        "profile-config",
+        "ihm-config",
+        "db-config",
+        "admin-config",
+      ];
       const combined: Record<string, any> = {};
 
       for (const k of keys) {
@@ -119,8 +129,8 @@ const configService = {
 
       // Also include any configs stored in localStorage under 'produtosInfo' or similar if needed
       try {
-        const prodInfo = localStorage.getItem('produtosInfo');
-        if (prodInfo) combined['produtosInfo'] = JSON.parse(prodInfo);
+        const prodInfo = localStorage.getItem("produtosInfo");
+        if (prodInfo) combined["produtosInfo"] = JSON.parse(prodInfo);
       } catch (e) {
         // ignore localStorage parse errors
       }
@@ -128,17 +138,18 @@ const configService = {
       // If nothing to save, return true
       if (Object.keys(combined).length === 0) return true;
 
-      const response = await fetch('/api/config/split', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/config/split", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(combined),
       });
 
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok)
+        throw new Error(`HTTP error! status: ${response.status}`);
       const result = await response.json();
       return result.success === true;
     } catch (error) {
-      console.error('Failed to save all configs:', error);
+      console.error("Failed to save all configs:", error);
       throw error;
     }
   },
@@ -149,11 +160,11 @@ const configService = {
       const response = await fetch("/api/database/clean", {
         method: "POST",
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
       return result.success === true;
     } catch (error) {
@@ -167,15 +178,15 @@ const configService = {
     // 1. Implementar endpoints específicos no backend
     // 2. Usar input type="file" nativo do browser
     // 3. Implementar um diálogo customizado
-    
+
     // Exemplo simplificado usando input file
     return new Promise((resolve) => {
-      const input = document.createElement('input');
-      input.type = 'file';
+      const input = document.createElement("input");
+      input.type = "file";
       input.webkitdirectory = true;
       input.onchange = (e: any) => {
         if (e.target.files.length > 0) {
-          resolve(e.target.files[0].webkitRelativePath.split('/')[0]);
+          resolve(e.target.files[0].webkitRelativePath.split("/")[0]);
         }
       };
       input.click();
@@ -184,8 +195,8 @@ const configService = {
 
   async selectFile(): Promise<string> {
     return new Promise((resolve) => {
-      const input = document.createElement('input');
-      input.type = 'file';
+      const input = document.createElement("input");
+      input.type = "file";
       input.onchange = (e: any) => {
         if (e.target.files.length > 0) {
           resolve(e.target.files[0].name);
@@ -193,9 +204,8 @@ const configService = {
       };
       input.click();
     });
-  }
+  },
 };
-
 
 // Custom hook to manage form state with persistence via HTTP
 export function usePersistentForm(key: string) {
@@ -214,8 +224,8 @@ export function usePersistentForm(key: string) {
           // Merge savedData onto the initial/default form shape so that any
           // missing fields in the saved payload don't become undefined and
           // cause inputs to flip between uncontrolled and controlled.
-          setFormData(prev => ({ ...prev, ...(savedData as any) }));
-          setOriginalData(prev => ({ ...prev, ...(savedData as any) }));
+          setFormData((prev) => ({ ...prev, ...(savedData as any) }));
+          setOriginalData((prev) => ({ ...prev, ...(savedData as any) }));
         }
       } catch (error) {
         console.error("Failed to load data:", error);
@@ -229,7 +239,7 @@ export function usePersistentForm(key: string) {
   }, [key]);
 
   const onChange = (field: FormDataKey, value: FormData[FormDataKey]) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const onEdit = () => {
@@ -248,7 +258,20 @@ export function usePersistentForm(key: string) {
         try {
           await configService.saveAllConfigs();
         } catch (err) {
-          console.warn('Failed to save all configs after section save:', err);
+          console.warn("Failed to save all configs after section save:", err);
+        }
+        // If this is the profile-config topic, notify other parts of the app so they can update (e.g., sidebar)
+        try {
+          if (key === "profile-config") {
+            const nome = (formData as any)?.nomeCliente || undefined;
+            window.dispatchEvent(
+              new CustomEvent("profile-config-updated", {
+                detail: { nomeCliente: nome },
+              })
+            );
+          }
+        } catch (e) {
+          // ignore errors (non-browser envs)
         }
       } else {
         toast.error("Failed to save data");
@@ -271,23 +294,36 @@ export function usePersistentForm(key: string) {
     onChange,
     onEdit,
     onSave,
-    onCancel
+    onCancel,
   };
 }
 
 /* ----------------- GERAL ------------------- */
 
-export function GeneralConfig({ configKey = "general-config" }: { configKey?: string }) {
-  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+export function ProfileConfig({
+  configKey = "profile-config",
+}: {
+  configKey?: string;
+}) {
+  const { formData, isLoading, onChange, onSave } = usePersistentForm(configKey);
+  const { user } = useAuth();
+
+  // saveProfileName and uploadProfilePhoto were intentionally removed from this component
+  // because the Profile component handles name/photo editing directly and calls updateUser.
 
   if (isLoading) {
-    return <div className="flex justify-center items-center p-8">Loading...</div>;
+    return (
+      <div className="flex justify-center items-center p-8">Loading...</div>
+    );
   }
 
   return (
     <div id="geral" className="flex flex-col gap-4 bg-white">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Configuração Geral</h2>
-      
+      {/* <h2 className="text-xl font-bold text-gray-800 mb-4">
+        Configuração Geral
+      </h2> */}
+      <Profile />
+      {/*       
       <Label className="text-lg font-semibold">
         Nome do cliente
         <Input
@@ -299,104 +335,57 @@ export function GeneralConfig({ configKey = "general-config" }: { configKey?: st
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </Label>
+  */}
+      {/* add a component "profile.tsx" here */}
 
-      {/* Container MFC agora está no Geral */}
-      <div id="containerMFC" className="flex flex-col md:flex-row justify-between items-center gap-4 p-4 border rounded-lg bg-gray-50 mt-4">
-        <div id="CsvMethod" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
-          <Label className="mb-2 font-medium text-gray-700">Método CSV</Label>
-          <div className="flex gap-4">
-            <Label className="flex items-center gap-1">
-              <input
-                type="radio"
-                value="1"
-                checked={formData.metodoCSV === "1"}
-                onChange={(e) => onChange("metodoCSV", e.target.value)}
-                disabled={!isEditing}
-                className="rounded-full text-blue-600 focus:ring-blue-500"
-              />
-              Único
-            </Label>
-            <Label className="flex items-center gap-1">
-              <input
-                type="radio"
-                value="2"
-                checked={formData.metodoCSV === "2"}
-                onChange={(e) => onChange("metodoCSV", e.target.value)}
-                disabled={!isEditing}
-                className="rounded-full text-blue-600 focus:ring-blue-500"
-              />
-              Mensal
-            </Label>
-          </div>
-        </div>
-
-        <div id="formule" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
-          <Label className="font-medium text-gray-700">Fórmula</Label>
-          <Label className="flex items-center gap-2 mt-2">
-            <Checkbox
-              id="formula"
-              checked={formData.habilitarCSV}
-              onCheckedChange={(checked) => onChange("habilitarCSV", !!checked)}
-              disabled={!isEditing}
-              className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+      {/* Admin-only: definir nome da granja */}
+      {user?.isAdmin && (
+        <div className="mt-4 border rounded p-3 bg-white">
+          {/* <h3 className="font-semibold">Configurações da granja (Admin)</h3> */}
+          <Label className="mt-2">
+            Nome da empresa
+            <Input
+              type="text"
+              value={formData.nomeCliente || ""}
+              onChange={(e) => onChange("nomeCliente", e.target.value)}
+              // disabled={!isEditing}
+              className="mt-2"
             />
-            Habilitar
           </Label>
         </div>
-
-        <div id="CsvImport" className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3">
-          <Label className="font-medium text-gray-700">Importar CSV</Label>
-          <Button disabled={!isEditing} className="w-full mt-2 bg-blue-600 hover:bg-blue-700">
-            Importar
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex gap-2 justify-end mt-6">
-        {isEditing ? (
-          <>
-            <Button 
-              id="cancel" 
-              onClick={onCancel}
-              variant="outline"
-              className="border-gray-300 text-gray-700 hover:bg-gray-100"
-            >
-              Cancelar
-            </Button>
-            <Button 
-              id="save" 
-              onClick={onSave}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Salvar
-            </Button>
-          </>
-        ) : (
-          <Button 
-            id="edit" 
-            onClick={onEdit}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            Editar
-          </Button>
-        )}
+      )}
+<div className="flex gap-2 justify-end mt-6">
+      <Button
+        id="save"
+        onClick={onSave}
+        className="bg-green-600 hover:bg-green-700"
+      >
+        Salvar
+      </Button>
       </div>
     </div>
   );
 }
 
 /* ----------------- IHM ------------------- */
-export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) {
-  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+export function IHMConfig({
+  configKey = "ihm-config",
+}: {
+  configKey?: string;
+}) {
+  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
+    usePersistentForm(configKey);
 
   if (isLoading) {
-    return <div className="flex justify-center items-center p-8">Loading...</div>;
+    return (
+      <div className="flex justify-center items-center p-8">Loading...</div>
+    );
   }
 
   return (
     <div id="webCfg" className="flex flex-col gap-4 bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">Configuração IHM</h2>
-      
+
       <Label className="font-medium text-gray-700">
         IP da IHM
         <Input
@@ -407,7 +396,7 @@ export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) 
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </Label>
-      
+
       <Label className="font-medium text-gray-700">
         Usuário
         <Input
@@ -418,7 +407,7 @@ export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) 
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </Label>
-      
+
       <Label className="font-medium text-gray-700">
         Senha
         <Input
@@ -429,15 +418,15 @@ export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) 
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </Label>
-      
+
       <Label className="font-medium text-gray-700">
         Upload CSV
         <div className="flex gap-2 mt-2">
-          <Input 
-            type="text" 
-            value={formData.localCSV} 
-            readOnly 
-            disabled 
+          <Input
+            type="text"
+            value={formData.localCSV}
+            readOnly
+            disabled
             className="flex-1 p-3 border rounded-md bg-gray-100"
           />
           <Button
@@ -452,20 +441,20 @@ export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) 
           </Button>
         </div>
       </Label>
-      
+
       <div className="flex gap-2 justify-end mt-6">
         {isEditing ? (
           <>
-            <Button 
-              id="cancel" 
+            <Button
+              id="cancel"
               onClick={onCancel}
               variant="outline"
               className="border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Cancelar
             </Button>
-            <Button 
-              id="save" 
+            <Button
+              id="save"
               onClick={onSave}
               className="bg-green-600 hover:bg-green-700"
             >
@@ -473,8 +462,8 @@ export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) 
             </Button>
           </>
         ) : (
-          <Button 
-            id="edit" 
+          <Button
+            id="edit"
             onClick={onEdit}
             className="bg-blue-600 hover:bg-blue-700"
           >
@@ -487,17 +476,26 @@ export function IHMConfig({ configKey = "ihm-config" }: { configKey?: string }) 
 }
 
 /* ----------------- BANCO DE DADOS ------------------- */
-export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string }) {
-  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+export function DatabaseConfig({
+  configKey = "db-config",
+}: {
+  configKey?: string;
+}) {
+  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
+    usePersistentForm(configKey);
 
   if (isLoading) {
-    return <div className="flex justify-center items-center p-8">Loading...</div>;
+    return (
+      <div className="flex justify-center items-center p-8">Loading...</div>
+    );
   }
 
   return (
     <div id="dbCfg" className="flex flex-col gap-4 bg-white">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Configuração do Banco de Dados</h2>
-      
+      <h2 className="text-xl font-bold text-gray-800 mb-4">
+        Configuração do Banco de Dados
+      </h2>
+
       <Label className="font-medium text-gray-700">
         Server
         <Input
@@ -508,7 +506,7 @@ export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </Label>
-      
+
       <Label className="font-medium text-gray-700">
         DataBase
         <Input
@@ -519,7 +517,7 @@ export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </Label>
-      
+
       <Label className="font-medium text-gray-700">
         User
         <Input
@@ -530,7 +528,7 @@ export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </Label>
-      
+
       <Label className="font-medium text-gray-700">
         Senha
         <Input
@@ -541,20 +539,20 @@ export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </Label>
-     
+
       <div className="flex gap-2 justify-end mt-6">
         {isEditing ? (
           <>
-            <Button 
-              id="cancel" 
+            <Button
+              id="cancel"
               onClick={onCancel}
               variant="outline"
               className="border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Cancelar
             </Button>
-            <Button 
-              id="save" 
+            <Button
+              id="save"
               onClick={onSave}
               className="bg-green-600 hover:bg-green-700"
             >
@@ -562,8 +560,8 @@ export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string
             </Button>
           </>
         ) : (
-          <Button 
-            id="edit" 
+          <Button
+            id="edit"
             onClick={onEdit}
             className="bg-blue-600 hover:bg-blue-700"
           >
@@ -576,27 +574,36 @@ export function DatabaseConfig({ configKey = "db-config" }: { configKey?: string
 }
 
 /* ----------------- ADMIN ------------------- */
-export function AdminConfig({ configKey = "admin-config" }: { configKey?: string }) {
-  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } = usePersistentForm(configKey);
+export function AdminConfig({
+  configKey = "admin-config",
+}: {
+  configKey?: string;
+}) {
+  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
+    usePersistentForm(configKey);
 
   if (isLoading) {
-    return <div className="flex justify-center items-center p-8">Loading...</div>;
+    return (
+      <div className="flex justify-center items-center p-8">Loading...</div>
+    );
   }
 
   return (
     <div id="adm" className="flex flex-col gap-4 bg-white">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Configurações Administrativas</h2>
+      <h2 className="text-xl font-bold text-gray-800 mb-4">
+        Configurações Administrativas
+      </h2>
 
       <div id="CfgAdvancedDB" className="my-4">
         <div className="dir flex flex-col gap-5">
           <div className="flex-col">
             <Label className="font-medium text-gray-700">Local do SQL</Label>
             <div className="flex gap-2 mt-2">
-              <Input 
-                type="text" 
-                value={formData.mySqlDir} 
-                readOnly 
-                disabled 
+              <Input
+                type="text"
+                value={formData.mySqlDir}
+                readOnly
+                disabled
                 className="flex-1 p-3 border rounded-md bg-gray-100"
               />
               <Button
@@ -616,11 +623,11 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           <div className="flex-col">
             <Label className="font-medium text-gray-700">Local do DUMP</Label>
             <div className="flex gap-2 mt-2">
-              <Input 
-                type="text" 
-                value={formData.dumpDir} 
-                readOnly 
-                disabled 
+              <Input
+                type="text"
+                value={formData.dumpDir}
+                readOnly
+                disabled
                 className="flex-1 p-3 border rounded-md bg-gray-100"
               />
               <Button
@@ -640,11 +647,11 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           <div className="flex-col">
             <Label className="font-medium text-gray-700">Local do BATCH</Label>
             <div className="flex gap-2 mt-2">
-              <Input 
-                type="text" 
-                value={formData.batchDumpDir} 
-                readOnly 
-                disabled 
+              <Input
+                type="text"
+                value={formData.batchDumpDir}
+                readOnly
+                disabled
                 className="flex-1 p-3 border rounded-md bg-gray-100"
               />
               <Button
@@ -715,20 +722,87 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           </AlertDialogContent>
         </AlertDialog>
       </div>
-      
+
+      {/* Container MFC agora está no Geral */}
+      <div
+        id="containerMFC"
+        className="flex flex-col md:flex-row justify-between items-center gap-4 p-4 border rounded-lg bg-gray-50 mt-4"
+      >
+        <div
+          id="CsvMethod"
+          className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3"
+        >
+          <Label className="mb-2 font-medium text-gray-700">Método CSV</Label>
+          <div className="flex gap-4">
+            <Label className="flex items-center gap-1">
+              <input
+                type="radio"
+                value="1"
+                checked={formData.metodoCSV === "1"}
+                onChange={(e) => onChange("metodoCSV", e.target.value)}
+                disabled={!isEditing}
+                className="rounded-full text-blue-600 focus:ring-blue-500"
+              />
+              Único
+            </Label>
+            <Label className="flex items-center gap-1">
+              <input
+                type="radio"
+                value="2"
+                checked={formData.metodoCSV === "2"}
+                onChange={(e) => onChange("metodoCSV", e.target.value)}
+                disabled={!isEditing}
+                className="rounded-full text-blue-600 focus:ring-blue-500"
+              />
+              Mensal
+            </Label>
+          </div>
+        </div>
+
+        <div
+          id="formule"
+          className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3"
+        >
+          <Label className="font-medium text-gray-700">Fórmula</Label>
+          <Label className="flex items-center gap-2 mt-2">
+            <Checkbox
+              id="formula"
+              checked={formData.habilitarCSV}
+              onCheckedChange={(checked) => onChange("habilitarCSV", !!checked)}
+              disabled={!isEditing}
+              className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+            />
+            Habilitar
+          </Label>
+        </div>
+
+        <div
+          id="CsvImport"
+          className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3"
+        >
+          <Label className="font-medium text-gray-700">Importar CSV</Label>
+          <Button
+            disabled={!isEditing}
+            className="w-full mt-2 bg-blue-600 hover:bg-blue-700"
+          >
+            Importar
+          </Button>
+        </div>
+      </div>
+
       <div className="flex gap-2 justify-end mt-6">
         {isEditing ? (
           <>
-            <Button 
-              id="cancel" 
+            <Button
+              id="cancel"
               onClick={onCancel}
               variant="outline"
               className="border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Cancelar
             </Button>
-            <Button 
-              id="save" 
+            <Button
+              id="save"
               onClick={onSave}
               className="bg-green-600 hover:bg-green-700"
             >
@@ -736,8 +810,8 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
             </Button>
           </>
         ) : (
-          <Button 
-            id="edit" 
+          <Button
+            id="edit"
             onClick={onEdit}
             className="bg-blue-600 hover:bg-blue-700"
           >

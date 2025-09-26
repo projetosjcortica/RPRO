@@ -10,7 +10,7 @@ import { materiaPrimaService } from "./services/materiaPrimaService";
 import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
 import { dataPopulationService } from "./services/dataPopulationService"; // Importação do serviço de população de dados
 import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
-import { Relatorio, MateriaPrima, Batch } from "./entities";
+import { Relatorio, MateriaPrima, Batch, User } from "./entities";
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
 import cors from "cors";
@@ -77,14 +77,42 @@ async function ensureDatabaseConnection() {
 }
 
 const app = express();
-app.use(
-  cors({
-    origin: ["*"], // Frontend dev servers
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
-app.use(express.json());
+// Allow CORS from any origin during development. Using the default `cors()`
+// handler ensures proper handling of preflight OPTIONS requests.
+app.use(cors());
+// Also explicitly respond to OPTIONS preflight for all routes (defensive)
+app.options('*', cors());
+
+// Extra safety: ensure the common CORS headers are present on all responses.
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  next();
+});
+
+// Defensive: log and respond to preflight OPTIONS explicitly so the browser
+// receives the required CORS headers even if some route middleware would
+// otherwise interfere.
+app.use((req, res, next) => {
+  try {
+    if (req.method === 'OPTIONS') {
+      console.log('[CORS preflight] ', req.method, req.path, 'from', req.headers.origin);
+      res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Content-Type,Authorization');
+      res.setHeader('Access-Control-Max-Age', '600');
+      return res.status(204).end();
+    }
+  } catch (e) {
+    console.warn('[CORS preflight handler error]', e);
+  }
+  next();
+});
+// Allow larger JSON bodies (base64 images can be large). Default was too small and caused 413 errors.
+app.use(express.json({ limit: '20mb' }));
+// Also accept large urlencoded bodies if any clients send form-encoded data
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Helper: normalize incoming date strings to ISO `yyyy-MM-dd` used in DB
 function normalizeDateParam(d: any): string | null {
@@ -284,8 +312,10 @@ app.get("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
-    const pageRaw = req.query.page;
-    const pageSizeRaw = req.query.pageSize;
+  const pageRaw = req.query.page;
+  const pageSizeRaw = req.query.pageSize;
+  const allRaw = String(req.query.all || '').toLowerCase();
+  const returnAll = allRaw === 'true' || allRaw === '1';
     const pageNum = ((): number => {
       const n = Number(pageRaw);
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
@@ -387,14 +417,19 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     qb.orderBy(`r.${sb}`, sd);
 
     // Always include products for values mapping
-    const offset = (pageNum - 1) * pageSizeNum;
-    const take = pageSizeNum;
+  const offset = (pageNum - 1) * pageSizeNum;
+  const take = pageSizeNum;
 
     let rows: any[] = [];
     let total = 0;
 
     try {
-      [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+      if (returnAll) {
+        rows = await qb.getMany();
+        total = rows.length;
+      } else {
+        [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+      }
     } catch (queryError: any) {
       console.error("[relatorio/paginate] Query execution failed:", queryError);
       return res
@@ -454,12 +489,157 @@ app.get("/api/relatorio/paginate", async (req, res) => {
   }
 });
 
+// --- Simple auth endpoints: register, login, upload photo
+// Stores plain-text passwords (per user request). First registered user becomes admin.
+const userUpload = multer({ dest: path.resolve(process.cwd(), 'user_photos') });
+if (!fs.existsSync(path.resolve(process.cwd(), 'user_photos'))) fs.mkdirSync(path.resolve(process.cwd(), 'user_photos'), { recursive: true });
+
+// Serve uploaded profile photos
+app.use('/user_photos', express.static(path.resolve(process.cwd(), 'user_photos')));
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const { username, password, displayName } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    const repo = AppDataSource.getRepository(User);
+    const existing = await repo.findOne({ where: { username } });
+    if (existing) return res.status(409).json({ error: 'username taken' });
+    // If there are no users yet, make this one admin
+    const usersCount = await repo.count();
+    const isAdmin = usersCount === 0;
+    const u = repo.create({ username, password: password, displayName: displayName || null, isAdmin });
+    const saved = await repo.save(u as any);
+    // Do not return password hash
+    const { password: _pw, ...out } = saved as any;
+    return res.json(out);
+  } catch (e: any) {
+    console.error('[auth/register] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const { username, password } = req.body;
+    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { username } });
+    if (!user) return res.status(401).json({ error: 'invalid' });
+    if ((user as any).password !== password) return res.status(401).json({ error: 'invalid' });
+    const { password: _pw, ...out } = user as any;
+    return res.json(out);
+  } catch (e: any) {
+    console.error('[auth/login] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+app.post('/api/auth/photo', userUpload.single('photo'), async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const f: any = req.file;
+    const username = req.body.username;
+    if (!username) return res.status(400).json({ error: 'username required' });
+    if (!f) return res.status(400).json({ error: 'photo file required (field: photo)' });
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { username } });
+    if (!user) return res.status(404).json({ error: 'user not found' });
+    // move file to persistent path and store relative path
+    const destDir = path.resolve(process.cwd(), 'user_photos');
+    if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+    const ext = path.extname(f.originalname || f.filename || '');
+    const newName = `${username}_${Date.now()}${ext}`;
+    const newPath = path.join(destDir, newName);
+    fs.renameSync(f.path, newPath);
+    // store a relative URL so frontend can access via /user_photos/<name>
+    (user as any).photoPath = `/user_photos/${newName}`;
+    await repo.save(user as any);
+  const { password: _pw, ...out } = user as any;
+    return res.json(out);
+  } catch (e: any) {
+    console.error('[auth/photo] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+app.post('/api/auth/update', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const { username, displayName } = req.body;
+    if (!username) return res.status(400).json({ error: 'username required' });
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { username } });
+    if (!user) return res.status(404).json({ error: 'user not found' });
+    (user as any).displayName = displayName ?? (user as any).displayName;
+    await repo.save(user as any);
+    const { passwordHash, ...out } = user as any;
+    return res.json(out);
+  } catch (e: any) {
+    console.error('[auth/update] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Accept profile image as base64 data (JSON). This endpoint allows the frontend
+// to store inline image data in the DB instead of relying on filesystem paths.
+app.post('/api/auth/photoBase64', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const { username, photoBase64 } = req.body;
+    if (!username) return res.status(400).json({ error: 'username required' });
+    if (!photoBase64) return res.status(400).json({ error: 'photoBase64 required' });
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { username } });
+    if (!user) return res.status(404).json({ error: 'user not found' });
+
+    // Store inline base64 (data URL) directly on the user.row
+    (user as any).photoData = photoBase64;
+    // Optionally keep existing photoPath intact; do not remove it here.
+    await repo.save(user as any);
+    const { password: _pw, ...out } = user as any;
+    return res.json(out);
+  } catch (e: any) {
+    console.error('[auth/photoBase64] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Endpoints to store/retrieve a report logo path in the settings store.
+// The stored key will be 'report-logo-path' and will be used later when
+// generating reports to include a logo image by path.
+app.post('/api/report/logo', async (req, res) => {
+  try {
+    const { path: logoPath } = req.body || {};
+    if (!logoPath) return res.status(400).json({ error: 'path is required' });
+    // Save as a single config key so it persists in DB via configService
+    await configService.setSettings({ 'report-logo-path': String(logoPath) });
+    return res.json({ success: true, path: logoPath });
+  } catch (e: any) {
+    console.error('[report/logo] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+app.get('/api/report/logo', async (req, res) => {
+  try {
+    const val = await configService.getSetting('report-logo-path');
+    return res.json({ path: val ?? null });
+  } catch (e: any) {
+    console.error('[report/logo:get] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+
 app.post("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
-    const pageRaw = req.body.page;
-    const pageSizeRaw = req.body.pageSize;
+  const pageRaw = req.body.page;
+  const pageSizeRaw = req.body.pageSize;
+  const returnAll = req.body && (req.body.all === true || String(req.body.all || '').toLowerCase() === 'true');
     const pageNum = ((): number => {
       const n = Number(pageRaw);
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
@@ -557,7 +737,12 @@ app.post("/api/relatorio/paginate", async (req, res) => {
     let total = 0;
 
     try {
-      [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+      if (returnAll) {
+        rows = await qb.getMany();
+        total = rows.length;
+      } else {
+        [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+      }
     } catch (queryError: any) {
       console.error("[relatorio/paginate] Query execution failed:", queryError);
       return res
@@ -1245,8 +1430,10 @@ app.get("/api/chartdata", async (req, res) => {
     await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
-    // Optional query params: limit, dateStart, dateEnd
-    const limit = Number(req.query.limit || 500);
+  // Optional query params: limit, dateStart, dateEnd
+  // If limit is provided and >0 we will apply it. Otherwise return all matching rows.
+  const limitRaw = req.query.limit;
+  const limit = limitRaw != null ? Number(limitRaw) : 0;
     const dateStart = req.query.dateStart ? String(req.query.dateStart) : null;
     const dateEnd = req.query.dateEnd ? String(req.query.dateEnd) : null;
     const normDateStartChart = normalizeDateParam(dateStart) || null;
@@ -1255,8 +1442,8 @@ app.get("/api/chartdata", async (req, res) => {
     const qb = repo
       .createQueryBuilder("r")
       .orderBy("r.Dia", "DESC")
-      .addOrderBy("r.Hora", "DESC")
-      .take(limit);
+      .addOrderBy("r.Hora", "DESC");
+    if (limit && Number.isFinite(limit) && limit > 0) qb.take(limit);
     if (normDateStartChart)
       qb.andWhere("r.Dia >= :ds", { ds: normDateStartChart });
     if (normDateEndChart) {

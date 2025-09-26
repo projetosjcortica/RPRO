@@ -1,4 +1,5 @@
 import { Document, Page, Text, StyleSheet, View, Image, Font } from "@react-pdf/renderer";
+import type { FC } from "react";
 
 Font.register({
   family: "Roboto",
@@ -123,11 +124,11 @@ interface Produto {
   categoria?: string;
 }
 
-interface MyDocumentProps {
+export interface MyDocumentProps {
   total?: number;
   batidas?: number;
-  horaInicio?: string;
-  horaFim?: string;
+  periodoInicio?: string;
+  periodoFim?: string;
   formulas?: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
   produtos?: Produto[];
   data?: string;
@@ -135,23 +136,23 @@ interface MyDocumentProps {
   observacoes?: string;
   logoSrc?: string;
   orientation?: "portrait" | "landscape";
-  // formulaSums?: Record<string, number>;
+  formulaSums?: Record<string, number>;
   chartData?: { name: string; value: number }[];
 }
 
-export const MyDocument = ({
+export const MyDocument: FC<MyDocumentProps> = ({
   total,
   batidas,
-  horaInicio,
-  horaFim,
+  periodoInicio,
+  periodoFim,
   formulas = [],
   produtos = [],
   data = new Date().toLocaleDateString("pt-BR"),
-  empresa = "Empresa",
+  empresa = "Relatorio RPRO",
   observacoes = "",
   logoSrc,
   orientation = "portrait",
-  // formulaSums = {},
+  formulaSums = {},
   chartData = [],
 }: MyDocumentProps) => {
   const produtosPorCategoria: Record<string, Produto[]> = {};
@@ -170,7 +171,7 @@ export const MyDocument = ({
   <Page size="A4" style={styles.page} orientation={orientation}>
     {/* Cabeçalho */}
     <View style={styles.header} fixed>
-      {logoSrc ? (
+      {/* {logoSrc ? (
         <Image src={logoSrc} style={styles.logo} />
       ) : (
         <View
@@ -181,7 +182,7 @@ export const MyDocument = ({
         >
           <Text>LOGO</Text>
         </View>
-      )}
+      )} */}
       <View style={styles.titleContainer}>
         <Text style={styles.title}>{empresa}</Text>
         <Text style={styles.subtitle}>Relatório de Produção - {data}</Text>
@@ -209,12 +210,12 @@ export const MyDocument = ({
       <View style={styles.infoRow}>
         <View style={{ width: "70%" }}>
           <Text style={styles.label}>
-            Data inicial: <Text style={styles.value}>{horaInicio ?? "-"}</Text>
+            Data inicial: <Text style={styles.value}>{periodoInicio ?? "-"}</Text>
           </Text>
         </View>
         <View style={{ width: "70%" }}>
           <Text style={styles.label}>
-            Data final: <Text style={styles.value}>{horaFim ?? "-"}</Text>
+            Data final: <Text style={styles.value}>{periodoFim ?? "-"}</Text>
           </Text>
         </View>
       </View>
@@ -234,6 +235,27 @@ export const MyDocument = ({
               <Text style={styles.tableCol}>{f.nome}</Text>
               <Text style={styles.tableColSmall}>
                 {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+              </Text>
+            </View>
+          ))}
+        </View>
+      </View>
+    )}
+
+    {/* Somatória calculada (por fórmula) — pode vir do cálculo direto no frontend */}
+    {formulaSums && Object.keys(formulaSums).length > 0 && (
+      <View style={styles.section} wrap={true}>
+        <Text style={styles.sectionTitle}>Somatória por Fórmula (cálculo)</Text>
+        <View style={styles.table}>
+          <View style={styles.tableRow}>
+            <Text style={styles.tableColHeader}>Fórmula</Text>
+            <Text style={styles.tableColHeaderSmall}>Total</Text>
+          </View>
+          {Object.entries(formulaSums).map(([nome, val], i) => (
+            <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+              <Text style={styles.tableCol}>{nome}</Text>
+              <Text style={styles.tableColSmall}>
+                {Number(val).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
               </Text>
             </View>
           ))}

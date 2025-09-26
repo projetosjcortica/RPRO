@@ -12,7 +12,10 @@
     "build": "npm run build:renderer && npm run build:main",
     "build-backend-exe": "cd ../back-end && npm install --no-audit --no-fund && npm run build && npx pkg dist/index.js --targets node18-win-x64 --output dist/backend.exe",
     "dist": "npm run build && electron-builder",
-    "dist:all": "npm run build-backend-exe && npm run build && electron-builder"
+    "dist:all": "npm run build-backend-exe && npm run build && electron-builder",
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -49,10 +52,12 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "colorthief": "^2.6.0",
     "date-fns": "^4.1.0",
+    "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^10.1.0",
     "embla-carousel-react": "^8.6.0",
-    "events": "^3.3.0",
+    "eventemitter3": "^5.0.1",
     "html-to-pdf": "^0.1.11",
     "html2pdf.js": "^0.12.1",
     "input-otp": "^1.4.2",
@@ -70,6 +75,7 @@
     "react-toastify": "^11.0.5",
     "recharts": "^2.15.4",
     "reflect-metadata": "^0.2.2",
+    "rollup-plugin-node-polyfills": "^0.2.1",
     "shadcn": "^3.2.1",
     "sonner": "^2.0.7",
     "stream-browserify": "^3.0.0",
@@ -77,9 +83,19 @@
     "tailwindcss": "^4.1.13",
     "util": "^0.12.5",
     "vaul": "^1.1.2",
+    "vite-plugin-commonjs": "^0.10.4",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@electron-forge/cli": "^7.9.0",
+    "@electron-forge/maker-deb": "^7.9.0",
+    "@electron-forge/maker-rpm": "^7.9.0",
+    "@electron-forge/maker-squirrel": "^7.9.0",
+    "@electron-forge/maker-zip": "^7.9.0",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.9.0",
+    "@electron-forge/plugin-fuses": "^7.9.0",
+    "@electron/fuses": "^1.8.0",
+    "@rollup/plugin-commonjs": "^24.0.1",
     "@types/axios": "^0.9.36",
     "@types/html2pdf.js": "^0.10.0",
     "@types/react": "^18.2.21",
@@ -89,7 +105,7 @@
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",
     "electron": "^30.0.1",
-    "electron-builder": "^24.13.3",
+    "electron-builder": "^26.0.12",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
@@ -106,7 +122,9 @@
       "dist/**/*",
       "electron/preload.mjs",
       "electron/main.js",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "dist-electron/**/*",
+      "dist/**/*"
     ],
     "extraResources": [
       {
@@ -118,7 +136,7 @@
       "backend/**"
     ],
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false
     }
   }
