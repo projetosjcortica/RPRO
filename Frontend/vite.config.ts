@@ -20,7 +20,6 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     react(),
-    // removed vite-plugin-commonjs: use Rollup's commonjs plugin in build.rollupOptions
     electron({
       main: {
         entry: "electron/main.ts",

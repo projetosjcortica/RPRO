@@ -21,4 +21,8 @@ export class User {
 
   @Column({ nullable: true, type: 'text' })
   photoPath?: string;
+
+  // Optional inline photo data (base64 data URL). Used when storing image directly in DB
+  @Column({ nullable: true, type: 'text' })
+  photoData?: string;
 }

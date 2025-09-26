@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type User = { id: number; username: string; displayName?: string; photoPath?: string; isAdmin?: boolean } | null;
+type User = { id: number; username: string; displayName?: string; photoPath?: string; photoData?: string; isAdmin?: boolean } | null;
 
 const STORAGE_KEY = 'rpro_user';
 
@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const login = async (username: string, password: string) => {
-    const res = await fetch(`http://localhost:3000/api/auth/login`, {
+    const res = await fetch(`/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const register = async (username: string, password: string, displayName?: string) => {
-    const res = await fetch(`http://localhost:3000/api/auth/register`, {
+    const res = await fetch(`/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password, displayName }),

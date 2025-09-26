@@ -127,8 +127,8 @@ interface Produto {
 export interface MyDocumentProps {
   total?: number;
   batidas?: number;
-  horaInicio?: string;
-  horaFim?: string;
+  periodoInicio?: string;
+  periodoFim?: string;
   formulas?: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
   produtos?: Produto[];
   data?: string;
@@ -143,12 +143,12 @@ export interface MyDocumentProps {
 export const MyDocument: FC<MyDocumentProps> = ({
   total,
   batidas,
-  horaInicio,
-  horaFim,
+  periodoInicio,
+  periodoFim,
   formulas = [],
   produtos = [],
   data = new Date().toLocaleDateString("pt-BR"),
-  empresa = "Empresa",
+  empresa = "Relatorio RPRO",
   observacoes = "",
   logoSrc,
   orientation = "portrait",
@@ -171,7 +171,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
   <Page size="A4" style={styles.page} orientation={orientation}>
     {/* Cabeçalho */}
     <View style={styles.header} fixed>
-      {logoSrc ? (
+      {/* {logoSrc ? (
         <Image src={logoSrc} style={styles.logo} />
       ) : (
         <View
@@ -182,7 +182,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
         >
           <Text>LOGO</Text>
         </View>
-      )}
+      )} */}
       <View style={styles.titleContainer}>
         <Text style={styles.title}>{empresa}</Text>
         <Text style={styles.subtitle}>Relatório de Produção - {data}</Text>
@@ -210,12 +210,12 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <View style={styles.infoRow}>
         <View style={{ width: "70%" }}>
           <Text style={styles.label}>
-            Data inicial: <Text style={styles.value}>{horaInicio ?? "-"}</Text>
+            Data inicial: <Text style={styles.value}>{periodoInicio ?? "-"}</Text>
           </Text>
         </View>
         <View style={{ width: "70%" }}>
           <Text style={styles.label}>
-            Data final: <Text style={styles.value}>{horaFim ?? "-"}</Text>
+            Data final: <Text style={styles.value}>{periodoFim ?? "-"}</Text>
           </Text>
         </View>
       </View>

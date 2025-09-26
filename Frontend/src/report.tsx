@@ -1,6 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
 import { format as formatDateFn } from 'date-fns';
 
+import { MyDocument } from "./Pdf";
+import { ProfileConfig, IHMConfig, DatabaseConfig, AdminConfig, usePersistentForm } from './config';
+
+import { pdf } from "@react-pdf/renderer";
 import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
@@ -8,9 +12,8 @@ import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
 
 import { cn } from "./lib/utils";
-
-import { pdf } from "@react-pdf/renderer";
 // product labels are persisted server-side now
+import { usePDFRedirect } from "./hooks/usePDFRedirect";
 
 import {
   ChevronsLeft,
@@ -36,11 +39,11 @@ import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 import { Button, buttonVariants } from "./components/ui/button";
 import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
-
-import { PDFDownloadLink, pdf } from "@react-pdf/renderer";
-import { MyDocument } from "./Pdf";
+import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 
 export default function Report() {
+  const { handleLegacyPDFClick } = usePDFRedirect();
+  
   const [filtros, setFiltros] = useState<Filtros>({
     dataInicio: "",
     dataFim: "",
@@ -81,7 +84,7 @@ export default function Report() {
 
   // Resumo vindo do backend (side info)
   const [resumo, setResumo] = useState<any | null>(null);
-
+  const runtime = useRuntimeConfig();
   // === FETCH DE DADOS ===
   const handleAplicarFiltros = (novosFiltros: Filtros) => {
     setPage(1); // Reset para primeira página
@@ -93,7 +96,37 @@ export default function Report() {
     page,
     pageSize
   );
+const { formData: profileConfigData } = usePersistentForm("profile-config");
 
+  useEffect(() => {
+    if (!profileConfigData) return;
+    setSideInfo({
+      granja: profileConfigData.nomeCliente || 'Granja',
+      proprietario: profileConfigData.nomeCliente,
+    });
+  }, [profileConfigData]);
+  // Listen to explicit event so other UI pieces (like GeneralConfig) can trigger an immediate update
+  useEffect(() => {
+    const onCfg = (e: any) => {
+      try {
+        const name = e?.detail?.nomeCliente;
+        if (!name) return;
+        setSideInfo(prev => ({ ...prev, granja: name, proprietario: name }));
+      } catch (err) {
+        // ignore
+      }
+    };
+    window.addEventListener('profile-config-updated', onCfg as EventListener);
+    return () => window.removeEventListener('profile-config-updated', onCfg as EventListener);
+  }, []);
+  useEffect(() => {
+    // If runtime configs are loaded, prefer those values
+    if (!runtime || runtime.loading) return;
+    const p = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
+    const g = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
+    setSideInfo({ granja: g, proprietario: p });
+  }, [runtime]);
+  const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ granja: 'Granja', proprietario: 'Proprietario' });
   // Fetch resumo sempre que os filtros mudarem
   useEffect(() => {
     let mounted = true;
@@ -137,7 +170,7 @@ export default function Report() {
   }, [filtros]);
 
   useEffect(() => {
-    console.log("RESUMO BACKEND:", resumo);
+    // console.log("RESUMO BACKEND:", resumo);
   if (resumo && resumo.usosPorProduto) {
 
     const formulasFromResumo = Object.entries(resumo.formulasUtilizadas || {}).map(
@@ -153,8 +186,8 @@ export default function Report() {
     setTableSelection({
       total: resumo.totalPesos || 0,
       batidas: resumo.batitdasTotais || 0,
-      horaInicial: resumo.horaInicial || "--:--",
-      horaFinal: resumo.horaFinal || "--:--",
+      periodoInicio: resumo.periodoInicio || "--:--",
+      periodoFim: resumo.periodoFim || "--:--",
       formulas: formulasFromResumo,
       produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
         const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
@@ -273,8 +306,37 @@ export default function Report() {
       }
     };
     load();
-    return () => { mounted = false; };
+    // Listen for product definition updates from the Products editor so we can refresh labels and data
+    const onProdutosUpdated = () => {
+      try {
+        // reload labels from backend/localStorage
+        const raw = localStorage.getItem('produtosInfo');
+        if (raw) {
+          try {
+            const parsedLocal = JSON.parse(raw);
+            // merge/normalize parsedLocal into same shape used above
+            const parsedObj: Record<string, any> = {};
+            Object.keys(parsedLocal).forEach((colKey) => {
+              const val = parsedLocal[colKey];
+              parsedObj[colKey] = { nome: val?.nome || `Produto`, unidade: val?.unidade || 'kg' };
+            });
+            setProdutosInfo(parsedObj);
+          } catch (err) {
+            // ignore parse errors
+          }
+        }
+        // trigger a reload of resumo by re-applying current filtros
+        setFiltros((prev) => ({ ...prev }));
+        // also reload the table data by re-setting page (no-op but will retrigger hooks dependent on filtros/page)
+        setPage((p) => Math.max(1, p));
+      } catch (err) {
+        // ignore
+      }
+    };
+    window.addEventListener('produtos-updated', onProdutosUpdated as EventListener);
+    return () => { window.removeEventListener('produtos-updated', onProdutosUpdated as EventListener); mounted = false; };
   }, []);
+
 
   // Função para converter valores baseado na unidade
   const converterValor = (valor: number, colKey?: string): number => {
@@ -324,19 +386,18 @@ export default function Report() {
     { length: endPage - startPage + 1 },
     (_, i) => startPage + i
   );
-
-  const handlePrint = async () => {
+const handlePrint = async () => {
   // Generate PDF as blob
   const blob = await pdf(
      <MyDocument
       total={Number(tableSelection.total) || 0}
       batidas={Number(tableSelection.batidas) || 0}
-      horaInicio={tableSelection.horaInicial}
-      horaFim={tableSelection.horaFinal}
+      periodoInicio={tableSelection.periodoInicio}
+      periodoFim={tableSelection.periodoFim}
       formulas={tableSelection.formulas}
       produtos={tableSelection.produtos}
       data={new Date().toLocaleDateString("pt-BR")}
-      empresa="Empresa ABC"
+      empresa={runtime.nomeCliente}
     />
   ).toBlob();
   
@@ -372,8 +433,7 @@ export default function Report() {
       resumo.usosPorProduto &&
       Object.keys(resumo.usosPorProduto).length > 0
     ) {
-      let produtoId, label;
-      // console.log("Produtos info:", produtosInfo);
+      let produtoId, label; 
 
       return Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
         produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
@@ -589,72 +649,13 @@ export default function Report() {
           <div id="impressao" className="flex flex-col text-center gap-2 mt-6">
             <p>Importar/Imprimir</p>
             <div id="botões" className="flex flex-row gap-2 justify-center">
-<<<<<<< HEAD
-              <PDFDownloadLink
-                document={
-                  <MyDocument
-                    total={Number(tableSelection.total) || 0}
-                    batidas={Number(tableSelection.batidas) || 0}
-                    horaInicio={tableSelection.horaInicial}
-                    horaFim={tableSelection.horaFinal}
-                    formulas={tableSelection.formulas}
-                    produtos={tableSelection.produtos}
-                    data={new Date().toLocaleDateString("pt-BR")}
-                    empresa="Empresa ABC"
-                    // formulaSums={formulaSums}
-                  />
-                }
-                fileName="relatorio.pdf"
-              >
-
-                {({ loading }) =>
-                  loading ? (
-                    <Button className="bg-gray-400 text-white px-4 py-2 rounded">
-                      Gerando...
-                    </Button>
-                  ) : (
-                    <Button className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-600">
-                      Baixar PDF
-                    </Button>
-                  )
-                }
-              </PDFDownloadLink>
-              <Button
-                className="w-24 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
-                onClick={async () => {
-                  // Use the statically imported pdf and MyDocument to avoid double-import warnings
-                  const blob = await pdf(
-                    <MyDocument
-                      total={Number(tableSelection.total) || 0}
-                      batidas={Number(tableSelection.batidas) || 0}
-                      horaInicio={tableSelection.horaInicial}
-                      horaFim={tableSelection.horaFinal}
-                      produtos={tableSelection.produtos}
-                      data={new Date().toLocaleDateString("pt-BR")}
-                      empresa="Empresa ABCDE"
-                      // chartData={chartData}
-                      formulaSums={formulaSums}
-                    />
-                  ).toBlob();
-
-                  const buffer = await blob.arrayBuffer();
-                  const base64 = Buffer.from(buffer).toString('base64');
-                  // Save the generated PDF via the preload API (main will write it to temp)
-                  const res = await (window as any).electronAPI?.savePdf(base64);
-                  if (res && res.ok && res.path) {
-                    // Ask main to open/print it
-                    await (window as any).electronAPI?.printPDF(res.path);
-                  } else {
-                    console.error('Failed to save PDF via electronAPI', res);
-                  }
-                }}
-              >
-                Imprimir PDF
+              <Button onClick={handlePrint} className="gap-2">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Gerar PDF
               </Button>
-=======
-              <Button onClick={handlePrint}>PDF</Button>
->>>>>>> b25fa6eb939904cff4dba82952990e1c31b8f1d2
-            </div>
+            </div> 
           </div>
         </div>
       </div>

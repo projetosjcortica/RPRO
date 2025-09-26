@@ -107,6 +107,12 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     
     // Notifica componente pai
     onLabelChange(colKey, newName, unidade);
+    // Notify other parts of the app that product definitions changed so sideinfo/tables can refresh
+    try {
+      window.dispatchEvent(new CustomEvent('produtos-updated', { detail: { colKey, nome: newName, unidade } }));
+    } catch (e) {
+      // ignore in non-browser envs
+    }
     
     setSavingProduct(null);
   };
@@ -124,6 +130,10 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     
     // Notifica componente pai
     onLabelChange(colKey, nomeAtual, novaUnidade);
+    // Notify other parts of the app that product definitions changed so sideinfo/tables can refresh
+    try {
+      window.dispatchEvent(new CustomEvent('produtos-updated', { detail: { colKey, nome: nomeAtual, unidade: novaUnidade } }));
+    } catch (e) {}
   };
 
   // Gera colunas editáveis

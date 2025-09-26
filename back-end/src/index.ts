@@ -109,7 +109,10 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json());
+// Allow larger JSON bodies (base64 images can be large). Default was too small and caused 413 errors.
+app.use(express.json({ limit: '20mb' }));
+// Also accept large urlencoded bodies if any clients send form-encoded data
+app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
 // Helper: normalize incoming date strings to ISO `yyyy-MM-dd` used in DB
 function normalizeDateParam(d: any): string | null {
@@ -309,8 +312,10 @@ app.get("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
-    const pageRaw = req.query.page;
-    const pageSizeRaw = req.query.pageSize;
+  const pageRaw = req.query.page;
+  const pageSizeRaw = req.query.pageSize;
+  const allRaw = String(req.query.all || '').toLowerCase();
+  const returnAll = allRaw === 'true' || allRaw === '1';
     const pageNum = ((): number => {
       const n = Number(pageRaw);
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
@@ -412,14 +417,19 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     qb.orderBy(`r.${sb}`, sd);
 
     // Always include products for values mapping
-    const offset = (pageNum - 1) * pageSizeNum;
-    const take = pageSizeNum;
+  const offset = (pageNum - 1) * pageSizeNum;
+  const take = pageSizeNum;
 
     let rows: any[] = [];
     let total = 0;
 
     try {
-      [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+      if (returnAll) {
+        rows = await qb.getMany();
+        total = rows.length;
+      } else {
+        [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+      }
     } catch (queryError: any) {
       console.error("[relatorio/paginate] Query execution failed:", queryError);
       return res
@@ -572,13 +582,64 @@ app.post('/api/auth/update', async (req, res) => {
   }
 });
 
+// Accept profile image as base64 data (JSON). This endpoint allows the frontend
+// to store inline image data in the DB instead of relying on filesystem paths.
+app.post('/api/auth/photoBase64', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const { username, photoBase64 } = req.body;
+    if (!username) return res.status(400).json({ error: 'username required' });
+    if (!photoBase64) return res.status(400).json({ error: 'photoBase64 required' });
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { username } });
+    if (!user) return res.status(404).json({ error: 'user not found' });
+
+    // Store inline base64 (data URL) directly on the user.row
+    (user as any).photoData = photoBase64;
+    // Optionally keep existing photoPath intact; do not remove it here.
+    await repo.save(user as any);
+    const { password: _pw, ...out } = user as any;
+    return res.json(out);
+  } catch (e: any) {
+    console.error('[auth/photoBase64] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Endpoints to store/retrieve a report logo path in the settings store.
+// The stored key will be 'report-logo-path' and will be used later when
+// generating reports to include a logo image by path.
+app.post('/api/report/logo', async (req, res) => {
+  try {
+    const { path: logoPath } = req.body || {};
+    if (!logoPath) return res.status(400).json({ error: 'path is required' });
+    // Save as a single config key so it persists in DB via configService
+    await configService.setSettings({ 'report-logo-path': String(logoPath) });
+    return res.json({ success: true, path: logoPath });
+  } catch (e: any) {
+    console.error('[report/logo] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+app.get('/api/report/logo', async (req, res) => {
+  try {
+    const val = await configService.getSetting('report-logo-path');
+    return res.json({ path: val ?? null });
+  } catch (e: any) {
+    console.error('[report/logo:get] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
 
 app.post("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
-    const pageRaw = req.body.page;
-    const pageSizeRaw = req.body.pageSize;
+  const pageRaw = req.body.page;
+  const pageSizeRaw = req.body.pageSize;
+  const returnAll = req.body && (req.body.all === true || String(req.body.all || '').toLowerCase() === 'true');
     const pageNum = ((): number => {
       const n = Number(pageRaw);
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
@@ -676,7 +737,12 @@ app.post("/api/relatorio/paginate", async (req, res) => {
     let total = 0;
 
     try {
-      [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+      if (returnAll) {
+        rows = await qb.getMany();
+        total = rows.length;
+      } else {
+        [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
+      }
     } catch (queryError: any) {
       console.error("[relatorio/paginate] Query execution failed:", queryError);
       return res
@@ -1364,8 +1430,10 @@ app.get("/api/chartdata", async (req, res) => {
     await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
-    // Optional query params: limit, dateStart, dateEnd
-    const limit = Number(req.query.limit || 500);
+  // Optional query params: limit, dateStart, dateEnd
+  // If limit is provided and >0 we will apply it. Otherwise return all matching rows.
+  const limitRaw = req.query.limit;
+  const limit = limitRaw != null ? Number(limitRaw) : 0;
     const dateStart = req.query.dateStart ? String(req.query.dateStart) : null;
     const dateEnd = req.query.dateEnd ? String(req.query.dateEnd) : null;
     const normDateStartChart = normalizeDateParam(dateStart) || null;
@@ -1374,8 +1442,8 @@ app.get("/api/chartdata", async (req, res) => {
     const qb = repo
       .createQueryBuilder("r")
       .orderBy("r.Dia", "DESC")
-      .addOrderBy("r.Hora", "DESC")
-      .take(limit);
+      .addOrderBy("r.Hora", "DESC");
+    if (limit && Number.isFinite(limit) && limit > 0) qb.take(limit);
     if (normDateStartChart)
       qb.andWhere("r.Dia >= :ds", { ds: normDateStartChart });
     if (normDateEndChart) {

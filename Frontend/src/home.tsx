@@ -9,7 +9,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
 import { getProcessador } from './Processador'
 import { Button } from "./components/ui/button"
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText } from "lucide-react"
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, FileText, TrashIcon } from "lucide-react"
 import { useIsMobile } from "./hooks/use-mobile"
 // import { Input } from "./components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover"
@@ -20,6 +20,7 @@ import { cn } from "./lib/utils"
 import { type DateRange } from "react-day-picker"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./components/ui/dialog"
 import { Filtros } from "./components/types"
+import { usePDFRedirect } from "./hooks/usePDFRedirect"
 
 
 
@@ -83,18 +84,21 @@ function aggregateProducts(rows: Entry[], materiaPrimaConfig: any[] = []): { pro
 
       if (!productSums[productKey]) {
         productSums[productKey] = v;
-        productUnits[productKey] = 'kg'; // Sempre armazenar em kg
+        productUnits[productKey] = unit;
       } else {
         productSums[productKey] += v;
       }
     });
   }
 
-  const productData: ChartDatum[] = Object.entries(productSums).map(([name, value]) => ({
+  const productData: ChartDatum[] = Object.entries(productSums).map(([name, value]) => {
+    // console.log('name, value, unit', name, value, productUnits[name]);
+    return {
     name,
     value,
-    unit: 'kg' // Todos os valores já convertidos para kg
-  }));
+    unit: productUnits[name] || 'kg' // Default to 'kg' if unit not found
+  }
+});
 
   const totalProducts = Object.values(productSums).reduce((a, b) => a + b, 0);
   return { productData, productSums, totalProducts };
@@ -112,6 +116,8 @@ const tooltipFormatter = (value: string | number | (string | number)[], name: st
 
 
 export default function Home() {
+  const { redirectToPDFPage } = usePDFRedirect();
+  
   const [materiaPrimaConfig, setMateriaPrimaConfig] = useState<any[]>([]);
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -213,7 +219,7 @@ const loadMateriaPrimaConfig = async () => {
       // Preferred: fetch chart data from backend /api/chartdata
       try {
         const params = new URLSearchParams();
-        params.set('limit', '500');
+        // params.set('limit', '500');
         // optionally pass date range (last 30 days)
         const dateStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
         const dateEnd = new Date().toISOString().split('T')[0];
@@ -230,7 +236,7 @@ const loadMateriaPrimaConfig = async () => {
         if ((!rowsResp || rowsResp.length === 0) && (dateStart || dateEnd)) {
           console.debug('chartdata: date-limited fetch returned 0 rows — attempting fallback to all data');
           try {
-            const res2 = await fetch(`/api/chartdata?limit=500`);
+            const res2 = await fetch(`/api/chartdata`);
             if (res2.ok) {
               const body2 = await res2.json();
               rowsResp = Array.isArray(body2.rows) ? body2.rows : [];
@@ -252,6 +258,9 @@ const loadMateriaPrimaConfig = async () => {
           const unidadesProdutos: ('g' | 'kg')[] = [];
           for (let i = 1; i <= 40; i++) {
             const v = r.values && r.values[i - 1] != null ? Number(r.values[i - 1]) : 0;
+            // console.log('v for index', i, 'is', v);
+            // console.log('unidade for index', i, 'is', r[`Unidade_${i}`]);
+            // console.log();
             const unidade = r[`Unidade_${i}`] === 'g' ? 'g' : 'kg';
             unidadesProdutos.push(unidade);
             values.push(v);
@@ -298,7 +307,17 @@ const loadMateriaPrimaConfig = async () => {
     });
     // Configurar atualização periódica
     const intervalo = setInterval(loadData, 60000); // 1 minuto
-    return () => clearInterval(intervalo);
+    // Also listen for product updates so we can reload labels and data immediately
+    const onProdutosUpdated = () => {
+      try {
+        loadMateriaPrimaConfig().then(() => loadData()).catch(() => loadData());
+      } catch (e) {
+        // ignore
+      }
+    };
+    window.addEventListener('produtos-updated', onProdutosUpdated as EventListener);
+
+    return () => { clearInterval(intervalo); window.removeEventListener('produtos-updated', onProdutosUpdated as EventListener); };
   }, [])
 
   // Listen to table selection events to highlight/filter chart
@@ -362,6 +381,7 @@ const loadMateriaPrimaConfig = async () => {
     dataFim: "",
     nomeFormula: ""
   });
+  console.log(reportFilter)
 
   // Função para formatar data do formato YYYY-MM-DD para DD/MM/YY
   const formatDateForFilter = (dateString: string) => {
@@ -402,26 +422,7 @@ const loadMateriaPrimaConfig = async () => {
     setCustomStartDate(startDateString);
     setCustomEndDate(endDateString);
   };
-
-  // Função para aplicar filtro personalizado
-  const applyCustomFilter = () => {
-    if (!customStartDate || !customEndDate) {
-      alert("Por favor, selecione as datas inicial e final");
-      return;
-    }
-    
-    setReportFilter({
-      ...reportFilter,
-      dataInicio: customStartDate,
-      dataFim: customEndDate
-    });
-    
-    // Se estivermos no mobile, certifique-se de exibir o relatório personalizado
-    if (isMobile) {
-      setActiveReportIndex(periods.findIndex(p => p.key === 'personalizado'));
-    }
-  };
-
+ 
   // Função para mostrar todos os produtos em um diálogo
   const handleShowAllProducts = (products: ChartDatum[], title: string, total: number, batidas: number) => {
     setAllProductsDialogData({
@@ -433,21 +434,80 @@ const loadMateriaPrimaConfig = async () => {
     setShowAllProducts(true);
   };
 
-  // Função para gerar um relatório (pode ser implementada para exportar para PDF ou Excel)
+  // Função para gerar um relatório (redireciona para relatórios personalizados)
   const handleGenerateReport = () => {
     const { products, title } = allProductsDialogData;
     
-    // Aqui você pode implementar a lógica para gerar o relatório
-    alert(`Relatório de ${title} será gerado com ${products.length} produtos`);
+    // Preparar dados para o redirecionamento
+    const dashboardData = {
+      title: title,
+      products: products,
+      chartData: products.map(p => ({
+        name: p.name,
+        value: p.value,
+        unit: p.unit
+      })),
+      totalProduction: products.reduce((sum, p) => sum + p.value, 0),
+      context: 'dashboard'
+    };
     
-    // Redirecionar para a página de relatório ou abrir uma nova janela
-    // window.open('/report?title=' + encodeURIComponent(title), '_blank');
+    // Redirecionar para relatórios personalizados
+    redirectToPDFPage({
+      data: dashboardData.chartData,
+      produtosInfo: products.reduce((acc, p, idx) => {
+        acc[`col${idx + 6}`] = {
+          nome: p.name,
+          unidade: p.unit,
+          total: p.value
+        };
+        return acc;
+      }, {} as Record<string, any>),
+      resumo: {
+        formulasUtilizadas: products.reduce((acc, p) => {
+          acc[p.name] = { somatoriaTotal: p.value };
+          return acc;
+        }, {} as Record<string, any>)
+      },
+      context: 'home'
+    });
+    
+    // Fechar o diálogo
+    setShowAllProducts(false);
   };
   
   function aggregateForRange(periodKey: string) {
     if (!rows) return { chartData: [] as ChartDatum[], sums: {} as FormulaSums, total: 0, productData: [] as ChartDatum[], productTotal: 0, filteredCount: 0 }
 
     let filtered: Entry[]
+
+    // Helper: normalize r.Dia values to ISO YYYY-MM-DD when possible.
+    // Accepts already-ISO strings, DD/MM/YY(YY) and falls back to Date parsing.
+    const toIso = (dia?: string): string | null => {
+      if (!dia) return null;
+      try {
+        const s = dia.trim();
+        // If already ISO YYYY-MM-DD
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        // If format DD/MM/YY or DD/MM/YYYY
+        if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+          const parts = s.split('/');
+          const d = Number(parts[0].padStart(2, '0'));
+          const m = Number(parts[1].padStart(2, '0')) - 1;
+          let y = parts[2];
+          let year = Number(y);
+          if (y.length === 2) year = 2000 + year;
+          const dt = new Date(year, m, d);
+          if (isNaN(dt.getTime())) return null;
+          return dt.toISOString().split('T')[0];
+        }
+        // Last resort: try Date parse
+        const dt = new Date(s);
+        if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+        return null;
+      } catch (e) {
+        return null;
+      }
+    };
 
     switch (periodKey) {
       case '30dias':
@@ -456,40 +516,53 @@ const loadMateriaPrimaConfig = async () => {
         break
 
       case 'ontem':
-        // Para ontem: pegar especificamente os dias 19 e 20 (hoje é 19/09/2025)
-        filtered = rows.filter(r => {
-          if (!r.Dia) return false
-          const dayMatch = r.Dia.match(/^(\d{1,2})\//)
-          if (!dayMatch) return false
-          const day = parseInt(dayMatch[1], 10)
-          return day === 19 || day === 18  // Ontem seria 18/09/2025
-        })
+        // Select rows from the last two dates present in the dataset (based on r.Dia).
+        // We expect Dia to be ISO (YYYY-MM-DD) now, but the parser still accepts DD/MM/YY formats as fallback.
+        const allIsos = rows.map(r => toIso(r.Dia)).filter((x): x is string => !!x);
+        if (allIsos.length === 0) {
+          // fallback: use today and yesterday
+          const todayIso = startOfDay(new Date()).toISOString().split('T')[0];
+          const y = new Date(); y.setDate(y.getDate() - 1);
+          const yesterdayIso = startOfDay(y).toISOString().split('T')[0];
+          filtered = rows.filter(r => {
+            const iso = toIso(r.Dia);
+            return iso === todayIso || iso === yesterdayIso;
+          });
+        } else {
+          const uniq = Array.from(new Set(allIsos)).sort();
+          const latestIso = uniq[uniq.length - 1];
+          let prevIso: string;
+          if (uniq.length >= 2) {
+            // Use the second-latest distinct date present in the data
+            prevIso = uniq[uniq.length - 2];
+          } else {
+            // Fallback: if there's only one distinct date, use previous calendar day
+            const latestDt = new Date(latestIso);
+            const pd = new Date(latestDt);
+            pd.setDate(latestDt.getDate() - 1);
+            prevIso = pd.toISOString().split('T')[0];
+          }
+
+          filtered = rows.filter(r => {
+            const iso = toIso(r.Dia);
+            return iso === latestIso || iso === prevIso;
+          });
+        }
         break
 
       case 'personalizado':
-        // Para personalizado: filtrar por intervalo de datas usando o mesmo método do table filter
+        // Para personalizado: filtrar por intervalo de datas usando ISO dates (YYYY-MM-DD)
         filtered = rows.filter(r => {
+          // If there is no date on the row or no custom bounds, keep the row (existing behavior)
           if (!r.Dia || (!customStartDate && !customEndDate)) return true;
 
-          try {
-            const parts = r.Dia.split('/');
-            if (parts.length !== 3) return false;
+          const iso = toIso(r.Dia);
+          if (!iso) return false;
 
-            // Converte DD/MM/YY para YYYY-MM-DD para comparação
-            const day = parts[0].padStart(2, '0');
-            const month = parts[1].padStart(2, '0');
-            const year = parseInt(parts[2], 10) < 100 ? `20${parts[2].padStart(2, '0')}` : parts[2];
-            const rowDateStr = `${year}-${month}-${day}`;
+          if (customStartDate && iso < customStartDate) return false;
+          if (customEndDate && iso > customEndDate) return false;
 
-            // Verifica se está no intervalo
-            if (customStartDate && rowDateStr < customStartDate) return false;
-            if (customEndDate && rowDateStr > customEndDate) return false;
-
-            return true;
-          } catch (e) {
-            console.error("Erro ao processar data", r.Dia, e);
-            return false;
-          }
+          return true;
         })
         break
 
@@ -533,9 +606,9 @@ const loadMateriaPrimaConfig = async () => {
             <Button variant="outline" onClick={() => setShowAllProducts(false)}>
               Fechar
             </Button>
-            <Button onClick={handleGenerateReport} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button onClick={handleGenerateReport} className="bg-red-600 hover:bg-red-700 text-white">
               <FileText className="mr-2 h-4 w-4" />
-              Gerar Relatório
+              Criar Relatório Personalizado
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -547,7 +620,7 @@ const loadMateriaPrimaConfig = async () => {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="mt-4 text-gray-600 text-lg">Carregando dashboard...</p>
           <p className="mt-2 text-gray-500 text-sm">Conectando ao backend...</p>
         </div>
@@ -703,11 +776,23 @@ const loadMateriaPrimaConfig = async () => {
               </div>
               <div>
                 <Button
-                  className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white"
-                  onClick={applyCustomFilter}
+                  className="w-full md:w-auto bg-red-600 hover:bg-red-700 text-white"
+                  onClick={() => {
+                    setCustomStartDate("");
+                    setCustomEndDate("");
+                    setDateRange({
+                      from: undefined,
+                      to: undefined,
+                    });
+                    setReportFilter({
+                      dataInicio: "",
+                      dataFim: "",
+                      nomeFormula: ""
+                    });
+                  }}
                 >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  Aplicar Filtro
+                  <TrashIcon className="mr-2 h-4 w-4" />
+                  Limpar Filtro
                 </Button>
               </div>
             </div>
@@ -769,7 +854,7 @@ const loadMateriaPrimaConfig = async () => {
               onClick={() => {
                 setActiveReportIndex(periods.findIndex(p => p.key === 'personalizado'));
               }}
-              className="bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 px-4 py-2 rounded-md shadow-md"
+              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-2 px-4 py-2 rounded-md shadow-md"
             >
               <span>Ir para Relatório Personalizado</span>
             </Button>
@@ -802,7 +887,7 @@ const loadMateriaPrimaConfig = async () => {
             {periods.map((_, index) => (
               <button
                 key={index}
-                className={`h-2 rounded-full transition-all ${index === activeReportIndex ? 'w-8 bg-blue-600' : 'w-2 bg-gray-300'
+                className={`h-2 rounded-full transition-all ${index === activeReportIndex ? 'w-8 bg-red-600' : 'w-2 bg-gray-300'
                   }`}
                 onClick={() => setActiveReportIndex(index)}
                 aria-label={`Ir para relatório ${index + 1}`}
@@ -1022,7 +1107,7 @@ const loadMateriaPrimaConfig = async () => {
             {periods.map((_, index) => (
               <button
                 key={index}
-                className={`h-2 rounded-full transition-all ${index === activeReportIndex ? 'w-8 bg-blue-600' : 'w-2 bg-gray-300'
+                className={`h-2 rounded-full transition-all ${index === activeReportIndex ? 'w-8 bg-red-600' : 'w-2 bg-gray-300'
                   }`}
                 onClick={() => setActiveReportIndex(index)}
                 aria-label={`Ir para relatório ${index + 1}`}
