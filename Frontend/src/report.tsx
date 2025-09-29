@@ -697,7 +697,7 @@ export default function Report() {
                             minimumFractionDigits: 3,
                             maximumFractionDigits: 3,
                           })}{" "}
-                          {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
+                          {"kg"}
                         </TableCell>
                       </TableRow>
                     ))

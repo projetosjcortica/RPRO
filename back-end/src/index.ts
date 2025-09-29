@@ -77,26 +77,16 @@ export async function startCollector(): Promise<{
 
   // Prefer the 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
   const runtimeIhm = getRuntimeConfig("ihm-config") || {};
-  // console.log(runtimeIhm);
-  const ihm = new IHMService(
-    String(
-      runtimeIhm.ip ??
-        getRuntimeConfig("ip") // ?? PNC DO kRl
-        // process.env.IHM_IP
-        // "192.168.5.253"
-    ),
-    String(
-      runtimeIhm.user ??
-        getRuntimeConfig("user") 
-        // ??
-        // process.env.IHM_USER ??
-        // "anonymous"
-    ),
-    String(
-      runtimeIhm.password ??
-        getRuntimeConfig("pass") // ?? ""
-    )
-  );
+  // Resolve IP/user/password with safe fallbacks. Avoid calling String() on undefined
+  // which would produce the literal string "undefined" and break DNS lookups.
+  const resolvedIp =
+    runtimeIhm.ip ?? getRuntimeConfig("ip") ?? process.env.IHM_IP ?? "192.168.5.252";
+  const resolvedUser =
+    runtimeIhm.user ?? getRuntimeConfig("user") ?? process.env.IHM_USER ?? "anonymous";
+  const resolvedPassword =
+    runtimeIhm.password ?? getRuntimeConfig("pass") ?? process.env.IHM_PASSWORD ?? "";
+
+  const ihm = new IHMService(String(resolvedIp), String(resolvedUser), String(resolvedPassword));
 
   const runCycle = async () => {
     const downloaded = await ihm.findAndDownloadNewFiles(TMP_DIR);
