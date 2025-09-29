@@ -5,7 +5,6 @@ import { Input } from "./components/ui/input";
 import { Checkbox } from "./components/ui/checkbox";
 import { Button } from "./components/ui/button";
 import useAuth from "./hooks/useAuth";
-// resolvePhotoUrl not used in this file anymore
 import Profile from "./Profile";
 
 import {
@@ -61,9 +60,8 @@ type FormDataKey = keyof FormData;
 const configService = {
   async loadConfig(key: string): Promise<FormData | null> {
     try {
-      // Request only input fields to keep payload small and match frontend form shape
       const response = await fetch(
-        `/api/config/${encodeURIComponent(key)}?inputs=true`
+        `http://localhost:3000/api/config/${encodeURIComponent(key)}?inputs=true`
       );
       if (!response.ok) {
         if (response.status === 404) {
@@ -81,10 +79,9 @@ const configService = {
 
   async saveConfig(key: string, data: FormData): Promise<boolean> {
     try {
-      // Persist the single topic separately so backend stores one Setting row per topic
       const payload: any = {};
       payload[key] = data;
-      const response = await fetch("/api/config/split", {
+      const response = await fetch("http://localhost:3000/api/config/split", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -106,7 +103,6 @@ const configService = {
 
   async saveAllConfigs(): Promise<boolean> {
     try {
-      // Known config keys used by the frontend
       const keys = [
         "profile-config",
         "ihm-config",
@@ -117,17 +113,15 @@ const configService = {
 
       for (const k of keys) {
         try {
-          const res = await fetch(`/api/config/${encodeURIComponent(k)}`);
-          if (!res.ok) continue; // skip missing
+          const res = await fetch(`http://localhost:3000/api/config/${encodeURIComponent(k)}`);
+          if (!res.ok) continue;
           const js = await res.json();
           if (js && js.value !== undefined) combined[k] = js.value;
         } catch (e) {
-          // ignore individual fetch errors
           console.warn(`Failed to load config for ${k}:`, e);
         }
       }
 
-      // Also include any configs stored in localStorage under 'produtosInfo' or similar if needed
       try {
         const prodInfo = localStorage.getItem("produtosInfo");
         if (prodInfo) combined["produtosInfo"] = JSON.parse(prodInfo);
@@ -135,17 +129,18 @@ const configService = {
         // ignore localStorage parse errors
       }
 
-      // If nothing to save, return true
       if (Object.keys(combined).length === 0) return true;
 
-      const response = await fetch("/api/config/split", {
+      const response = await fetch("http://localhost:3000/api/config/split", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(combined),
       });
 
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const result = await response.json();
       return result.success === true;
     } catch (error) {
@@ -156,8 +151,7 @@ const configService = {
 
   async cleanDB(): Promise<boolean> {
     try {
-      // Você precisará implementar este endpoint no backend
-      const response = await fetch("/api/database/clean", {
+      const response = await fetch("http://localhost:3000/api/database/clean", {
         method: "POST",
       });
 
@@ -174,12 +168,6 @@ const configService = {
   },
 
   async selectFolder(): Promise<string> {
-    // Para seleção de pastas/arquivos, você pode:
-    // 1. Implementar endpoints específicos no backend
-    // 2. Usar input type="file" nativo do browser
-    // 3. Implementar um diálogo customizado
-
-    // Exemplo simplificado usando input file
     return new Promise((resolve) => {
       const input = document.createElement("input");
       input.type = "file";
@@ -221,9 +209,6 @@ export function usePersistentForm(key: string) {
         setIsLoading(true);
         const savedData = await configService.loadConfig(key);
         if (savedData) {
-          // Merge savedData onto the initial/default form shape so that any
-          // missing fields in the saved payload don't become undefined and
-          // cause inputs to flip between uncontrolled and controlled.
           setFormData((prev) => ({ ...prev, ...(savedData as any) }));
           setOriginalData((prev) => ({ ...prev, ...(savedData as any) }));
         }
@@ -254,13 +239,11 @@ export function usePersistentForm(key: string) {
         setOriginalData(formData);
         setIsEditing(false);
         toast.success("Data saved successfully!");
-        // After saving this section, attempt to persist all frontend configs to backend
         try {
           await configService.saveAllConfigs();
         } catch (err) {
           console.warn("Failed to save all configs after section save:", err);
         }
-        // If this is the profile-config topic, notify other parts of the app so they can update (e.g., sidebar)
         try {
           if (key === "profile-config") {
             const nome = (formData as any)?.nomeCliente || undefined;
@@ -271,7 +254,7 @@ export function usePersistentForm(key: string) {
             );
           }
         } catch (e) {
-          // ignore errors (non-browser envs)
+          // ignore errors
         }
       } else {
         toast.error("Failed to save data");
@@ -305,63 +288,44 @@ export function ProfileConfig({
 }: {
   configKey?: string;
 }) {
+  // ✅ TODOS OS HOOKS PRIMEIRO, SEM CONDICIONAIS
   const { formData, isLoading, onChange, onSave } = usePersistentForm(configKey);
   const { user } = useAuth();
 
-  // saveProfileName and uploadProfilePhoto were intentionally removed from this component
-  // because the Profile component handles name/photo editing directly and calls updateUser.
-
+  // ✅ Loading state - SEM return antecipado
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">Loading...</div>
     );
   }
 
+  // ✅ AGORA SIM O RETURN FINAL
   return (
     <div id="geral" className="flex flex-col gap-4 bg-white">
-      {/* <h2 className="text-xl font-bold text-gray-800 mb-4">
-        Configuração Geral
-      </h2> */}
       <Profile />
-      {/*       
-      <Label className="text-lg font-semibold">
-        Nome do cliente
-        <Input
-          placeholder="Nome do cliente"
-          type="text"
-          value={formData.nomeCliente || ''}
-          onChange={(e) => onChange("nomeCliente", e.target.value)}
-          disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
-      </Label>
-  */}
-      {/* add a component "profile.tsx" here */}
-
-      {/* Admin-only: definir nome da granja */}
+      
       {user?.isAdmin && (
         <div className="mt-4 border rounded p-3 bg-white">
-          {/* <h3 className="font-semibold">Configurações da granja (Admin)</h3> */}
           <Label className="mt-2">
             Nome da empresa
             <Input
               type="text"
               value={formData.nomeCliente || ""}
               onChange={(e) => onChange("nomeCliente", e.target.value)}
-              // disabled={!isEditing}
               className="mt-2"
             />
           </Label>
         </div>
       )}
-<div className="flex gap-2 justify-end mt-6">
-      <Button
-        id="save"
-        onClick={onSave}
-        className="bg-green-600 hover:bg-green-700"
-      >
-        Salvar
-      </Button>
+      
+      <div className="flex gap-2 justify-end mt-6">
+        <Button
+          id="save"
+          onClick={onSave}
+          className="bg-green-600 hover:bg-green-700"
+        >
+          Salvar
+        </Button>
       </div>
     </div>
   );
@@ -373,15 +337,18 @@ export function IHMConfig({
 }: {
   configKey?: string;
 }) {
+  // ✅ HOOKS PRIMEIRO
   const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
 
+  // ✅ Loading state DEPOIS dos hooks
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">Loading...</div>
     );
   }
 
+  // ✅ RETURN FINAL
   return (
     <div id="webCfg" className="flex flex-col gap-4 bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">Configuração IHM</h2>
@@ -481,15 +448,18 @@ export function DatabaseConfig({
 }: {
   configKey?: string;
 }) {
+  // ✅ HOOKS PRIMEIRO
   const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
 
+  // ✅ Loading state DEPOIS dos hooks
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">Loading...</div>
     );
   }
 
+  // ✅ RETURN FINAL
   return (
     <div id="dbCfg" className="flex flex-col gap-4 bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
@@ -579,15 +549,18 @@ export function AdminConfig({
 }: {
   configKey?: string;
 }) {
+  // ✅ HOOKS PRIMEIRO
   const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
 
+  // ✅ Loading state DEPOIS dos hooks
   if (isLoading) {
     return (
       <div className="flex justify-center items-center p-8">Loading...</div>
     );
   }
 
+  // ✅ RETURN FINAL
   return (
     <div id="adm" className="flex flex-col gap-4 bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
@@ -723,7 +696,6 @@ export function AdminConfig({
         </AlertDialog>
       </div>
 
-      {/* Container MFC agora está no Geral */}
       <div
         id="containerMFC"
         className="flex flex-col md:flex-row justify-between items-center gap-4 p-4 border rounded-lg bg-gray-50 mt-4"

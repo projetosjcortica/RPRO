@@ -45,7 +45,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         const params = new URLSearchParams();
         if (filtrosTemporarios.dataInicio) params.set('dateStart', filtrosTemporarios.dataInicio);
         if (filtrosTemporarios.dataFim) params.set('dateEnd', filtrosTemporarios.dataFim);
-        const url = `/api/filtrosAvaliable?${params.toString()}`;
+        const url = `http://localhost:3000/api/filtrosAvaliable?${params.toString()}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('Failed to fetch filtrosAvaliable');
         const body = await resp.json();

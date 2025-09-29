@@ -11,7 +11,7 @@ type RuntimeConfigShape = {
 const RuntimeConfigContext = createContext<RuntimeConfigShape | null>(null);
 
 async function fetchAllConfigs(): Promise<Record<string, any>> {
-  const res = await fetch('/api/config');
+  const res = await fetch('http://localhost:3000/api/config');
   if (!res.ok) throw new Error('Failed to fetch runtime configs');
   const json = await res.json();
   // backend returns a map of key->string. Try to JSON.parse values when possible

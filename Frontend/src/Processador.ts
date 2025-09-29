@@ -30,42 +30,46 @@ export class Processador {
     console.log(`[Processador] HTTP client initialized for ${this.baseURL}`);
   }
 
-  // Método makeRequest corrigido
-private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
-  let url: string;
+  // Método makeRequest corrigido - SEMPRE usa URL absoluta
+  private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
+    // ✅ SEMPRE construir URL absoluta
+    let url: string;
 
-  // Se endpoint for URL absoluta, usar diretamente
-  if (/^https?:\/\//i.test(endpoint)) {
-    url = endpoint;
-  } else {
-    // Endpoint relativo → combinar com baseURL
-    
-    url = `${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-    console.log(`[Processador] Making request to ${url} with method ${method} and data:`, data);
+    if (/^https?:\/\//i.test(endpoint)) {
+      url = endpoint; // Já é URL absoluta
+    } else {
+      // ✅ CORRIGIDO: Combinar baseURL com endpoint
+      const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      url = `${this.baseURL}${normalizedEndpoint}`;
+    }
+
+    console.log(`[Processador] Making request to ${url} with method ${method}`, data);
+
+    const headers: Record<string, string> = { 'Accept': 'application/json' };
+    const config: RequestInit = { method, headers };
+
+    // GET → colocar parâmetros na URL
+    if (method === 'GET' && data) {
+      const params = new URLSearchParams();
+      Object.entries(data).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && v !== '') params.append(k, String(v));
+      });
+      const queryString = params.toString();
+      if (queryString) url += `?${queryString}`;
+    } else if (method !== 'GET' && data !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(data);
+    }
+
+    try {
+      const response = await fetch(url, config);
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      return await response.json();
+    } catch (error) {
+      console.error(`[Processador] Request failed to ${url}:`, error);
+      throw error;
+    }
   }
-
-  const headers: Record<string, string> = { 'Accept': 'application/json' };
-  const config: RequestInit = { method, headers };
-
-  // GET → colocar parâmetros na URL
-  if (method === 'GET' && data) {
-    const params = new URLSearchParams();
-    Object.entries(data).forEach(([k, v]) => {
-      if (v !== null && v !== undefined && v !== '') params.append(k, String(v));
-    });
-    const queryString = params.toString();
-    if (queryString) url += `?${queryString}`;
-  } else if (method !== 'GET' && data !== undefined) {
-    headers['Content-Type'] = 'application/json';
-    config.body = JSON.stringify(data);
-  }
-
-  const response = await fetch(url, config);
-  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  return await response.json();
-}
-
-
 
   // Event handler methods
   public onEvent(event: string, handler: (payload: any) => void): void {
@@ -76,9 +80,9 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     this.eventHandlers.delete(event);
   }
 
-  // Ping method
+  // ✅ CORRIGIDO: Ping method usa endpoint relativo
   public async ping(): Promise<{ pong: boolean; ts: string }> {
-    return this.makeRequest('/api/ping');
+    return this.makeRequest('/api/ping'); // ✅ Agora usa baseURL + endpoint
   }
 
   // Connection check method
@@ -131,19 +135,17 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     }
   }
 
-  // Report pagination CORRIGIDO
+  // Report pagination - ✅ CORRIGIDO
   public async relatorioPaginate(
     page = 1,
     pageSize = 100,
     filters: FilterOptions = {}
   ): Promise<any> {
-    // Construir objeto de parâmetros incluindo page, pageSize E filters
     const params: any = { 
       page, 
       pageSize 
     };
     
-    // Adicionar filtros apenas se tiverem valor
     if (filters.nomeFormula && filters.nomeFormula !== '') {
       params.nomeFormula = filters.nomeFormula;
     }
@@ -161,7 +163,6 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     }
 
     console.log("[relatorioPaginate] Parâmetros para API:", params);
-
     return this.makeRequest('/api/relatorio/paginate', 'POST', { params });
   }
 
@@ -182,6 +183,7 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     };
   }
 
+  // ✅ TODOS os métodos agora usam endpoints relativos corretamente
   public processFile(filePath: string) {
     return this.makeRequest('/api/file/process', 'GET', { filePath });
   }
@@ -214,7 +216,10 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
   // Database helpers
   public listBatches() { return this.dbListBatches(); }
   public getMateriaPrimaLabels() { return this.makeRequest('/api/materiaprima/labels', 'GET'); }
-  public setupMateriaPrimaItems(items: Array<{ num: number; produto: string; medida: number }>) { return this.dbSetupMateriaPrima(items); }
+  
+  public setupMateriaPrimaItems(items: Array<{ num: number; produto: string; medida: number }>) { 
+    return this.dbSetupMateriaPrima(items); 
+  }
 
   public getMateriaPrima() {
     return this.makeRequest('/api/db/getMateriaPrima');
@@ -246,7 +251,6 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
 
   /**
    * Retorna um mapeamento { formulaNome: somatoriaTotalEmKg }
-   * Consultará o endpoint /api/resumo e extrairá a propriedade somatoriaTotal
    */
   public async getFormulaSomatoria(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string): Promise<Record<string, number>> {
     const params: any = {};
@@ -288,7 +292,7 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     return this.makeRequest(`/api/estoque/${operation}`, 'POST', payload);
   }
 
-  // Stock helpers (HTTP wrappers for /api/estoque/* endpoints)
+  // Stock helpers
   public listarEstoque(incluirInativos = false) {
     return this.estoqueOperation('listar', { incluirInativos });
   }
@@ -321,11 +325,12 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
     return this.estoqueOperation('inicializar', { materiaPrimaId, quantidade, minimo, maximo });
   }
 
-  // Método genérico para executar comandos (mantido para compatibilidade)
+  // Método genérico para executar comandos
   public executarWs(comando: string, parametros: any = {}) {
     return this.sendWithConnectionCheck(comando, parametros);
   }
 
+  // ✅ CORRIGIDO: sendConfig usa endpoint relativo
   public sendConfig(config: any) {
     return this.makeRequest('/api/config', 'POST', config);
   }
@@ -365,6 +370,31 @@ private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise
   public getTimeout(): number {
     return this.responseTimeout;
   }
+
+  // ✅ NOVO: Método para verificar se o backend está respondendo
+  public async checkBackendHealth(): Promise<boolean> {
+    try {
+      await this.ping();
+      return true;
+    } catch (error) {
+      console.error('[Processador] Backend health check failed:', error);
+      return false;
+    }
+  }
+
+  // ✅ NOVO: Método para aguardar o backend ficar pronto
+  public async waitForBackendReady(timeoutMs: number = 30000): Promise<boolean> {
+    const startTime = Date.now();
+    
+    while (Date.now() - startTime < timeoutMs) {
+      if (await this.checkBackendHealth()) {
+        return true;
+      }
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Aguarda 2 segundos entre tentativas
+    }
+    
+    return false;
+  }
 } 
 
 // Singleton instance
@@ -372,7 +402,6 @@ let globalProcessadorInstance: Processador | null = null;
 
 export function getProcessador(): Processador {
   if (!globalProcessadorInstance) {
-    // Cria a instância padrão na porta 3000
     globalProcessadorInstance = new Processador(3000);
   }
   return globalProcessadorInstance;

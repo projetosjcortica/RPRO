@@ -27,7 +27,7 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
         if ((filtros as any).codigo) params.set("codigo", String((filtros as any).codigo));
         if ((filtros as any).numero) params.set("numero", String((filtros as any).numero));
 
-        const url = `/api/relatorio/paginate?${params.toString()}`;
+        const url = `http://localhost:3000/api/relatorio/paginate?${params.toString()}`;
         const res = await fetch(url, { method: "GET", signal });
         if (!res.ok) throw new Error(`Erro ao buscar dados: ${res.status} ${res.statusText}`);
         const body = await res.json();

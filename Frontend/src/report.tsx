@@ -1,26 +1,32 @@
 import { useEffect, useState, useMemo } from "react";
 import { format as formatDateFn } from 'date-fns';
+<<<<<<< HEAD
 
 import { MyDocument } from "./Pdf";
 import {  usePersistentForm } from './config';
 
+=======
+import { usePersistentForm } from './config';
+>>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
 import { pdf } from "@react-pdf/renderer";
 import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
-
 import { useReportData } from "./hooks/useReportData";
-
 import { cn } from "./lib/utils";
+<<<<<<< HEAD
 // product labels are persisted server-side now
 // import { usePDFRedirect } from "./hooks/usePDFRedirect";
 
+=======
+>>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
 import {
   ChevronsLeft,
   ChevronsRight,
   Play,
   Square,
   Loader2,
+  X,
 } from "lucide-react";
 import {
   Pagination,
@@ -39,11 +45,21 @@ import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 import { Button, buttonVariants } from "./components/ui/button";
 import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
+import { MyDocument } from "./Pdf";
 import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 
+interface ComentarioRelatorio {
+  texto: string;
+  data?: string;
+  autor?: string;
+}
+
 export default function Report() {
+<<<<<<< HEAD
   // const { handleLegacyPDFClick } = usePDFRedirect();
   
+=======
+>>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
   const [filtros, setFiltros] = useState<Filtros>({
     dataInicio: "",
     dataFim: "",
@@ -64,9 +80,13 @@ export default function Report() {
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
   const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
 
-  // const { materias } = useMateriaPrima();
+  // Comentários state
+  const [comentarios, setComentarios] = useState<ComentarioRelatorio[]>([]);
+  const [novoComentario, setNovoComentario] = useState<string>('');
+  const [mostrarEditorComentario, setMostrarEditorComentario] = useState<boolean>(false);
 
   const [tableSelection, setTableSelection] = useState<{
+<<<<<<< HEAD
   periodoInicio: string | undefined;
   periodoFim: string | undefined;
   total: number;
@@ -85,65 +105,80 @@ export default function Report() {
   produtos: [],
   formulas: []
 });
+=======
+    total: number;
+    batidas: number;
+    horaInicial: string;
+    horaFinal: string;
+    formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
+    produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
+  }>({
+    total: 0,
+    batidas: 0,
+    horaInicial: "--:--",
+    horaFinal: "--:--",
+    produtos: [],
+    formulas: []
+  });
+>>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
 
-  // Resumo vindo do backend (side info)
   const [resumo, setResumo] = useState<any | null>(null);
   const runtime = useRuntimeConfig();
-  // === FETCH DE DADOS ===
-  const handleAplicarFiltros = (novosFiltros: Filtros) => {
-    setPage(1); // Reset para primeira página
-    setFiltros(novosFiltros);
-  };
+  const { dados, loading, error, total } = useReportData(filtros, page, pageSize);
+  const { formData: profileConfigData } = usePersistentForm("profile-config");
 
-  const { dados, loading, error, total } = useReportData(
-    filtros,
-    page,
-    pageSize
-  );
-const { formData: profileConfigData } = usePersistentForm("profile-config");
+  // Side info state
+  const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ 
+    granja: 'Granja', 
+    proprietario: 'Proprietario' 
+  });
 
+  // Efeitos para side info
   useEffect(() => {
+    
+    console.log(sideInfo);
+    
     if (!profileConfigData) return;
     setSideInfo({
       granja: profileConfigData.nomeCliente || 'Granja',
       proprietario: profileConfigData.nomeCliente,
     });
   }, [profileConfigData]);
-  // Listen to explicit event so other UI pieces (like GeneralConfig) can trigger an immediate update
+
   useEffect(() => {
     const onCfg = (e: any) => {
       try {
         const name = e?.detail?.nomeCliente;
         if (!name) return;
         setSideInfo(prev => ({ ...prev, granja: name, proprietario: name }));
-      } catch (err) {
-        // ignore
-      }
+      } catch (err) {}
     };
     window.addEventListener('profile-config-updated', onCfg as EventListener);
     return () => window.removeEventListener('profile-config-updated', onCfg as EventListener);
   }, []);
+
   useEffect(() => {
-    // If runtime configs are loaded, prefer those values
     if (!runtime || runtime.loading) return;
     const p = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
     const g = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
     setSideInfo({ granja: g, proprietario: p });
   }, [runtime]);
+<<<<<<< HEAD
   const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ granja: 'Granja', proprietario: 'Proprietario' });
   // Fetch resumo sempre que os filtros mudarem
   console.log(sideInfo)
+=======
+
+  // Fetch resumo
+>>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
   useEffect(() => {
     let mounted = true;
     const fetchResumo = async () => {
       try {
         const processador = getProcessador();
-        // Map filtros to resumo params. nomeFormula may be an id or name; backend will coerce to Number if provided.
         const dateStart = filtros.dataInicio || undefined;
-
         const dateEnd = filtros.dataFim || undefined;
         const formula = filtros.nomeFormula || undefined;
-        // areaId is not present in filtros by default, but if exists pass it
         const areaId = (filtros as any).areaId || undefined;
 
         const result = await processador.getResumo(
@@ -155,26 +190,20 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
           (filtros && filtros.numero !== undefined && filtros.numero !== '') ? filtros.numero : undefined,
         );
         if (!mounted) return;
-        // Debug: log applied filters from backend if present
-        try {
-          console.debug('[resumo] backend result:', result?._appliedFilters, 'matchedRows:', result?._matchedRows);
-        } catch (e) {}
         setResumo(result || null);
       } catch (err) {
         console.error("Erro ao buscar resumo:", err);
         if (mounted) setResumo(null);
-      } finally {
-        // no loading state maintained here
       }
     };
 
     fetchResumo();
-    return () => {
-      mounted = false;
-    };
+    return () => { mounted = false; };
   }, [filtros]);
 
+  // Update table selection from resumo
   useEffect(() => {
+<<<<<<< HEAD
     // console.log("RESUMO BACKEND:", resumo);
   if (resumo && resumo.usosPorProduto) {
 
@@ -201,16 +230,64 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
         const nome = produtosInfo[produtoId]?.nome || key;
         return {
           colKey: produtoId,
+=======
+    if (resumo && resumo.usosPorProduto) {
+      const formulasFromResumo = Object.entries(resumo.formulasUtilizadas || {}).map(
+        ([nome, data]: [string, any]) => ({
+          numero: data.numero ?? 0,
+>>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
           nome,
-          qtd: Number(val.quantidade) || 0,
-          unidade: val.unidade || "kg",
-        };
-      }),
-    });
-  }
-}, [resumo, produtosInfo]);
+          quantidade: data.quantidade ?? 0,
+          porcentagem: data.porcentagem ?? 0,
+          somatoriaTotal: data.somatoriaTotal ?? 0,
+        })
+      );
 
-  // Helper to format date strings to dd/MM/yy for user-friendly sideinfo
+      setTableSelection({
+        total: resumo.totalPesos || 0,
+        batidas: resumo.batitdasTotais || 0,
+        horaInicial: resumo.periodoInicio || "--:--",
+        horaFinal: resumo.periodoFim || "--:--",
+        formulas: formulasFromResumo,
+        produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
+          const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
+          const nome = produtosInfo[produtoId]?.nome || key;
+          return {
+            colKey: produtoId,
+            nome,
+            qtd: Number(val.quantidade) || 0,
+            unidade: val.unidade || "kg",
+          };
+        }),
+      });
+    }
+  }, [resumo, produtosInfo]);
+
+  // Funções de comentários
+  const adicionarComentario = () => {
+    if (!novoComentario.trim()) return;
+    
+    const comentario: ComentarioRelatorio = {
+      texto: novoComentario.trim(),
+      data: new Date().toLocaleString('pt-BR'),
+      autor: 'Usuário'
+    };
+    
+    setComentarios(prev => [...prev, comentario]);
+    setNovoComentario('');
+    setMostrarEditorComentario(false);
+  };
+
+  const removerComentario = (index: number) => {
+    setComentarios(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Funções existentes
+  const handleAplicarFiltros = (novosFiltros: Filtros) => {
+    setPage(1);
+    setFiltros(novosFiltros);
+  };
+
   const formatShortDate = (raw?: string | null) => {
     if (!raw) return "";
     const s = String(raw).trim();
@@ -231,21 +308,16 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
     }
   };
 
-
-  // === COLLECTOR FUNCTIONS ===
   const handleCollectorToggle = async () => {
     if (collectorLoading) return;
-
     setCollectorLoading(true);
     try {
       if (collectorRunning) {
         await fetch("/api/collector/stop", { method: "GET" });
         setCollectorRunning(false);
-        console.log("Collector parado");
       } else {
         await fetch("/api/collector/start", { method: "GET" });
         setCollectorRunning(true);
-        console.log("Collector iniciado");
       }
     } catch (error) {
       console.error("Erro ao controlar collector:", error);
@@ -254,33 +326,23 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
     }
   };
 
-  // No componente Report, atualize a função onLabelChange:
   const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
     setColLabels((prev) => ({ ...prev, [colKey]: newName }));
-
-    // Update local state immediately
     setProdutosInfo((prev) => ({
       ...prev,
       [colKey]: { ...(prev[colKey] || {}), nome: newName, unidade: unidade || 'kg' },
     }));
 
-    // Also persist change to backend by mapping colKey back to num and sending a save request
     try {
       const match = colKey.match(/^col(\d+)$/);
       if (match) {
         const colIndex = Number(match[1]);
-        const num = colIndex - 5; // reverse colOffset used in backend
+        const num = colIndex - 5;
         if (!Number.isNaN(num) && num > 0) {
-          // Send a single-item save to /api/db/setupMateriaPrima with the updated item
-          fetch('/api/db/setupMateriaPrima', {
+          fetch('http://localhost:3000/api/db/setupMateriaPrima', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ items: [{ num, produto: newName, medida: unidade === 'g' ? 0 : 1 }] }),
-          }).then(async (r) => {
-            if (!r.ok) {
-              const txt = await r.text();
-              console.warn('Failed to persist product label to backend', txt);
-            }
           }).catch(e => console.error('Failed to persist label', e));
         }
       }
@@ -288,18 +350,16 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
       console.warn('Could not persist product label change to backend', e);
     }
   };
-  
-  // Load produtosInfo from localStorage once
-  // Load produtosInfo from backend on mount
+
+  // Load produtosInfo
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
-        const res = await fetch('/api/materiaprima/labels');
+        const res = await fetch('http://localhost:3000/api/materiaprima/labels');
         if (!res.ok) return;
         const data = await res.json();
         if (!mounted) return;
-        // data is mapping colKey -> { produto, medida }
         const parsed: Record<string, any> = {};
         Object.entries(data).forEach(([colKey, val]: any) => {
           const medida = typeof val.medida === 'number' ? val.medida : Number(val.medida || 1);
@@ -313,48 +373,98 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
       }
     };
     load();
-    // Listen for product definition updates from the Products editor so we can refresh labels and data
+    
     const onProdutosUpdated = () => {
       try {
-        // reload labels from backend/localStorage
         const raw = localStorage.getItem('produtosInfo');
         if (raw) {
           try {
             const parsedLocal = JSON.parse(raw);
-            // merge/normalize parsedLocal into same shape used above
             const parsedObj: Record<string, any> = {};
             Object.keys(parsedLocal).forEach((colKey) => {
               const val = parsedLocal[colKey];
               parsedObj[colKey] = { nome: val?.nome || `Produto`, unidade: val?.unidade || 'kg' };
             });
             setProdutosInfo(parsedObj);
-          } catch (err) {
-            // ignore parse errors
-          }
+          } catch (err) {}
         }
-        // trigger a reload of resumo by re-applying current filtros
         setFiltros((prev) => ({ ...prev }));
-        // also reload the table data by re-setting page (no-op but will retrigger hooks dependent on filtros/page)
         setPage((p) => Math.max(1, p));
-      } catch (err) {
-        // ignore
-      }
+      } catch (err) {}
     };
+    
     window.addEventListener('produtos-updated', onProdutosUpdated as EventListener);
-    return () => { window.removeEventListener('produtos-updated', onProdutosUpdated as EventListener); mounted = false; };
+    return () => { 
+      window.removeEventListener('produtos-updated', onProdutosUpdated as EventListener); 
+      mounted = false; 
+    };
   }, []);
 
-
-  // Função para converter valores baseado na unidade
   const converterValor = (valor: number, colKey?: string): number => {
     if (typeof valor !== "number") return valor;
-    // When backend normalization is applied, values are already in kg for produtos with medida=0 (server divides by 1000)
-    // But if we still have local info (e.g., fallback), apply conversion here as safety.
     let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
-    if (unidade === 'g') return valor / 1000; // convert grams to kg for internal consistency
+    if (unidade === 'g') return valor / 1000;
     return valor;
   };
 
+  const handlePrint = async () => {
+    const blob = await pdf(
+      <MyDocument
+        total={Number(tableSelection.total) || 0}
+        batidas={Number(tableSelection.batidas) || 0}
+        periodoInicio={tableSelection.horaInicial}
+        periodoFim={tableSelection.horaFinal}
+        formulas={tableSelection.formulas}
+        produtos={tableSelection.produtos}
+        data={new Date().toLocaleDateString("pt-BR")}
+        empresa={runtime.get('nomeCliente')}
+        comentarios={comentarios}
+      />
+    ).toBlob();
+    
+    const blobUrl = URL.createObjectURL(blob);
+    const printWindow = window.open("", "_blank"); 
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <html>
+        <head><title>Print PDF</title></head>
+        <body style="margin:0">
+          <iframe src="${blobUrl}" style="width:100%;height:100vh;" frameborder="0"></iframe>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+
+    const iframe = printWindow.document.querySelector("iframe");
+    iframe?.addEventListener("load", () => {
+      printWindow.focus();
+      printWindow.print(); 
+    });
+  };
+
+  const displayProducts = useMemo(() => {
+    if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
+      let produtoId, label; 
+      return Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
+        produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
+        label = produtosInfo[produtoId]?.nome || key;
+        return {
+          colKey: produtoId,
+          nome: label,
+          qtd: Number(val.quantidade) || 0,
+        };
+      });
+    }
+    return tableSelection.produtos.map((p, idx) => ({
+      colKey: `col${idx + 1}`,
+      nome: p.nome,
+      qtd: p.qtd,
+      unidade: "kg",
+    }));
+  }, [resumo, tableSelection]);
+
+  // Renderização condicional do conteúdo
   let content;
   if (view === "table") {
     content = (
@@ -379,7 +489,7 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
     );
   }
 
-  // === PAGINAÇÃO ===
+  // Paginação
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const maxVisiblePages = 10;
   let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
@@ -393,81 +503,6 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
     { length: endPage - startPage + 1 },
     (_, i) => startPage + i
   );
-const handlePrint = async () => {
-  // Generate PDF as blob
-  const blob = await pdf(
-     <MyDocument
-      total={Number(tableSelection.total) || 0}
-      batidas={Number(tableSelection.batidas) || 0}
-      periodoInicio={tableSelection.periodoInicio}
-      periodoFim={tableSelection.periodoFim}
-      formulas={tableSelection.formulas}
-      produtos={tableSelection.produtos}
-      data={new Date().toLocaleDateString("pt-BR")}
-      empresa={runtime.nomeCliente}
-    />
-  ).toBlob();
-  
-  // Create a blob URL
-   const blobUrl = URL.createObjectURL(blob);
-  const printWindow = window.open("", "_blank"); 
-  if (!printWindow) return;
-
-  printWindow.document.write(`
-    <html>
-      <head><title>Print PDF</title></head>
-      <body style="margin:0">
-        <iframe src="${blobUrl}" style="width:100%;height:100vh;" frameborder="0"></iframe>
-      </body>
-    </html>
-  `);
-  printWindow.document.close();
-
-  const iframe = printWindow.document.querySelector("iframe");
-  iframe?.addEventListener("load", () => {
-    printWindow.focus();
-    printWindow.print(); 
-  });
-};
-
-  // === Chart data calculation ===
-  // chartData was previously computed here but is not used in this component.
-  // Keep calculations localized where needed (e.g., PDF/Chart components).
-
-  const displayProducts = useMemo(() => {
-    if (
-      resumo &&
-      resumo.usosPorProduto &&
-      Object.keys(resumo.usosPorProduto).length > 0
-    ) {
-      let produtoId, label; 
-
-      return Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
-        produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
-        label = produtosInfo[produtoId]?.nome || key;
-
-          return {
-              colKey: produtoId,
-              nome: label,
-              qtd: Number(val.quantidade) || 0,
-            };
-      });
-    }
-    // fallback to tableSelection
-    return tableSelection.produtos.map((p, idx) => ({
-      colKey: `col${idx + 1}`,
-      nome: p.nome,
-      qtd: p.qtd,
-      unidade: "kg",
-    }));
-  }, [resumo, tableSelection]);
-
-  // const formulaSums = dados.reduce((acc, row) => {
-  //   if (row.Nome) {
-  //     acc[row.Nome] = (acc[row.Nome] || 0) + (row.values?.[0] || 0);
-  //   }
-  //   return acc;
-  // }, {} as Record<string, number>);
 
   return (
     <div className="flex flex-col gap-7 w-full h-full">
@@ -504,20 +539,14 @@ const handlePrint = async () => {
         </div>
       </div>
 
-      <div
-        id="tabela+pag+sideInfo"
-        className="flex flex-row gap-2 justify-start w-full"
-      >
+      <div className="flex flex-row gap-2 justify-start w-full">
         <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[80vh] w-[68px]">
           <div className="flex w-full h-[100dvh] overflow-hidden shadow-md/16 flex">
             {content}
           </div>
 
-          {/* PAGINAÇÃO */}
-          <div
-            id="pagination"
-            className="flex flex-row items-center justify-end mt-2"
-          >
+          {/* Paginação */}
+          <div className="flex flex-row items-center justify-end mt-2">
             <Pagination className="flex flex-row justify-end">
               <PaginationContent>
                 <PaginationItem>
@@ -564,18 +593,11 @@ const handlePrint = async () => {
           </div>
         </div>
 
-        {/* SIDE INFO */}
-        <div
-          id="sideinfo"
-          className="h-[74vh]  flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0"
-        >
-          {/* Componente de Resumo */}
-
-          <div id="quadradoInfo" className="grid grid-cols-2 gap-1 mt-2">
-            <div
-              id="total de produtos"
-              className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16"
-            >
+        {/* Side Info */}
+        <div className="h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+          {/* Informações Gerais */}
+          <div className="grid grid-cols-2 gap-1 mt-2">
+            <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Total</p>
               <p className="text-center text-lg font-bold">
                 {(resumo && typeof resumo.totalPesos === "number"
@@ -584,8 +606,7 @@ const handlePrint = async () => {
                 ).toLocaleString("pt-BR", {
                   minimumFractionDigits: 3,
                   maximumFractionDigits: 3,
-                })}{" "}
-                kg
+                })} kg
               </p>
             </div>
             <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
@@ -613,7 +634,9 @@ const handlePrint = async () => {
               </p>
             </div>
           </div>
-          <div id="retanguloProd" className="border rounded flex-grow overflow-auto scrollbar-custom">
+
+          {/* Produtos */}
+          <div className="border rounded flex-grow overflow-auto scrollbar-custom">
             <ScrollArea>
               <Table className="h-100">
                 <TableHeader>
@@ -623,19 +646,19 @@ const handlePrint = async () => {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {displayProducts && displayProducts.length > 0 ? (
+                                  {displayProducts && displayProducts.length > 0 ? (
                     displayProducts.map((produto, idx) => (
                       <TableRow key={idx}>
                         <TableCell className="py-1 px-2">
                           {produto.nome}
                         </TableCell>
-                            <TableCell className="py-1 px-2 text-right">
-                              {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
-                                minimumFractionDigits: 3,
-                                maximumFractionDigits: 3,
-                              })}{" "}
-                              {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
-                            </TableCell>
+                        <TableCell className="py-1 px-2 text-right">
+                          {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
+                            minimumFractionDigits: 3,
+                            maximumFractionDigits: 3,
+                          })}{" "}
+                          {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
+                        </TableCell>
                       </TableRow>
                     ))
                   ) : (
@@ -653,16 +676,85 @@ const handlePrint = async () => {
               <ScrollBar orientation="vertical" />
             </ScrollArea>
           </div>
-          <div id="impressao" className="flex flex-col text-center gap-2 mt-6">
+
+          {/* Impressão e Comentários */}
+          <div className="flex flex-col text-center gap-2 mt-6">
             <p>Importar/Imprimir</p>
-            <div id="botões" className="flex flex-row gap-2 justify-center">
+            <div className="flex flex-row gap-2 justify-center">
               <Button onClick={handlePrint} className="gap-2">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 Gerar PDF
               </Button>
-            </div> 
+            </div>
+
+            {/* Seção de Comentários */}
+            <div className="flex flex-col gap-2 mt-4">
+              <div className="flex items-center justify-center">
+                <p className="font-medium"></p>
+                <Button 
+                  onClick={() => setMostrarEditorComentario(!mostrarEditorComentario)}
+                  size="sm"
+                >
+                  {mostrarEditorComentario ? 'Cancelar' : '+ Adicionar Comentário'}
+                </Button>
+              </div>
+
+              {/* Editor de Comentário */}
+              {mostrarEditorComentario && (
+                <div className="border rounded-lg p-3 bg-gray-50">
+                  <textarea
+                    value={novoComentario}
+                    onChange={(e) => setNovoComentario(e.target.value)}
+                    placeholder="Digite seu comentário sobre este relatório..."
+                    className="w-full p-2 border rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500"
+                    rows={3}
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    <Button 
+                      onClick={() => setMostrarEditorComentario(false)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button 
+                      onClick={adicionarComentario}
+                      disabled={!novoComentario.trim()}
+                      size="sm"
+                      className="bg-red-600 hover:bg-red-700"
+                    >
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Lista de Comentários */}
+              {comentarios.length > 0 && (
+                <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-custom">
+                  {comentarios.map((comentario, index) => (
+                    <div key={index} className="border rounded-lg p-3 bg-white text-sm relative group">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-xs text-gray-500">
+                          {comentario.autor} • {comentario.data}
+                        </span>
+                        <Button
+                          onClick={() => removerComentario(index)}
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 w-5 p-0 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <p className="text-gray-700">{comentario.texto}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

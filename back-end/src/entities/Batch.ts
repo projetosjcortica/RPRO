@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { Row } from './row';
+import { Row } from './Row';
 
 @Entity()
 export class Batch {

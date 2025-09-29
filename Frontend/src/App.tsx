@@ -257,10 +257,12 @@ export default App
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
   if (!user) {
-    // client-side redirect
-    window.location.pathname = '/login';
+    navigate("/login");
     return <div />;
   }
+
   return children;
 }

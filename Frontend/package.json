@@ -118,6 +118,10 @@
   "main": "dist-electron/main.js",
   "build": {
     "files": [
+      "dist-electron/**/*",
+      "dist/**/*",
+      "electron/preload.mjs",
+      "electron/main.js",
       "node_modules/**/*",
       "dist-electron/**/*",
       "dist/**/*"

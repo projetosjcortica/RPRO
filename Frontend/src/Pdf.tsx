@@ -9,11 +9,10 @@ Font.register({
   ],
 });
 
-
 const styles = StyleSheet.create({
   page: {
     padding: 30,
-    paddingBottom: 60, // espaço para footer
+    paddingBottom: 60,
     fontSize: 12,
     fontFamily: "Roboto",
     color: "#333",
@@ -36,8 +35,8 @@ const styles = StyleSheet.create({
     objectFit: "cover",
   },
   titleContainer: { flex: 1 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#af1e1eff" },
-  subtitle: { fontSize: 14, color: "#bbbbbbff", marginTop: 4 },
+  title: { fontSize: 24, fontWeight: "bold", color: "#af1e1eff", marginBottom: 4 },
+  subtitle: { fontSize: 14, color: "#bbbbbbff", marginTop: 4, marginBottom: 5 },
   section: { marginBottom: 20, flexDirection: "column", break: "auto" },
   sectionTitle: {
     fontSize: 16,
@@ -116,12 +115,32 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#bbbbbbff",
   },
+  comentarioContainer: {
+    marginBottom: 10,
+    padding: 8,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 4,
+  },
+  comentarioMeta: {
+    fontSize: 10,
+    color: '#666',
+    marginBottom: 4,
+  },
+  comentarioTexto: {
+    fontSize: 11,
+  },
 });
 
 interface Produto {
   nome: string;
   qtd: number;
   categoria?: string;
+}
+
+interface ComentarioRelatorio {
+  texto: string;
+  data?: string;
+  autor?: string;
 }
 
 export interface MyDocumentProps {
@@ -138,6 +157,7 @@ export interface MyDocumentProps {
   orientation?: "portrait" | "landscape";
   formulaSums?: Record<string, number>;
   chartData?: { name: string; value: number }[];
+  comentarios?: ComentarioRelatorio[];
 }
 
 export const MyDocument: FC<MyDocumentProps> = ({
@@ -150,10 +170,14 @@ export const MyDocument: FC<MyDocumentProps> = ({
   data = new Date().toLocaleDateString("pt-BR"),
   empresa = "Relatorio RPRO",
   observacoes = "",
+<<<<<<< HEAD
   // logoSrc,
+=======
+>>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
   orientation = "portrait",
   formulaSums = {},
   chartData = [],
+  comentarios = [],
 }: MyDocumentProps) => {
   const produtosPorCategoria: Record<string, Produto[]> = {};
   produtos.forEach((p) => {
@@ -163,174 +187,174 @@ export const MyDocument: FC<MyDocumentProps> = ({
   });
   const categorias = Object.keys(produtosPorCategoria).sort();
 
-  console.log("FORMULAS CHEGANDO:", formulas);
   return (
-    
     <Document>
-  {/* Página 1 fixa */}
-  <Page size="A4" style={styles.page} orientation={orientation}>
-    {/* Cabeçalho */}
-    <View style={styles.header} fixed>
-      {/* {logoSrc ? (
-        <Image src={logoSrc} style={styles.logo} />
-      ) : (
-        <View
-          style={[
-            styles.logo,
-            { backgroundColor: "#f3f4f6", justifyContent: "center", alignItems: "center" },
-          ]}
-        >
-          <Text>LOGO</Text>
-        </View>
-      )} */}
-      <View style={styles.titleContainer}>
-        <Text style={styles.title}>{empresa}</Text>
-        <Text style={styles.subtitle}>Relatório de Produção - {data}</Text>
-      </View>
-    </View>
-
-    {/* Informações Gerais */}
-    <View style={styles.section} wrap={false}>
-      <Text style={styles.sectionTitle}>Informações Gerais</Text>
-      <View style={styles.infoRow}>
-        <View style={{ width: "70%" }}>
-          <Text style={styles.label}>
-            Total:{" "}
-            <Text style={styles.value}>
-              {(total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
-            </Text>
-          </Text>
-        </View>
-        <View style={{ width: "70%" }}>
-          <Text style={styles.label}>
-            Batidas: <Text style={styles.value}>{batidas ?? 0}</Text>
-          </Text>
-        </View>
-      </View>
-      <View style={styles.infoRow}>
-        <View style={{ width: "70%" }}>
-          <Text style={styles.label}>
-            Data inicial: <Text style={styles.value}>{periodoInicio ?? "-"}</Text>
-          </Text>
-        </View>
-        <View style={{ width: "70%" }}>
-          <Text style={styles.label}>
-            Data final: <Text style={styles.value}>{periodoFim ?? "-"}</Text>
-          </Text>
-        </View>
-      </View>
-    </View>
-
-    {/* Fórmulas */}
-    {formulas.length > 0 && (
-      <View style={styles.section} wrap={true}>
-        <Text style={styles.sectionTitle}>Resumo por Fórmula</Text>
-        <View style={styles.table}>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableColHeader}>Fórmula</Text>
-            <Text style={styles.tableColHeaderSmall}>Total</Text>
+      {/* Página 1 */}
+      <Page size="A4" style={styles.page} orientation={orientation}>
+        {/* Cabeçalho */}
+        <View style={styles.header}>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>{empresa}</Text>
+            <Text style={styles.subtitle}>Relatório de Produção - {data}</Text>
           </View>
-          {formulas.map((f, i) => (
-            <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-              <Text style={styles.tableCol}>{f.nome}</Text>
-              <Text style={styles.tableColSmall}>
-                {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
-              </Text>
-            </View>
-          ))}
         </View>
-      </View>
-    )}
 
-    {/* Somatória calculada (por fórmula) — pode vir do cálculo direto no frontend */}
-    {formulaSums && Object.keys(formulaSums).length > 0 && (
-      <View style={styles.section} wrap={true}>
-        <Text style={styles.sectionTitle}>Somatória por Fórmula (cálculo)</Text>
-        <View style={styles.table}>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableColHeader}>Fórmula</Text>
-            <Text style={styles.tableColHeaderSmall}>Total</Text>
-          </View>
-          {Object.entries(formulaSums).map(([nome, val], i) => (
-            <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-              <Text style={styles.tableCol}>{nome}</Text>
-              <Text style={styles.tableColSmall}>
-                {Number(val).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
-    )}
-
-    {/* Rodapé (fixo em todas as páginas após a primeira) */}
-    <Text style={styles.footer} fixed>
-      Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
-    </Text>
-    <Text
-      style={styles.pageNumber}
-      render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
-      fixed
-    />
-  </Page>
-  {/* Páginas seguintes (adaptativas) */}
-  <Page size="A4" style={styles.page} orientation={orientation} wrap>
-    {/* Produtos */}
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Produtos</Text>
-      {chartData && chartData.length > 0 && (
-        <View style={{ marginBottom: 8 }}>
-          <Text style={{ fontSize: 12, color: "#374151" }}>Resumo rápido</Text>
-          {chartData.map((c, i) => (
-            <Text key={i} style={{ fontSize: 10 }}>
-              {`${c.name}: ${c.value.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}`}
-            </Text>
-          ))}
-        </View>
-      )}
-      {categorias.map((cat, idx) => (
-        <View key={idx} style={{ marginBottom: 10 }} wrap>
-          <View style={styles.table} wrap>
-            <View style={styles.tableRow}>
-              <Text style={styles.tableColHeader}>Nome</Text>
-              <Text style={styles.tableColHeaderSmall}>Quantidade</Text>
-            </View>
-            {produtosPorCategoria[cat].map((p, i) => (
-              <View
-                key={i}
-                style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
-              >
-                <Text style={styles.tableCol}>{p.nome}</Text>
-                <Text style={styles.tableColSmall}>
-                  {p.qtd.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+        {/* Informações Gerais */}
+        <View style={styles.section} wrap={false}>
+          <Text style={styles.sectionTitle}>Informações Gerais</Text>
+          <View style={styles.infoRow}>
+            <View style={{ width: "70%" }}>
+              <Text style={styles.label}>
+                Total:{" "}
+                <Text style={styles.value}>
+                  {(total ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
                 </Text>
+              </Text>
+            </View>
+            <View style={{ width: "70%" }}>
+              <Text style={styles.label}>
+                Batidas: <Text style={styles.value}>{batidas ?? 0}</Text>
+              </Text>
+            </View>
+          </View>
+          <View style={styles.infoRow}>
+            <View style={{ width: "70%" }}>
+              <Text style={styles.label}>
+                Data inicial: <Text style={styles.value}>{periodoInicio ?? "-"}</Text>
+              </Text>
+            </View>
+            <View style={{ width: "70%" }}>
+              <Text style={styles.label}>
+                Data final: <Text style={styles.value}>{periodoFim ?? "-"}</Text>
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Fórmulas */}
+        {formulas.length > 0 && (
+          <View style={styles.section} wrap={true}>
+            <Text style={styles.sectionTitle}>Resumo por Fórmula</Text>
+            <View style={styles.table}>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableColHeader}>Fórmula</Text>
+                <Text style={styles.tableColHeaderSmall}>Total</Text>
+              </View>
+              {formulas.map((f, i) => (
+                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                  <Text style={styles.tableCol}>{f.nome}</Text>
+                  <Text style={styles.tableColSmall}>
+                    {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Somatória calculada */}
+        {formulaSums && Object.keys(formulaSums).length > 0 && (
+          <View style={styles.section} wrap={true}>
+            <Text style={styles.sectionTitle}>Somatória por Fórmula (cálculo)</Text>
+            <View style={styles.table}>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableColHeader}>Fórmula</Text>
+                <Text style={styles.tableColHeaderSmall}>Total</Text>
+              </View>
+              {Object.entries(formulaSums).map(([nome, val], i) => (
+                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                  <Text style={styles.tableCol}>{nome}</Text>
+                  <Text style={styles.tableColSmall}>
+                    {Number(val).toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
+        {/* Rodapé */}
+        <Text style={styles.footer} fixed>
+          Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
+        </Text>
+        <Text
+          style={styles.pageNumber}
+          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          fixed
+        />
+      </Page>
+
+      {/* Página 2 */}
+      <Page size="A4" style={styles.page} orientation={orientation} wrap>
+        {/* Produtos */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Produtos</Text>
+          {chartData && chartData.length > 0 && (
+            <View style={{ marginBottom: 8 }}>
+              <Text style={{ fontSize: 12, color: "#374151" }}>Resumo rápido</Text>
+              {chartData.map((c, i) => (
+                <Text key={i} style={{ fontSize: 10 }}>
+                  {`${c.name}: ${c.value.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}`}
+                </Text>
+              ))}
+            </View>
+          )}
+          {categorias.map((cat, idx) => (
+            <View key={idx} style={{ marginBottom: 10 }} wrap>
+              <View style={styles.table} wrap>
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableColHeader}>Nome</Text>
+                  <Text style={styles.tableColHeaderSmall}>Quantidade</Text>
+                </View>
+                {produtosPorCategoria[cat].map((p, i) => (
+                  <View
+                    key={i}
+                    style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
+                  >
+                    <Text style={styles.tableCol}>{p.nome}</Text>
+                    <Text style={styles.tableColSmall}>
+                      {p.qtd.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+
+        {/* Comentários */}
+        {comentarios.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Comentários do Relatório</Text>
+            {comentarios.map((comentario, index) => (
+              <View key={index} style={styles.comentarioContainer}>
+                <Text style={styles.comentarioMeta}>
+                  {comentario.autor || 'Sistema'} • {comentario.data || new Date().toLocaleDateString('pt-BR')}
+                </Text>
+                <Text style={styles.comentarioTexto}>{comentario.texto}</Text>
               </View>
             ))}
           </View>
-        </View>
-      ))}
-    </View>
+        )}
 
-    {/* Observações */}
-    {observacoes && (
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Observações</Text>
-        <Text>{observacoes}</Text>
-      </View>
-    )}
+        {/* Observações */}
+        {observacoes && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Observações</Text>
+            <Text>{observacoes}</Text>
+          </View>
+        )}
 
-    {/* Rodapé (fixo em todas as páginas após a primeira) */}
-    <Text style={styles.footer} fixed>
-      Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
-    </Text>
-    <Text
-      style={styles.pageNumber}
-      render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
-      fixed
-    />
-  </Page>
-</Document>
-
-
+        {/* Rodapé */}
+        <Text style={styles.footer} fixed>
+          Relatório gerado em {new Date().toLocaleString("pt-BR")} | {empresa}
+        </Text>
+        <Text
+          style={styles.pageNumber}
+          render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+          fixed
+        />
+      </Page>
+    </Document>
   );
 };
