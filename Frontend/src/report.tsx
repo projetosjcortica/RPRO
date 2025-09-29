@@ -1,25 +1,18 @@
 import { useEffect, useState, useMemo } from "react";
 import { format as formatDateFn } from 'date-fns';
-<<<<<<< HEAD
 
 import { MyDocument } from "./Pdf";
-import {  usePersistentForm } from './config';
-
-=======
 import { usePersistentForm } from './config';
->>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
+
 import { pdf } from "@react-pdf/renderer";
 import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
 import { cn } from "./lib/utils";
-<<<<<<< HEAD
 // product labels are persisted server-side now
 // import { usePDFRedirect } from "./hooks/usePDFRedirect";
 
-=======
->>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -45,7 +38,7 @@ import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 import { Button, buttonVariants } from "./components/ui/button";
 import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
-import { MyDocument } from "./Pdf";
+// import { MyDocument } from "./Pdf";
 import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 
 interface ComentarioRelatorio {
@@ -55,11 +48,8 @@ interface ComentarioRelatorio {
 }
 
 export default function Report() {
-<<<<<<< HEAD
   // const { handleLegacyPDFClick } = usePDFRedirect();
   
-=======
->>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
   const [filtros, setFiltros] = useState<Filtros>({
     dataInicio: "",
     dataFim: "",
@@ -86,7 +76,6 @@ export default function Report() {
   const [mostrarEditorComentario, setMostrarEditorComentario] = useState<boolean>(false);
 
   const [tableSelection, setTableSelection] = useState<{
-<<<<<<< HEAD
   periodoInicio: string | undefined;
   periodoFim: string | undefined;
   total: number;
@@ -105,22 +94,6 @@ export default function Report() {
   produtos: [],
   formulas: []
 });
-=======
-    total: number;
-    batidas: number;
-    horaInicial: string;
-    horaFinal: string;
-    formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
-    produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
-  }>({
-    total: 0,
-    batidas: 0,
-    horaInicial: "--:--",
-    horaFinal: "--:--",
-    produtos: [],
-    formulas: []
-  });
->>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
 
   const [resumo, setResumo] = useState<any | null>(null);
   const runtime = useRuntimeConfig();
@@ -163,14 +136,9 @@ export default function Report() {
     const g = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
     setSideInfo({ granja: g, proprietario: p });
   }, [runtime]);
-<<<<<<< HEAD
-  const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ granja: 'Granja', proprietario: 'Proprietario' });
+  // const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ granja: 'Granja', proprietario: 'Proprietario' });
   // Fetch resumo sempre que os filtros mudarem
   console.log(sideInfo)
-=======
-
-  // Fetch resumo
->>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
   useEffect(() => {
     let mounted = true;
     const fetchResumo = async () => {
@@ -203,7 +171,6 @@ export default function Report() {
 
   // Update table selection from resumo
   useEffect(() => {
-<<<<<<< HEAD
     // console.log("RESUMO BACKEND:", resumo);
   if (resumo && resumo.usosPorProduto) {
 
@@ -217,35 +184,11 @@ export default function Report() {
       })
     );
 
-    setTableSelection({
-      total: resumo.totalPesos || 0,
-      batidas: resumo.batitdasTotais || 0,
-      periodoInicio: resumo.periodoInicio || "--:--",
-      periodoFim: resumo.periodoFim || "--:--",
-      horaInicial: resumo.periodoInicio || "--:--",
-      horaFinal: resumo.periodoFim || "--:--",
-      formulas: formulasFromResumo,
-      produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
-        const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
-        const nome = produtosInfo[produtoId]?.nome || key;
-        return {
-          colKey: produtoId,
-=======
-    if (resumo && resumo.usosPorProduto) {
-      const formulasFromResumo = Object.entries(resumo.formulasUtilizadas || {}).map(
-        ([nome, data]: [string, any]) => ({
-          numero: data.numero ?? 0,
->>>>>>> a5ec474de2e010aa2c0ab609345fb4802b5d1901
-          nome,
-          quantidade: data.quantidade ?? 0,
-          porcentagem: data.porcentagem ?? 0,
-          somatoriaTotal: data.somatoriaTotal ?? 0,
-        })
-      );
-
       setTableSelection({
         total: resumo.totalPesos || 0,
         batidas: resumo.batitdasTotais || 0,
+        periodoInicio: resumo.periodoInicio || "--:--",
+        periodoFim: resumo.periodoFim || "--:--",
         horaInicial: resumo.periodoInicio || "--:--",
         horaFinal: resumo.periodoFim || "--:--",
         formulas: formulasFromResumo,
@@ -255,7 +198,7 @@ export default function Report() {
           return {
             colKey: produtoId,
             nome,
-            qtd: Number(val.quantidade) || 0,
+            qtd: Number(val.quantidade) ?? 0,
             unidade: val.unidade || "kg",
           };
         }),
