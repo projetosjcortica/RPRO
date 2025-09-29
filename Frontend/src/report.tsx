@@ -38,7 +38,7 @@ import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 interface ComentarioRelatorio {
   texto: string;
   data?: string;
-  autor?: string;
+
 }
 
 export default function Report() {
@@ -176,16 +176,16 @@ export default function Report() {
         horaFinal: resumo.periodoFim || "--:--",
         formulas: formulasFromResumo,
         produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
-          const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
-          const nome = produtosInfo[produtoId]?.nome || key;
-          return {
-            colKey: produtoId,
-            nome,
-            qtd: Number(val.quantidade) || 0,
-            unidade: val.unidade || "kg",
-          };
-        }),
-      });
+        const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
+        const nome = produtosInfo[produtoId]?.nome || key;
+        return {
+          colKey: produtoId,
+          nome,
+          qtd: Number(val.quantidade) || 0,
+          unidade: val.unidade || "kg",
+        };
+      }),
+    });
     }
   }, [resumo, produtosInfo]);
 
@@ -196,7 +196,6 @@ export default function Report() {
     const comentario: ComentarioRelatorio = {
       texto: novoComentario.trim(),
       data: new Date().toLocaleString('pt-BR'),
-      autor: 'Usuário'
     };
     
     setComentarios(prev => [...prev, comentario]);
@@ -333,7 +332,7 @@ export default function Report() {
     return valor;
   };
 
-  const handlePrint = async () => {
+    const handlePrint = async () => {
     const blob = await pdf(
       <MyDocument
         total={Number(tableSelection.total) || 0}
@@ -341,7 +340,7 @@ export default function Report() {
         periodoInicio={tableSelection.horaInicial}
         periodoFim={tableSelection.horaFinal}
         formulas={tableSelection.formulas}
-        produtos={tableSelection.produtos}
+        produtos={tableSelection.produtos} // ← Aqui passam os produtos
         data={new Date().toLocaleDateString("pt-BR")}
         empresa={runtime.get('nomeCliente')}
         comentarios={comentarios}
@@ -664,7 +663,7 @@ export default function Report() {
                     <div key={index} className="border rounded-lg p-3 bg-white text-sm relative group">
                       <div className="flex justify-between items-start mb-1">
                         <span className="text-xs text-gray-500">
-                          {comentario.autor} • {comentario.data}
+                           {comentario.data}
                         </span>
                         <Button
                           onClick={() => removerComentario(index)}

@@ -1,12 +1,13 @@
+
 import React, { useEffect, useRef } from "react";
 import { format as formatDateFn } from 'date-fns';
 import {
-  Table,
-  TableHeader,
-  TableHead,
-  TableBody,
-  TableCell,
-  TableRow,
+Table,
+TableHeader,
+TableHead,
+TableBody,
+TableCell,
+TableRow,
 } from "./components/ui/table";
 import { Filtros, ReportRow } from "./components/types";
 import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
@@ -14,62 +15,62 @@ import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 import {useReportData} from "./hooks/useReportData";
 
 interface TableComponentProps {
-  filtros?: Filtros;
-  colLabels: Record<string, string>;
-  dados?: any[];
-  loading?: boolean;
-  error?: string | null;
-  total?: number;
-  page?: number;
-  pageSize?: number;
-  produtosInfo?: Record<string, { nome?: string; unidade?: string; num?: number }>;
-  useExternalData?: boolean;
+ filtros?: Filtros;
+ colLabels: Record<string, string>;
+ dados?: any[];
+ loading?: boolean;
+ error?: string | null;
+ total?: number;
+ page?: number;
+ pageSize?: number;
+ produtosInfo?: Record<string, { nome?: string; unidade?: string; num?: number }>;
+ useExternalData?: boolean;
 }
 
 // Função auxiliar para garantir que sempre retorne uma string
 const safeString = (value: any): string => {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number') return value.toString();
-  if (typeof value === 'boolean') return value.toString();
-  if (typeof value === 'object') {
-    // Se for um objeto, tenta extrair propriedades úteis
-    if (value.produto && typeof value.produto === 'string') return value.produto;
-    if (value.nome && typeof value.nome === 'string') return value.nome;
-    if (value.label && typeof value.label === 'string') return value.label;
-    // Se não conseguir extrair, retorna string vazia para evitar erro
-    return '';
-  }
-  return String(value);
+ if (value === null || value === undefined) return '';
+ if (typeof value === 'string') return value;
+ if (typeof value === 'number') return value.toString();
+ if (typeof value === 'boolean') return value.toString();
+ if (typeof value === 'object') {
+// Se for um objeto, tenta extrair propriedades úteis
+ if (value.produto && typeof value.produto === 'string') return value.produto;
+ if (value.nome && typeof value.nome === 'string') return value.nome;
+ if (value.label && typeof value.label === 'string') return value.label;
+ // Se não conseguir extrair, retorna string vazia para evitar erro
+ return '';
+ }
+ return String(value);
 };
 
 const receba = (col: any, idx: number) => {
-  if (idx === 3) {
-    return <div>Código do <br /> programa</div>;
-  } else if (idx === 4) {
-    return <div>Código do <br /> cliente</div>;
-  }
-  return safeString(col);
+ if (idx === 3) {
+ return <div>Código do <br /> programa</div>;
+ } else if (idx === 4) {
+   return <div>Código do <br /> cliente</div>;
+ }
+ return safeString(col);
 };
 
-export default function TableComponent({  
-  dados: dadosProp = [], 
-  loading: loadingProp, 
-  error: errorProp,
-  produtosInfo: produtosInfoProp = {},
-  filtros = {},
-  page = 1,
-  pageSize = 100,
-  useExternalData = false,
+export default function TableComponent({ 
+ dados: dadosProp = [], 
+ loading: loadingProp, 
+ error: errorProp,
+ produtosInfo: produtosInfoProp = {},
+ filtros = {},
+ page = 1,
+ pageSize = 100,
+ useExternalData = false,
 }: TableComponentProps) {
-  const tableRef = useRef<HTMLDivElement>(null); 
-  const [dadosAtual, setDadosAtual] = React.useState<ReportRow[]>(dadosProp);
+ const tableRef = useRef<HTMLDivElement>(null); 
+ const [dadosAtual, setDadosAtual] = React.useState<ReportRow[]>(dadosProp);
 
-  // Hook é chamado sempre no nível superior (top-level), o que está correto.
-  const hookResult = useReportData(filtros as any, page, pageSize);
-  const dadosFromHook = hookResult.dados || [];
-  const loadingFromHook = hookResult.loading;
-  const errorFromHook = hookResult.error;
+ // Hook é chamado sempre no nível superior (top-level), o que está correto.
+ const hookResult = useReportData(filtros as any, page, pageSize);
+ const dadosFromHook = hookResult.dados || [];
+ const loadingFromHook = hookResult.loading;
+ const errorFromHook = hookResult.error;
   // setDadosAtual(dadosFromHook)
   useEffect(() => {
     if (useExternalData) return;
@@ -77,68 +78,68 @@ export default function TableComponent({  
   }
   , [dadosFromHook, useExternalData]);
 
-  // Use produtosInfo passed from parent (backend-provided). Keep as a const alias.
-  const produtosInfo = produtosInfoProp || {};
-  
-  const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
+ // Use produtosInfo passed from parent (backend-provided). Keep as a const alias.
+ const produtosInfo = produtosInfoProp || {};
+ 
+ const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-  // Função para converter valores baseado na unidade (no momento retorna o valor já normalizado em kg)
-  const converterValor = (valor: number, _colKey: string): number => {
-    if (typeof valor !== 'number') return valor as any;
-    return valor; // already normalized to kg by backend
-  };
+ // Função para converter valores baseado na unidade (no momento retorna o valor já normalizado em kg)
+ const converterValor = (valor: number, _colKey: string): number => {
+  if (typeof valor !== 'number') return valor as any;
+  return valor; // already normalized to kg by backend
+ };
 
-  // Gera dynamicColumns baseado nos dados reais
-  const dynamicColumns = React.useMemo(() => {
-    if (!dadosAtual || dadosAtual.length === 0) return [];
-    
-    const maxValues = Math.max(...dadosAtual.map(row => row.values?.length || 0));
-    
-    const cols = [];
-    for (let i = 6; i < 6 + maxValues; i++) {
-      const colKey = `col${i}`;
-      cols.push(colKey);
-    }
-    return cols;
-  }, [dadosAtual]);
+ // Gera dynamicColumns baseado nos dados reais
+ const dynamicColumns = React.useMemo(() => {
+  if (!dadosAtual || dadosAtual.length === 0) return [];
+  
+  const maxValues = Math.max(...dadosAtual.map(row => row.values?.length || 0));
+  
+  const cols = [];
+  for (let i = 6; i < 6 + maxValues; i++) {
+   const colKey = `col${i}`;
+   cols.push(colKey);
+  }
+  return cols;
+ }, [dadosAtual]);
 
-  // Função para formatar valores com conversão de unidade
-  const formatValue = (v: unknown, colKey: string): string => {
-    if (typeof v === "number") {
-      const valorConvertido = converterValor(v, colKey);
-      return valorConvertido.toLocaleString("pt-BR", {
-        minimumFractionDigits: 3,
-        maximumFractionDigits: 3,
-      });
-    }
-    return safeString(v);
-  };
+ // Função para formatar valores com conversão de unidade
+ const formatValue = (v: unknown, colKey: string): string => {
+  if (typeof v === "number") {
+   const valorConvertido = converterValor(v, colKey);
+   return valorConvertido.toLocaleString("pt-BR", {
+    minimumFractionDigits: 3,
+    maximumFractionDigits: 3,
+   });
+  }
+  return safeString(v);
+ };
 
-  // Função para obter o label correto da coluna - SEMPRE retorna string
-  const getColumnLabel = (colKey: string): string => {
-    // Se for uma coluna fixa, retorna o nome direto 
-    if (fixedColumns.includes(colKey)) {
-      return colKey;
-    }
-    
-    // Se for uma coluna dinâmica, busca no colLabels ou usa fallback
-    if (colKey.startsWith('col')) {
-      const label = produtosInfo[colKey]?.nome;
-      const colNum = parseInt(colKey.replace('col', ''), 10);
-      return safeString(label) || `Produto ${colNum - 5}`;
-    }
-    
-    return safeString(colKey);
-  };
+ // Função para obter o label correto da coluna - SEMPRE retorna string
+ const getColumnLabel = (colKey: string): string => {
+  // Se for uma coluna fixa, retorna o nome direto 
+  if (fixedColumns.includes(colKey)) {
+   return colKey;
+  }
+  
+  // Se for uma coluna dinâmica, busca no colLabels ou usa fallback
+  if (colKey.startsWith('col')) {
+   const label = produtosInfo[colKey]?.nome;
+   const colNum = parseInt(colKey.replace('col', ''), 10);
+   return safeString(label) || `Produto ${colNum - 5}`;
+  }
+  
+  return safeString(colKey);
+ };
 
-  // Use provided prop to decide whether to prefer hook data or external props
-  const dados = useExternalData ? dadosFromHook : dadosAtual;
-  const loading = useExternalData ? loadingFromHook : loadingProp || loadingFromHook;
-  const error = useExternalData ? errorFromHook : errorProp;
+ // Use provided prop to decide whether to prefer hook data or external props
+ const dados = useExternalData ? dadosFromHook : dadosAtual;
+ const loading = useExternalData ? loadingFromHook : loadingProp || loadingFromHook;
+ const error = useExternalData ? errorFromHook : errorProp;
 
-  if (loading) return <div className="p-4">Carregando...</div>;
-  if (error) return <div className="p-4 text-red-500">Erro: {error}</div>;
-  if (!dados && !loading || dados.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
+ if (loading) return <div className="p-4">Carregando...</div>;
+ if (error) return <div className="p-4 text-red-500">Erro: {error}</div>;
+ if (!dados && !loading || dados.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
 
 
   return (

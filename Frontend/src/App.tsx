@@ -92,7 +92,7 @@ const App = () => {
   ]
   const itemsFooter=[
     {
-      title:"configurações",
+      title:"Configurações",
       icon:Settings,
       view: 'Cfg'
     }
