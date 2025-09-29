@@ -9,7 +9,7 @@ import Report from './report';
 // import CustomReports from './CustomReports';
 import Estoque from './estoque';
 import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel,} from "./components/ui/sidebar";
-import { HomeIcon, Settings, Sheet, FileText } from 'lucide-react';
+import { HomeIcon, Settings, Sheet } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { resolvePhotoUrl } from './lib/photoUtils';
 import { ToastContainer } from 'react-toastify';
@@ -257,10 +257,12 @@ export default App
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
+
   if (!user) {
-    // client-side redirect
-    window.location.pathname = '/login';
+    navigate("/login");
     return <div />;
   }
+
   return children;
 }

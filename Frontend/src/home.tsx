@@ -143,7 +143,7 @@ export default function Home() {
   })
 
   const processador = getProcessador();
-  // prefira usar fetch('/api/xyz') para chamadas HTTP normais
+  // prefira usar fetch('http://localhost:3000/api/xyz') para chamadas HTTP normais
 
   
 // Função para carregar configuração
@@ -151,7 +151,7 @@ const loadMateriaPrimaConfig = async () => {
   try {
     // Try backend HTTP endpoint first (preferred)
     try {
-      const res = await fetch('/api/materiaprima/labels');
+      const res = await fetch('http://localhost:3000/api/materiaprima/labels');
       if (res.ok) {
         const mapping = await res.json();
         if (mapping && typeof mapping === 'object') {
@@ -227,7 +227,7 @@ const loadMateriaPrimaConfig = async () => {
         params.set('dateEnd', dateEnd);
 
         // First attempt: date-limited fetch
-        const res = await fetch(`/api/chartdata?${params.toString()}`);
+        const res = await fetch(`http://localhost:3000/api/chartdata?${params.toString()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = await res.json();
         let rowsResp = Array.isArray(body.rows) ? body.rows : [];
@@ -236,7 +236,7 @@ const loadMateriaPrimaConfig = async () => {
         if ((!rowsResp || rowsResp.length === 0) && (dateStart || dateEnd)) {
           console.debug('chartdata: date-limited fetch returned 0 rows — attempting fallback to all data');
           try {
-            const res2 = await fetch(`/api/chartdata`);
+            const res2 = await fetch(`http://localhost:3000/api/chartdata`);
             if (res2.ok) {
               const body2 = await res2.json();
               rowsResp = Array.isArray(body2.rows) ? body2.rows : [];

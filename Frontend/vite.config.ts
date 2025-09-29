@@ -3,8 +3,6 @@ import path from "node:path";
 import electron from "vite-plugin-electron/simple";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import commonjsPlugin from "@rollup/plugin-commonjs";
-import rollupNodePolyfills from "rollup-plugin-node-polyfills";
 
 export default defineConfig({
   server: {
@@ -14,7 +12,7 @@ export default defineConfig({
         target: "http://localhost:3000",
         changeOrigin: true,
         secure: false,
-      },
+      },  
     },
   },
   plugins: [
@@ -40,7 +38,6 @@ export default defineConfig({
           },
         },
       },
-
       renderer: process.env.NODE_ENV === "test" ? undefined : {},
     }),
   ],
@@ -54,18 +51,16 @@ export default defineConfig({
     },
   },
 
- optimizeDeps: {
- include: ['stream-browserify', 'process', 'util'],
-},
+  optimizeDeps: {
+    include: ["stream-browserify", "process", "util"],
+  },
 
   build: {
     rollupOptions: {
-  // ensure node polyfills are applied before converting CommonJS modules
-  plugins: [rollupNodePolyfills(), commonjsPlugin({ transformMixedEsModules: true })],
+      external: [ ],
     },
     commonjsOptions: {
       transformMixedEsModules: true,
-      include: [/node_modules/], // <- garanta que todos os CJS sejam convertidos
     },
-  },
+  }
 });

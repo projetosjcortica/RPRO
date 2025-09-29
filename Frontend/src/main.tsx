@@ -207,9 +207,11 @@ processador.ping()
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RuntimeConfigProvider>
-      <HashRouter>
-          <App />
-      </HashRouter>
+      <AuthProvider>
+        <HashRouter>
+            <App />
+        </HashRouter>
+      </AuthProvider>
     </RuntimeConfigProvider>
   </React.StrictMode>,
 )
