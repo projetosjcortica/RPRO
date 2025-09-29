@@ -51,7 +51,8 @@ export class ParserService extends BaseService {
 
     const rows: ParserRow[] = [];
 
-    for (let i = 1; i < lines.length; i++) { // Start from 1 to skip the header
+    // The system does not use headers — accept the first line as data.
+    for (let i = 0; i < lines.length; i++) {
       const parts = lines[i].split(delim).map((s: string) => s.trim());
       const row = this.parseRow(parts);
       if (row) {
@@ -61,11 +62,25 @@ export class ParserService extends BaseService {
       }
     }
 
-    const processedPath = path.join(this.processedDir, path.basename(filePath) + '.json');
-    fs.writeFileSync(processedPath, JSON.stringify({ rows }, null, 2));
-    console.log(`Processed file saved to: ${processedPath}`);
+    // If caller provided a sinceTs, filter out rows older or equal to that timestamp
+    const since = opts?.sinceTs ? new Date(String(opts.sinceTs)) : null;
+    let rowsToReturn = rows;
+    if (since && !isNaN(since.getTime())) {
+      const beforeCount = rows.length;
+      rowsToReturn = rows.filter((r) => {
+        const dt = parseRowDateTime({ date: r.date, time: r.time });
+        if (!dt) return false;
+        return dt.getTime() > since.getTime();
+      });
+      console.log(`Parsed ${rows.length} rows, ${rowsToReturn.length} after sinceTs filter (removed ${beforeCount - rowsToReturn.length})`);
+    }
 
-    return { processedPath, rowsCount: rows.length, rows };
+  const processedPath = path.join(this.processedDir, path.basename(filePath) + '.json');
+  fs.writeFileSync(processedPath, JSON.stringify({ rows: rowsToReturn }, null, 2));
+  console.log(`Processed file saved to: ${processedPath}`);
+  console.log(`Parsed ${rows.length} rows, returning ${rowsToReturn.length} rows after filtering.`);
+
+    return { processedPath, rowsCount: rowsToReturn.length, rows: rowsToReturn };
   }
 
   private parseRow(parts: string[]): ParserRow | null {

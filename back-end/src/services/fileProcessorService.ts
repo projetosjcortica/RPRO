@@ -5,7 +5,7 @@ import { ProcessPayload, hashBufferHex } from "../core/utils";
 import { backupSvc } from "./backupService";
 import { parserService } from "./parserService";
 import { dbService } from "./dbService";
-import { cacheService } from "./CacheService";
+import { cacheService } from "./cacheService";
 
 class Subject<T> {
   private observers: Array<{ update(payload: T): Promise<void> }> = [];
@@ -39,9 +39,13 @@ export class FileProcessorService extends BaseService {
     const hash = hashBufferHex(buffer);
 
     const cacheRec = await cacheService.getByName(originalName);
-    const lastTs =
-      cacheRec?.lastRowTimestamp ||
-      (await dbService.getLastRelatorioTimestamp(originalName));
+    // Determine sinceTs: prefer cache's lastRowTimestamp, otherwise query DB.
+    // Normalize to full ISO-like timestamp 'YYYY-MM-DDTHH:MM:SS' so parser can compare properly.
+    let lastTs = cacheRec?.lastRowTimestamp || (await dbService.getLastRelatorioTimestamp(originalName));
+    if (lastTs) {
+      // Some older code saved as 'YYYY-MM-DD HH:MM:SS' or 'YYYY-MM-DDT HH:MM:SS', normalize to 'YYYY-MM-DDTHH:MM:SS'
+      lastTs = String(lastTs).replace(/\s+/, 'T').replace(/T\s+/, 'T');
+    }
 
     if (
       cacheRec &&
@@ -142,16 +146,17 @@ export class FileProcessorService extends BaseService {
         throw err;
       }
       const lastRow = newRows[newRows.length - 1];
+      const lastRowTimestamp = lastRow && lastRow.date && lastRow.time
+        ? `${lastRow.date}T${lastRow.time}`
+        : cacheRec?.lastRowTimestamp || null;
       await cacheService.upsert({
         originalName,
         lastHash: hash,
         lastSize: st.size,
         lastMTime: st.mtime ? new Date(st.mtime).toISOString() : null,
-        lastRowDia: lastRow ? lastRow.date : cacheRec?.lastRowDia || null, // Use separate date field
-        lastRowHora: lastRow ? lastRow.time : cacheRec?.lastRowHora || null, // Use separate time field
-        lastRowTimestamp: lastRow
-          ? `${lastRow.date} ${lastRow.time}`
-          : cacheRec?.lastRowTimestamp || null, // Combine date and time for timestamp
+        lastRowDia: lastRow ? lastRow.date : cacheRec?.lastRowDia || null,
+        lastRowHora: lastRow ? lastRow.time : cacheRec?.lastRowHora || null,
+        lastRowTimestamp: lastRowTimestamp,
         lastRowCount: (cacheRec?.lastRowCount || 0) + newRows.length,
         lastProcessedAt: new Date().toISOString(),
         ingestedRows: (cacheRec?.ingestedRows || 0) + newRows.length,

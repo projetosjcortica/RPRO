@@ -1,25 +1,18 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { format as formatDateFn } from 'date-fns';
-<<<<<<< HEAD
 
 import { MyDocument } from "./Pdf";
 import { usePersistentForm } from './config';
 
-=======
-import { usePersistentForm } from './config';
->>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
 import { pdf } from "@react-pdf/renderer";
 import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
 import { cn } from "./lib/utils";
-<<<<<<< HEAD
 // product labels are persisted server-side now
 // import { usePDFRedirect } from "./hooks/usePDFRedirect";
 
-=======
->>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
 import {
   ChevronsLeft,
   ChevronsRight,
@@ -55,11 +48,8 @@ interface ComentarioRelatorio {
 }
 
 export default function Report() {
-<<<<<<< HEAD
   // const { handleLegacyPDFClick } = usePDFRedirect();
   
-=======
->>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
   const [filtros, setFiltros] = useState<Filtros>({
     dataInicio: "",
     dataFim: "",
@@ -79,6 +69,9 @@ export default function Report() {
   // Collector state
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
   const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
+  const [collectorError, setCollectorError] = useState<string | null>(null);
+  // ensure the variable is considered 'read' to avoid TS unused-variable errors
+  void collectorError;
 
   // Comentários state
   const [comentarios, setComentarios] = useState<ComentarioRelatorio[]>([]);
@@ -86,7 +79,6 @@ export default function Report() {
   const [mostrarEditorComentario, setMostrarEditorComentario] = useState<boolean>(false);
 
   const [tableSelection, setTableSelection] = useState<{
-<<<<<<< HEAD
   periodoInicio: string | undefined;
   periodoFim: string | undefined;
   total: number;
@@ -105,27 +97,31 @@ export default function Report() {
   produtos: [],
   formulas: []
 });
-=======
-    total: number;
-    batidas: number;
-    horaInicial: string;
-    horaFinal: string;
-    formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
-    produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
-  }>({
-    total: 0,
-    batidas: 0,
-    horaInicial: "--:--",
-    horaFinal: "--:--",
-    produtos: [],
-    formulas: []
-  });
->>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
 
   const [resumo, setResumo] = useState<any | null>(null);
+  const [resumoReloadFlag, setResumoReloadFlag] = useState(0);
   const runtime = useRuntimeConfig();
-  const { dados, loading, error, total } = useReportData(filtros, page, pageSize);
+  const { dados, loading, error, total, refetch } = useReportData(filtros, page, pageSize);
   const { formData: profileConfigData } = usePersistentForm("profile-config");
+  const autoRefreshTimer = useRef<number | null>(null);
+  const prevCollectorRunning = useRef<boolean>(false);
+
+  const refreshResumo = useCallback(() => {
+    setResumoReloadFlag((flag) => flag + 1);
+  }, []);
+
+  const fetchCollectorStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/collector/status", { method: "GET" });
+      if (!res.ok) throw new Error("Não foi possível obter o status do coletor.");
+      const status = await res.json();
+      const isRunning = Boolean(status?.running);
+      setCollectorRunning(isRunning);
+      setCollectorError(status?.lastError ?? null);
+    } catch (err) {
+      console.error("Erro ao buscar status do coletor:", err);
+    }
+  }, []);
 
   // Side info state
   const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ 
@@ -163,14 +159,8 @@ export default function Report() {
     const g = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
     setSideInfo({ granja: g, proprietario: p });
   }, [runtime]);
-<<<<<<< HEAD
   // const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ granja: 'Granja', proprietario: 'Proprietario' });
   // Fetch resumo sempre que os filtros mudarem
-  console.log(sideInfo)
-=======
-
-  // Fetch resumo
->>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
   useEffect(() => {
     let mounted = true;
     const fetchResumo = async () => {
@@ -199,11 +189,20 @@ export default function Report() {
 
     fetchResumo();
     return () => { mounted = false; };
-  }, [filtros]);
+  }, [filtros, resumoReloadFlag]);
+
+  useEffect(() => {
+    void fetchCollectorStatus();
+    const intervalId = window.setInterval(() => {
+      void fetchCollectorStatus();
+    }, 10000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [fetchCollectorStatus]);
 
   // Update table selection from resumo
   useEffect(() => {
-<<<<<<< HEAD
     // console.log("RESUMO BACKEND:", resumo);
   if (resumo && resumo.usosPorProduto) {
 
@@ -216,18 +215,6 @@ export default function Report() {
         somatoriaTotal: data.somatoriaTotal ?? 0,
       })
     );
-=======
-    if (resumo && resumo.usosPorProduto) {
-      const formulasFromResumo = Object.entries(resumo.formulasUtilizadas || {}).map(
-        ([nome, data]: [string, any]) => ({
-          numero: data.numero ?? 0,
-          nome,
-          quantidade: data.quantidade ?? 0,
-          porcentagem: data.porcentagem ?? 0,
-          somatoriaTotal: data.somatoriaTotal ?? 0,
-        })
-      );
->>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
 
       setTableSelection({
         total: resumo.totalPesos || 0,
@@ -299,20 +286,70 @@ export default function Report() {
   const handleCollectorToggle = async () => {
     if (collectorLoading) return;
     setCollectorLoading(true);
+    setCollectorError(null);
     try {
       if (collectorRunning) {
-        await fetch("/api/collector/stop", { method: "GET" });
-        setCollectorRunning(false);
+        const res = await fetch("/api/collector/stop", { method: "GET" });
+        if (!res.ok) throw new Error("Falha ao interromper o coletor.");
+        await res.json().catch(() => ({}));
+        await fetchCollectorStatus();
+        refetch();
+        refreshResumo();
       } else {
-        await fetch("/api/collector/start", { method: "GET" });
-        setCollectorRunning(true);
+        const res = await fetch("/api/collector/start", { method: "GET" });
+        if (!res.ok) throw new Error("Falha ao iniciar o coletor.");
+        const payload = await res.json().catch(() => ({}));
+        if (payload && payload.started === false) {
+          await fetchCollectorStatus();
+          throw new Error(payload?.message || "Coletor não pôde ser iniciado.");
+        }
+        await fetchCollectorStatus();
+        refetch();
+        refreshResumo();
       }
     } catch (error) {
       console.error("Erro ao controlar collector:", error);
+      setCollectorError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível comunicar com o coletor."
+      );
     } finally {
       setCollectorLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (collectorRunning) {
+      if (autoRefreshTimer.current) {
+        window.clearInterval(autoRefreshTimer.current);
+      }
+      refetch();
+      refreshResumo();
+      autoRefreshTimer.current = window.setInterval(() => {
+        refetch();
+        refreshResumo();
+      }, 5000);
+    } else if (autoRefreshTimer.current) {
+      window.clearInterval(autoRefreshTimer.current);
+      autoRefreshTimer.current = null;
+    }
+
+    return () => {
+      if (autoRefreshTimer.current) {
+        window.clearInterval(autoRefreshTimer.current);
+        autoRefreshTimer.current = null;
+      }
+    };
+  }, [collectorRunning, refetch, refreshResumo]);
+
+  useEffect(() => {
+    if (!collectorRunning && prevCollectorRunning.current) {
+      refetch();
+      refreshResumo();
+    }
+    prevCollectorRunning.current = collectorRunning;
+  }, [collectorRunning, refetch, refreshResumo]);
 
   const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
     setColLabels((prev) => ({ ...prev, [colKey]: newName }));
@@ -450,7 +487,7 @@ export default function Report() {
       qtd: p.qtd,
       unidade: "kg",
     }));
-  }, [resumo, tableSelection]);
+  }, [resumo, tableSelection, produtosInfo]);
 
   // Renderização condicional do conteúdo
   let content;
@@ -465,6 +502,7 @@ export default function Report() {
         page={page}
         pageSize={pageSize}
         produtosInfo={produtosInfo}
+        useExternalData
       />
     );
   } else if (view === "product") {
@@ -499,31 +537,46 @@ export default function Report() {
           <Button onClick={() => setView("table")}>Relatórios</Button>
           <Button onClick={() => setView("product")}>Produtos</Button>
         </div>
-        <div className="flex flex-row items-end justify-end gap-2">
-          <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
-          <Button
-            onClick={handleCollectorToggle}
-            disabled={collectorLoading}
-            className={cn(
-              "flex items-center gap-2",
-              collectorRunning
-                ? "bg-gray-600 hover:bg-red-700"
-                : "bg-red-600 hover:bg-gray-700"
+        <div className="flex flex-col items-end justify-end gap-2">
+          <div className="flex flex-row items-end gap-2">
+            <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
+            <Button
+              onClick={handleCollectorToggle}
+              disabled={collectorLoading}
+              className={cn(
+                "flex items-center gap-2",
+                collectorRunning
+                  ? "bg-gray-600 hover:bg-red-700"
+                  : "bg-red-600 hover:bg-gray-700"
+              )}
+            >
+              {collectorLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : collectorRunning ? (
+                <Square className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {collectorLoading
+                ? "Processando..."
+                : collectorRunning
+                ? "Parar coleta"
+                : "Iniciar coleta"}
+            </Button>
+          </div>
+          {/* <div className="flex flex-col items-end gap-1 text-right">
+            {collectorRunning && !collectorLoading && (
+              <div className="flex flex-row items-center gap-2 text-xs text-emerald-600">
+                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Atualizando em tempo real</span>
+              </div>
             )}
-          >
-            {collectorLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : collectorRunning ? (
-              <Square className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
+            {collectorError && (
+              <span className="text-xs text-red-500 max-w-[240px]">
+                {collectorError}
+              </span>
             )}
-            {collectorLoading
-              ? "Processando..."
-              : collectorRunning
-              ? "Parar"
-              : "Recarregar"}
-          </Button>
+          </div> */}
         </div>
       </div>
 
@@ -585,7 +638,7 @@ export default function Report() {
         <div className="h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           {/* Informações Gerais */}
           <div className="grid grid-cols-2 gap-1 mt-2">
-            <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div className="w-fit-content h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Total</p>
               <p className="text-center text-lg font-bold">
                 {(resumo && typeof resumo.totalPesos === "number"
@@ -597,7 +650,7 @@ export default function Report() {
                 })} kg
               </p>
             </div>
-            <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div className=" h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Batidas</p>
               <p className="text-center text-lg font-bold">
                 {resumo && typeof resumo.batitdasTotais === "number"
@@ -605,7 +658,7 @@ export default function Report() {
                   : tableSelection.batidas}
               </p>
             </div>
-            <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div className=" h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Periodo inicial</p>
               <p className="text-center text-lg font-bold">
                 {resumo && resumo.periodoInicio
@@ -613,7 +666,7 @@ export default function Report() {
                   : tableSelection.horaInicial}
               </p>
             </div>
-            <div className="w-38 h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
+            <div className=" h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
               <p className="text-center font-semibold">Periodo final</p>
               <p className="text-center text-lg font-bold">
                 {resumo && resumo.periodoFim

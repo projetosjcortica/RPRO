@@ -33,35 +33,167 @@ const TMP_DIR = path.resolve(
 );
 if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
 
-let STOP = false;
-export function stopCollector() {
-  STOP = true;
+type CollectorStatus = {
+  running: boolean;
+  stopRequested: boolean;
+  startedAt: string | null;
+  lastCycleAt: string | null;
+  lastFinishedAt: string | null;
+  lastError: string | null;
+  cycles: number;
+  pollIntervalMs: number;
+};
+
+const collectorState: CollectorStatus = {
+  running: false,
+  stopRequested: false,
+  startedAt: null,
+  lastCycleAt: null,
+  lastFinishedAt: null,
+  lastError: null,
+  cycles: 0,
+  pollIntervalMs: POLL_INTERVAL,
+};
+
+let stopFlag = false;
+let loopPromise: Promise<void> | null = null;
+
+export function getCollectorStatus(): CollectorStatus {
+  return { ...collectorState };
 }
-export async function startCollector() {
-  // Prefer the 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
-  const runtimeIhm = getRuntimeConfig('ihm-config') || {};
-  const ihm = new IHMService(
-    String(runtimeIhm.ip ?? getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? '192.168.5.254'),
-    String(runtimeIhm.user ?? getRuntimeConfig('ihm_user') ?? process.env.IHM_USER ?? 'anonymous'),
-    String(runtimeIhm.password ?? getRuntimeConfig('ihm_pass') ?? process.env.IHM_PASS ?? '')
-  );
-  const collector = {
-    async cycle() {
-      const downloaded = await ihm.findAndDownloadNewFiles(TMP_DIR);
-      for (const f of downloaded) {
-        const res = await fileProcessorService.processFile(f.localPath);
-      }
-    },
-  };
-  STOP = false;
-  while (!STOP) {
-    try {
-      await collector.cycle();
-    } catch (e) {
-      console.error("[collector cycle error]", e);
-    }
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+
+export async function startCollector(): Promise<{
+  started: boolean;
+  message?: string;
+  status: CollectorStatus;
+}> {
+  if (collectorState.running || collectorState.stopRequested) {
+    return {
+      started: false,
+      message: "Collector já está em execução.",
+      status: getCollectorStatus(),
+    };
   }
+
+  // Prefer the 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
+  const runtimeIhm = getRuntimeConfig("ihm-config") || {};
+  // console.log(runtimeIhm);
+  const ihm = new IHMService(
+    String(
+      runtimeIhm.ip ??
+        getRuntimeConfig("ip") // ?? PNC DO kRl
+        // process.env.IHM_IP
+        // "192.168.5.253"
+    ),
+    String(
+      runtimeIhm.user ??
+        getRuntimeConfig("user") 
+        // ??
+        // process.env.IHM_USER ??
+        // "anonymous"
+    ),
+    String(
+      runtimeIhm.password ??
+        getRuntimeConfig("pass") // ?? ""
+    )
+  );
+
+  const runCycle = async () => {
+    const downloaded = await ihm.findAndDownloadNewFiles(TMP_DIR);
+    console.log(`[collector] ${downloaded.length} arquivo(s) baixado(s).`);
+    for (const f of downloaded) {
+      if (stopFlag) break;
+      console.log(`[collector] processando arquivo: ${f.name}`);
+      try {
+        await fileProcessorService.processFile(f.localPath);
+      } catch (err) {
+        console.error("[collector] erro ao processar arquivo", err);
+        throw err;
+      }
+    }
+  };
+
+  stopFlag = false;
+  collectorState.running = true;
+  collectorState.stopRequested = false;
+  collectorState.startedAt = new Date().toISOString();
+  collectorState.lastFinishedAt = null;
+  collectorState.lastError = null;
+  collectorState.cycles = 0;
+
+  const loop = async () => {
+    try {
+      while (!stopFlag) {
+        try {
+          console.log(
+            `[collector] iniciando ciclo #${collectorState.cycles + 1}`
+          );
+          await runCycle();
+          collectorState.cycles += 1;
+          collectorState.lastCycleAt = new Date().toISOString();
+          collectorState.lastError = null;
+        } catch (err) {
+          collectorState.lastError =
+            err instanceof Error ? err.message : String(err);
+          console.error("[collector cycle error]", err);
+        }
+
+        if (stopFlag) break;
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL));
+      }
+    } finally {
+      collectorState.running = false;
+      collectorState.stopRequested = false;
+      collectorState.lastFinishedAt = new Date().toISOString();
+      stopFlag = false;
+      loopPromise = null;
+    }
+  };
+
+  loopPromise = loop();
+
+  return {
+    started: true,
+    status: getCollectorStatus(),
+  };
+}
+
+export async function stopCollector(): Promise<{
+  stopped: boolean;
+  message?: string;
+  status: CollectorStatus;
+}> {
+  if (!collectorState.running && !collectorState.stopRequested) {
+    return {
+      stopped: false,
+      message: "Collector já está parado.",
+      status: getCollectorStatus(),
+    };
+  }
+
+  stopFlag = true;
+  collectorState.stopRequested = true;
+
+  const pendingLoop = loopPromise;
+  if (pendingLoop) {
+    try {
+      await pendingLoop;
+    } catch (err) {
+      collectorState.lastError =
+        err instanceof Error ? err.message : String(err);
+      console.error("[collector stop] erro aguardando encerramento", err);
+    }
+  } else {
+    collectorState.running = false;
+    collectorState.stopRequested = false;
+    collectorState.lastFinishedAt = new Date().toISOString();
+    stopFlag = false;
+  }
+
+  return {
+    stopped: true,
+    status: getCollectorStatus(),
+  };
 }
 
 // Ensure database connection before starting
@@ -1006,21 +1138,30 @@ app.post("/api/db/populate", async (req, res) => {
 
 app.get("/api/collector/start", async (req, res) => {
   try {
-    startCollector();
-    return res.json({ started: true });
+    const result = await startCollector();
+    return res.json(result);
   } catch (e) {
     console.error(e);
-    return res.status(500).json({});
+    return res.status(500).json({ error: "internal" });
   }
 });
 
 app.get("/api/collector/stop", async (req, res) => {
   try {
-    stopCollector();
-    return res.json({ stopped: true });
+    const result = await stopCollector();
+    return res.json(result);
   } catch (e) {
     console.error(e);
-    return res.status(500).json({});
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+app.get("/api/collector/status", async (_req, res) => {
+  try {
+    return res.json(getCollectorStatus());
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "internal" });
   }
 });
 
@@ -1196,7 +1337,7 @@ app.get("/api/config/", async (req, res) => {
       'general-config': '',
       'ihm-config': {
         nomeCliente: '',
-        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? '192.168.5.254'),
+        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
         user: '',
         password: '',
         localCSV: '',
@@ -1234,7 +1375,7 @@ app.get('/api/config/defaults', async (req, res) => {
       'general-config': '',
       'ihm-config': {
         nomeCliente: '',
-        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? '192.168.5.254'),
+        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
         user: '',
         password: '',
         localCSV: '',
@@ -1289,7 +1430,7 @@ app.get("/api/config/:key", async (req, res) => {
       'general-config': '',
       'ihm-config': {
         nomeCliente: '',
-        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? '192.168.5.254'),
+        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
         user: '',
         password: '',
         localCSV: '',
