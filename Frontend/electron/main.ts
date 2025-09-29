@@ -197,7 +197,7 @@ ipcMain.handle(
 
     // If no script provided, use backend default
     if (!script) {
-      script = "../back-end/dist/src/index.js";
+      script = "./backend/index.js";
     }
 
     // Better path resolution - handle relative paths from the app root
@@ -209,11 +209,7 @@ ipcMain.handle(
       // For '../back-end/dist/src/index.js', we need to go up from Frontend directory
       const possiblePaths = [
         // Prefer IPC-only CJS build
-        path.join(projectRoot, "back-end", "dist", "index.js"),
-        // Fallback to full build structure if present
-        path.join(projectRoot, "back-end", "dist", "src", "index.js"),
-        // TypeScript source (will use ts-node)
-        path.join(projectRoot, "back-end", "src", "index.ts"),
+        path.join("backend", "index.js"),
         // Original provided script path fallbacks
         path.join(__dirname, script),
         path.join(process.env.APP_ROOT || "", script),

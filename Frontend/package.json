@@ -1,7 +1,7 @@
 {
-  "name": "frontend",
+  "name": "rpro_software",
   "private": true,
-  "version": "0.0.2",
+  "version": "1.0.0Beta",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -117,26 +117,21 @@
   },
   "main": "dist-electron/main.js",
   "build": {
+    "productName": "RPRO Software",
     "files": [
       "dist-electron/**/*",
       "dist/**/*",
       "electron/preload.mjs",
       "electron/main.js",
       "node_modules/**/*",
-      "dist-electron/**/*",
-      "dist/**/*"
+      "backend/**/*",
+      "!node_modules/@tailwindcss/oxide-wasm32-wasi/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "../back-end/dist/backend.exe",
-        "to": "backend/backend.exe"
-      }
-    ],
-    "asarUnpack": [
-      "backend/**"
-    ],
+    "win": {
+      "target": "nsis"
+    },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false
     }
   }

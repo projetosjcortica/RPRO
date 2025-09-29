@@ -25,6 +25,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "electron", "backend", "../back-end/dist/index.js"],
+  "include": ["src", "electron", "backend", "../back-end/dist/index.js", "backend"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
