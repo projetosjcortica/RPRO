@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import { format as formatDateFn } from 'date-fns';
 
 import { MyDocument } from "./Pdf";
-import { ProfileConfig, IHMConfig, DatabaseConfig, AdminConfig, usePersistentForm } from './config';
+import {  usePersistentForm } from './config';
 
 import { pdf } from "@react-pdf/renderer";
 import TableComponent from "./TableComponent";
@@ -13,7 +13,7 @@ import { useReportData } from "./hooks/useReportData";
 
 import { cn } from "./lib/utils";
 // product labels are persisted server-side now
-import { usePDFRedirect } from "./hooks/usePDFRedirect";
+// import { usePDFRedirect } from "./hooks/usePDFRedirect";
 
 import {
   ChevronsLeft,
@@ -42,7 +42,7 @@ import FiltrosBar from "./components/searchBar";
 import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 
 export default function Report() {
-  const { handleLegacyPDFClick } = usePDFRedirect();
+  // const { handleLegacyPDFClick } = usePDFRedirect();
   
   const [filtros, setFiltros] = useState<Filtros>({
     dataInicio: "",
@@ -67,6 +67,8 @@ export default function Report() {
   // const { materias } = useMateriaPrima();
 
   const [tableSelection, setTableSelection] = useState<{
+  periodoInicio: string | undefined;
+  periodoFim: string | undefined;
   total: number;
   batidas: number;
   horaInicial: string;
@@ -74,6 +76,8 @@ export default function Report() {
   formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
   produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
 }>({
+  periodoInicio: undefined,
+  periodoFim: undefined,
   total: 0,
   batidas: 0,
   horaInicial: "--:--",
@@ -128,6 +132,7 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
   }, [runtime]);
   const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ granja: 'Granja', proprietario: 'Proprietario' });
   // Fetch resumo sempre que os filtros mudarem
+  console.log(sideInfo)
   useEffect(() => {
     let mounted = true;
     const fetchResumo = async () => {
@@ -188,6 +193,8 @@ const { formData: profileConfigData } = usePersistentForm("profile-config");
       batidas: resumo.batitdasTotais || 0,
       periodoInicio: resumo.periodoInicio || "--:--",
       periodoFim: resumo.periodoFim || "--:--",
+      horaInicial: resumo.periodoInicio || "--:--",
+      horaFinal: resumo.periodoFim || "--:--",
       formulas: formulasFromResumo,
       produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
         const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);

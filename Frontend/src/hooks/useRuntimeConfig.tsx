@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 type RuntimeConfigShape = {
+  nomeCliente: string | undefined;
   all: Record<string, any>;
   get: (key: string) => any;
   loading: boolean;
@@ -117,6 +118,7 @@ export const RuntimeConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     get: (key: string) => all[key],
     loading,
     reload: load,
+    nomeCliente: undefined
   };
 
   return <RuntimeConfigContext.Provider value={value}>{children}</RuntimeConfigContext.Provider>;

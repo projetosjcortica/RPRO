@@ -1,4 +1,4 @@
-import { Document, Page, Text, StyleSheet, View, Image, Font } from "@react-pdf/renderer";
+import { Document, Page, Text, StyleSheet, View, Font } from "@react-pdf/renderer";
 import type { FC } from "react";
 
 Font.register({
@@ -150,7 +150,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
   data = new Date().toLocaleDateString("pt-BR"),
   empresa = "Relatorio RPRO",
   observacoes = "",
-  logoSrc,
+  // logoSrc,
   orientation = "portrait",
   formulaSums = {},
   chartData = [],
