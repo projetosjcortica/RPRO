@@ -3,6 +3,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* * {
+  filter: invert(100%);
+
+} */
+
 html {
   overflow: visible;
 }

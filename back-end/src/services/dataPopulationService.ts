@@ -83,11 +83,12 @@ export class DataPopulationService extends BaseService {
       registro.Hora = hora;
       registro.Nome = `${nomePrefixo}_${i + 1}`;
       registro.Form1 = formula1 * form1Variation;
-      registro.Form2 = formula2 * form2Variation;
-      registro.Area = area;
-      registro.AreaDescricao = `Área ${area}`;
+      registro.Form2 = formula2 * form2Variation;  
+      for (let j = 1; j <= 40; j++) {
+        (registro as any)[`Prod_${j}`] = Math.floor(Math.random() * 1000); // Valores aleatórios entre 0 e 1000
+        //  Math.random() * 100; // Valores aleatórios entre 0 e 100
+      }
       registro.processedFile = `test_population_${new Date().getTime()}.csv`;
-      
       registros.push(registro);
     }
     

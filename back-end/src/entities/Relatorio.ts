@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 
 @Entity({ name: 'relatorio' })
+// @Index(['Dia', 'Hora', 'Nome', 'processedFile'], { unique: true })
 export class Relatorio {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'varchar', length: 10, nullable: true }) Dia!: string | null;

@@ -165,7 +165,42 @@ export class DBService extends BaseService {
       Prod_39: r.Prod_39 ?? r.values?.[38] ?? null,
       Prod_40: r.Prod_40 ?? r.values?.[39] ?? null,
     }));
-    return repo.save(mapped);
+
+    // Perform upsert-like behavior: for each mapped row, try to find an existing
+    // row by (Dia, Hora, Nome, processedFile). If found, replace/update it;
+    // otherwise insert a new record. Return the number of inserted rows.
+    let inserted = 0;
+    for (const row of mapped) {
+      try {
+        const existing = await repo.findOne({ where: { Dia: row.Dia, Hora: row.Hora, Nome: row.Nome, processedFile: row.processedFile } });
+        if (existing) {
+          // Update existing record with new values
+          Object.assign(existing, row);
+          await repo.save(existing);
+        } else {
+          try {
+            await repo.save(repo.create(row));
+            inserted++;
+          } catch (errInsert) {
+            // If insert failed due to race condition / unique constraint, attempt to fetch and update
+            console.warn('[DBService] Insert failed, attempting fetch+update (possible race):', String(errInsert));
+            const maybeExisting = await repo.findOne({ where: { Dia: row.Dia, Hora: row.Hora, Nome: row.Nome, processedFile: row.processedFile } });
+            if (maybeExisting) {
+              Object.assign(maybeExisting, row);
+              await repo.save(maybeExisting);
+            } else {
+              // Re-throw if we couldn't resolve
+              throw errInsert;
+            }
+          }
+        }
+      } catch (err) {
+        // Log and continue processing other rows
+        console.error('[DBService] Failed to upsert relatorio row:', err, row);
+      }
+    }
+
+    return inserted;
   }
   async getLastRelatorioTimestamp(processedFile?: string) {
     await this.init();

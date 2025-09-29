@@ -125,6 +125,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
   data = new Date().toLocaleDateString("pt-BR"),
   empresa = "Relatório RPRO",
   observacoes = "",
+  // logoSrc,
   orientation = "portrait",
   formulaSums = {},
   chartData = [],

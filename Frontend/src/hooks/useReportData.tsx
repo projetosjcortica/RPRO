@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FilterOptions, ReportRow } from "../components/types";
 
 export function useReportData(filtros: FilterOptions, page: number, pageSize: number) {
@@ -6,6 +6,11 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
+  const [reloadFlag, setReloadFlag] = useState(0);
+
+  const refetch = useCallback(() => {
+    setReloadFlag((flag) => flag + 1);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -31,9 +36,28 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
         const res = await fetch(url, { method: "GET", signal });
         if (!res.ok) throw new Error(`Erro ao buscar dados: ${res.status} ${res.statusText}`);
         const body = await res.json();
+        const newRows = Array.isArray(body.rows) ? body.rows as any[] : [];
 
-        setDados(Array.isArray(body.rows) ? body.rows : []);
-        setTotal(Number(body.total) || 0);
+        const getLastTimestamp = (arr: any[]) => {
+          if (!Array.isArray(arr) || arr.length === 0) return '';
+          for (let i = arr.length - 1; i >= 0; i--) {
+            const r = arr[i];
+            if (r && (r.Dia || r.Hora)) {
+              const d = String(r.Dia || '').trim();
+              const h = String(r.Hora || '').trim();
+              if (d || h) return `${d}T${h}`;
+            }
+          }
+          return '';
+        };
+
+        const lastNew = getLastTimestamp(newRows);
+        const lastCurrent = getLastTimestamp(dados as any[]);
+
+        if (newRows.length !== dados.length || lastNew !== lastCurrent) {
+          setDados(newRows);
+          setTotal(Number(body.total) || 0);
+        }
       } catch (err: any) {
         if (err.name === 'AbortError') return;
         console.error("Erro ao buscar dados:", err);
@@ -51,7 +75,7 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
       controller.abort();
     };
   // Use serialized filtros to avoid needless re-runs when object identity changes
-  }, [JSON.stringify(filtros), page, pageSize]);
+  }, [JSON.stringify(filtros), page, pageSize, reloadFlag]);
 
-  return { dados, loading, error, total };
+  return { dados, loading, error, total, refetch };
 }
