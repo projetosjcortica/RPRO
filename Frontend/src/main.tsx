@@ -172,7 +172,13 @@ import './index.css'
 import { RuntimeConfigProvider } from './hooks/useRuntimeConfig';
 import { AuthProvider } from './hooks/useAuth';
 import { Processador, getProcessador, setProcessador } from './Processador' // Ajuste o caminho se necessário
+<<<<<<< HEAD
 import { HashRouter } from 'react-router-dom' // Se estiver usando rotas
+=======
+// import { BrowserRouter } from 'react-router-dom' // Se estiver usando rotas
+
+import { HashRouter } from 'react-router-dom';
+>>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
 
 // Export for use in other components
 export { Processador, getProcessador, setProcessador };
@@ -206,8 +212,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RuntimeConfigProvider>
       <AuthProvider>
+<<<<<<< HEAD
         <HashRouter> {/* Se estiver usando rotas */}
           <App />
+=======
+        <HashRouter>
+            <App />
+>>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
         </HashRouter>
       </AuthProvider>
     </RuntimeConfigProvider>

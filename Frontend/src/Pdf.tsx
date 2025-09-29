@@ -170,7 +170,10 @@ export const MyDocument: FC<MyDocumentProps> = ({
   data = new Date().toLocaleDateString("pt-BR"),
   empresa = "Relatorio RPRO",
   observacoes = "",
+<<<<<<< HEAD
   // logoSrc,
+=======
+>>>>>>> 08bf9a8a4e00b5bdf64fe9679abd64f276cfeb98
   orientation = "portrait",
   formulaSums = {},
   chartData = [],
