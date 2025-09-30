@@ -60,6 +60,10 @@ export class IHMService extends BaseService {
         log(`[IHMService] Skipping non-CSV file: ${f.name}`);
         return false;
       }
+      if (f.name.endsWith('_2.csv')) { 
+        log(`[IHMService] Skipping duplicate file: ${f.name}`);
+        return false;
+      }
       if (f.name.toLowerCase().includes('_sys')) {
         log(`[IHMService] Skipping system file: ${f.name}`);
         return false;
