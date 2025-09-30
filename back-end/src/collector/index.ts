@@ -20,11 +20,12 @@ export function stopCollector() {
 
 // Prefer runtime-config topic 'ihm-config' if present (ip, user, password)
 const ihmCfg = getRuntimeConfig('ihm-config') || {};
-const ihmService = new IHMService(
-  ihmCfg.ip || process.env.IHM_IP || '192.168.5.252',
-  ihmCfg.user || process.env.IHM_USER || 'anonymous',
-  ihmCfg.password || process.env.IHM_PASSWORD || ''
-);
+const resolvedIp = ihmCfg.ip ?? getRuntimeConfig('ip') ?? process.env.IHM_IP ?? '192.168.5.252';
+const resolvedUser = ihmCfg.user ?? getRuntimeConfig('user') ?? process.env.IHM_USER ?? 'anonymous';
+const resolvedPassword = ihmCfg.password ?? getRuntimeConfig('pass') ?? process.env.IHM_PASSWORD ?? '';
+
+if (!resolvedIp) console.warn('[Collector] No IHM IP configured; using default fallback');
+const ihmService = new IHMService(String(resolvedIp), String(resolvedUser), String(resolvedPassword));
 
 class Collector {
   private fileProcessor: typeof fileProcessorService;
