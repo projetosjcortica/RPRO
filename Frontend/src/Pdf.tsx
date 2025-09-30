@@ -86,11 +86,6 @@ const styles = StyleSheet.create({
   comentarioTexto: { fontSize: 11 },
 });
 
-interface Produto {
-  nome: string;
-  qtd: number;
-  categoria?: string;
-}
 interface ComentarioRelatorio {
   texto: string;
   data?: string;
@@ -128,18 +123,44 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // logoSrc,
   orientation = "portrait",
   formulaSums = {},
-  chartData = [],
   comentarios = [],
 }) => {
   const dataGeracao = new Date().toLocaleString("pt-BR");
 
-  const produtosPorCategoria: Record<string, Produto[]> = {};
+  // Agrupa produtos por categoria e prepara categorias ordenadas
+  const produtosPorCategoria: Record<string, { nome: string; qtd: number; unidade?: string }[]> = {};
   produtos.forEach((p) => {
     const cat = p.categoria || "Sem Categoria";
     if (!produtosPorCategoria[cat]) produtosPorCategoria[cat] = [];
     produtosPorCategoria[cat].push(p);
   });
   const categorias = Object.keys(produtosPorCategoria).sort();
+
+  function formatWeight(qtd: number, unidade?: string) {
+    if (qtd == null || !Number.isFinite(Number(qtd))) return String(qtd ?? '');
+    const u = (unidade || '').toString().toLowerCase();
+
+    // kilograms input: format as 3 decimal places with pt-BR locale (thousands '.' and decimal ',')
+    if (u === 'kg' || u === 'quilo' || u === 'kilos' || u === 'kgs') {
+      const n = Number(qtd);
+      // ensure 3 decimals (grams)
+      return `${n.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`;
+    }
+
+    // grams input: show integer part with thousands separator and ",000 g" to match pattern
+    if (u === 'g' || u === 'gr' || u === 'grama' || u === 'gramas') {
+      const grams = Math.round(Number(qtd));
+      const sign = grams < 0 ? '-' : '';
+      const abs =  Math.abs(grams) / 1000;
+      const intPart = abs.toLocaleString('pt-BR');
+      return `${sign}${intPart} kg`;
+    }
+
+    // fallback: numeric with 3 decimal places
+    const v = Number(qtd);
+    return v.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  }
+ 
 
   const renderRodape = () => (
     <>
@@ -216,7 +237,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
             <Text style={styles.label}>
               Total:{" "}
               <Text style={styles.value}>
-                {total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+                {total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} {"kg"}
               </Text>
             </Text>
           </View>
@@ -248,7 +269,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
               col1: f.nome,
               col2: f.somatoriaTotal.toLocaleString("pt-BR", {
                 minimumFractionDigits: 3,
-              }),
+              })+ " kg",
             }))}
           </View>
         )}
@@ -274,30 +295,17 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos</Text>
-          {chartData.length > 0 &&
-            chartData.map((c, i) => (
-              <Text key={i} style={{ fontSize: 10 }}>
-                {`${c.name}: ${c.value.toLocaleString("pt-BR", {
-                  minimumFractionDigits: 3,
-                })}`}
-              </Text>
-            ))}
+          
 
           {categorias.map((cat, idx) => (
             <View key={idx} style={{ marginBottom: 10 }}>
-              <Text
-                style={{ fontSize: 12, fontWeight: "bold", marginBottom: 4 }}
-              >
-                {cat}
-              </Text>
               {renderTable(produtosPorCategoria[cat], (p) => ({
                 col1: p.nome,
-                col2: p.qtd.toLocaleString("pt-BR", {
-                  minimumFractionDigits: 3,
-                }),
+                col2: formatWeight(p.qtd, p.unidade),
               }))}
             </View>
           ))}
+
         </View>
 
         {comentarios.length > 0 && (

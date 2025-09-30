@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { BaseService } from '../core/baseService';
 import { BackupMeta, hashBufferHex } from '../core/utils';
-import { cacheService } from './cacheService';
+import { cacheService } from './CacheService';
 
 const DEFAULT_BACKUP_DIR = path.resolve(process.cwd(), 'backups');
 const ENV_WORK_DIR = process.env.BACKUP_WORKDIR ? path.resolve(process.cwd(), process.env.BACKUP_WORKDIR) : null;
