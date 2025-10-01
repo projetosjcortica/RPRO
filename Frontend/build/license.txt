@@ -1,0 +1,6 @@
+RPRO - Sistema de Gerenciamento/Relatorios
+Versão 0.0.2
+
+Desenvolvido por: J.Cortiça
+
+Direitos autorais © 2024 RPRO. Todos os direitos reservados.

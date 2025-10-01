@@ -307,9 +307,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           {categorias.map((cat, idx) => (
             <View key={idx} style={{ marginBottom: 10 }}>
-              <Text style={{ fontSize: 12, fontWeight: "bold", marginBottom: 4 }}>
-                {cat}
-              </Text>
               {renderTable(produtosPorCategoria[cat], (p) => ({
                 col1: p.nome,
                 col2: formatWeight(p.qtd, p.unidade),

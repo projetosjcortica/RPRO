@@ -112,7 +112,7 @@ export default function Report() {
 
   const fetchCollectorStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/collector/status", { method: "GET" });
+      const res = await fetch("http://localhost:3000/api/collector/status", { method: "GET" });
       if (!res.ok) throw new Error("Não foi possível obter o status do coletor.");
       const status = await res.json();
       const isRunning = Boolean(status?.running);
@@ -288,14 +288,14 @@ export default function Report() {
     setCollectorError(null);
     try {
       if (collectorRunning) {
-        const res = await fetch("/api/collector/stop", { method: "GET" });
+        const res = await fetch("http://localhost:3000/api/collector/stop", { method: "GET" });
         if (!res.ok) throw new Error("Falha ao interromper o coletor.");
         await res.json().catch(() => ({}));
         await fetchCollectorStatus();
         refetch();
         refreshResumo();
       } else {
-        const res = await fetch("/api/collector/start", { method: "GET" });
+        const res = await fetch("http://localhost:3000/api/collector/start", { method: "GET" });
         if (!res.ok) throw new Error("Falha ao iniciar o coletor.");
         const payload = await res.json().catch(() => ({}));
         if (payload && payload.started === false) {
