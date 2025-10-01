@@ -221,8 +221,8 @@ export default function Report() {
         batidas: resumo.batitdasTotais || 0,
         periodoInicio: resumo.periodoInicio || "--:--",
         periodoFim: resumo.periodoFim || "--:--",
-        horaInicial: resumo.periodoInicio || "--:--",
-        horaFinal: resumo.periodoFim || "--:--",
+        horaInicial: resumo.horaInicial || "--:--",
+        horaFinal: resumo.horadFinal || "--:--",
         formulas: formulasFromResumo,
         produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
           const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
@@ -439,7 +439,7 @@ export default function Report() {
         periodoInicio={tableSelection.horaInicial}
         periodoFim={tableSelection.horaFinal}
         formulas={tableSelection.formulas}
-        produtos={tableSelection.produtos} // ← Aqui passam os produtos
+        produtos={tableSelection.produtos}
         data={new Date().toLocaleDateString("pt-BR")}
         empresa={runtime.get('nomeCliente')}
         comentarios={comentarios}
@@ -531,8 +531,8 @@ export default function Report() {
 
   return (
     <div className="flex flex-col gap-7 w-full h-full">
-      <div className="h-[80dvh] flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-2">
+      <div className="h-[10dvh] flex flex-row justify-between w-full">
+        <div className="flex flex-row items-end gap-2 h-[10dvh]">
           <Button onClick={() => setView("table")}>Relatórios</Button>
           <Button onClick={() => setView("product")}>Produtos</Button>
         </div>
@@ -581,7 +581,7 @@ export default function Report() {
 
       <div className="flex flex-row gap-2 justify-start w-full">
         <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[80vh] w-[68px]">
-          <div className="flex w-full h-[100dvh] overflow-hidden shadow-md/16 flex">
+          <div className="flex w-full h-[100dvh] overflow-hidden shadow-md/16 flex border">
             {content}
           </div>
 
@@ -634,12 +634,11 @@ export default function Report() {
         </div>
 
         {/* Side Info */}
-        <div className="h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+        <div className="w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           {/* Informações Gerais */}
-          <div className="grid grid-cols-2 gap-1 mt-2">
-            <div className="w-fit-content h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
-              <p className="text-center font-semibold">Total</p>
-              <p className="text-center text-lg font-bold">
+          <div className="grid grid-cols-1 gap-2 mt-2">
+            <div className="w-83 h-22 max-h-22 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
+              <p className="text-center text-lg font-bold">Total:  {""}
                 {(resumo && typeof resumo.totalPesos === "number"
                   ? resumo.totalPesos
                   : tableSelection.total
@@ -648,30 +647,41 @@ export default function Report() {
                   maximumFractionDigits: 3,
                 })} kg
               </p>
-            </div>
-            <div className=" h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
-              <p className="text-center font-semibold">Batidas</p>
-              <p className="text-center text-lg font-bold">
+              <p className="text-center text-sm text-gray-400 font-regular">Batidas:  {""}
                 {resumo && typeof resumo.batitdasTotais === "number"
                   ? resumo.batitdasTotais
                   : tableSelection.batidas}
               </p>
             </div>
-            <div className=" h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
-              <p className="text-center font-semibold">Periodo inicial</p>
-              <p className="text-center text-lg font-bold">
-                {resumo && resumo.periodoInicio
-                  ? formatShortDate(resumo.periodoInicio)
-                  : tableSelection.horaInicial}
-              </p>
-            </div>
-            <div className=" h-22 max-h-22 rounded-lg flex flex-col justify-between p-2 shadow-md/16">
-              <p className="text-center font-semibold">Periodo final</p>
-              <p className="text-center text-lg font-bold">
-                {resumo && resumo.periodoFim
-                  ? formatShortDate(resumo.periodoFim)
-                  : tableSelection.horaFinal}
-              </p>
+            <div className="w-83 h-22 max-h-22 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
+              <p className="text-center font-bold">Período:  {""}</p>
+                <div className="flex flex-row justify-center gap-4">
+                  <div className="flex flex-col justify-center gap-2">
+                    <p className="text-center font-bold">
+                      {resumo && resumo.periodoInicio
+                        ? formatShortDate(resumo.periodoInicio)
+                        : tableSelection.horaInicial}
+                    </p>
+                    <p className="text-center text-sm text-gray-400 font-semibold">
+                      {resumo && resumo.horaInicial
+                        ? resumo.horaInicial
+                        : tableSelection.horaInicial}
+                    </p>
+                </div>
+                <div className="flex flex-col justify-center gap-2">
+                    
+                    <p className="text-center font-bold">
+                      {resumo && resumo.periodoFim
+                        ? formatShortDate(resumo.periodoFim)
+                        :  "--/--/--"}
+                    </p>
+                    <p className="text-center text-sm text-gray-400 font-semibold">
+                      {resumo && resumo.horaFinal
+                        ? resumo.horaFinal
+                        : tableSelection.horaFinal}
+                    </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -718,9 +728,9 @@ export default function Report() {
           </div>
 
           {/* Impressão e Comentários */}
-          <div className="flex flex-col text-center gap-2 mt-6">
+          <div className="flex flex-col text-center gap-2 mt-3">
             <p>Importar/Imprimir</p>
-            <div className="flex flex-row gap-2 justify-center">
+            <div className="flex flex-row gap-1 justify-center">
               <Button onClick={handlePrint} className="gap-2">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

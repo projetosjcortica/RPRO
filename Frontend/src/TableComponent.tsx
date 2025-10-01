@@ -186,9 +186,9 @@ function TableComponent({
 
   return (
     <div ref={tableRef} className="overflow-hidden w-full h-full flex flex-col">
-      <div className="flex-1 h-full">
-        <ScrollArea className="overflow-y-auto h-full w-full">
-          <Table className="h-full border-collapse border border-gray-300 table-fixed w-full">
+      <div className="flex-1 h-full border border-gray-300  shadow-sm/16">
+        <ScrollArea className="overflow-y-auto h-full w-full scrollbar-custom">
+          <Table className="h-full border-collapse table-fixed w-full">
             <TableHeader className="bg-gray-100 sticky top-0 z-10">
               <TableRow>
                 {fixedColumns.map((col, idx) => (
@@ -279,7 +279,7 @@ function TableComponent({
             </TableBody>
           </Table>
           <ScrollBar orientation="horizontal" />
-          <ScrollBar orientation="vertical" />
+          <ScrollBar orientation="vertical" className="" />
         </ScrollArea>
       </div>
     </div>
