@@ -9,8 +9,8 @@ import * as path from "path";
 import Store from "electron-store";
 import fs from "fs";
 import { fileURLToPath } from "url";
-import { fork, ChildProcess } from "child_process";
-import { spawn, ChildProcessWithoutNullStreams } from "child_process";
+import { fork, ChildProcess, spawn } from "child_process";
+import { ChildProcessWithoutNullStreams } from "child_process";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 process.env.APP_ROOT = path.join(__dirname, "..");
@@ -197,7 +197,7 @@ ipcMain.handle(
 
     // If no script provided, use backend default
     if (!script) {
-      script = "../back-end/dist/src/index.js";
+      script = "../backend/index.js";
     }
 
     // Better path resolution - handle relative paths from the app root
@@ -209,11 +209,11 @@ ipcMain.handle(
       // For '../back-end/dist/src/index.js', we need to go up from Frontend directory
       const possiblePaths = [
         // Prefer IPC-only CJS build
-        path.join(projectRoot, "back-end", "dist", "index.js"),
+        path.join(projectRoot, "backend", "dist", "index.js"),
         // Fallback to full build structure if present
-        path.join(projectRoot, "back-end", "dist", "src", "index.js"),
+        path.join(projectRoot, "backend", "dist", "src", "index.js"),
         // TypeScript source (will use ts-node)
-        path.join(projectRoot, "back-end", "src", "index.ts"),
+        path.join(projectRoot, "backend", "src", "index.ts"),
         // Original provided script path fallbacks
         path.join(__dirname, script),
         path.join(process.env.APP_ROOT || "", script),
@@ -245,10 +245,10 @@ ipcMain.handle(
       const frontendBackendDir = path.join(projectRoot, "Frontend", "backend");
       if (scriptPath.startsWith(frontendBackendDir)) {
         const realCandidates = [
-          path.join(projectRoot, "back-end", "dist", "index.js"),
-          path.join(projectRoot, "back-end", "dist", "src", "index.js"),
-          path.join(projectRoot, "back-end", "src", "index.ts"),
-          path.join(projectRoot, "back-end", "src", "index.js"),
+          path.join(projectRoot, "backend", "dist", "index.js"),
+          path.join(projectRoot, "backend", "dist", "src", "index.js"),
+          path.join(projectRoot, "backend", "src", "index.ts"),
+          path.join(projectRoot, "backend", "src", "index.js"),
         ];
         const found = realCandidates.find((p) => fs.existsSync(p));
         if (found) {
@@ -612,42 +612,52 @@ function createWindow() {
 
 app.whenReady().then(() => {
   (async () => {
-    // If running packaged we will try to spawn the backend exe included in resources
     if (app.isPackaged) {
       try {
-        const exePath = path.join(
-          process.resourcesPath,
-          "backend",
-          "backend.exe"
-        );
-        if (fs.existsSync(exePath)) {
-          console.log("[main] Spawning packaged backend exe at", exePath);
-          spawnedBackend = spawn(exePath, [], {
+        // Procurar pelo index.js no diretório backend
+        const backendScriptPath = path.join(process.resourcesPath, "backend", "index.js");
+        
+        console.log("[main] Procurando backend em:", backendScriptPath);
+        console.log("[main] Arquivo existe:", fs.existsSync(backendScriptPath));
+        
+        if (fs.existsSync(backendScriptPath)) {
+          console.log("[main] Iniciando backend com Node.js...");
+          
+          // Usar spawn para executar com node diretamente
+          spawnedBackend = spawn(process.execPath, [backendScriptPath], {
             env: {
               ...process.env,
               FRONTEND_API_PORT: process.env.FRONTEND_API_PORT || "3000",
             },
-            cwd: process.resourcesPath,
+            cwd: path.dirname(backendScriptPath),
           });
-          spawnedBackend.stdout.on("data", (d) =>
-            console.log("[backend exe stdout]", d.toString())
-          );
-          spawnedBackend.stderr.on("data", (d) =>
-            console.error("[backend exe stderr]", d.toString())
-          );
-          spawnedBackend.on("exit", (code) =>
-            console.log("[backend exe] exited", code)
-          );
+          
+          spawnedBackend.stdout.on("data", (data) => {
+            console.log("[backend]", data.toString());
+          });
+          
+          spawnedBackend.stderr.on("data", (data) => {
+            console.error("[backend error]", data.toString());
+          });
+          
+          spawnedBackend.on("error", (error) => {
+            console.error("[backend error]", error);
+          });
+          
+          spawnedBackend.on("exit", (code) => {
+            console.log("[backend] encerrado com código:", code);
+          });
+          
+          console.log("[main] Backend iniciado com Node.js!");
         } else {
-          console.warn("[main] packaged backend exe not found at", exePath);
+          console.error("[main] Backend não encontrado em:", backendScriptPath);
         }
       } catch (e) {
-        console.error("[main] failed to spawn packaged backend exe", e);
+        console.error("[main] Erro ao iniciar backend:", e);
       }
     } else {
-      // In dev, prefer to fork the backend JS so logs and IPC work as before
+      // Modo desenvolvimento (seu código atual)
       try {
-        // attempt to auto-start backend JS when running in development
         const projectRoot = path.dirname(path.dirname(__dirname));
         const possible = [
           path.join(projectRoot, "back-end", "dist", "index.js"),
@@ -656,66 +666,44 @@ app.whenReady().then(() => {
         ];
         const scriptPath = possible.find((p) => fs.existsSync(p));
         if (scriptPath) {
-          try {
-            console.log("[main] dev auto-forking backend at", scriptPath);
-            lastScriptPath = scriptPath;
-            const backendDir = path.dirname(scriptPath);
-            const child = fork(scriptPath, [], {
-              stdio: ["pipe", "pipe", "ipc"],
-              cwd: backendDir,
-              env: { ...process.env },
-            });
-            const pid = child.pid;
-            if (typeof pid === "number") {
-              children.set(pid, child);
-              console.log("[main] dev backend forked with PID", pid);
-            }
-            // forward messages/stdout/stderr to renderer
-            child.on("message", (msg) => {
-              if (win && !win.isDestroyed())
-                win.webContents.send("child-message", { pid: child.pid, msg });
-            });
-            if (child.stdout)
-              child.stdout.on("data", (c) => {
-                console.log("[child stdout]", c.toString());
-                if (win && !win.isDestroyed())
-                  win.webContents.send("child-stdout", {
-                    pid: child.pid,
-                    data: c.toString(),
-                  });
-              });
-            if (child.stderr)
-              child.stderr.on("data", (c) => {
-                console.error("[child stderr]", c.toString());
-                if (win && !win.isDestroyed())
-                  win.webContents.send("child-stderr", {
-                    pid: child.pid,
-                    data: c.toString(),
-                  });
-              });
-          } catch (devErr) {
-            console.warn("[main] failed to auto-fork backend in dev:", devErr);
+          console.log("[main] Iniciando backend em desenvolvimento...");
+          const child = fork(scriptPath, [], {
+            stdio: ["pipe", "pipe", "ipc"],
+            cwd: path.dirname(scriptPath),
+            env: { ...process.env },
+          });
+          const pid = child.pid;
+          if (typeof pid === "number") {
+            children.set(pid, child);
           }
-        } else {
-          console.log(
-            "[main] running in development mode, backend fork will be started by renderer when needed (no backend script found)"
-          );
+          child.on("message", (msg) => {
+            if (win && !win.isDestroyed())
+              win.webContents.send("child-message", { pid: child.pid, msg });
+          });
+          if (child.stdout)
+            child.stdout.on("data", (chunk) => {
+              console.log("[child]", chunk.toString());
+              if (win && !win.isDestroyed())
+                win.webContents.send("child-stdout", { pid: child.pid, data: chunk.toString() });
+            });
+          if (child.stderr)
+            child.stderr.on("data", (chunk) => {
+              console.error("[child error]", chunk.toString());
+              if (win && !win.isDestroyed())
+                win.webContents.send("child-stderr", { pid: child.pid, data: chunk.toString() });
+            });
         }
       } catch (e) {
-        console.warn("[main] dev auto-start failed", e);
+        console.warn("[main] Erro ao iniciar backend em desenvolvimento:", e);
       }
-    }
-
-    createWindow();
-  })();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    
+      
+    // CRIAR JANELA APENAS UMA VEZ
+    if (!win) {
       createWindow();
     }
-  });
+  })();
 });
-
 // Encerrar backend e app corretamente
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

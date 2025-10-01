@@ -2,7 +2,7 @@ import { BaseService } from '../core/baseService';
 import { Client } from 'basic-ftp';
 import path from 'path';
 import fs from 'fs';
-import { cacheService } from './cacheService';
+import { cacheService } from './CacheService';
 import { dbService } from './dbService';
 import { log } from 'console';
 
