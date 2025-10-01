@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 MIT License
 
 Copyright (c) [year] [fullname]
@@ -10,3 +11,11 @@ copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
 [... rest of license ...]
+=======
+RPRO - Sistema de Gerenciamento/Relatorios
+Versão 0.0.2
+
+Desenvolvido por: J.Cortiça
+
+Direitos autorais © 2024 RPRO. Todos os direitos reservados.
+>>>>>>> b1d400b9d1f46d7a8407b6ddaf1e86b1edd90e66
