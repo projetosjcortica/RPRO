@@ -5,6 +5,7 @@ import { AppDataSource, dbService } from "./services/dbService";
 import { backupSvc } from "./services/backupService";
 import { parserService } from "./services/parserService";
 import { fileProcessorService } from "./services/fileProcessorService";
+import { cacheService } from "./services/cacheService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
 import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
@@ -329,6 +330,85 @@ app.get("/api/db/status", async (req, res) => {
       isInitialized: AppDataSource.isInitialized,
       ts: new Date().toISOString(),
     });
+  }
+});
+
+// Clear entire database (DELETE all rows from all entities)
+app.post('/api/db/clear', async (req, res) => {
+  try {
+    await dbService.init();
+    await dbService.clearAll();
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[api/db/clear] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Compatibility route: some frontends call /api/database/clean
+app.post('/api/database/clean', async (req, res) => {
+  try {
+    await dbService.init();
+    await dbService.clearAll();
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[api/database/clean] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Export DB dump as JSON (and optionally save to disk). Returns { dump, savedPath }
+app.get('/api/db/dump', async (req, res) => {
+  try {
+    await dbService.init();
+    const result = await dbService.exportDump(true);
+    return res.json({ ok: true, savedPath: result.savedPath, meta: result.dump._meta });
+  } catch (e: any) {
+    console.error('[api/db/dump] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Import DB dump (JSON body with dump object). This will replace existing tables.
+app.post('/api/db/import', async (req, res) => {
+  try {
+    const dumpObj = req.body;
+    if (!dumpObj) return res.status(400).json({ error: 'dump body required' });
+    await dbService.init();
+    const result = await dbService.importDump(dumpObj);
+    return res.json({ ok: true, ...result });
+  } catch (e: any) {
+    console.error('[api/db/import] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Clear cache DB used by cacheService
+app.post('/api/cache/clear', async (req, res) => {
+  try {
+    await cacheService.init();
+    await cacheService.clearAll();
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[api/cache/clear] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Unified clear all: DB + cache + backups
+app.post('/api/clear/all', async (req, res) => {
+  try {
+    await dbService.init();
+    await cacheService.init();
+    await backupSvc.listBackups();
+    // perform clears
+    await dbService.clearAll();
+    await cacheService.clearAll();
+    try { await backupSvc.clearAllBackups(); } catch (e) { console.warn('[api/clear/all] clearing backups failed', e); }
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[api/clear/all] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
 
@@ -1652,6 +1732,462 @@ app.get("/api/chartdata", async (req, res) => {
     });
   } catch (e) {
     console.error("[api/chartdata] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Agregação por Fórmulas
+app.get("/api/chartdata/formulas", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Agregar por fórmula (Nome)
+    const sums: Record<string, number> = {};
+    const validCount: Record<string, number> = {};
+    
+    for (const r of rows) {
+      if (!r.Nome) continue;
+      const key = r.Nome;
+      const v = Number(r.Form1 ?? 0);
+      if (isNaN(v)) continue;
+      
+      sums[key] = (sums[key] || 0) + v;
+      validCount[key] = (validCount[key] || 0) + 1;
+    }
+
+    const chartData = Object.entries(sums)
+      .map(([name, value]) => ({ 
+        name, 
+        value,
+        count: validCount[name]
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    return res.json({
+      chartData,
+      total: chartData.reduce((sum, item) => sum + item.value, 0),
+      totalRecords: rows.length,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/formulas] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Agregação por Produtos
+app.get("/api/chartdata/produtos", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Carregar unidades das matérias-primas
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Agregar por produto (Prod_1, Prod_2, etc.)
+    const productSums: Record<string, number> = {};
+    const productUnits: Record<string, string> = {};
+    
+    for (const r of rows) {
+      for (let i = 1; i <= 40; i++) {
+        const v = typeof r[`Prod_${i}`] === "number" 
+          ? r[`Prod_${i}`] 
+          : r[`Prod_${i}`] != null 
+          ? Number(r[`Prod_${i}`]) 
+          : 0;
+        
+        if (v <= 0) continue;
+        
+        const mp = materiasByNum[i];
+        const productKey = mp?.produto || `Produto ${i}`;
+        const unidade = mp && Number(mp.medida) === 0 ? "g" : "kg";
+        
+        productSums[productKey] = (productSums[productKey] || 0) + v;
+        productUnits[productKey] = unidade;
+      }
+    }
+
+    const chartData = Object.entries(productSums)
+      .map(([name, value]) => ({ 
+        name, 
+        value,
+        unit: productUnits[name]
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    return res.json({
+      chartData,
+      total: chartData.reduce((sum, item) => sum + item.value, 0),
+      totalRecords: rows.length,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/produtos] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Agregação por Horário
+app.get("/api/chartdata/horarios", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Agregar por hora (0h-23h)
+    const hourSums: Record<string, number> = {};
+    const hourCounts: Record<string, number> = {};
+    
+    for (const r of rows) {
+      if (!r.Hora) continue;
+      const hour = r.Hora.split(':')[0];
+      const hourKey = `${hour}h`;
+      const v = Number(r.Form1 ?? 0);
+      
+      if (isNaN(v) || v <= 0) continue;
+      
+      hourSums[hourKey] = (hourSums[hourKey] || 0) + v;
+      hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1;
+    }
+
+    const chartData = Object.entries(hourSums)
+      .map(([name, value]) => ({ 
+        name, 
+        value,
+        count: hourCounts[name],
+        average: value / hourCounts[name]
+      }))
+      .sort((a, b) => parseInt(a.name) - parseInt(b.name));
+
+    return res.json({
+      chartData,
+      total: chartData.reduce((sum, item) => sum + item.value, 0),
+      totalRecords: rows.length,
+      peakHour: chartData.length > 0 ? chartData.reduce((max, item) => item.value > max.value ? item : max).name : null,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/horarios] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Agregação por Dia da Semana
+app.get("/api/chartdata/diasSemana", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Helper para parsear datas
+    const parseDia = (dia?: string): Date | null => {
+      if (!dia) return null;
+      const s = dia.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+        const parts = s.split('/');
+        let y = parts[2];
+        if (y.length === 2) y = String(2000 + Number(y));
+        return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
+      }
+      const dt = new Date(s);
+      return !isNaN(dt.getTime()) ? dt : null;
+    };
+
+    // Agregar por dia da semana
+    const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const weekdaySums: Record<string, number> = {};
+    const weekdayCounts: Record<string, number> = {};
+    
+    for (const r of rows) {
+      if (!r.Dia) continue;
+      const date = parseDia(r.Dia);
+      if (!date) continue;
+      
+      const dayIndex = date.getDay();
+      const dayName = weekdays[dayIndex];
+      const v = Number(r.Form1 ?? 0);
+      
+      if (isNaN(v) || v <= 0) continue;
+      
+      weekdaySums[dayName] = (weekdaySums[dayName] || 0) + v;
+      weekdayCounts[dayName] = (weekdayCounts[dayName] || 0) + 1;
+    }
+
+    const chartData = weekdays
+      .map(name => ({ 
+        name, 
+        value: weekdaySums[name] || 0,
+        count: weekdayCounts[name] || 0,
+        average: weekdaySums[name] ? weekdaySums[name] / weekdayCounts[name] : 0
+      }))
+      .filter(d => d.value > 0);
+
+    return res.json({
+      chartData,
+      total: chartData.reduce((sum, item) => sum + item.value, 0),
+      totalRecords: rows.length,
+      peakDay: chartData.length > 0 ? chartData.reduce((max, item) => item.value > max.value ? item : max).name : null,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/diasSemana] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Estatísticas Gerais
+app.get("/api/chartdata/stats", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Calcular estatísticas gerais
+    const totalGeral = rows.reduce((sum, r) => {
+      const v = Number(r.Form1 ?? 0);
+      return sum + (isNaN(v) ? 0 : v);
+    }, 0);
+
+    const uniqueFormulas = new Set(rows.map(r => r.Nome)).size;
+    
+    const uniqueDays = new Set(rows.map(r => r.Dia).filter(Boolean)).size;
+
+    return res.json({
+      totalGeral,
+      totalRecords: rows.length,
+      uniqueFormulas,
+      uniqueDays,
+      average: rows.length > 0 ? totalGeral / rows.length : 0,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/stats] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Dados de Semana Específica
+app.get("/api/chartdata/semana", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { weekStart, formula, codigo, numero } = req.query;
+    
+    if (!weekStart) {
+      return res.status(400).json({ error: "weekStart parameter is required (YYYY-MM-DD)" });
+    }
+
+    // Calcular início e fim da semana
+    const startDate = new Date(String(weekStart));
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: "Invalid weekStart format. Use YYYY-MM-DD" });
+    }
+
+    // Ajustar para o início da semana (domingo)
+    const dayOfWeek = startDate.getDay();
+    startDate.setDate(startDate.getDate() - dayOfWeek);
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+    endDate.setHours(23, 59, 59, 999);
+
+    // Formatar datas para query
+    const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`;
+    const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+
+    const qb = repo.createQueryBuilder("r")
+      .where("r.Dia >= :startStr", { startStr })
+      .andWhere("r.Dia <= :endStr", { endStr })
+      .orderBy("r.Dia", "ASC")
+      .addOrderBy("r.Hora", "ASC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Helper para parsear datas
+    const parseDia = (dia?: string): Date | null => {
+      if (!dia) return null;
+      const s = dia.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+        const parts = s.split('/');
+        let y = parts[2];
+        if (y.length === 2) y = String(2000 + Number(y));
+        return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
+      }
+      const dt = new Date(s);
+      return !isNaN(dt.getTime()) ? dt : null;
+    };
+
+    // Agregar por dia da semana
+    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const weekdayTotals = Array(7).fill(0);
+    const weekdayCounts = Array(7).fill(0);
+    
+    for (const r of rows) {
+      if (!r.Dia) continue;
+      const date = parseDia(r.Dia);
+      if (!date) continue;
+      
+      const dayIndex = date.getDay();
+      const v = Number(r.Form1 ?? 0);
+      
+      if (isNaN(v)) continue;
+      
+      weekdayTotals[dayIndex] += v;
+      weekdayCounts[dayIndex] += 1;
+    }
+
+    const chartData = weekdays.map((name, idx) => ({ 
+      name, 
+      value: weekdayTotals[idx],
+      count: weekdayCounts[idx],
+      average: weekdayCounts[idx] > 0 ? weekdayTotals[idx] / weekdayCounts[idx] : 0
+    }));
+
+    const weekTotal = weekdayTotals.reduce((sum, val) => sum + val, 0);
+    const peakDay = chartData.reduce((max, item) => item.value > max.value ? item : max, chartData[0]);
+
+    return res.json({
+      chartData,
+      weekStart: startStr,
+      weekEnd: endStr,
+      total: weekTotal,
+      totalRecords: rows.length,
+      peakDay: peakDay.name,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/semana] error", e);
     return res.status(500).json({ error: "internal" });
   }
 });

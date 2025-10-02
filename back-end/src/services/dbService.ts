@@ -210,6 +210,122 @@ export class DBService extends BaseService {
     const last = await qb.getOne();
     return last ? `${last.Dia ?? ''}T${last.Hora ?? ''}` : null;
   }
+
+  /**
+   * Remove all rows from all managed entities (keeps schema intact).
+   */
+  async clearAll() {
+    await this.init();
+    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User];
+    // Use a transaction to ensure atomicity when supported
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    try {
+      await queryRunner.startTransaction();
+      for (const e of entities) {
+        // Use manager.clear to remove all rows
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        await queryRunner.manager.clear(e);
+      }
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      try {
+        await queryRunner.rollbackTransaction();
+      } catch {}
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Export a full JSON dump of selected tables. Optionally saves a file to disk
+   * under runtime-config 'dumpDir' or env DUMP_DIR.
+   */
+  async exportDump(saveToFile = true) {
+    await this.init();
+    const out: any = { _meta: { generatedAt: new Date().toISOString(), useMysql: this.useMysql } };
+    const entities: Record<string, any> = {
+      Relatorio,
+      MateriaPrima,
+      Batch,
+      Row,
+      Estoque,
+      MovimentacaoEstoque,
+      Setting,
+      User,
+    };
+    for (const k of Object.keys(entities)) {
+      // @ts-ignore
+      out[k] = await this.ds.getRepository(entities[k]).find();
+    }
+
+    // Optionally persist to disk
+    let savedPath: string | undefined;
+    try {
+      if (saveToFile) {
+        const runtime = getRuntimeConfig('ihm-config') || {};
+        const dumpDir = runtime.dumpDir || process.env.DUMP_DIR || process.env.MYSQL_DUMP_DIR || 'dumps';
+        const absDumpDir = path.isAbsolute(dumpDir) ? dumpDir : path.resolve(process.cwd(), String(dumpDir));
+        if (!fs.existsSync(absDumpDir)) fs.mkdirSync(absDumpDir, { recursive: true });
+        const fname = `dump-${Date.now()}.json`;
+        savedPath = path.join(absDumpDir, fname);
+        fs.writeFileSync(savedPath, JSON.stringify(out));
+      }
+    } catch (err) {
+      // non-fatal — still return JSON
+      console.warn('[DBService] Failed to save dump to disk:', err);
+    }
+
+    return { dump: out, savedPath };
+  }
+
+  /**
+   * Import a previously exported dump object. This will clear existing data
+   * for the targeted tables and insert the provided rows inside a transaction.
+   */
+  async importDump(dumpObj: any) {
+    if (!dumpObj || typeof dumpObj !== 'object') throw new Error('Invalid dump');
+    await this.init();
+    const entitiesMap: Record<string, any> = {
+      Relatorio,
+      MateriaPrima,
+      Batch,
+      Row,
+      Estoque,
+      MovimentacaoEstoque,
+      Setting,
+      User,
+    };
+
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    try {
+      await queryRunner.startTransaction();
+      for (const k of Object.keys(entitiesMap)) {
+        const repo = queryRunner.manager.getRepository(entitiesMap[k]);
+        // Clear existing rows
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        await repo.clear();
+        // Insert provided rows if present
+        if (Array.isArray(dumpObj[k]) && dumpObj[k].length > 0) {
+          // Use save which can insert arrays
+          await repo.save(dumpObj[k]);
+        }
+      }
+      await queryRunner.commitTransaction();
+    } catch (err) {
+      try {
+        await queryRunner.rollbackTransaction();
+      } catch {}
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+    return { importedAt: new Date().toISOString() };
+  }
 }
 
 export const dbService = new DBService();
@@ -233,4 +349,5 @@ export const AppDataSource: DataSource = new Proxy({} as any, {
     (ds as any)[prop] = value;
     return true;
   }
+
 });

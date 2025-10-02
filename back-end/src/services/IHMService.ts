@@ -64,6 +64,10 @@ export class IHMService extends BaseService {
         log(`[IHMService] Skipping system file: ${f.name}`);
         return false;
       }
+      if (f.name.toLowerCase().endsWith('_2.csv')) {
+        log(`[IHMService] Skipping system file: ${f.name}`);
+        return false;
+      }
       const sizeNum = typeof f.size === 'number' ? f.size : Number(f.size || 0);
       if (!Number.isFinite(sizeNum) || sizeNum <= 0) {
         log(`[IHMService] Skipping file with invalid size: ${f.name}`);

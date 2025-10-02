@@ -288,6 +288,27 @@ export class Processador {
     return this.makeRequest('/api/db/populate', 'POST', { tipo, quantidade, config });
   }
 
+  // New admin/database helpers
+  public clearDatabase() {
+    return this.makeRequest('/api/db/clear', 'POST');
+  }
+
+  public clearCache() {
+    return this.makeRequest('/api/cache/clear', 'POST');
+  }
+
+  public exportDump() {
+    return this.makeRequest('/api/db/dump', 'GET');
+  }
+
+  public importDump(dumpObj: any) {
+    return this.makeRequest('/api/db/import', 'POST', dumpObj);
+  }
+
+  public clearAll() {
+    return this.makeRequest('/api/clear/all', 'POST');
+  }
+
   public estoqueOperation(operation: string, payload: any = {}) {
     return this.makeRequest(`/api/estoque/${operation}`, 'POST', payload);
   }
