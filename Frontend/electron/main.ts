@@ -656,7 +656,7 @@ app.whenReady().then(() => {
             );
           }
         }
-      } else {
+      } finally {
         console.log(
           "[main] running in development mode, backend fork will be started by renderer when needed (no backend script found)"
         );
