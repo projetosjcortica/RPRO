@@ -11,7 +11,7 @@ import { materiaPrimaService } from "./services/materiaPrimaService";
 import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
 import { dataPopulationService } from "./services/dataPopulationService"; // Importação do serviço de população de dados
 import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
-import { Relatorio, MateriaPrima, Batch, User } from "./entities";
+import { Relatorio, MateriaPrima, Batch, User, MovimentacaoEstoque, Estoque, Row } from "./entities";
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
 import cors from "cors";
@@ -63,7 +63,11 @@ export function getCollectorStatus(): CollectorStatus {
   return { ...collectorState };
 }
 
-export async function startCollector(): Promise<{
+export async function startCollector(overrideConfig?: {
+  ip?: string;
+  user?: string;
+  password?: string;
+}): Promise<{
   started: boolean;
   message?: string;
   status: CollectorStatus;
@@ -76,27 +80,40 @@ export async function startCollector(): Promise<{
     };
   }
 
-  // Prefer the 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
+  // Prefer override config, then 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
   const runtimeIhm = getRuntimeConfig("ihm-config") || {};
-  // console.log(runtimeIhm);
+  
+  const finalIp = overrideConfig?.ip ?? 
+    runtimeIhm.ip ??
+    getRuntimeConfig("ip");
+    
+  const finalUser = overrideConfig?.user ?? 
+    runtimeIhm.user ??
+    getRuntimeConfig("user");
+    
+  const finalPassword = overrideConfig?.password ?? 
+    runtimeIhm.password ??
+    getRuntimeConfig("pass");
+
+  // If we have override config, update the runtime config for future use
+  if (overrideConfig) {
+    const updatedIhmConfig = { ...runtimeIhm };
+    if (overrideConfig.ip) updatedIhmConfig.ip = overrideConfig.ip;
+    if (overrideConfig.user) updatedIhmConfig.user = overrideConfig.user;
+    if (overrideConfig.password) updatedIhmConfig.password = overrideConfig.password;
+    
+    try {
+      setRuntimeConfigs({ "ihm-config": updatedIhmConfig });
+      console.log(`[collector] Updated IHM config with IP: ${finalIp}`);
+    } catch (e) {
+      console.warn("[collector] Failed to update runtime config:", e);
+    }
+  }
+
   const ihm = new IHMService(
-    String(
-      runtimeIhm.ip ??
-        getRuntimeConfig("ip") // ?? PNC DO kRl
-        // process.env.IHM_IP
-        // "192.168.5.253"
-    ),
-    String(
-      runtimeIhm.user ??
-        getRuntimeConfig("user") 
-        // ??
-        // process.env.IHM_USER ??
-        // "anonymous"
-    ),
-    String(
-      runtimeIhm.password ??
-        getRuntimeConfig("pass") // ?? ""
-    )
+    String(finalIp || ""),
+    String(finalUser || "anonymous"),
+    String(finalPassword || "")
   );
 
   const runCycle = async () => {
@@ -408,6 +425,79 @@ app.post('/api/clear/all', async (req, res) => {
     return res.json({ ok: true });
   } catch (e: any) {
     console.error('[api/clear/all] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Clear production data but keep users and materia prima with default setup
+app.post('/api/clear/production', async (req, res) => {
+  try {
+    await dbService.init();
+    await cacheService.init();
+    
+    // Clear production tables (keep User and MateriaPrima)
+    const relatorioRepo = AppDataSource.getRepository(Relatorio);
+    const batchRepo = AppDataSource.getRepository(Batch);
+    const rowRepo = AppDataSource.getRepository(Row);
+    const estoqueRepo = AppDataSource.getRepository(Estoque);
+    const movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
+    
+    await relatorioRepo.clear();
+    await batchRepo.clear();
+    await rowRepo.clear();
+    await estoqueRepo.clear();
+    await movimentacaoRepo.clear();
+    
+    // Reset MateriaPrima to default products (optional - you can remove this if you want to keep existing products)
+    const materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
+    await materiaPrimaRepo.clear();
+    let defaultProducts = [];
+    // Setup default products (example products - adjust as needed)
+    for (let i = 1; i <= 40; i++) {
+      defaultProducts.push({
+        num: i,
+        produto: `Produto ${i}`,
+        medida: 1, // kg
+      });
+    };
+
+
+    for (const prod of defaultProducts) {
+      try {
+        const newProduct = materiaPrimaRepo.create(prod);
+        await materiaPrimaRepo.save(newProduct);
+      } catch (e) {
+        console.warn('[api/clear/production] failed to create default product:', prod, e);
+      }
+    }
+    
+    // Clear cache (both database records and SQLite file)
+    await cacheService.clearAll();
+    
+    // Also clear the physical cache SQLite file
+    try {
+      const cachePath = path.resolve(process.cwd(), process.env.CACHE_SQLITE_PATH || 'cache.sqlite');
+      if (fs.existsSync(cachePath)) {
+        fs.unlinkSync(cachePath);
+        console.log('[api/clear/production] Cache SQLite file deleted:', cachePath);
+      }
+    } catch (e) {
+      console.warn('[api/clear/production] Failed to delete cache SQLite file:', e);
+    }
+    
+    // Clear backups (optional)
+    try { 
+      await backupSvc.clearAllBackups(); 
+    } catch (e) { 
+      console.warn('[api/clear/production] clearing backups failed', e); 
+    }
+    
+    return res.json({ 
+      ok: true, 
+      message: 'Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, cache SQLite cleared.' 
+    });
+  } catch (e: any) {
+    console.error('[api/clear/production] error', e);
     return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
@@ -1218,7 +1308,30 @@ app.post("/api/db/populate", async (req, res) => {
 
 app.get("/api/collector/start", async (req, res) => {
   try {
-    const result = await startCollector();
+    // Accept optional override parameters
+    const overrideConfig: any = {};
+    if (req.query.ip) overrideConfig.ip = String(req.query.ip);
+    if (req.query.user) overrideConfig.user = String(req.query.user);
+    if (req.query.password) overrideConfig.password = String(req.query.password);
+    
+    const result = await startCollector(Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
+    return res.json(result);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+app.post("/api/collector/start", async (req, res) => {
+  try {
+    // Accept optional override parameters in body
+    const { ip, user, password } = req.body || {};
+    const overrideConfig: any = {};
+    if (ip) overrideConfig.ip = String(ip);
+    if (user) overrideConfig.user = String(user);
+    if (password) overrideConfig.password = String(password);
+    
+    const result = await startCollector(Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
     return res.json(result);
   } catch (e) {
     console.error(e);

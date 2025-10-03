@@ -167,6 +167,24 @@ const configService = {
     }
   },
 
+  async cleanProductionData(): Promise<boolean> {
+    try {
+      const response = await fetch("http://localhost:3000/api/clear/production", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.ok === true;
+    } catch (error) {
+      console.error("Failed to clean production data:", error);
+      throw error;
+    }
+  },
+
   async selectFolder(): Promise<string> {
     return new Promise((resolve) => {
       const input = document.createElement("input");
@@ -657,18 +675,24 @@ export function AdminConfig({
           <AlertDialogTrigger asChild>
             <div id="sidetxt">
               <Label className="font-medium text-gray-700">
-                Zerar banco de Dados
-                <Button className="w-70 mt-2" disabled={!isEditing}>
-                  Zerar banco
+                Resetar Sistema
+                <Button className="w-70 mt-2 bg-red-600 hover:bg-red-700" disabled={!isEditing}>
+                  Resetar Sistema
                 </Button>
               </Label>
             </div>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+              <AlertDialogTitle>Resetar sistema completo?</AlertDialogTitle>
               <AlertDialogDescription>
-                Todos os dados do banco serão permanentemente deletados
+                Esta ação irá:
+                <br />• Limpar todos os dados de produção (relatórios, estoque, movimentações)
+                <br />• Resetar matéria prima para produtos padrão (Produto 1-40)
+                <br />• Limpar cache SQLite e backups
+                <br />• Preservar usuários e configurações do sistema
+                <br /><br />
+                <strong>Esta ação é irreversível!</strong>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -676,11 +700,11 @@ export function AdminConfig({
               <AlertDialogAction
                 onClick={async () => {
                   try {
-                    const sucesso = await configService.cleanDB();
+                    const sucesso = await configService.cleanProductionData();
                     if (sucesso) {
-                      toast.success("Banco de dados zerado com sucesso!");
+                      toast.success("Sistema resetado com sucesso! Usuários e configurações preservados.");
                     } else {
-                      toast.error("Erro ao zerar banco de dados");
+                      toast.error("Erro ao resetar sistema");
                     }
                   } catch (err) {
                     console.error(err);
@@ -689,7 +713,7 @@ export function AdminConfig({
                 }}
                 className="bg-red-600 hover:bg-red-700"
               >
-                Continuar
+                Resetar Sistema
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
