@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
-import FilterBar, { type FilterConfig, type FilterValues } from "./components/FilterBar";
 import FixedDashboard from "./components/FixedDashboard";
 
 // Tipos básicos
@@ -18,10 +16,10 @@ export type ChartType = "formulas" | "produtos" | "horarios" | "diasSemana";
 export default function Home() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<Entry[] | null>(null);
-  const [filtros, setFiltros] = useState<FilterValues>({});
+  const [filtros] = useState<any>({});
 
   // Fetch chart data from backend (mantido para compatibilidade)
-  const fetchChartData = async (f: FilterValues) => {
+  const fetchChartData = async (f: any) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -46,45 +44,7 @@ export default function Home() {
   };
 
   // Configuração dos filtros
-  const filterConfig: FilterConfig[] = [
-    {
-      key: "codigo",
-      label: "Código",
-      type: "select",
-      placeholder: "Todos os códigos",
-      fetchOptions: async () => {
-        try {
-          const res = await fetch("http://localhost:3000/api/filtrosAvaliable");
-          if (!res.ok) return [];
-          const data = await res.json();
-          return Array.isArray(data.codigos) ? data.codigos.map((c: any) => String(c)) : [];
-        } catch {
-          return [];
-        }
-      },
-    },
-    {
-      key: "numero",
-      label: "Número",
-      type: "select",
-      placeholder: "Todos os números",
-      fetchOptions: async () => {
-        try {
-          const res = await fetch("http://localhost:3000/api/filtrosAvaliable");
-          if (!res.ok) return [];
-          const data = await res.json();
-          return Array.isArray(data.numeros) ? data.numeros.map((n: any) => String(n)) : [];
-        } catch {
-          return [];
-        }
-      },
-    },
-    {
-      key: "daterange",
-      label: "Período",
-      type: "daterange",
-    },
-  ];
+  // filterConfig removed (not used here)
 
   // Load initially and when filtros change
   useEffect(() => {

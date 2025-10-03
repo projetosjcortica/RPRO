@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import GridLayout, { Layout } from "react-grid-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
@@ -11,8 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./ui/dialog";
-import { Label } from "./ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+// ...existing code...
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -41,7 +40,7 @@ interface DashboardBuilderProps {
   onLayoutChange: (layout: Layout[]) => void;
   onAddWidget: (widget: WidgetConfig) => void;
   onRemoveWidget: (id: string) => void;
-  onUpdateWidget: (id: string, updates: Partial<WidgetConfig>) => void;
+  onUpdateWidget?: (id: string, updates: Partial<WidgetConfig>) => void;
   children: (widget: WidgetConfig) => React.ReactNode;
   editMode: boolean;
   onEditModeChange: (mode: boolean) => void;
@@ -64,7 +63,7 @@ export default function DashboardBuilder({
   onLayoutChange,
   onAddWidget,
   onRemoveWidget,
-  onUpdateWidget,
+  // onUpdateWidget (optional) removed from destructuring to avoid unused variable
   children,
   editMode,
   onEditModeChange,

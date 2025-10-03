@@ -9,9 +9,10 @@ import { cacheService } from "./services/cacheService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
 import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
+import ExcelJS from "exceljs";
 import { dataPopulationService } from "./services/dataPopulationService"; // Importação do serviço de população de dados
 import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
-import { Relatorio, MateriaPrima, Batch, User } from "./entities";
+import { Relatorio, MateriaPrima, Batch, User, MovimentacaoEstoque, Estoque, Row } from "./entities";
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
 import cors from "cors";
@@ -63,7 +64,11 @@ export function getCollectorStatus(): CollectorStatus {
   return { ...collectorState };
 }
 
-export async function startCollector(): Promise<{
+export async function startCollector(overrideConfig?: {
+  ip?: string;
+  user?: string;
+  password?: string;
+}): Promise<{
   started: boolean;
   message?: string;
   status: CollectorStatus;
@@ -76,27 +81,40 @@ export async function startCollector(): Promise<{
     };
   }
 
-  // Prefer the 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
+  // Prefer override config, then 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
   const runtimeIhm = getRuntimeConfig("ihm-config") || {};
-  // console.log(runtimeIhm);
+  
+  const finalIp = overrideConfig?.ip ?? 
+    runtimeIhm.ip ??
+    getRuntimeConfig("ip");
+    
+  const finalUser = overrideConfig?.user ?? 
+    runtimeIhm.user ??
+    getRuntimeConfig("user");
+    
+  const finalPassword = overrideConfig?.password ?? 
+    runtimeIhm.password ??
+    getRuntimeConfig("pass");
+
+  // If we have override config, update the runtime config for future use
+  if (overrideConfig) {
+    const updatedIhmConfig = { ...runtimeIhm };
+    if (overrideConfig.ip) updatedIhmConfig.ip = overrideConfig.ip;
+    if (overrideConfig.user) updatedIhmConfig.user = overrideConfig.user;
+    if (overrideConfig.password) updatedIhmConfig.password = overrideConfig.password;
+    
+    try {
+      setRuntimeConfigs({ "ihm-config": updatedIhmConfig });
+      console.log(`[collector] Updated IHM config with IP: ${finalIp}`);
+    } catch (e) {
+      console.warn("[collector] Failed to update runtime config:", e);
+    }
+  }
+
   const ihm = new IHMService(
-    String(
-      runtimeIhm.ip ??
-        getRuntimeConfig("ip") // ?? PNC DO kRl
-        // process.env.IHM_IP
-        // "192.168.5.253"
-    ),
-    String(
-      runtimeIhm.user ??
-        getRuntimeConfig("user") 
-        // ??
-        // process.env.IHM_USER ??
-        // "anonymous"
-    ),
-    String(
-      runtimeIhm.password ??
-        getRuntimeConfig("pass") // ?? ""
-    )
+    String(finalIp || ""),
+    String(finalUser || "anonymous"),
+    String(finalPassword || "")
   );
 
   const runCycle = async () => {
@@ -412,6 +430,79 @@ app.post('/api/clear/all', async (req, res) => {
   }
 });
 
+// Clear production data but keep users and materia prima with default setup
+app.post('/api/clear/production', async (req, res) => {
+  try {
+    await dbService.init();
+    await cacheService.init();
+    
+    // Clear production tables (keep User and MateriaPrima)
+    const relatorioRepo = AppDataSource.getRepository(Relatorio);
+    const batchRepo = AppDataSource.getRepository(Batch);
+    const rowRepo = AppDataSource.getRepository(Row);
+    const estoqueRepo = AppDataSource.getRepository(Estoque);
+    const movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
+    
+    await relatorioRepo.clear();
+    await batchRepo.clear();
+    await rowRepo.clear();
+    await estoqueRepo.clear();
+    await movimentacaoRepo.clear();
+    
+    // Reset MateriaPrima to default products (optional - you can remove this if you want to keep existing products)
+    const materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
+    await materiaPrimaRepo.clear();
+    let defaultProducts = [];
+    // Setup default products (example products - adjust as needed)
+    for (let i = 1; i <= 40; i++) {
+      defaultProducts.push({
+        num: i,
+        produto: `Produto ${i}`,
+        medida: 1, // kg
+      });
+    };
+
+
+    for (const prod of defaultProducts) {
+      try {
+        const newProduct = materiaPrimaRepo.create(prod);
+        await materiaPrimaRepo.save(newProduct);
+      } catch (e) {
+        console.warn('[api/clear/production] failed to create default product:', prod, e);
+      }
+    }
+    
+    // Clear cache (both database records and SQLite file)
+    await cacheService.clearAll();
+    
+    // Also clear the physical cache SQLite file
+    try {
+      const cachePath = path.resolve(process.cwd(), process.env.CACHE_SQLITE_PATH || 'cache.sqlite');
+      if (fs.existsSync(cachePath)) {
+        fs.unlinkSync(cachePath);
+        console.log('[api/clear/production] Cache SQLite file deleted:', cachePath);
+      }
+    } catch (e) {
+      console.warn('[api/clear/production] Failed to delete cache SQLite file:', e);
+    }
+    
+    // Clear backups (optional)
+    try { 
+      await backupSvc.clearAllBackups(); 
+    } catch (e) { 
+      console.warn('[api/clear/production] clearing backups failed', e); 
+    }
+    
+    return res.json({ 
+      ok: true, 
+      message: 'Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, cache SQLite cleared.' 
+    });
+  } catch (e: any) {
+    console.error('[api/clear/production] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
 app.get("/api/backup/list", async (req, res) => {
   try {
     await ensureDatabaseConnection();
@@ -698,6 +789,213 @@ app.get("/api/relatorio/paginate", async (req, res) => {
   } catch (e: any) {
     console.error("[relatorio/paginate] Unexpected error:", e);
     return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// Export filtered relatorio rows to Excel
+app.get("/api/relatorio/exportExcel", async (req, res) => {
+  try {
+    // Reuse same filters as paginate GET
+    const codigoRaw = req.query.codigo ?? null;
+    const numeroRaw = req.query.numero ?? null;
+    const formulaRaw = req.query.formula ?? null;
+    const dataInicio = req.query.dataInicio ?? null;
+    const dataFim = req.query.dataFim ?? null;
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
+    const sortBy = String(req.query.sortBy || "Dia");
+    const sortDir = String(req.query.sortDir || "DESC");
+
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+    const qb = repo.createQueryBuilder("r");
+
+    if (codigoRaw != null && String(codigoRaw) !== "") {
+      const c = Number(codigoRaw);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :c", { c });
+    }
+    if (numeroRaw != null && String(numeroRaw) !== "") {
+      const num = Number(numeroRaw);
+      if (!Number.isNaN(num)) qb.andWhere("r.Form2 = :num", { num });
+    }
+    if (formulaRaw != null && String(formulaRaw) !== "") {
+      const fNum = Number(String(formulaRaw));
+      if (!Number.isNaN(fNum)) qb.andWhere("r.Form1 = :fNum", { fNum });
+      else {
+        const fStr = String(formulaRaw).toLowerCase();
+        qb.andWhere("LOWER(r.Nome) LIKE :fStr", { fStr: `%${fStr}%` });
+      }
+    }
+    if (normDataInicio) qb.andWhere("r.Dia >= :ds", { ds: normDataInicio });
+    if (normDataFim) {
+      const parts = normDataFim.split("-");
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFim;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
+
+    const allowed = new Set(["Dia", "Hora", "Nome", "Form1", "Form2"]);
+    const sb = allowed.has(sortBy) ? sortBy : "Dia";
+    const sd = sortDir === "ASC" ? "ASC" : "DESC";
+    qb.orderBy(`r.${sb}`, sd);
+
+    const rows = await qb.getMany();
+
+    // Load materia prima labels/units for normalization
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Build workbook
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Relatorio');
+
+    // Header row: Dia, Hora, Nome, Codigo, Numero, Prod_1 ... Prod_40
+    const headers = ['Dia','Hora','Nome','Codigo do programa','Codigo do cliente'];
+    for (let i = 1; i <= 40; i++) {
+      // get product name if available
+      const mp = materiasByNum[i];
+      if (mp && mp.produto) headers.push(`${mp.produto}`);
+      else headers.push(`Prod_${i}`);
+    };
+    ws.addRow(headers);
+
+    for (const r of rows) {
+      const rowArr: any[] = [];
+      rowArr.push(r.Dia || '');
+      rowArr.push(r.Hora || '');
+      rowArr.push(r.Nome || '');
+      rowArr.push(r.Form1 ?? '');
+      rowArr.push(r.Form2 ?? '');
+      for (let i = 1; i <= 40; i++) {
+        let v = typeof r[`Prod_${i}`] === 'number' ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0 && v) v = v / 1000; // grams -> kg
+        rowArr.push(v);
+      }
+      ws.addRow(rowArr);
+    }
+
+    // Set number format for product columns
+    for (let col = 6; col < 6 + 40; col++) {
+      const column = ws.getColumn(col);
+      column.numFmt = '#,##0.##';
+    }
+
+    // Stream workbook to response
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_${Date.now()}.xlsx`);
+    await wb.xlsx.write(res as any);
+    // signal end
+    res.end();
+  } catch (e: any) {
+    console.error('[exportExcel] error', e);
+    return res.status(500).json({ error: 'internal', details: e?.message });
+  }
+});
+
+// POST variant that accepts same body as paginate POST
+app.post('/api/relatorio/exportExcel', async (req, res) => {
+  try {
+    const codigoRaw = req.body.codigo ?? null;
+    const numeroRaw = req.body.numero ?? null;
+    const formulaRaw = req.body.formula ?? null;
+    const dataInicio = req.body.dataInicio ?? null;
+    const dataFim = req.body.dataFim ?? null;
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
+    const sortBy = String(req.body.sortBy || 'Dia');
+    const sortDir = String(req.body.sortDir || 'DESC');
+
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+    const qb = repo.createQueryBuilder('r');
+
+    if (codigoRaw != null && codigoRaw !== '') {
+      const c = Number(codigoRaw);
+      if (!Number.isNaN(c)) qb.andWhere('r.Form1 = :c', { c });
+    }
+    if (numeroRaw != null && numeroRaw !== '') {
+      const num = Number(numeroRaw);
+      if (!Number.isNaN(num)) qb.andWhere('r.Form2 = :num', { num });
+    }
+    if (formulaRaw != null && formulaRaw !== '') {
+      const fNum = Number(formulaRaw);
+      if (!Number.isNaN(fNum)) qb.andWhere('r.Form1 = :fNum', { fNum });
+      else qb.andWhere('LOWER(r.Nome) LIKE :fStr', { fStr: `%${String(formulaRaw).toLowerCase()}%` });
+    }
+    if (normDataInicio) qb.andWhere('r.Dia >= :ds', { ds: normDataInicio });
+    if (normDataFim) {
+      const parts = normDataFim.split('-');
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFim;
+      }
+      qb.andWhere('r.Dia < :dePlus', { dePlus });
+    }
+
+    const allowed = new Set(['Dia','Hora','Nome','Form1','Form2']);
+    const sb = allowed.has(sortBy) ? sortBy : 'Dia';
+    const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
+    qb.orderBy(`r.${sb}`, sd);
+
+    const rows = await qb.getMany();
+
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Relatorio');
+    const headers = ['Dia','Hora','Nome','Codigo','Numero'];
+    for (let i = 1; i <= 40; i++) headers.push(`Prod_${i}`);
+    ws.addRow(headers);
+    for (const r of rows) {
+      const rowArr: any[] = [];
+      rowArr.push(r.Dia || '');
+      rowArr.push(r.Hora || '');
+      rowArr.push(r.Nome || '');
+      rowArr.push(r.Form1 ?? '');
+      rowArr.push(r.Form2 ?? '');
+      for (let i = 1; i <= 40; i++) {
+        let v = typeof r[`Prod_${i}`] === 'number' ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0 && v) v = v / 1000;
+        rowArr.push(v);
+      }
+      ws.addRow(rowArr);
+    }
+    for (let col = 6; col < 6 + 40; col++) ws.getColumn(col).numFmt = '#,##0.##';
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_${Date.now()}.xlsx`);
+    await wb.xlsx.write(res as any);
+    res.end();
+  } catch (e: any) {
+    console.error('[exportExcel POST] error', e);
+    return res.status(500).json({ error: 'internal', details: e?.message });
   }
 });
 
@@ -1218,7 +1516,30 @@ app.post("/api/db/populate", async (req, res) => {
 
 app.get("/api/collector/start", async (req, res) => {
   try {
-    const result = await startCollector();
+    // Accept optional override parameters
+    const overrideConfig: any = {};
+    if (req.query.ip) overrideConfig.ip = String(req.query.ip);
+    if (req.query.user) overrideConfig.user = String(req.query.user);
+    if (req.query.password) overrideConfig.password = String(req.query.password);
+    
+    const result = await startCollector(Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
+    return res.json(result);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+app.post("/api/collector/start", async (req, res) => {
+  try {
+    // Accept optional override parameters in body
+    const { ip, user, password } = req.body || {};
+    const overrideConfig: any = {};
+    if (ip) overrideConfig.ip = String(ip);
+    if (user) overrideConfig.user = String(user);
+    if (password) overrideConfig.password = String(password);
+    
+    const result = await startCollector(Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
     return res.json(result);
   } catch (e) {
     console.error(e);

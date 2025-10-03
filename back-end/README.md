@@ -176,7 +176,39 @@ GET /api/file/process?filePath=/tmp/relatorio.csv
 O sistema possui um coletor que monitora servidores FTP para baixar novos arquivos CSV automaticamente.
 
 #### `GET /api/collector/start`
-Inicia o coletor automático.
+#### `POST /api/collector/start`
+Inicia o coletor automático com configuração IHM opcional.
+
+**Parâmetros GET (query string):**
+- `ip` (string): IP do servidor IHM (opcional)
+- `user` (string): Usuário FTP (opcional)
+- `password` (string): Senha FTP (opcional)
+
+**Parâmetros POST (body JSON):**
+```json
+{
+  "ip": "192.168.1.100",
+  "user": "admin",
+  "password": "123456"
+}
+```
+
+**Exemplo GET:**
+```bash
+GET /api/collector/start?ip=192.168.1.100&user=admin&password=123456
+```
+
+**Exemplo POST:**
+```bash
+POST /api/collector/start
+Content-Type: application/json
+
+{
+  "ip": "192.168.1.100",
+  "user": "admin", 
+  "password": "123456"
+}
+```
 
 **Resposta:**
 ```json
@@ -191,6 +223,11 @@ Inicia o coletor automático.
   }
 }
 ```
+
+**Comportamento:**
+- Se parâmetros IHM forem fornecidos, atualiza a configuração runtime e usa esses valores
+- Se não fornecidos, usa configuração salva anteriormente
+- Configuração atualizada fica persistente para próximas execuções
 
 ---
 
@@ -683,6 +720,32 @@ Limpa cache de arquivos processados.
 
 #### `POST /api/clear/all`
 Limpa banco + cache + backups.
+
+---
+
+#### `POST /api/clear/production`
+Limpa apenas dados de produção, preservando usuários e resetando matéria prima.
+
+**Descrição:**
+Remove todos os dados de produção (relatórios, estoque, movimentações) mas preserva:
+- Usuários cadastrados
+- Configurações do sistema
+
+Reseta matéria prima para produtos padrão (Produto 1-40 em kg).
+
+**Limpezas realizadas:**
+- Tabelas: Relatorio, Batch, Row, Estoque, MovimentacaoEstoque
+- Cache SQLite (arquivo físico deletado)
+- Backups
+- Matéria prima (resetada para padrões)
+
+**Resposta:**
+```json
+{
+  "ok": true,
+  "message": "Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, cache SQLite cleared."
+}
+```
 
 ---
 

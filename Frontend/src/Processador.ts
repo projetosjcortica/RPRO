@@ -229,7 +229,10 @@ export class Processador {
     return this.makeRequest('/api/db/syncLocalToMain', 'GET', { limit });
   }
 
-  public collectorStart() {
+  public async collectorStart(ihmConfig?: { ip?: string; user?: string; password?: string }) {
+    if (ihmConfig && (ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
+      return this.makeRequest('/api/collector/start', 'POST', ihmConfig);
+    }
     return this.makeRequest('/api/collector/start');
   }
 
