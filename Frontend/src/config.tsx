@@ -167,6 +167,24 @@ const configService = {
     }
   },
 
+  async cleanProductionData(): Promise<boolean> {
+    try {
+      const response = await fetch("http://localhost:3000/api/clear/production", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return result.ok === true;
+    } catch (error) {
+      console.error("Failed to clean production data:", error);
+      throw error;
+    }
+  },
+
   async selectFolder(): Promise<string> {
     return new Promise((resolve) => {
       const input = document.createElement("input");
@@ -552,6 +570,47 @@ export function AdminConfig({
   // ✅ HOOKS PRIMEIRO
   const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
+  // Export state and handler (inline form instead of prompt)
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportDataInicio, setExportDataInicio] = useState<string | null>(null);
+  const [exportDataFim, setExportDataFim] = useState<string | null>(null);
+  const [exportFormula, setExportFormula] = useState<string | null>(null);
+
+  const handleExportExecute = async () => {
+    try {
+      const backendPort = (window as any).backendPort || 3000;
+      const base = `http://localhost:${backendPort}`;
+      const params = new URLSearchParams();
+      if (exportDataInicio) params.append('dataInicio', exportDataInicio as string);
+      if (exportDataFim) params.append('dataFim', exportDataFim as string);
+      if (exportFormula) params.append('formula', exportFormula as string);
+
+      const url = `${base}/api/relatorio/exportExcel?${params.toString()}`;
+
+      const resp = await fetch(url, { method: 'GET' });
+      if (!resp.ok) {
+        let txt = '';
+        try { txt = await resp.text(); } catch {}
+        toast.error('Falha ao exportar: ' + (txt || resp.statusText));
+        return;
+      }
+
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `relatorio_${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+      toast.success('Download iniciado');
+      setExportOpen(false);
+    } catch (err) {
+      console.error('Erro exportando Excel', err);
+      toast.error('Erro ao exportar relatório');
+    }
+  };
 
   // ✅ Loading state DEPOIS dos hooks
   if (isLoading) {
@@ -559,6 +618,7 @@ export function AdminConfig({
       <div className="flex justify-center items-center p-8">Loading...</div>
     );
   }
+
 
   // ✅ RETURN FINAL
   return (
@@ -653,22 +713,51 @@ export function AdminConfig({
           </Label>
         </div>
 
+        <div id="excelExport" className="mb-4">
+          <Label className="font-medium text-gray-700">Exportar relatórios</Label>
+          <div className="mt-2">
+            {!exportOpen ? (
+              <Button onClick={() => setExportOpen(true)} className="w-70">
+                Exportar Relatório (XLSX)
+              </Button>
+            ) : (
+              <div className="flex flex-col gap-2 p-3 border rounded bg-gray-50">
+                <div className="flex gap-2">
+                  <Input type="date" onChange={(e) => setExportDataInicio(e.target.value)} value={exportDataInicio ?? ''} />
+                  <Input type="date" onChange={(e) => setExportDataFim(e.target.value)} value={exportDataFim ?? ''} />
+                </div>
+                <Input placeholder="Fórmula (nome ou código)" onChange={(e) => setExportFormula(e.target.value)} value={exportFormula ?? ''} />
+                <div className="flex gap-2 justify-end">
+                  <Button onClick={() => { setExportOpen(false); setExportDataInicio(null); setExportDataFim(null); setExportFormula(null); }} variant="outline">Cancelar</Button>
+                  <Button onClick={handleExportExecute} className="bg-blue-600 hover:bg-blue-700">Exportar</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <div id="sidetxt">
               <Label className="font-medium text-gray-700">
-                Zerar banco de Dados
-                <Button className="w-70 mt-2" disabled={!isEditing}>
-                  Zerar banco
+                Resetar Sistema
+                <Button className="w-70 mt-2 bg-red-600 hover:bg-red-700" disabled={!isEditing}>
+                  Resetar Sistema
                 </Button>
               </Label>
             </div>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+              <AlertDialogTitle>Resetar sistema completo?</AlertDialogTitle>
               <AlertDialogDescription>
-                Todos os dados do banco serão permanentemente deletados
+                Esta ação irá:
+                <br />• Limpar todos os dados de produção (relatórios, estoque, movimentações)
+                <br />• Resetar matéria prima para produtos padrão (Produto 1-40)
+                <br />• Limpar cache SQLite e backups
+                <br />• Preservar usuários e configurações do sistema
+                <br /><br />
+                <strong>Esta ação é irreversível!</strong>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -676,11 +765,11 @@ export function AdminConfig({
               <AlertDialogAction
                 onClick={async () => {
                   try {
-                    const sucesso = await configService.cleanDB();
+                    const sucesso = await configService.cleanProductionData();
                     if (sucesso) {
-                      toast.success("Banco de dados zerado com sucesso!");
+                      toast.success("Sistema resetado com sucesso! Usuários e configurações preservados.");
                     } else {
-                      toast.error("Erro ao zerar banco de dados");
+                      toast.error("Erro ao resetar sistema");
                     }
                   } catch (err) {
                     console.error(err);
@@ -689,7 +778,7 @@ export function AdminConfig({
                 }}
                 className="bg-red-600 hover:bg-red-700"
               >
-                Continuar
+                Resetar Sistema
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

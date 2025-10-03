@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { format as formatDateFn } from 'date-fns';
+import { format as formatDateFn } from "date-fns";
 import {
   Table,
   TableHeader,
@@ -9,6 +9,8 @@ import {
   TableRow,
 } from "./components/ui/table";
 import { Filtros, ReportRow } from "./components/types";
+import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
+// import { getProcessador } from './Processador'
 import { useReportData } from "./hooks/useReportData";
 
 interface TableComponentProps {
@@ -20,7 +22,10 @@ interface TableComponentProps {
   total?: number;
   page?: number;
   pageSize?: number;
-  produtosInfo?: Record<string, { nome?: string; unidade?: string; num?: number }>;
+  produtosInfo?: Record<
+    string,
+    { nome?: string; unidade?: string; num?: number }
+  >;
   useExternalData?: boolean;
 }
 
@@ -38,44 +43,55 @@ function shallowEqual(a: any, b: any) {
 }
 
 function getLastTimestamp(arr: any[]) {
-  if (!Array.isArray(arr) || arr.length === 0) return '';
+  if (!Array.isArray(arr) || arr.length === 0) return "";
   for (let i = arr.length - 1; i >= 0; i--) {
     const r = arr[i];
     if (r && (r.Dia || r.Hora)) {
-      const d = String(r.Dia || '').trim();
-      const h = String(r.Hora || '').trim();
+      const d = String(r.Dia || "").trim();
+      const h = String(r.Hora || "").trim();
       if (d || h) return `${d}T${h}`;
     }
   }
-  return '';
+  return "";
 }
 
 const safeString = (value: any): string => {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number') return value.toString();
-  if (typeof value === 'boolean') return value.toString();
-  if (typeof value === 'object') {
-    if (value.produto && typeof value.produto === 'string') return value.produto;
-    if (value.nome && typeof value.nome === 'string') return value.nome;
-    if (value.label && typeof value.label === 'string') return value.label;
-    return '';
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return value.toString();
+  if (typeof value === "boolean") return value.toString();
+  if (typeof value === "object") {
+    // Se for um objeto, tenta extrair propriedades úteis
+    if (value.produto && typeof value.produto === "string")
+      return value.produto;
+    if (value.nome && typeof value.nome === "string") return value.nome;
+    if (value.label && typeof value.label === "string") return value.label;
+    // Se não conseguir extrair, retorna string vazia para evitar erro
+    return "";
   }
   return String(value);
 };
 
 const receba = (col: any, idx: number) => {
   if (idx === 3) {
-    return <div>Código do <br /> programa</div>;
+    return (
+      <div>
+        Código do <br /> programa
+      </div>
+    );
   } else if (idx === 4) {
-    return <div>Código do <br /> cliente</div>;
+    return (
+      <div>
+        Código do <br /> cliente
+      </div>
+    );
   }
   return safeString(col);
 };
 
-function TableComponent({   
-  dados: dadosProp = [], 
-  loading: loadingProp, 
+function TableComponent({
+  dados: dadosProp = [],
+  loading: loadingProp,
   error: errorProp,
   produtosInfo: produtosInfoProp = {},
   filtros = {},
@@ -83,13 +99,15 @@ function TableComponent({
   pageSize = 100,
   useExternalData = false,
 }: TableComponentProps) {
-  const tableRef = useRef<HTMLDivElement>(null); 
+  const tableRef = useRef<HTMLDivElement>(null);
   const [dadosAtual, setDadosAtual] = React.useState<ReportRow[]>(dadosProp);
 
+  // Hook é chamado sempre no nível superior (top-level), o que está correto.
   const hookResult = useReportData(filtros as any, page, pageSize);
   const dadosFromHook = hookResult.dados || [];
   const loadingFromHook = hookResult.loading;
   const errorFromHook = hookResult.error;
+  // setDadosAtual(dadosFromHook)
 
   useEffect(() => {
     if (useExternalData) return;
@@ -111,14 +129,18 @@ function TableComponent({
     }
   }, [dadosProp, useExternalData, dadosAtual]);
 
+  // Use produtosInfo passed from parent (backend-provided). Keep as a const alias.
   const produtosInfo = produtosInfoProp || {};
+
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
+  // Função para converter valores baseado na unidade (no momento retorna o valor já normalizado em kg)
   const converterValor = (valor: number, _colKey: string): number => {
-    if (typeof valor !== 'number') return valor as any;
-    return valor;
+    if (typeof valor !== "number") return valor as any;
+    return valor; // already normalized to kg by backend
   };
 
+  // Função para formatar valores exibidos na tabela
   const formatValue = (v: unknown, colKey: string): string => {
     if (typeof v === "number") {
       const valorConvertido = converterValor(v, colKey);
@@ -130,11 +152,12 @@ function TableComponent({
     return safeString(v);
   };
 
+  // Função para obter o label correto da coluna - SEMPRE retorna string
   const getColumnLabel = (colKey: string): string => {
     if (fixedColumns.includes(colKey)) return colKey;
     if (colKey.startsWith('col')) {
       const label = produtosInfo[colKey]?.nome;
-      const colNum = parseInt(colKey.replace('col', ''), 10);
+      const colNum = parseInt(colKey.replace("col", ""), 10);
       return safeString(label) || `Produto ${colNum - 5}`;
     }
     return safeString(colKey);
@@ -316,7 +339,8 @@ export default React.memo(TableComponent, (prevProps, nextProps) => {
   if (prevProps.page !== nextProps.page) return false;
   if (prevProps.pageSize !== nextProps.pageSize) return false;
   if (!shallowEqual(prevProps.colLabels, nextProps.colLabels)) return false;
-  if (!shallowEqual(prevProps.produtosInfo, nextProps.produtosInfo)) return false;
+  if (!shallowEqual(prevProps.produtosInfo, nextProps.produtosInfo))
+    return false;
 
   const prevRows = Array.isArray(prevProps.dados) ? prevProps.dados : [];
   const nextRows = Array.isArray(nextProps.dados) ? nextProps.dados : [];

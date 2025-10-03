@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { BaseService } from '../core/baseService';
 import { BackupMeta, hashBufferHex } from '../core/utils';
-import { cacheService } from './CacheService';
+import { cacheService } from './cacheService';
 
 const DEFAULT_BACKUP_DIR = path.resolve(process.cwd(), 'backups');
 const ENV_WORK_DIR = process.env.BACKUP_WORKDIR ? path.resolve(process.cwd(), process.env.BACKUP_WORKDIR) : null;
@@ -29,6 +29,23 @@ export class BackupService extends BaseService {
     this.metas.push(meta);
     try { await cacheService.recordBackupMeta(meta, fs.statSync(fileObj.path)); } catch {}
     return meta;
+  }
+
+  /**
+   * Remove all backup files and clear the in-memory metas list.
+   */
+  async clearAllBackups() {
+    try {
+      if (fs.existsSync(DEFAULT_BACKUP_DIR)) {
+        const files = fs.readdirSync(DEFAULT_BACKUP_DIR);
+        for (const f of files) {
+          try { fs.unlinkSync(path.join(DEFAULT_BACKUP_DIR, f)); } catch (e) { /* ignore */ }
+        }
+      }
+    } catch (e) {
+      console.warn('[BackupService] Failed to clear backup files:', e);
+    }
+    this.metas = [];
   }
 }
 

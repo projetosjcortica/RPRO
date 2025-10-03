@@ -22,6 +22,9 @@ export interface ResumoTotal {
     horaInicial: string | null;
     horaFinal: string | null;
     usosPorProduto: Record<string, { quantidade: number; label: string; unidade: string; }>;
+    // Horário do primeiro e último dia (primeira batida e última batida daquele dia)
+    firstDayRange?: { date: string | null; firstTime: string | null; lastTime: string | null };
+    lastDayRange?: { date: string | null; firstTime: string | null; lastTime: string | null };
     // Optional debug metadata (not used by UI by default)
     _appliedFilters?: any;
     _matchedRows?: number;
@@ -252,6 +255,26 @@ export class ResumoService {
                 formulasUtilizadas,
                 totalPesos,
                 usosPorProduto,
+                firstDayRange: (() => {
+                    try {
+                        const start = result.periodoInicio;
+                        if (!start) return { date: null, firstTime: null, lastTime: null };
+                        const rowsForStart = allRows.filter(r => r.Dia === start && r.Hora);
+                        if (!rowsForStart.length) return { date: start, firstTime: null, lastTime: null };
+                        const times = rowsForStart.map(r => r.Hora).sort();
+                        return { date: start, firstTime: times[0], lastTime: times[times.length-1] };
+                    } catch (e) { return { date: null, firstTime: null, lastTime: null }; }
+                })(),
+                lastDayRange: (() => {
+                    try {
+                        const end = result.periodoFim;
+                        if (!end) return { date: null, firstTime: null, lastTime: null };
+                        const rowsForEnd = allRows.filter(r => r.Dia === end && r.Hora);
+                        if (!rowsForEnd.length) return { date: end, firstTime: null, lastTime: null };
+                        const times = rowsForEnd.map(r => r.Hora).sort();
+                        return { date: end, firstTime: times[0], lastTime: times[times.length-1] };
+                    } catch (e) { return { date: null, firstTime: null, lastTime: null }; }
+                })(),
                 areaId: filtros.areaId,
                 areaDescricao: areaInfo?.AreaDescricao || `Área ${filtros.areaId}`
             };
@@ -271,6 +294,28 @@ export class ResumoService {
             _appliedFilters: filtros || {},
             _matchedRows: allRows.length
         };
+
+        // compute first/last day ranges
+        try {
+            const start = result.periodoInicio;
+            const end = result.periodoFim;
+            baseResumo.firstDayRange = start ? (() => {
+                const rowsForStart = allRows.filter(r => r.Dia === start && r.Hora);
+                if (!rowsForStart.length) return { date: start, firstTime: null, lastTime: null };
+                const times = rowsForStart.map(r => r.Hora).sort();
+                return { date: start, firstTime: times[0], lastTime: times[times.length-1] };
+            })() : { date: null, firstTime: null, lastTime: null };
+
+            baseResumo.lastDayRange = end ? (() => {
+                const rowsForEnd = allRows.filter(r => r.Dia === end && r.Hora);
+                if (!rowsForEnd.length) return { date: end, firstTime: null, lastTime: null };
+                const times = rowsForEnd.map(r => r.Hora).sort();
+                return { date: end, firstTime: times[0], lastTime: times[times.length-1] };
+            })() : { date: null, firstTime: null, lastTime: null };
+        } catch (e) {
+            baseResumo.firstDayRange = { date: null, firstTime: null, lastTime: null };
+            baseResumo.lastDayRange = { date: null, firstTime: null, lastTime: null };
+        }
 
         return baseResumo;
     }

@@ -2,7 +2,7 @@ import { BaseService } from '../core/baseService';
 import { Client } from 'basic-ftp';
 import path from 'path';
 import fs from 'fs';
-import { cacheService } from './CacheService';
+import { cacheService } from './cacheService';
 import { dbService } from './dbService';
 import { log } from 'console';
 
@@ -65,6 +65,10 @@ export class IHMService extends BaseService {
         return false;
       }
       if (f.name.toLowerCase().includes('_sys')) {
+        log(`[IHMService] Skipping system file: ${f.name}`);
+        return false;
+      }
+      if (f.name.toLowerCase().endsWith('_2.csv')) {
         log(`[IHMService] Skipping system file: ${f.name}`);
         return false;
       }

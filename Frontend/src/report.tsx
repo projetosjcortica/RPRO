@@ -305,7 +305,38 @@ export default function Report() {
         refetch();
         refreshResumo();
       } else {
-        const res = await fetch("http://localhost:3000/api/collector/start", { method: "GET" });
+        // Get current IHM config before starting collector
+        let ihmConfig = null;
+        try {
+          const configRes = await fetch("http://localhost:3000/api/config/ihm-config");
+          if (configRes.ok) {
+            const configData = await configRes.json();
+            ihmConfig = configData.value;
+          }
+        } catch (e) {
+          console.warn("Failed to load IHM config:", e);
+        }
+
+        // Start collector with current IHM config
+        let res;
+        if (ihmConfig && (ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
+          // Send config as POST with body
+          res = await fetch("http://localhost:3000/api/collector/start", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ip: ihmConfig.ip,
+              user: ihmConfig.user,
+              password: ihmConfig.password,
+            }),
+          });
+        } else {
+          // Fallback to GET method
+          res = await fetch("http://localhost:3000/api/collector/start", { method: "GET" });
+        }
+
         if (!res.ok) throw new Error("Falha ao iniciar o coletor.");
         const payload = await res.json().catch(() => ({}));
         if (payload && payload.started === false) {

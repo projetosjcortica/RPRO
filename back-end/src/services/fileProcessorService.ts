@@ -5,7 +5,7 @@ import { ProcessPayload, hashBufferHex } from "../core/utils";
 import { backupSvc } from "./backupService";
 import { parserService } from "./parserService";
 import { dbService } from "./dbService";
-import { cacheService } from "./CacheService";
+import { cacheService } from "./cacheService";
 
 class Subject<T> {
   private observers: Array<{ update(payload: T): Promise<void> }> = [];

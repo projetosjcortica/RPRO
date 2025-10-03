@@ -85,6 +85,33 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
     setIsEditing(false);
   };
 
+  // Export handler: triggers XLSX download from backend (no prompts)
+  const handleExportExcel = async () => {
+    try {
+      const backendPort = (window as any).backendPort || 3000;
+      const url = `http://localhost:${backendPort}/api/relatorio/exportExcel`;
+      const resp = await fetch(url, { method: 'GET' });
+      if (!resp.ok) {
+        let txt = '';
+        try { txt = await resp.text(); } catch {}
+        toast.error('Falha ao exportar: ' + (txt || resp.statusText));
+        return;
+      }
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `relatorio_${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+      toast.success('Download iniciado');
+    } catch (err) {
+      console.error('Erro exportando Excel', err);
+      toast.error('Erro ao exportar relatório');
+    }
+  };
 
 
   return (
@@ -163,26 +190,22 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
                 Selecionar arquivo
               </Button>
             </div>
-          </div>
-          
-          {/* Separador para seção de desenvolvimento */}
-          <div className="border-t border-gray-200 pt-4 mt-2">
-            <h3 className="text-lg font-medium text-gray-800 mb-2">Configurações de Desenvolvimento</h3>
-            
-
-          </div>
+          </div> 
         </div>
       </div>
 
+        
+
       <div id="CmdAdvancedDB" className="mb-4">
-        <div id="sidetxt" className="mb-4">
+        {/* <div id="sidetxt" className="mb-4">
           <Label className="font-medium text-gray-700">
             Importar dump padrão
             <Button className="w-70 mt-2" disabled={!isEditing}>
               Importar Dump
             </Button>
           </Label>
-        </div>
+        </div> */}
+      <p>teste</p>
 
         <AlertDialog>
           <AlertDialogTrigger asChild>
@@ -226,7 +249,14 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           </AlertDialogContent>
         </AlertDialog>
       </div>
-      
+      <div id="excelExport" className="mb-4">
+          <Label className="font-medium text-gray-700">
+            Exportar relatórios
+            <Button onClick={handleExportExcel} className="w-70 mt-2">
+              Exportar Relatório (XLSX)
+            </Button>  
+          </Label>
+        </div>
       <div className="flex gap-2 justify-end mt-6">
         {isEditing ? (
           <>

@@ -5,12 +5,14 @@ import { AppDataSource, dbService } from "./services/dbService";
 import { backupSvc } from "./services/backupService";
 import { parserService } from "./services/parserService";
 import { fileProcessorService } from "./services/fileProcessorService";
+import { cacheService } from "./services/cacheService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
 import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
+import ExcelJS from "exceljs";
 import { dataPopulationService } from "./services/dataPopulationService"; // Importação do serviço de população de dados
 import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
-import { Relatorio, MateriaPrima, Batch, User } from "./entities";
+import { Relatorio, MateriaPrima, Batch, User, MovimentacaoEstoque, Estoque, Row } from "./entities";
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
 import cors from "cors";
@@ -62,7 +64,11 @@ export function getCollectorStatus(): CollectorStatus {
   return { ...collectorState };
 }
 
-export async function startCollector(): Promise<{
+export async function startCollector(overrideConfig?: {
+  ip?: string;
+  user?: string;
+  password?: string;
+}): Promise<{
   started: boolean;
   message?: string;
   status: CollectorStatus;
@@ -75,27 +81,40 @@ export async function startCollector(): Promise<{
     };
   }
 
-  // Prefer the 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
+  // Prefer override config, then 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
   const runtimeIhm = getRuntimeConfig("ihm-config") || {};
-  // console.log(runtimeIhm);
+  
+  const finalIp = overrideConfig?.ip ?? 
+    runtimeIhm.ip ??
+    getRuntimeConfig("ip");
+    
+  const finalUser = overrideConfig?.user ?? 
+    runtimeIhm.user ??
+    getRuntimeConfig("user");
+    
+  const finalPassword = overrideConfig?.password ?? 
+    runtimeIhm.password ??
+    getRuntimeConfig("pass");
+
+  // If we have override config, update the runtime config for future use
+  if (overrideConfig) {
+    const updatedIhmConfig = { ...runtimeIhm };
+    if (overrideConfig.ip) updatedIhmConfig.ip = overrideConfig.ip;
+    if (overrideConfig.user) updatedIhmConfig.user = overrideConfig.user;
+    if (overrideConfig.password) updatedIhmConfig.password = overrideConfig.password;
+    
+    try {
+      setRuntimeConfigs({ "ihm-config": updatedIhmConfig });
+      console.log(`[collector] Updated IHM config with IP: ${finalIp}`);
+    } catch (e) {
+      console.warn("[collector] Failed to update runtime config:", e);
+    }
+  }
+
   const ihm = new IHMService(
-    String(
-      runtimeIhm.ip ??
-        getRuntimeConfig("ip") // ?? PNC DO kRl
-        // process.env.IHM_IP
-        // "192.168.5.253"
-    ),
-    String(
-      runtimeIhm.user ??
-        getRuntimeConfig("user") 
-        // ??
-        // process.env.IHM_USER ??
-        // "anonymous"
-    ),
-    String(
-      runtimeIhm.password ??
-        getRuntimeConfig("pass") // ?? ""
-    )
+    String(finalIp || ""),
+    String(finalUser || "anonymous"),
+    String(finalPassword || "")
   );
 
   const runCycle = async () => {
@@ -329,6 +348,158 @@ app.get("/api/db/status", async (req, res) => {
       isInitialized: AppDataSource.isInitialized,
       ts: new Date().toISOString(),
     });
+  }
+});
+
+// Clear entire database (DELETE all rows from all entities)
+app.post('/api/db/clear', async (req, res) => {
+  try {
+    await dbService.init();
+    await dbService.clearAll();
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[api/db/clear] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Compatibility route: some frontends call /api/database/clean
+app.post('/api/database/clean', async (req, res) => {
+  try {
+    await dbService.init();
+    await dbService.clearAll();
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[api/database/clean] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Export DB dump as JSON (and optionally save to disk). Returns { dump, savedPath }
+app.get('/api/db/dump', async (req, res) => {
+  try {
+    await dbService.init();
+    const result = await dbService.exportDump(true);
+    return res.json({ ok: true, savedPath: result.savedPath, meta: result.dump._meta });
+  } catch (e: any) {
+    console.error('[api/db/dump] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Import DB dump (JSON body with dump object). This will replace existing tables.
+app.post('/api/db/import', async (req, res) => {
+  try {
+    const dumpObj = req.body;
+    if (!dumpObj) return res.status(400).json({ error: 'dump body required' });
+    await dbService.init();
+    const result = await dbService.importDump(dumpObj);
+    return res.json({ ok: true, ...result });
+  } catch (e: any) {
+    console.error('[api/db/import] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Clear cache DB used by cacheService
+app.post('/api/cache/clear', async (req, res) => {
+  try {
+    await cacheService.init();
+    await cacheService.clearAll();
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[api/cache/clear] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Unified clear all: DB + cache + backups
+app.post('/api/clear/all', async (req, res) => {
+  try {
+    await dbService.init();
+    await cacheService.init();
+    await backupSvc.listBackups();
+    // perform clears
+    await dbService.clearAll();
+    await cacheService.clearAll();
+    try { await backupSvc.clearAllBackups(); } catch (e) { console.warn('[api/clear/all] clearing backups failed', e); }
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[api/clear/all] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Clear production data but keep users and materia prima with default setup
+app.post('/api/clear/production', async (req, res) => {
+  try {
+    await dbService.init();
+    await cacheService.init();
+    
+    // Clear production tables (keep User and MateriaPrima)
+    const relatorioRepo = AppDataSource.getRepository(Relatorio);
+    const batchRepo = AppDataSource.getRepository(Batch);
+    const rowRepo = AppDataSource.getRepository(Row);
+    const estoqueRepo = AppDataSource.getRepository(Estoque);
+    const movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
+    
+    await relatorioRepo.clear();
+    await batchRepo.clear();
+    await rowRepo.clear();
+    await estoqueRepo.clear();
+    await movimentacaoRepo.clear();
+    
+    // Reset MateriaPrima to default products (optional - you can remove this if you want to keep existing products)
+    const materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
+    await materiaPrimaRepo.clear();
+    let defaultProducts = [];
+    // Setup default products (example products - adjust as needed)
+    for (let i = 1; i <= 40; i++) {
+      defaultProducts.push({
+        num: i,
+        produto: `Produto ${i}`,
+        medida: 1, // kg
+      });
+    };
+
+
+    for (const prod of defaultProducts) {
+      try {
+        const newProduct = materiaPrimaRepo.create(prod);
+        await materiaPrimaRepo.save(newProduct);
+      } catch (e) {
+        console.warn('[api/clear/production] failed to create default product:', prod, e);
+      }
+    }
+    
+    // Clear cache (both database records and SQLite file)
+    await cacheService.clearAll();
+    
+    // Also clear the physical cache SQLite file
+    try {
+      const cachePath = path.resolve(process.cwd(), process.env.CACHE_SQLITE_PATH || 'cache.sqlite');
+      if (fs.existsSync(cachePath)) {
+        fs.unlinkSync(cachePath);
+        console.log('[api/clear/production] Cache SQLite file deleted:', cachePath);
+      }
+    } catch (e) {
+      console.warn('[api/clear/production] Failed to delete cache SQLite file:', e);
+    }
+    
+    // Clear backups (optional)
+    try { 
+      await backupSvc.clearAllBackups(); 
+    } catch (e) { 
+      console.warn('[api/clear/production] clearing backups failed', e); 
+    }
+    
+    return res.json({ 
+      ok: true, 
+      message: 'Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, cache SQLite cleared.' 
+    });
+  } catch (e: any) {
+    console.error('[api/clear/production] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
 
@@ -618,6 +789,213 @@ app.get("/api/relatorio/paginate", async (req, res) => {
   } catch (e: any) {
     console.error("[relatorio/paginate] Unexpected error:", e);
     return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// Export filtered relatorio rows to Excel
+app.get("/api/relatorio/exportExcel", async (req, res) => {
+  try {
+    // Reuse same filters as paginate GET
+    const codigoRaw = req.query.codigo ?? null;
+    const numeroRaw = req.query.numero ?? null;
+    const formulaRaw = req.query.formula ?? null;
+    const dataInicio = req.query.dataInicio ?? null;
+    const dataFim = req.query.dataFim ?? null;
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
+    const sortBy = String(req.query.sortBy || "Dia");
+    const sortDir = String(req.query.sortDir || "DESC");
+
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+    const qb = repo.createQueryBuilder("r");
+
+    if (codigoRaw != null && String(codigoRaw) !== "") {
+      const c = Number(codigoRaw);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :c", { c });
+    }
+    if (numeroRaw != null && String(numeroRaw) !== "") {
+      const num = Number(numeroRaw);
+      if (!Number.isNaN(num)) qb.andWhere("r.Form2 = :num", { num });
+    }
+    if (formulaRaw != null && String(formulaRaw) !== "") {
+      const fNum = Number(String(formulaRaw));
+      if (!Number.isNaN(fNum)) qb.andWhere("r.Form1 = :fNum", { fNum });
+      else {
+        const fStr = String(formulaRaw).toLowerCase();
+        qb.andWhere("LOWER(r.Nome) LIKE :fStr", { fStr: `%${fStr}%` });
+      }
+    }
+    if (normDataInicio) qb.andWhere("r.Dia >= :ds", { ds: normDataInicio });
+    if (normDataFim) {
+      const parts = normDataFim.split("-");
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFim;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
+
+    const allowed = new Set(["Dia", "Hora", "Nome", "Form1", "Form2"]);
+    const sb = allowed.has(sortBy) ? sortBy : "Dia";
+    const sd = sortDir === "ASC" ? "ASC" : "DESC";
+    qb.orderBy(`r.${sb}`, sd);
+
+    const rows = await qb.getMany();
+
+    // Load materia prima labels/units for normalization
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Build workbook
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Relatorio');
+
+    // Header row: Dia, Hora, Nome, Codigo, Numero, Prod_1 ... Prod_40
+    const headers = ['Dia','Hora','Nome','Codigo do programa','Codigo do cliente'];
+    for (let i = 1; i <= 40; i++) {
+      // get product name if available
+      const mp = materiasByNum[i];
+      if (mp && mp.produto) headers.push(`${mp.produto}`);
+      else headers.push(`Prod_${i}`);
+    };
+    ws.addRow(headers);
+
+    for (const r of rows) {
+      const rowArr: any[] = [];
+      rowArr.push(r.Dia || '');
+      rowArr.push(r.Hora || '');
+      rowArr.push(r.Nome || '');
+      rowArr.push(r.Form1 ?? '');
+      rowArr.push(r.Form2 ?? '');
+      for (let i = 1; i <= 40; i++) {
+        let v = typeof r[`Prod_${i}`] === 'number' ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0 && v) v = v / 1000; // grams -> kg
+        rowArr.push(v);
+      }
+      ws.addRow(rowArr);
+    }
+
+    // Set number format for product columns
+    for (let col = 6; col < 6 + 40; col++) {
+      const column = ws.getColumn(col);
+      column.numFmt = '#,##0.##';
+    }
+
+    // Stream workbook to response
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_${Date.now()}.xlsx`);
+    await wb.xlsx.write(res as any);
+    // signal end
+    res.end();
+  } catch (e: any) {
+    console.error('[exportExcel] error', e);
+    return res.status(500).json({ error: 'internal', details: e?.message });
+  }
+});
+
+// POST variant that accepts same body as paginate POST
+app.post('/api/relatorio/exportExcel', async (req, res) => {
+  try {
+    const codigoRaw = req.body.codigo ?? null;
+    const numeroRaw = req.body.numero ?? null;
+    const formulaRaw = req.body.formula ?? null;
+    const dataInicio = req.body.dataInicio ?? null;
+    const dataFim = req.body.dataFim ?? null;
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
+    const sortBy = String(req.body.sortBy || 'Dia');
+    const sortDir = String(req.body.sortDir || 'DESC');
+
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+    const qb = repo.createQueryBuilder('r');
+
+    if (codigoRaw != null && codigoRaw !== '') {
+      const c = Number(codigoRaw);
+      if (!Number.isNaN(c)) qb.andWhere('r.Form1 = :c', { c });
+    }
+    if (numeroRaw != null && numeroRaw !== '') {
+      const num = Number(numeroRaw);
+      if (!Number.isNaN(num)) qb.andWhere('r.Form2 = :num', { num });
+    }
+    if (formulaRaw != null && formulaRaw !== '') {
+      const fNum = Number(formulaRaw);
+      if (!Number.isNaN(fNum)) qb.andWhere('r.Form1 = :fNum', { fNum });
+      else qb.andWhere('LOWER(r.Nome) LIKE :fStr', { fStr: `%${String(formulaRaw).toLowerCase()}%` });
+    }
+    if (normDataInicio) qb.andWhere('r.Dia >= :ds', { ds: normDataInicio });
+    if (normDataFim) {
+      const parts = normDataFim.split('-');
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFim;
+      }
+      qb.andWhere('r.Dia < :dePlus', { dePlus });
+    }
+
+    const allowed = new Set(['Dia','Hora','Nome','Form1','Form2']);
+    const sb = allowed.has(sortBy) ? sortBy : 'Dia';
+    const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
+    qb.orderBy(`r.${sb}`, sd);
+
+    const rows = await qb.getMany();
+
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Relatorio');
+    const headers = ['Dia','Hora','Nome','Codigo','Numero'];
+    for (let i = 1; i <= 40; i++) headers.push(`Prod_${i}`);
+    ws.addRow(headers);
+    for (const r of rows) {
+      const rowArr: any[] = [];
+      rowArr.push(r.Dia || '');
+      rowArr.push(r.Hora || '');
+      rowArr.push(r.Nome || '');
+      rowArr.push(r.Form1 ?? '');
+      rowArr.push(r.Form2 ?? '');
+      for (let i = 1; i <= 40; i++) {
+        let v = typeof r[`Prod_${i}`] === 'number' ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0 && v) v = v / 1000;
+        rowArr.push(v);
+      }
+      ws.addRow(rowArr);
+    }
+    for (let col = 6; col < 6 + 40; col++) ws.getColumn(col).numFmt = '#,##0.##';
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename=relatorio_${Date.now()}.xlsx`);
+    await wb.xlsx.write(res as any);
+    res.end();
+  } catch (e: any) {
+    console.error('[exportExcel POST] error', e);
+    return res.status(500).json({ error: 'internal', details: e?.message });
   }
 });
 
@@ -1057,7 +1435,7 @@ app.get("/api/resumo", async (req, res) => {
       const nf = Number(nomeFormula);
       if (Number.isFinite(nf)) numericFormula = nf;
     }
-
+      
     const result = await resumoService.getResumo({
       areaId,
       formula:
@@ -1138,7 +1516,30 @@ app.post("/api/db/populate", async (req, res) => {
 
 app.get("/api/collector/start", async (req, res) => {
   try {
-    const result = await startCollector();
+    // Accept optional override parameters
+    const overrideConfig: any = {};
+    if (req.query.ip) overrideConfig.ip = String(req.query.ip);
+    if (req.query.user) overrideConfig.user = String(req.query.user);
+    if (req.query.password) overrideConfig.password = String(req.query.password);
+    
+    const result = await startCollector(Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
+    return res.json(result);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+app.post("/api/collector/start", async (req, res) => {
+  try {
+    // Accept optional override parameters in body
+    const { ip, user, password } = req.body || {};
+    const overrideConfig: any = {};
+    if (ip) overrideConfig.ip = String(ip);
+    if (user) overrideConfig.user = String(user);
+    if (password) overrideConfig.password = String(password);
+    
+    const result = await startCollector(Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
     return res.json(result);
   } catch (e) {
     console.error(e);
@@ -1653,6 +2054,631 @@ app.get("/api/chartdata", async (req, res) => {
   } catch (e) {
     console.error("[api/chartdata] error", e);
     return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Agregação por Fórmulas
+app.get("/api/chartdata/formulas", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Load materia prima units so we can normalize product weights (g -> kg)
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Agregar por fórmula (Nome) using per-row normalized total (kg)
+    const sums: Record<string, number> = {};
+    const validCount: Record<string, number> = {};
+    
+    for (const r of rows) {
+      if (!r.Nome) continue;
+      const key = r.Nome;
+
+      // compute row total normalized to kg
+      let rowTotalKg = 0;
+      for (let i = 1; i <= 40; i++) {
+        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        if (!raw || raw <= 0) continue;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0) {
+          // stored in grams -> convert to kg
+          rowTotalKg += raw / 1000;
+        } else {
+          rowTotalKg += raw;
+        }
+      }
+
+      if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
+
+      sums[key] = (sums[key] || 0) + rowTotalKg;
+      validCount[key] = (validCount[key] || 0) + 1;
+    }
+
+    const chartData = Object.entries(sums)
+      .map(([name, value]) => ({ 
+        name, 
+        value,
+        count: validCount[name]
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    return res.json({
+      chartData,
+      total: chartData.reduce((sum, item) => sum + item.value, 0),
+      totalRecords: rows.length,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/formulas] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Agregação por Produtos
+app.get("/api/chartdata/produtos", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Carregar unidades das matérias-primas
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Agregar por produto (Prod_1, Prod_2, etc.)
+    const productSums: Record<string, number> = {};
+    const productUnits: Record<string, string> = {};
+    
+    for (const r of rows) {
+      for (let i = 1; i <= 40; i++) {
+        const v = typeof r[`Prod_${i}`] === "number" 
+          ? r[`Prod_${i}`] 
+          : r[`Prod_${i}`] != null 
+          ? Number(r[`Prod_${i}`]) 
+          : 0;
+        
+        if (v <= 0) continue;
+        
+        const mp = materiasByNum[i];
+        const productKey = mp?.produto || `Produto ${i}`;
+        const unidade = mp && Number(mp.medida) === 0 ? "g" : "kg";
+        
+        productSums[productKey] = (productSums[productKey] || 0) + v;
+        productUnits[productKey] = unidade;
+      }
+    }
+
+    // Normalize product sums to KG for coherent charting
+    const chartData = Object.entries(productSums)
+      .map(([name, value]) => {
+        const unit = productUnits[name] || 'kg';
+        const valueKg = unit === 'g' ? value / 1000 : value;
+        return {
+          name,
+          value: valueKg,
+          unit: 'kg'
+        };
+      })
+      .sort((a, b) => b.value - a.value);
+
+    return res.json({
+      chartData,
+      total: chartData.reduce((sum, item) => sum + item.value, 0),
+      totalRecords: rows.length,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/produtos] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Agregação por Horário
+app.get("/api/chartdata/horarios", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Load materias to normalize per-row totals
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Agregar por hora (0h-23h) using normalized per-row total (kg)
+    const hourSums: Record<string, number> = {};
+    const hourCounts: Record<string, number> = {};
+    
+    for (const r of rows) {
+      if (!r.Hora) continue;
+      const hour = r.Hora.split(':')[0];
+      const hourKey = `${hour}h`;
+
+      // compute row total normalized to kg
+      let rowTotalKg = 0;
+      for (let i = 1; i <= 40; i++) {
+        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        if (!raw || raw <= 0) continue;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0) {
+          rowTotalKg += raw / 1000;
+        } else {
+          rowTotalKg += raw;
+        }
+      }
+
+      if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
+
+      hourSums[hourKey] = (hourSums[hourKey] || 0) + rowTotalKg;
+      hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1;
+    }
+
+    const chartData = Object.entries(hourSums)
+      .map(([name, value]) => ({ 
+        name, 
+        value,
+        count: hourCounts[name],
+        average: value / hourCounts[name]
+      }))
+      .sort((a, b) => parseInt(a.name) - parseInt(b.name));
+
+    return res.json({
+      chartData,
+      total: chartData.reduce((sum, item) => sum + item.value, 0),
+      totalRecords: rows.length,
+      peakHour: chartData.length > 0 ? chartData.reduce((max, item) => item.value > max.value ? item : max).name : null,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/horarios] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Agregação por Dia da Semana
+app.get("/api/chartdata/diasSemana", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Load materias to normalize per-row totals
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Helper para parsear datas
+    const parseDia = (dia?: string): Date | null => {
+      if (!dia) return null;
+      const s = dia.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+        const parts = s.split('/');
+        let y = parts[2];
+        if (y.length === 2) y = String(2000 + Number(y));
+        return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
+      }
+      const dt = new Date(s);
+      return !isNaN(dt.getTime()) ? dt : null;
+    };
+
+    // Agregar por dia da semana using per-row normalized total (kg)
+    const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const weekdaySums: Record<string, number> = {};
+    const weekdayCounts: Record<string, number> = {};
+    
+    for (const r of rows) {
+      if (!r.Dia) continue;
+      const date = parseDia(r.Dia);
+      if (!date) continue;
+      
+      const dayIndex = date.getDay();
+      const dayName = weekdays[dayIndex];
+
+      // compute row total normalized to kg
+      let rowTotalKg = 0;
+      for (let i = 1; i <= 40; i++) {
+        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        if (!raw || raw <= 0) continue;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0) {
+          rowTotalKg += raw / 1000;
+        } else {
+          rowTotalKg += raw;
+        }
+      }
+
+      if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
+
+      weekdaySums[dayName] = (weekdaySums[dayName] || 0) + rowTotalKg;
+      weekdayCounts[dayName] = (weekdayCounts[dayName] || 0) + 1;
+    }
+
+    const chartData = weekdays
+      .map(name => ({ 
+        name, 
+        value: weekdaySums[name] || 0,
+        count: weekdayCounts[name] || 0,
+        average: weekdaySums[name] ? weekdaySums[name] / weekdayCounts[name] : 0
+      }))
+      .filter(d => d.value > 0);
+
+    return res.json({
+      chartData,
+      total: chartData.reduce((sum, item) => sum + item.value, 0),
+      totalRecords: rows.length,
+      peakDay: chartData.length > 0 ? chartData.reduce((max, item) => item.value > max.value ? item : max).name : null,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/diasSemana] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Estatísticas Gerais
+app.get("/api/chartdata/stats", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { formula, dataInicio, dataFim, codigo, numero } = req.query;
+    
+    const qb = repo.createQueryBuilder("r");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (dataInicio) {
+      const normalized = normalizeDateParam(dataInicio);
+      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+    }
+    if (dataFim) {
+      const normalized = normalizeDateParam(dataFim);
+      if (normalized) {
+        const parts = normalized.split("-");
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
+      }
+    }
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Calcular estatísticas gerais
+    const totalGeral = rows.reduce((sum, r) => {
+      const v = Number(r.Form1 ?? 0);
+      return sum + (isNaN(v) ? 0 : v);
+    }, 0);
+
+    const uniqueFormulas = new Set(rows.map(r => r.Nome)).size;
+    
+    const uniqueDays = new Set(rows.map(r => r.Dia).filter(Boolean)).size;
+
+    return res.json({
+      totalGeral,
+      totalRecords: rows.length,
+      uniqueFormulas,
+      uniqueDays,
+      average: rows.length > 0 ? totalGeral / rows.length : 0,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/stats] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Endpoint especializado: Dados de Semana Específica
+app.get("/api/chartdata/semana", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { weekStart, formula, codigo, numero } = req.query;
+    
+    if (!weekStart) {
+      return res.status(400).json({ error: "weekStart parameter is required (YYYY-MM-DD)" });
+    }
+
+    // Calcular início e fim da semana
+    const startDate = new Date(String(weekStart));
+    if (isNaN(startDate.getTime())) {
+      return res.status(400).json({ error: "Invalid weekStart format. Use YYYY-MM-DD" });
+    }
+
+    // Ajustar para o início da semana (domingo)
+    const dayOfWeek = startDate.getDay();
+    startDate.setDate(startDate.getDate() - dayOfWeek);
+    startDate.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 6);
+    endDate.setHours(23, 59, 59, 999);
+
+    // Formatar datas para query
+    const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`;
+    const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+
+    const qb = repo.createQueryBuilder("r")
+      .where("r.Dia >= :startStr", { startStr })
+      .andWhere("r.Dia <= :endStr", { endStr })
+      .orderBy("r.Dia", "ASC")
+      .addOrderBy("r.Hora", "ASC");
+    
+    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+    const rows = await qb.getMany();
+
+    // Helper para parsear datas
+    const parseDia = (dia?: string): Date | null => {
+      if (!dia) return null;
+      const s = dia.trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+        const parts = s.split('/');
+        let y = parts[2];
+        if (y.length === 2) y = String(2000 + Number(y));
+        return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
+      }
+      const dt = new Date(s);
+      return !isNaN(dt.getTime()) ? dt : null;
+    };
+
+    // Agregar por dia da semana
+    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const weekdayTotals = Array(7).fill(0);
+    const weekdayCounts = Array(7).fill(0);
+    
+    for (const r of rows) {
+      if (!r.Dia) continue;
+      const date = parseDia(r.Dia);
+      if (!date) continue;
+      
+      const dayIndex = date.getDay();
+      const v = Number(r.Form1 ?? 0);
+      
+      if (isNaN(v)) continue;
+      
+      weekdayTotals[dayIndex] += v;
+      weekdayCounts[dayIndex] += 1;
+    }
+
+    const chartData = weekdays.map((name, idx) => ({ 
+      name, 
+      value: weekdayTotals[idx],
+      count: weekdayCounts[idx],
+      average: weekdayCounts[idx] > 0 ? weekdayTotals[idx] / weekdayCounts[idx] : 0
+    }));
+
+    const weekTotal = weekdayTotals.reduce((sum, val) => sum + val, 0);
+    const peakDay = chartData.reduce((max, item) => item.value > max.value ? item : max, chartData[0]);
+
+    return res.json({
+      chartData,
+      weekStart: startStr,
+      weekEnd: endStr,
+      total: weekTotal,
+      totalRecords: rows.length,
+      peakDay: peakDay.name,
+      ts: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("[api/chartdata/semana] error", e);
+    return res.status(500).json({ error: "internal" });
+  }
+});
+
+// POST: compute multiple weeks in one call
+app.post("/api/chartdata/semana/bulk", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { weekStarts, formula, codigo, numero } = req.body || {};
+
+    if (!Array.isArray(weekStarts) || weekStarts.length === 0) {
+      return res.status(400).json({ error: "weekStarts must be an array of YYYY-MM-DD strings" });
+    }
+
+    const results: any[] = [];
+
+    for (const ws of weekStarts) {
+      const startDate = new Date(String(ws));
+      if (isNaN(startDate.getTime())) {
+        results.push({ weekStart: ws, error: 'invalid date' });
+        continue;
+      }
+
+      // Adjust to beginning of week (Sunday)
+      const dayOfWeek = startDate.getDay();
+      startDate.setDate(startDate.getDate() - dayOfWeek);
+      startDate.setHours(0,0,0,0);
+
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 6);
+      endDate.setHours(23,59,59,999);
+
+      const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`;
+      const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+
+      const qb = repo.createQueryBuilder("r")
+        .where("r.Dia >= :startStr", { startStr })
+        .andWhere("r.Dia <= :endStr", { endStr })
+        .orderBy("r.Dia", "ASC")
+        .addOrderBy("r.Hora", "ASC");
+
+      if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+      if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+      if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+      const rows = await qb.getMany();
+
+      // aggregate by day
+      const parseDia = (dia?: string): Date | null => {
+        if (!dia) return null;
+        const s = dia.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+        if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+          const parts = s.split('/');
+          let y = parts[2];
+          if (y.length === 2) y = String(2000 + Number(y));
+          return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
+        }
+        const dt = new Date(s);
+        return !isNaN(dt.getTime()) ? dt : null;
+      };
+
+      const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const weekdayTotals = Array(7).fill(0);
+      const weekdayCounts = Array(7).fill(0);
+
+      for (const r of rows) {
+        if (!r.Dia) continue;
+        const date = parseDia(r.Dia);
+        if (!date) continue;
+        const dayIndex = date.getDay();
+        const v = Number(r.Form1 ?? 0);
+        if (isNaN(v)) continue;
+        weekdayTotals[dayIndex] += v;
+        weekdayCounts[dayIndex] += 1;
+      }
+
+      const chartData = weekdays.map((name, idx) => ({
+        name,
+        value: weekdayTotals[idx],
+        count: weekdayCounts[idx],
+        average: weekdayCounts[idx] > 0 ? weekdayTotals[idx] / weekdayCounts[idx] : 0
+      }));
+
+      const weekTotal = weekdayTotals.reduce((sum, val) => sum + val, 0);
+      const peakDay = chartData.reduce((max, item) => item.value > max.value ? item : max, chartData[0]);
+
+      results.push({
+        weekStart: startStr,
+        weekEnd: endStr,
+        chartData,
+        total: weekTotal,
+        totalRecords: rows.length,
+        peakDay: peakDay.name,
+      });
+    }
+
+    return res.json({ results, ts: new Date().toISOString() });
+  } catch (e) {
+    console.error('[api/chartdata/semana/bulk] error', e);
+    return res.status(500).json({ error: 'internal' });
   }
 });
 

@@ -229,7 +229,10 @@ export class Processador {
     return this.makeRequest('/api/db/syncLocalToMain', 'GET', { limit });
   }
 
-  public collectorStart() {
+  public async collectorStart(ihmConfig?: { ip?: string; user?: string; password?: string }) {
+    if (ihmConfig && (ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
+      return this.makeRequest('/api/collector/start', 'POST', ihmConfig);
+    }
     return this.makeRequest('/api/collector/start');
   }
 
@@ -286,6 +289,27 @@ export class Processador {
 
   public populateDatabase(tipo = 'relatorio', quantidade = 10, config = {}) {
     return this.makeRequest('/api/db/populate', 'POST', { tipo, quantidade, config });
+  }
+
+  // New admin/database helpers
+  public clearDatabase() {
+    return this.makeRequest('/api/db/clear', 'POST');
+  }
+
+  public clearCache() {
+    return this.makeRequest('/api/cache/clear', 'POST');
+  }
+
+  public exportDump() {
+    return this.makeRequest('/api/db/dump', 'GET');
+  }
+
+  public importDump(dumpObj: any) {
+    return this.makeRequest('/api/db/import', 'POST', dumpObj);
+  }
+
+  public clearAll() {
+    return this.makeRequest('/api/clear/all', 'POST');
   }
 
   public estoqueOperation(operation: string, payload: any = {}) {
