@@ -4,7 +4,7 @@ import type { FC } from "react";
 Font.register({
   family: "Roboto",
   fonts: [
-    { src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf" },
+    { src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf" }, // Regular
     { src: "https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc9.ttf", fontWeight: "bold" },
   ],
 });
@@ -125,7 +125,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
   data = new Date().toLocaleDateString("pt-BR"),
   empresa = "Relatório RPRO",
   observacoes = "",
-  // logoSrc,
   orientation = "portrait",
   formulaSums = {},
   comentarios = [],
@@ -198,7 +197,12 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <Page size="A4" style={styles.page} orientation={orientation}>
         <View style={styles.header}>
           {/* Logo à esquerda */}
-          {logoUrl && <Image src={logoUrl} style={styles.logo} />}
+          {logoUrl && (
+            <Image
+              src={logoUrl}
+              style={styles.logo}
+            />
+          )}
           <View style={styles.titleContainer}>
             <Text style={styles.title}>{empresa}</Text>
             <Text style={styles.subtitle}>
@@ -274,7 +278,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos</Text>
           
-
           {categorias.map((cat, idx) => (
             <View key={idx} style={{ marginBottom: 10 }}>
               {renderTable(produtosPorCategoria[cat], (p) => ({
