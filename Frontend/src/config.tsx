@@ -378,7 +378,7 @@ export function IHMConfig({
           value={formData.ip}
           onChange={(e) => onChange("ip", e.target.value)}
           disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
       </Label>
 
@@ -389,7 +389,7 @@ export function IHMConfig({
           value={formData.user}
           onChange={(e) => onChange("user", e.target.value)}
           disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
       </Label>
 
@@ -400,7 +400,7 @@ export function IHMConfig({
           value={formData.password}
           onChange={(e) => onChange("password", e.target.value)}
           disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
       </Label>
 
@@ -420,7 +420,7 @@ export function IHMConfig({
               if (path) onChange("localCSV", path);
             }}
             disabled={!isEditing}
-            className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
+            className="bg-red-600 hover:bg-red-700 whitespace-nowrap"
           >
             Selecionar pasta
           </Button>
@@ -450,7 +450,7 @@ export function IHMConfig({
           <Button
             id="edit"
             onClick={onEdit}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-red-600 hover:bg-red-700"
           >
             Editar
           </Button>
@@ -491,7 +491,7 @@ export function DatabaseConfig({
           value={formData.serverDB}
           onChange={(e) => onChange("serverDB", e.target.value)}
           disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
       </Label>
 
@@ -502,7 +502,7 @@ export function DatabaseConfig({
           value={formData.database}
           onChange={(e) => onChange("database", e.target.value)}
           disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
       </Label>
 
@@ -513,7 +513,7 @@ export function DatabaseConfig({
           value={formData.userDB}
           onChange={(e) => onChange("userDB", e.target.value)}
           disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
       </Label>
 
@@ -524,7 +524,7 @@ export function DatabaseConfig({
           value={formData.passwordDB}
           onChange={(e) => onChange("passwordDB", e.target.value)}
           disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
       </Label>
 
@@ -551,7 +551,7 @@ export function DatabaseConfig({
           <Button
             id="edit"
             onClick={onEdit}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-red-600 hover:bg-red-700"
           >
             Editar
           </Button>
@@ -646,7 +646,7 @@ export function AdminConfig({
                   if (path) onChange("mySqlDir", path);
                 }}
                 disabled={!isEditing}
-                className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
+                className="bg-red-600 hover:bg-red-700 whitespace-nowrap"
               >
                 Selecionar arquivo
               </Button>
@@ -670,7 +670,7 @@ export function AdminConfig({
                   if (path) onChange("dumpDir", path);
                 }}
                 disabled={!isEditing}
-                className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
+                className="bg-red-600 hover:bg-red-700 whitespace-nowrap"
               >
                 Selecionar arquivo
               </Button>
@@ -694,7 +694,7 @@ export function AdminConfig({
                   if (path) onChange("batchDumpDir", path);
                 }}
                 disabled={!isEditing}
-                className="bg-blue-600 hover:bg-blue-700 whitespace-nowrap"
+                className="bg-red-600 hover:bg-red-700 whitespace-nowrap"
               >
                 Selecionar arquivo
               </Button>
@@ -703,48 +703,25 @@ export function AdminConfig({
         </div>
       </div>
 
-      <div id="CmdAdvancedDB" className="mb-4">
-        <div id="sidetxt" className="mb-4">
-          <Label className="font-medium text-gray-700">
+      <div id="CmdAdvancedDB" className="mb-4 flex flex-col gap-5">
+        <div id="sidetxt" className=" flex flex-row justify-between">
+          <Label className="font-medium text-gray-700 justify-between">
             Importar dump padrão
-            <Button className="w-70 mt-2" disabled={!isEditing}>
-              Importar Dump
-            </Button>
           </Label>
-        </div>
-
-        <div id="excelExport" className="mb-4">
-          <Label className="font-medium text-gray-700">Exportar relatórios</Label>
-          <div className="mt-2">
-            {!exportOpen ? (
-              <Button onClick={() => setExportOpen(true)} className="w-70">
-                Exportar Relatório (XLSX)
-              </Button>
-            ) : (
-              <div className="flex flex-col gap-2 p-3 border rounded bg-gray-50">
-                <div className="flex gap-2">
-                  <Input type="date" onChange={(e) => setExportDataInicio(e.target.value)} value={exportDataInicio ?? ''} />
-                  <Input type="date" onChange={(e) => setExportDataFim(e.target.value)} value={exportDataFim ?? ''} />
-                </div>
-                <Input placeholder="Fórmula (nome ou código)" onChange={(e) => setExportFormula(e.target.value)} value={exportFormula ?? ''} />
-                <div className="flex gap-2 justify-end">
-                  <Button onClick={() => { setExportOpen(false); setExportDataInicio(null); setExportDataFim(null); setExportFormula(null); }} variant="outline">Cancelar</Button>
-                  <Button onClick={handleExportExecute} className="bg-blue-600 hover:bg-blue-700">Exportar</Button>
-                </div>
-              </div>
-            )}
-          </div>
+          <Button className="w-70" disabled={!isEditing}>
+              Importar Dump
+          </Button>
         </div>
 
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <div id="sidetxt">
-              <Label className="font-medium text-gray-700">
-                Resetar Sistema
-                <Button className="w-70 mt-2 bg-red-600 hover:bg-red-700" disabled={!isEditing}>
+            <div id="sidetxt" className="flex flex-row justify-between">
+              <Label className="font-medium text-gray-700">Resetar Sistema</Label>
+                
+                <Button className="w-70 bg-red-600 hover:bg-red-700" disabled={!isEditing}>
                   Resetar Sistema
                 </Button>
-              </Label>
+              
             </div>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -783,6 +760,26 @@ export function AdminConfig({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+        <div id="excelExport" className="mb-4 flex flex-row justify-between">
+        <Label className="font-medium text-gray-700 justify-between">Exportar relatórios</Label>
+          {!exportOpen ? (
+            <Button onClick={() => setExportOpen(true)} className="w-70" disabled={!isEditing}>
+              Exportar Relatório (XLSX)
+            </Button>
+          ) : (
+            <div className="flex flex-col gap-2 p-3 border rounded bg-gray-50">
+              <div className="flex gap-2">
+                <Input type="date" onChange={(e) => setExportDataInicio(e.target.value)} value={exportDataInicio ?? ''} />
+                <Input type="date" onChange={(e) => setExportDataFim(e.target.value)} value={exportDataFim ?? ''} />
+              </div>
+              <Input placeholder="Fórmula (nome ou código)" onChange={(e) => setExportFormula(e.target.value)} value={exportFormula ?? ''} />
+              <div className="flex gap-2 justify-end">
+                <Button onClick={() => { setExportOpen(false); setExportDataInicio(null); setExportDataFim(null); setExportFormula(null); }} variant="outline">Cancelar</Button>
+                <Button onClick={handleExportExecute} className="bg-red-600 hover:bg-red-700">Exportar</Button>
+              </div>
+            </div>
+          )}
+      </div>
       </div>
 
       <div
@@ -802,7 +799,7 @@ export function AdminConfig({
                 checked={formData.metodoCSV === "1"}
                 onChange={(e) => onChange("metodoCSV", e.target.value)}
                 disabled={!isEditing}
-                className="rounded-full text-blue-600 focus:ring-blue-500"
+                className="rounded-full text-red-600 focus:ring-red-500"
               />
               Único
             </Label>
@@ -813,7 +810,7 @@ export function AdminConfig({
                 checked={formData.metodoCSV === "2"}
                 onChange={(e) => onChange("metodoCSV", e.target.value)}
                 disabled={!isEditing}
-                className="rounded-full text-blue-600 focus:ring-blue-500"
+                className="rounded-full text-red-600 focus:ring-red-500"
               />
               Mensal
             </Label>
@@ -831,7 +828,7 @@ export function AdminConfig({
               checked={formData.habilitarCSV}
               onCheckedChange={(checked) => onChange("habilitarCSV", !!checked)}
               disabled={!isEditing}
-              className="h-5 w-5 text-blue-600 rounded focus:ring-blue-500"
+              className="h-5 w-5 text-red-600 rounded focus:ring-red-500"
             />
             Habilitar
           </Label>
@@ -844,7 +841,7 @@ export function AdminConfig({
           <Label className="font-medium text-gray-700">Importar CSV</Label>
           <Button
             disabled={!isEditing}
-            className="w-full mt-2 bg-blue-600 hover:bg-blue-700"
+            className="w-full mt-2 bg-red-600 hover:bg-red-700"
           >
             Importar
           </Button>
@@ -874,7 +871,7 @@ export function AdminConfig({
           <Button
             id="edit"
             onClick={onEdit}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-red-600 hover:bg-red-700"
           >
             Editar
           </Button>
