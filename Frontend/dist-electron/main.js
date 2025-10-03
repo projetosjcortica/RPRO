@@ -15697,7 +15697,11 @@ function createWindow() {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
     try {
-      const packagedIndex = path.join(process.resourcesPath, "dist", "index.html");
+      const packagedIndex = path.join(
+        process.resourcesPath,
+        "dist",
+        "index.html"
+      );
       console.log("[main] loading packaged index from", packagedIndex);
       if (fs$1.existsSync(packagedIndex)) {
         win.loadFile(packagedIndex);
@@ -15726,6 +15730,21 @@ function createWindow() {
         console.error("[main] all index.html load attempts failed", e2);
       }
     }
+  }
+}
+async function tryForkBackend() {
+  try {
+    const res = await fetch("http://localhost:3000/api/ping");
+    if (res && res.ok) {
+      console.log("[main] backend is alive");
+      return true;
+    } else {
+      console.log("[main] backend is not responding");
+      return false;
+    }
+  } catch (e) {
+    console.log("[main] backend ping failed");
+    return false;
   }
 }
 app$1.whenReady().then(() => {
@@ -15765,46 +15784,72 @@ app$1.whenReady().then(() => {
         console.error("[main] failed to spawn packaged backend exe", e);
       }
     } else {
-      const scriptPath = getBackendScriptPath();
-      if (fs$1.existsSync(scriptPath)) {
-        try {
-          console.log("[main] dev auto-forking backend at", scriptPath);
-          lastScriptPath = scriptPath;
-          const backendDir = path.dirname(scriptPath);
-          const child = fork(scriptPath, [], {
-            stdio: ["pipe", "pipe", "ipc"],
-            cwd: backendDir,
-            env: { ...process.env }
-          });
-          const pid = child.pid;
-          if (typeof pid === "number") {
-            children.set(pid, child);
-            console.log("[main] dev backend forked with PID", pid);
+      try {
+        const loadedBackend = await tryForkBackend();
+        if (loadedBackend) {
+          console.log("[main] backend is already running, not auto-forking");
+        } else {
+          console.log(
+            "[main] backend not responding, will attempt to auto-fork"
+          );
+          const projectRoot = path.dirname(path.dirname(__dirname));
+          const possible = [
+            path.join(projectRoot, "back-end", "dist", "index.js"),
+            path.join(projectRoot, "back-end", "dist", "src", "index.js"),
+            path.join(projectRoot, "back-end", "src", "index.ts")
+          ];
+          const scriptPath = possible.find((p) => fs$1.existsSync(p));
+          if (scriptPath && !loadedBackend) {
+            try {
+              console.log("[main] dev auto-forking backend at", scriptPath);
+              lastScriptPath = scriptPath;
+              const backendDir = path.dirname(scriptPath);
+              const child = fork(scriptPath, [], {
+                stdio: ["pipe", "pipe", "ipc"],
+                cwd: backendDir,
+                env: { ...process.env }
+              });
+              const pid = child.pid;
+              if (typeof pid === "number") {
+                children.set(pid, child);
+                console.log("[main] dev backend forked with PID", pid);
+              }
+              child.on("message", (msg) => {
+                if (win && !win.isDestroyed())
+                  win.webContents.send("child-message", {
+                    pid: child.pid,
+                    msg
+                  });
+              });
+              if (child.stdout)
+                child.stdout.on("data", (c) => {
+                  console.log("[child stdout]", c.toString());
+                  if (win && !win.isDestroyed())
+                    win.webContents.send("child-stdout", {
+                      pid: child.pid,
+                      data: c.toString()
+                    });
+                });
+              if (child.stderr)
+                child.stderr.on("data", (c) => {
+                  console.error("[child stderr]", c.toString());
+                  if (win && !win.isDestroyed())
+                    win.webContents.send("child-stderr", {
+                      pid: child.pid,
+                      data: c.toString()
+                    });
+                });
+            } catch (devErr) {
+              console.warn(
+                "[main] failed to auto-fork backend in dev:",
+                devErr
+              );
+            }
+          } else {
+            console.log(
+              "[main] running in development mode, backend fork will be started by renderer when needed (no backend script found)"
+            );
           }
-          child.on("message", (msg) => {
-            if (win && !win.isDestroyed())
-              win.webContents.send("child-message", { pid: child.pid, msg });
-          });
-          if (child.stdout)
-            child.stdout.on("data", (c) => {
-              console.log("[child stdout]", c.toString());
-              if (win && !win.isDestroyed())
-                win.webContents.send("child-stdout", {
-                  pid: child.pid,
-                  data: c.toString()
-                });
-            });
-          if (child.stderr)
-            child.stderr.on("data", (c) => {
-              console.error("[child stderr]", c.toString());
-              if (win && !win.isDestroyed())
-                win.webContents.send("child-stderr", {
-                  pid: child.pid,
-                  data: c.toString()
-                });
-            });
-        } catch (devErr) {
-          console.warn("[main] failed to auto-fork backend in dev:", devErr);
         }
       } else {
         console.log(

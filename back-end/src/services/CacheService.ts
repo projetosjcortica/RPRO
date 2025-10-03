@@ -76,6 +76,12 @@ export class CacheService extends BaseService {
     const all = await repo.find();
     return all.map((c) => ({ name: c.originalName, size: c.lastSize || 0 }));
   }
+
+  async clearAll() {
+    await this.init();
+    const repo = this.ds.getRepository(CacheFile);
+    await repo.clear();
+  }
 }
 
 export const cacheService = new CacheService();
