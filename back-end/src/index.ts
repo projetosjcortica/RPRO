@@ -1137,7 +1137,7 @@ app.get("/api/resumo", async (req, res) => {
       const nf = Number(nomeFormula);
       if (Number.isFinite(nf)) numericFormula = nf;
     }
-
+      
     const result = await resumoService.getResumo({
       areaId,
       formula:
@@ -1766,17 +1766,39 @@ app.get("/api/chartdata/formulas", async (req, res) => {
 
     const rows = await qb.getMany();
 
-    // Agregar por fórmula (Nome)
+    // Load materia prima units so we can normalize product weights (g -> kg)
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Agregar por fórmula (Nome) using per-row normalized total (kg)
     const sums: Record<string, number> = {};
     const validCount: Record<string, number> = {};
     
     for (const r of rows) {
       if (!r.Nome) continue;
       const key = r.Nome;
-      const v = Number(r.Form1 ?? 0);
-      if (isNaN(v)) continue;
-      
-      sums[key] = (sums[key] || 0) + v;
+
+      // compute row total normalized to kg
+      let rowTotalKg = 0;
+      for (let i = 1; i <= 40; i++) {
+        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        if (!raw || raw <= 0) continue;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0) {
+          // stored in grams -> convert to kg
+          rowTotalKg += raw / 1000;
+        } else {
+          rowTotalKg += raw;
+        }
+      }
+
+      if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
+
+      sums[key] = (sums[key] || 0) + rowTotalKg;
       validCount[key] = (validCount[key] || 0) + 1;
     }
 
@@ -1861,12 +1883,17 @@ app.get("/api/chartdata/produtos", async (req, res) => {
       }
     }
 
+    // Normalize product sums to KG for coherent charting
     const chartData = Object.entries(productSums)
-      .map(([name, value]) => ({ 
-        name, 
-        value,
-        unit: productUnits[name]
-      }))
+      .map(([name, value]) => {
+        const unit = productUnits[name] || 'kg';
+        const valueKg = unit === 'g' ? value / 1000 : value;
+        return {
+          name,
+          value: valueKg,
+          unit: 'kg'
+        };
+      })
       .sort((a, b) => b.value - a.value);
 
     return res.json({
@@ -1911,7 +1938,15 @@ app.get("/api/chartdata/horarios", async (req, res) => {
 
     const rows = await qb.getMany();
 
-    // Agregar por hora (0h-23h)
+    // Load materias to normalize per-row totals
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Agregar por hora (0h-23h) using normalized per-row total (kg)
     const hourSums: Record<string, number> = {};
     const hourCounts: Record<string, number> = {};
     
@@ -1919,11 +1954,23 @@ app.get("/api/chartdata/horarios", async (req, res) => {
       if (!r.Hora) continue;
       const hour = r.Hora.split(':')[0];
       const hourKey = `${hour}h`;
-      const v = Number(r.Form1 ?? 0);
-      
-      if (isNaN(v) || v <= 0) continue;
-      
-      hourSums[hourKey] = (hourSums[hourKey] || 0) + v;
+
+      // compute row total normalized to kg
+      let rowTotalKg = 0;
+      for (let i = 1; i <= 40; i++) {
+        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        if (!raw || raw <= 0) continue;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0) {
+          rowTotalKg += raw / 1000;
+        } else {
+          rowTotalKg += raw;
+        }
+      }
+
+      if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
+
+      hourSums[hourKey] = (hourSums[hourKey] || 0) + rowTotalKg;
       hourCounts[hourKey] = (hourCounts[hourKey] || 0) + 1;
     }
 
@@ -1979,6 +2026,14 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
 
     const rows = await qb.getMany();
 
+    // Load materias to normalize per-row totals
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
     // Helper para parsear datas
     const parseDia = (dia?: string): Date | null => {
       if (!dia) return null;
@@ -1994,7 +2049,7 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
       return !isNaN(dt.getTime()) ? dt : null;
     };
 
-    // Agregar por dia da semana
+    // Agregar por dia da semana using per-row normalized total (kg)
     const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
     const weekdaySums: Record<string, number> = {};
     const weekdayCounts: Record<string, number> = {};
@@ -2006,11 +2061,23 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
       
       const dayIndex = date.getDay();
       const dayName = weekdays[dayIndex];
-      const v = Number(r.Form1 ?? 0);
-      
-      if (isNaN(v) || v <= 0) continue;
-      
-      weekdaySums[dayName] = (weekdaySums[dayName] || 0) + v;
+
+      // compute row total normalized to kg
+      let rowTotalKg = 0;
+      for (let i = 1; i <= 40; i++) {
+        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        if (!raw || raw <= 0) continue;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0) {
+          rowTotalKg += raw / 1000;
+        } else {
+          rowTotalKg += raw;
+        }
+      }
+
+      if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
+
+      weekdaySums[dayName] = (weekdaySums[dayName] || 0) + rowTotalKg;
       weekdayCounts[dayName] = (weekdayCounts[dayName] || 0) + 1;
     }
 
@@ -2189,6 +2256,108 @@ app.get("/api/chartdata/semana", async (req, res) => {
   } catch (e) {
     console.error("[api/chartdata/semana] error", e);
     return res.status(500).json({ error: "internal" });
+  }
+});
+
+// POST: compute multiple weeks in one call
+app.post("/api/chartdata/semana/bulk", async (req, res) => {
+  try {
+    await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+
+    const { weekStarts, formula, codigo, numero } = req.body || {};
+
+    if (!Array.isArray(weekStarts) || weekStarts.length === 0) {
+      return res.status(400).json({ error: "weekStarts must be an array of YYYY-MM-DD strings" });
+    }
+
+    const results: any[] = [];
+
+    for (const ws of weekStarts) {
+      const startDate = new Date(String(ws));
+      if (isNaN(startDate.getTime())) {
+        results.push({ weekStart: ws, error: 'invalid date' });
+        continue;
+      }
+
+      // Adjust to beginning of week (Sunday)
+      const dayOfWeek = startDate.getDay();
+      startDate.setDate(startDate.getDate() - dayOfWeek);
+      startDate.setHours(0,0,0,0);
+
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 6);
+      endDate.setHours(23,59,59,999);
+
+      const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`;
+      const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+
+      const qb = repo.createQueryBuilder("r")
+        .where("r.Dia >= :startStr", { startStr })
+        .andWhere("r.Dia <= :endStr", { endStr })
+        .orderBy("r.Dia", "ASC")
+        .addOrderBy("r.Hora", "ASC");
+
+      if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+      if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
+      if (numero) qb.andWhere("r.Numero = :numero", { numero });
+
+      const rows = await qb.getMany();
+
+      // aggregate by day
+      const parseDia = (dia?: string): Date | null => {
+        if (!dia) return null;
+        const s = dia.trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+        if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+          const parts = s.split('/');
+          let y = parts[2];
+          if (y.length === 2) y = String(2000 + Number(y));
+          return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
+        }
+        const dt = new Date(s);
+        return !isNaN(dt.getTime()) ? dt : null;
+      };
+
+      const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const weekdayTotals = Array(7).fill(0);
+      const weekdayCounts = Array(7).fill(0);
+
+      for (const r of rows) {
+        if (!r.Dia) continue;
+        const date = parseDia(r.Dia);
+        if (!date) continue;
+        const dayIndex = date.getDay();
+        const v = Number(r.Form1 ?? 0);
+        if (isNaN(v)) continue;
+        weekdayTotals[dayIndex] += v;
+        weekdayCounts[dayIndex] += 1;
+      }
+
+      const chartData = weekdays.map((name, idx) => ({
+        name,
+        value: weekdayTotals[idx],
+        count: weekdayCounts[idx],
+        average: weekdayCounts[idx] > 0 ? weekdayTotals[idx] / weekdayCounts[idx] : 0
+      }));
+
+      const weekTotal = weekdayTotals.reduce((sum, val) => sum + val, 0);
+      const peakDay = chartData.reduce((max, item) => item.value > max.value ? item : max, chartData[0]);
+
+      results.push({
+        weekStart: startStr,
+        weekEnd: endStr,
+        chartData,
+        total: weekTotal,
+        totalRecords: rows.length,
+        peakDay: peakDay.name,
+      });
+    }
+
+    return res.json({ results, ts: new Date().toISOString() });
+  } catch (e) {
+    console.error('[api/chartdata/semana/bulk] error', e);
+    return res.status(500).json({ error: 'internal' });
   }
 });
 

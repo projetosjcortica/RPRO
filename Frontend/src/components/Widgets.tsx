@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { Pie, PieChart, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from "recharts";
+import { Pie, PieChart, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import type { ChartType } from "../home";
 
 type Entry = {
@@ -84,9 +84,13 @@ const CustomTooltip = ({ active, payload, label, stats }: any) => {
         <p className="text-sm font-bold text-red-600">
           {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
         </p>
+        {data.name !== '' && ( 
+          <p className="text-xs text-gray-500 font-bold">Nome: {data.name}</p>
+        )}
         {count > 0 && (
           <p className="text-xs text-gray-500">Registros: {count}</p>
         )}
+
         {average > 0 && (
           <p className="text-xs text-gray-500">
             Média: {average.toFixed(2)} {unit}
@@ -140,15 +144,14 @@ export function DonutChartWidget({ chartType = "produtos", config }: { chartType
             innerRadius={60}
             outerRadius={90}
             dataKey="value"
-            labelLine={false}
-            label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+            labelLine={false} 
           >
             {data.map((_, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip stats={stats} />} />
-          <Legend verticalAlign="bottom" height={36} />
+          {/* <Legend verticalAlign="bottom" height={36} /> */}
         </PieChart>
       </ResponsiveContainer>
     </div>
@@ -156,7 +159,7 @@ export function DonutChartWidget({ chartType = "produtos", config }: { chartType
 }
 
 // COMPONENTE: BarChart
-export function BarChartWidget({ chartType = "horarios", config }: { chartType?: ChartType; config?: any }) {
+export function BarChartWidget({ chartType = "formulas", config }: { chartType?: ChartType; config?: any }) {
   const { data, loading, stats } = useChartData(chartType, config?.filters);
 
   if (loading) {
@@ -175,12 +178,16 @@ export function BarChartWidget({ chartType = "horarios", config }: { chartType?:
     );
   }
 
+  if (chartType === "formulas") {
+    data.sort((a, b) => b.value - a.value);
+  }
+
   return (
     <div className="h-full w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="horizontal">
-          <XAxis type="number" />
-          <YAxis type="category" dataKey="name" width={60} />
+          <YAxis type="number" dataKey="value" />
+          <XAxis type="category" dataKey="name" width={60} />
           <Tooltip content={<CustomTooltip stats={stats} />} />
           <Bar dataKey="value" fill="#ff2626ff" radius={[0, 4, 4, 0]} />
         </BarChart>
@@ -244,7 +251,14 @@ export function WeeklyChartWidget({ rows }: { rows: Entry[] | null }) {
     const start = new Date(currentWeekStart);
     const end = new Date(currentWeekStart);
     end.setDate(end.getDate() + 6);
-    return `${start.getDate().toString().padStart(2, '0')}/${(start.getMonth() + 1).toString().padStart(2, '0')} → ${end.getDate().toString().padStart(2, '0')}/${(end.getMonth() + 1).toString().padStart(2, '0')}`;
+    const nowYear = new Date().getFullYear();
+    const fmt = (d: Date) => {
+      const dd = d.getDate().toString().padStart(2, '0');
+      const mm = (d.getMonth() + 1).toString().padStart(2, '0');
+      const yy = d.getFullYear();
+      return `${dd}/${mm}${yy !== nowYear ? `/${yy}` : ''}`;
+    };
+    return `${fmt(start)} → ${fmt(end)}`;
   };
 
   const goToPrevWeek = () => {
@@ -291,96 +305,4 @@ export function WeeklyChartWidget({ rows }: { rows: Entry[] | null }) {
     </div>
   );
 }
-
-// COMPONENTE: Table
-export function TableWidget({ rows }: { rows: Entry[] | null }) {
-  const [sortBy, setSortBy] = useState<'nome' | 'valor' | 'dia'>('valor');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-
-  const tableData = useMemo(() => {
-    if (!rows) return [];
-
-    const mapped = rows.map(r => ({
-      nome: (r.Nome || 'Sem nome').toString(),
-      valor: Number(r.values?.[0] ?? r.Form1 ?? 0),
-      dia: r.Dia || '',
-      hora: r.Hora || ''
-    })).filter(item => item.valor > 0);
-
-    const total = mapped.reduce((s, it) => s + it.valor, 0) || 0.000001;
-
-    const data = mapped.map(it => ({ ...it, percent: (it.valor / total) * 100 }));
-
-    data.sort((a, b) => {
-      const modifier = sortOrder === 'asc' ? 1 : -1;
-      if (sortBy === 'valor') return (a.valor - b.valor) * modifier;
-      if (sortBy === 'nome') return a.nome.localeCompare(b.nome) * modifier;
-      if (sortBy === 'dia') return a.dia.localeCompare(b.dia) * modifier;
-      return 0;
-    });
-
-    // Return top 20 for simplicity
-    return data.slice(0, 20);
-  }, [rows, sortBy, sortOrder]);
-
-  const toggleSort = (col: 'nome' | 'valor' | 'dia') => {
-    if (sortBy === col) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortBy(col);
-      setSortOrder('desc');
-    }
-  };
-
-  if (!tableData.length) {
-    return (
-      <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-        Nenhum dado disponível
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-full overflow-auto">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-100 sticky top-0">
-          <tr>
-            <th 
-              className="px-3 py-2 text-left cursor-pointer hover:bg-gray-200 transition-colors"
-              onClick={() => toggleSort('nome')}
-            >
-              Nome {sortBy === 'nome' && (sortOrder === 'asc' ? '↑' : '↓')}
-            </th>
-            <th 
-              className="px-3 py-2 text-right cursor-pointer hover:bg-gray-200 transition-colors"
-              onClick={() => toggleSort('valor')}
-            >
-              Valor {sortBy === 'valor' && (sortOrder === 'asc' ? '↑' : '↓')}
-            </th>
-            <th className="px-3 py-2 text-right">% do total</th>
-            <th 
-              className="px-3 py-2 text-center cursor-pointer hover:bg-gray-200 transition-colors"
-              onClick={() => toggleSort('dia')}
-            >
-              Dia {sortBy === 'dia' && (sortOrder === 'asc' ? '↑' : '↓')}
-            </th>
-            <th className="px-3 py-2 text-center">Hora</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tableData.map((item, idx) => (
-            <tr key={idx} className="border-b border-gray-200 hover:bg-gray-50 transition-colors">
-              <td className="px-3 py-2 max-w-[220px] truncate">{item.nome}</td>
-              <td className="px-3 py-2 text-right font-medium text-red-600">
-                {item.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
-              </td>
-              <td className="px-3 py-2 text-right text-gray-600">{item.percent.toFixed(1)}%</td>
-              <td className="px-3 py-2 text-center text-gray-600">{item.dia}</td>
-              <td className="px-3 py-2 text-center text-gray-600">{item.hora}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+ 
