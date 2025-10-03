@@ -136,10 +136,26 @@ function TableComponent({
 
   const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-  // Função para converter valores baseado na unidade (no momento retorna o valor já normalizado em kg)
-  const converterValor = (valor: number, _colKey: string): number => {
-    if (typeof valor !== "number") return valor as any;
-    return valor; // already normalized to kg by backend
+  // Função para converter valores baseado na unidade definida em produtosInfo.
+  // Backend normaliza valores para kg, mas aqui permitimos apresentar em g ou kg
+  // dependendo do produto. Se unidade === 'g' mostramos valor em gramas (kg * 1000).
+  const converterValor = (valor: any, colKey: string): number | any => {
+    // try to coerce to number
+    let n: number;
+    if (typeof valor === "number") n = valor;
+    else if (typeof valor === "string" && valor.trim() !== "") {
+      const parsed = Number(valor.replace(/,/g, ""));
+      if (Number.isNaN(parsed)) return valor;
+      n = parsed;
+    } else {
+      return valor;
+    }
+
+    const unidade = produtosInfo[colKey]?.unidade || "kg";
+    if (unidade === "g") {
+      return n / 1000; // mostrar em gramas
+    }
+    return n; // padrão kg
   };
 
   // Função para formatar valores exibidos na tabela
@@ -161,8 +177,10 @@ function TableComponent({
     // Se for uma coluna dinâmica, busca no colLabels ou usa fallback
     if (colKey.startsWith("col")) {
       const label = produtosInfo[colKey]?.nome;
+      const unidade = produtosInfo[colKey]?.unidade;
       const colNum = parseInt(colKey.replace("col", ""), 10);
-      return safeString(label) || `Produto ${colNum - 5}`;
+      const base = safeString(label) || `Produto ${colNum - 5}`;
+      return unidade ? `${base}` : base;
     }
     return safeString(colKey);
   };
