@@ -64,7 +64,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 overflow-auto scrollbar-custom">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 overflow-auto thin-red-scrollbar">
       <div className="max-w-[1920px] mx-auto p-4 md:p-6"> 
         <FixedDashboard rows={rows} filters={filtros} />
       </div>
