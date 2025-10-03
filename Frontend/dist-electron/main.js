@@ -15440,6 +15440,7 @@ ipcMain$1.handle(
         }
       });
       await printWin.loadFile(filePath);
+      printWin.setMenu(null);
       printWin.webContents.on("did-finish-load", () => {
         printWin.webContents.print({
           silent: false,
@@ -15454,94 +15455,26 @@ ipcMain$1.handle(
     }
   }
 );
+function getBackendScriptPath() {
+  return path.join("backend", "index.js");
+}
 ipcMain$1.handle(
   "start-fork",
   async (_event, { script, args = [] } = {}) => {
-    const projectRoot = path.dirname(path.dirname(__dirname));
-    if (!script) {
-      script = "../back-end/dist/src/index.js";
-    }
     let scriptPath;
-    if (path.isAbsolute(script)) {
+    if (script) {
       scriptPath = script;
     } else {
-      const possiblePaths = [
-        // Prefer IPC-only CJS build
-        path.join(projectRoot, "back-end", "dist", "index.js"),
-        // Fallback to full build structure if present
-        path.join(projectRoot, "back-end", "dist", "src", "index.js"),
-        // TypeScript source (will use ts-node)
-        path.join(projectRoot, "back-end", "src", "index.ts"),
-        // Original provided script path fallbacks
-        path.join(__dirname, script),
-        path.join(process.env.APP_ROOT || "", script),
-        path.join(path.dirname(__dirname), script),
-        path.join(projectRoot, script),
-        path.resolve(script)
-      ];
-      console.log("Trying paths:", possiblePaths);
-      scriptPath = possiblePaths.find((p) => {
-        try {
-          const exists = fs$1.existsSync(p);
-          console.log(`Path ${p} exists: ${exists}`);
-          return exists;
-        } catch {
-          return false;
-        }
-      }) || possiblePaths[0];
+      scriptPath = getBackendScriptPath();
     }
-    console.log("Attempting to fork script at:", scriptPath);
-    console.log("Script exists:", fs$1.existsSync(scriptPath));
-    try {
-      const frontendBackendDir = path.join(projectRoot, "Frontend", "backend");
-      if (scriptPath.startsWith(frontendBackendDir)) {
-        const realCandidates = [
-          path.join(projectRoot, "back-end", "dist", "index.js"),
-          path.join(projectRoot, "back-end", "dist", "src", "index.js"),
-          path.join(projectRoot, "back-end", "src", "index.ts"),
-          path.join(projectRoot, "back-end", "src", "index.js")
-        ];
-        const found = realCandidates.find((p) => fs$1.existsSync(p));
-        if (found) {
-          console.log(
-            "Replacing frontend shim script with real backend entry:",
-            found
-          );
-          scriptPath = found;
-        } else {
-          console.log(
-            "No real backend entry found, will attempt to fork provided script (may fail if AMD-wrapped)"
-          );
-        }
-      }
-    } catch (e) {
+    if (!fs$1.existsSync(scriptPath)) {
+      console.error("Backend script não encontrado:", scriptPath);
+      return { ok: false, reason: "backend-script-not-found" };
     }
     try {
-      const initialBackendDir = path.dirname(scriptPath);
-      let backendDir = initialBackendDir;
-      let foundBackendPackage = false;
-      while (backendDir && backendDir !== path.dirname(backendDir)) {
-        const packageJsonPath = path.join(backendDir, "package.json");
-        if (fs$1.existsSync(packageJsonPath)) {
-          try {
-            const packageJson = JSON.parse(
-              fs$1.readFileSync(packageJsonPath, "utf8")
-            );
-            if (packageJson.name === "backend") {
-              foundBackendPackage = true;
-              break;
-            }
-          } catch {
-          }
-        }
-        backendDir = path.dirname(backendDir);
-      }
-      if (!foundBackendPackage) backendDir = initialBackendDir;
-      console.log("Setting child process cwd to:", backendDir);
-      lastScriptPath = scriptPath;
       const child = fork(scriptPath, args, {
         stdio: ["pipe", "pipe", "ipc"],
-        cwd: backendDir,
+        cwd: path.dirname(scriptPath),
         silent: false,
         env: { ...process.env }
       });
@@ -15633,22 +15566,16 @@ ipcMain$1.handle(
 ipcMain$1.handle(
   "start-collector-fork",
   async (_event, { args = [] } = {}) => {
-    const projectRoot = path.dirname(path.dirname(__dirname));
-    const possible = [
-      path.join(
-        projectRoot,
-        "back-end",
-        "dist",
-        "src",
-        "collector",
-        "runner.js"
-      ),
-      path.join(projectRoot, "back-end", "dist", "collector", "runner.js"),
-      path.join(projectRoot, "back-end", "src", "collector", "runner.ts")
-    ];
-    const scriptPath = possible.find((p) => fs$1.existsSync(p)) || possible[0];
-    if (!fs$1.existsSync(scriptPath))
-      return { ok: false, reason: "collector-not-found", attempted: possible };
+    let scriptPath;
+    if (app$1.isPackaged) {
+      scriptPath = path.join(process.resourcesPath, "backend", "dist", "collector", "runner.js");
+    } else {
+      const projectRoot = path.dirname(path.dirname(__dirname));
+      scriptPath = path.join(projectRoot, "back-end", "dist", "collector", "runner.js");
+    }
+    if (!fs$1.existsSync(scriptPath)) {
+      return { ok: false, reason: "collector-not-found", attempted: [scriptPath] };
+    }
     try {
       const child = fork(scriptPath, args, {
         stdio: ["pipe", "pipe", "ipc"],
@@ -15924,8 +15851,10 @@ app$1.whenReady().then(() => {
             );
           }
         }
-      } catch (e) {
-        console.warn("[main] dev auto-start failed", e);
+      } else {
+        console.log(
+          "[main] running in development mode, backend fork will be started by renderer when needed (no backend script found)"
+        );
       }
     }
     createWindow();

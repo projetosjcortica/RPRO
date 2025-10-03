@@ -128,7 +128,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // logoSrc,
   orientation = "portrait",
   formulaSums = {},
-  chartData = [],
   comentarios = [],
 }) => {
   const dataGeracao = new Date().toLocaleString("pt-BR");
@@ -274,22 +273,10 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos</Text>
-          {chartData.length > 0 &&
-            chartData.map((c, i) => (
-              <Text key={i} style={{ fontSize: 10 }}>
-                {`${c.name}: ${c.value.toLocaleString("pt-BR", {
-                  minimumFractionDigits: 3,
-                })}`}
-              </Text>
-            ))}
+          
 
           {categorias.map((cat, idx) => (
             <View key={idx} style={{ marginBottom: 10 }}>
-              <Text
-                style={{ fontSize: 12, fontWeight: "bold", marginBottom: 4 }}
-              >
-                {cat}
-              </Text>
               {renderTable(produtosPorCategoria[cat], (p) => ({
                 col1: p.nome,
                 col2: p.qtd.toLocaleString("pt-BR", {

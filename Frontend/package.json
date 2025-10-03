@@ -1,21 +1,20 @@
 {
-  "name": "frontend",
+  "name": "rpro",
   "private": true,
-  "version": "0.0.2",
+  "version": "1.0.0beta",
+  "author": "J.Cortiça, Kauã Okuma, Miguel Dias",
+  "description": "Sistema RPRO",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "build:backend": "cd ../back-end && npm install --no-audit --no-fund && npm run build",
+    "build": "npm run build:backend && npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.json",
-    "build": "npm run build:renderer && npm run build:main",
-    "build-backend-exe": "cd ../back-end && npm install --no-audit --no-fund && npm run build && npx pkg dist/index.js --targets node18-win-x64 --output dist/backend.exe",
-    "dist": "npm run build && electron-builder",
-    "dist:all": "npm run build-backend-exe && npm run build && electron-builder",
-    "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make"
+    "dist": "npm run build && npx electron-builder --publish=never"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -83,21 +82,13 @@
     "stream-browserify": "^3.0.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.13",
+    "tree-kill": "^1.2.2",
     "util": "^0.12.5",
     "vaul": "^1.1.2",
     "vite-plugin-commonjs": "^0.10.4",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.9.0",
-    "@electron-forge/maker-deb": "^7.9.0",
-    "@electron-forge/maker-rpm": "^7.9.0",
-    "@electron-forge/maker-squirrel": "^7.9.0",
-    "@electron-forge/maker-zip": "^7.9.0",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.9.0",
-    "@electron-forge/plugin-fuses": "^7.9.0",
-    "@electron/fuses": "^1.8.0",
-    "@rollup/plugin-commonjs": "^24.0.1",
     "@types/axios": "^0.9.36",
     "@types/html2pdf.js": "^0.10.0",
     "@types/react": "^18.2.21",
@@ -107,7 +98,7 @@
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",
     "electron": "^30.0.1",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^24.13.3",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
@@ -117,29 +108,62 @@
     "vite-plugin-electron": "^0.28.6",
     "vite-plugin-electron-renderer": "^0.14.5"
   },
-  "main": "dist-electron/main.js",
   "build": {
+    "appId": "com.rpro.app",
+    "productName": "RPRO",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "**/backend/**",
+      "**/node_modules/@tailwindcss/oxide-wasm32-wasi/**",
+      "**/node_modules/@emnapi/core/**"
+    ],
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "compression": "store",
     "files": [
-      "dist-electron/**/*",
       "dist/**/*",
-      "electron/preload.mjs",
-      "electron/main.js",
-      "node_modules/**/*",
       "dist-electron/**/*",
-      "dist/**/*"
+      "electron/**/*",
+      "!node_modules/@tailwindcss/oxide-wasm32-wasi/**",
+      "!node_modules/@emnapi/core/**",
+      "!node_modules/.cache",
+      "!node_modules/.vite",
+      "!**/*.map",
+      "!**/*.d.ts"
     ],
     "extraResources": [
       {
-        "from": "../back-end/dist/backend.exe",
-        "to": "backend/backend.exe"
+        "from": "../back-end/dist",
+        "to": "backend/"
+      },
+      {
+        "from": "../back-end/node_modules",
+        "to": "backend/node_modules",
+        "filter": ["**/*"]
       }
     ],
-    "asarUnpack": [
-      "backend/**"
-    ],
     "nsis": {
-      "oneClick": true,
-      "perMachine": false
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "RPRO",
+      "uninstallDisplayName": "RPRO",
+      "include": "build/installer.nsh",
+      "license": "license.txt"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "src\\public\\logo.png",
+      "publisherName": "RPRO"
     }
   }
 }
