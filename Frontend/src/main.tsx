@@ -187,6 +187,9 @@ console.log(`Attempting to connect to backend at ${BACKEND_URL}...`);
 // Inicializa o ProcessadorHTTP com a URL base do backend
 const processador = setProcessador(BACKEND_PORT); 
 
+// Expose backend port for components that need to construct direct URLs
+(window as any).backendPort = BACKEND_PORT;
+
 // O ProcessadorHTTP não precisa de waitForConnection para uma requisição inicial,
 // mas podemos fazer um ping para verificar conectividade.
 processador.ping()
