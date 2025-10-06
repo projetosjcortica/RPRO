@@ -553,36 +553,43 @@ app.whenReady().then(() => {
   (async () => {
     // If running packaged we will try to spawn the backend exe included in resources
     if (app.isPackaged) {
-      try {
-        const exePath = path.join(
-          process.resourcesPath,
-          "backend",
-          "backend.exe"
-        );
-        if (fs.existsSync(exePath)) {
-          console.log("[main] Spawning packaged backend exe at", exePath);
-          spawnedBackend = spawn(exePath, [], {
-            env: {
-              ...process.env,
-              FRONTEND_API_PORT: process.env.FRONTEND_API_PORT || "3000",
-            },
-            cwd: process.resourcesPath,
+      const backendScript = path.join(
+        process.resourcesPath,
+        "backend",
+        "index.js"
+      );
+      if (fs.existsSync(backendScript)) {
+        console.log("[main] spawning backend exe at", backendScript);
+        spawnedBackend = spawn("node", [backendScript], {
+          stdio: ["pipe", "pipe", "pipe", "ipc"],
+          cwd: path.dirname(backendScript),
+          env: { ...process.env },
+          shell: false,
+        });
+        spawnedBackend.on("error", (err) => {
+          console.error("[main] spawned backend error:", err);
+          spawnedBackend = null;
+        });
+        spawnedBackend.on("exit", (code, signal) => {
+          console.log(
+            `[main] spawned backend exited with code ${code} and signal ${signal}`
+          );
+          spawnedBackend = null;
+          if (win && !win.isDestroyed()) {
+            win.webContents.send("child-exit", { pid: spawnedBackend?.pid, code, signal });
+          }
+        });
+        if (spawnedBackend.stdout) {
+          spawnedBackend.stdout.on("data", (c) => {
+            console.log("[spawned backend stdout]", c.toString());
+            if (win && !win.isDestroyed())
+              win.webContents.send("child-stdout", {
+                pid: spawnedBackend?.pid,
+                data: c.toString(),
+              });
           });
-          spawnedBackend.stdout.on("data", (d) =>
-            console.log("[backend exe stdout]", d.toString())
-          );
-          spawnedBackend.stderr.on("data", (d) =>
-            console.error("[backend exe stderr]", d.toString())
-          );
-          spawnedBackend.on("exit", (code) =>
-            console.log("[backend exe] exited", code)
-          );
-        } else {
-          console.warn("[main] packaged backend exe not found at", exePath);
-        }
-      } catch (e) {
-        console.error("[main] failed to spawn packaged backend exe", e);
-      }
+        } 
+
     } else {
       // In dev, prefer to fork the backend JS so logs and IPC work as before
       try {
@@ -664,14 +671,9 @@ app.whenReady().then(() => {
     }
 
     createWindow();
-  })();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
+  }})();
 });
+
 
 // Encerrar backend e app corretamente
 app.on("window-all-closed", () => {
