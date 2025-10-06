@@ -1,15 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { format as formatDateFn } from "date-fns";
-import {
-  Table,
-  TableHeader,
-  TableHead,
-  TableBody,
-  TableCell,
-  TableRow,
-} from "./components/ui/table";
 import { Filtros, ReportRow } from "./components/types";
-import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 // import { getProcessador } from './Processador'
 import { useReportData } from "./hooks/useReportData";
 

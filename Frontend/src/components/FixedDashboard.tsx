@@ -7,6 +7,8 @@ import {
 import ProductsTable from './ProductsTable';
 import { useEffect, useState } from 'react';
 import { getProcessador } from '../Processador';
+import { Separator } from "./ui/separator";
+import { format as formatDateFn } from 'date-fns';
 
 type Entry = {
   Nome: string;
@@ -28,7 +30,9 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
   const [loadingResumo, setLoadingResumo] = useState(false);
   const [resumoError, setResumoError] = useState<string | null>(null);
 
-  const periodText = (() => {
+  console.log(loadingResumo)
+
+  const periodText = (() => { 
     if (!filters) return "Todos os períodos";
     const s = filters.dataInicio || "";
     const e = filters.dataFim || "";
@@ -60,14 +64,34 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     return () => { mounted = false; };
   }, [filters]);
  
+const formatShortDate = (raw?: string | null) => {
+    if (!raw) return "";
+    const s = String(raw).trim();
+    try {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const [y, m, d] = s.split('-').map(Number);
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+      }
+      if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+        const [d, m, y] = s.split('-').map(Number);
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+      }
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yy');
+      return s;
+    } catch (e) {
+      return s;
+    }
+  };
+
 
   return (
-    <div className="w-full h-full p-4 space-y-6 bg-gray-50 scrollbar-custom overflow-hidden">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 scrollbar-custom overflow-hidden">
+    <div className="w-full h-full p-4 scrollbar-custom overflow-hidden">
+      <div className="flex gap-6 justify-between scrollbar-custom overflow-hidden">
         {/* Main area - 8 columns */}
-        <div className="lg:col-span-8 space-y-6 ">
+        <div className="flex w-full space-y-6 flex-col">
           {/* First row: Formulas Donut */}
-          <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px]">
+          <Card className=" shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px] w-full">
             <CardHeader className="border-b border-gray-100 pb-2 pt-3 px-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
@@ -75,8 +99,8 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
                   <CardTitle className="text-sm font-semibold text-gray-900">Análise de Fórmulas</CardTitle>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <span className="text-xs text-gray-500">Período:</span>
-                  <span className="text-xs font-medium text-gray-700">{periodText}</span>
+                  <span className="text-xs text-gray-400">Período:</span>
+                  <span className="text-xs text-gray-400">{periodText}</span>
                 </div>
               </div>
             </CardHeader>
@@ -88,8 +112,8 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
           </Card>
 
           {/* Second row: Products & Hours */}
-          <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
-            <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px]">
+          <div className="flex gap-6">
+            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px] w-full">
               <CardHeader className="border-b border-gray-100 pb-2 pt-3 px-6">
                 <div className="flex items-center">
                   <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
@@ -98,14 +122,14 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
               </CardHeader>
               <CardContent className="p-6 flex flex-col h-[calc(100%-40px)]">
                 <div className="flex-1 min-h-[250px]">
-                  <BarChartWidget chartType="formulas" />
+                  <BarChartWidget chartType="horarios" />
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Third row: Weekly Chart */}
-          <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px]">
+          <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px] w-full">
             <CardHeader className="border-b border-gray-100 pb-2 pt-3 px-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
@@ -122,8 +146,8 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
           </Card>
         </div>
 
-        {/* Sidebar - 4 columns */}
-        <div className="lg:col-span-4 space-y-6">
+        {/* Sidebar  */}
+        <div className=" max-w-100 space-y-6 max-h-screen">
           <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden">
             <CardHeader className="border-b px-6 py-4">
               <div className="flex items-center justify-between">
@@ -131,59 +155,70 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
                   <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                   <CardTitle className="text-sm font-semibold">Resumo de Produção</CardTitle>
                 </div>
-                <div className="text-sm font-semibold text-gray-700">
-                  {new Date().toLocaleDateString('pt-BR', { 
-                    day: '2-digit', 
-                    month: 'long',
-                    year: 'numeric' 
-                  })}
-                </div>
               </div>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-red-600">
-                    {loadingResumo ? (
-                      '...'
-                    ) : resumo && typeof resumo.totalPesos === 'number' ? (
-                      Number(resumo.totalPesos).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
-                    ) : (
-                      '—'
-                    )}
-                  </div>
-                  <div className="text-gray-600 font-medium">Total Produzido (kg)</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-4xl font-bold text-red-600">
-                    {loadingResumo ? '...' : resumo && typeof resumo.batitdasTotais === 'number' ? resumo.batitdasTotais : '—'}
-                  </div>
-                  <div className="text-gray-600 font-medium">Batidas</div>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-100 pt-4"> 
-                <div className="mb-3 text-sm text-gray-700">
-                  Período: <span className="font-medium">{periodText}</span>
-                </div>
 
                 {resumoError ? (
                   <div className="text-sm text-red-600">Erro ao carregar resumo: {resumoError}</div>
                 ) : (
-                  <div className="space-y-3">
-                    <div className="text-sm text-gray-700">Horas: <span className="font-medium">{resumo?.horaInicial || '—'} — {resumo?.horaFinal || '—'}</span></div>
-                    <div className="text-sm text-gray-700">Período: <span className="font-medium">{resumo?.periodoInicio ? resumo.periodoInicio : '—'} → {resumo?.periodoFim ? resumo.periodoFim : '—'}</span></div>
-
-                    {/* First/Last day ranges */}
-                    {resumo?.firstDayRange?.date && (
-                      <div className="text-sm text-gray-700">{resumo.firstDayRange.date} → {resumo.firstDayRange.firstTime || '—'} &nbsp;&gt;&gt;&nbsp; {resumo.firstDayRange.lastTime || '—'}</div>
-                    )}
-                    {resumo?.lastDayRange?.date && (
-                      <div className="text-sm text-gray-700">{resumo.lastDayRange.date} → {resumo.lastDayRange.firstTime || '—'} &nbsp;&gt;&gt;&nbsp; {resumo.lastDayRange.lastTime || '—'}</div>
-                    )}
-
-                    <div>
-                      <div className="text-xs text-gray-500 mb-2">Fórmulas mais usadas</div>
+                  <div className="space-y-3 flex flex-col gap-3">
+                    <div id="total+horas" className="flex flex-col items-center justify-between mb-6 gap-2">
+                      <div className="w-80 h-25 max-h-25 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
+                        <p className="text-center text-lg font-bold">Total:  {""}
+                          {(resumo && typeof resumo.totalPesos === "number"
+                            ? resumo.totalPesos
+                            : "..."
+                          ).toLocaleString("pt-BR", {
+                            minimumFractionDigits: 3,
+                            maximumFractionDigits: 3,
+                          })} kg
+                        </p>
+                        <p className="text-center text-sm text-gray-400 font-regular">Batidas:  {""}
+                          {resumo && typeof resumo.batitdasTotais === "number"
+                            ? resumo.batitdasTotais
+                            : "..."}
+                        </p>
+                      </div>
+                      <div className=" w-80 h-25 max-h-25 rounded-lg flex flex-col justify-center shadow-md/16">
+                        <p className="text-center font-bold">Período:  {""}</p>
+                          <div className="flex flex-row justify-around px-8 gap-4">
+                            <div className="flex flex-col justify-center gap-1">
+                              <p className="text-center font-bold text-lg">
+                                {resumo && resumo.periodoInicio
+                                  ? formatShortDate(resumo.periodoInicio)
+                                  :  "--/--/--"}
+                              </p>
+                              <p
+                                className="text-center text-sm text-gray-400 font-regular">
+                                {resumo?.firstDayRange?.date && (
+                                  <div className="text-sm text-gray-400">{resumo.firstDayRange.firstTime || '—'} <Separator orientation="vertical"/> {resumo.firstDayRange.lastTime || '—'}</div>
+                                )}
+                              </p>
+                          </div>
+                          
+                          <Separator orientation="vertical"/>
+                          
+                          <div className="flex flex-col justify-center gap-1">
+                              
+                              <p 
+                                className="text-center font-bold text-lg">
+                                {resumo && resumo.periodoFim
+                                  ? formatShortDate(resumo.periodoFim)
+                                  :  "--/--/--"}
+                              </p>
+                              <p 
+                                className="text-center text-sm text-gray-400 font-regular">
+                                {resumo?.lastDayRange?.date && (
+                                  <div className="text-sm text-gray-400">{resumo.lastDayRange.firstTime || '—'} <Separator orientation="vertical"/> {resumo.lastDayRange.lastTime || '—'}</div>
+                                )}
+                              </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    {/* <div id="formulas">
+                      <div className="text-lg font-medium text-black mb-2">Fórmulas mais usadas</div>
                       <div className="space-y-2">
                         {loadingResumo ? (
                           <div className="text-sm text-gray-500">Carregando...</div>
@@ -200,46 +235,17 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
                           )
                         )}
                       </div>
-                    </div>
+                    </div> */}
 
-                    <div className="pt-2">
-                      <ProductsTable filters={filters} />
+                    <div id="produtos" className="pt-2 flex flex-col min-h-0">
+                      <div className="flex-1 overflow-hidden">
+                        <ProductsTable filters={filters} />
+                      </div>
                     </div>
                   </div>
                 )}
-              </div>
             </CardContent>
           </Card>
-
-          {/* Production Metrics */}
-          {/* <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden">
-            <CardHeader className="border-b px-6 py-4">
-              <div className="flex items-center">
-                <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
-                <CardTitle className="text-sm font-semibold">Indicadores de Produção</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="text-gray-700">Eficiência</div>
-                  <div className="text-red-600 font-bold">86,5%</div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="text-gray-700">OEE (Overall Equipment Effectiveness)</div>
-                  <div className="text-red-600 font-bold">78,2%</div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="text-gray-700">Tempo de parada</div>
-                  <div className="text-red-600 font-bold">4,2h</div>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="text-gray-700">Custo médio</div>
-                  <div className="text-red-600 font-bold">R$ 14,80/kg</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card> */}
         </div>
       </div>
     </div>

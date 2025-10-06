@@ -34,7 +34,7 @@ export default function ProductsTable({ filters }: { filters?: any }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-sm font-medium">Produtos</div>
+        <div className="text-lg font-medium">Produtos</div>
         <div className="flex items-center gap-2">
           <Sheet>
             <SheetTrigger asChild>
@@ -44,8 +44,8 @@ export default function ProductsTable({ filters }: { filters?: any }) {
               <SheetHeader>
                 <SheetTitle>Produtos (completos)</SheetTitle>
               </SheetHeader>
-              <div className="p-4 overflow-auto scrollbar-custom ">
-                <Table>
+              <div className="p-4 overflow-auto thin-red-scrollbar ">
+                <Table className=''>
                   <TableHeader>
                     <tr>
                       <TableHead>Produto</TableHead>

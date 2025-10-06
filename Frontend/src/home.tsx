@@ -54,9 +54,11 @@ export default function Home() {
   // Renderizar o layout conforme o esboço
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          {/* <div className="w-16 h-16 border-4 border-red-500 border-t-transparent rounded-full animate-spin mx-auto"></div> */}
+          {/* SHADCN RELEVECEEEEE */}
+          
           <p className="mt-4 text-gray-600 text-lg">Carregando...</p>
         </div>
       </div>
@@ -64,8 +66,8 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-100 overflow-auto thin-red-scrollbar">
-      <div className="max-w-[1920px] mx-auto p-4 md:p-6"> 
+    <div className="min-h-screen overflow-auto thin-red-scrollbar">
+      <div>
         <FixedDashboard rows={rows} filters={filtros} />
       </div>
     </div>

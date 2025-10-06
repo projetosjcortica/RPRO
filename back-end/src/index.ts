@@ -5,7 +5,7 @@ import { AppDataSource, dbService } from "./services/dbService";
 import { backupSvc } from "./services/backupService";
 import { parserService } from "./services/parserService";
 import { fileProcessorService } from "./services/fileProcessorService";
-import { cacheService } from "./services/cacheService";
+import { cacheService } from "./services/CacheService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
 import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo

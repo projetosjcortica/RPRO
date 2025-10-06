@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Input } from "./components/ui/input";
-import { ScrollArea } from "./components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
 
@@ -140,11 +139,11 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   const editableColumns = Array.from({ length: END_COL - START_COL + 1 }, (_, i) => `col${i + START_COL}`);
 
   return (
-    <div className="w-full h-full max-w-[1200px] mx-auto overflow-hidden">
-      <h2 className="text-2xl md:text-3xl font-semibold mb-4">Editar Produtos</h2>
+      <div className="w-full h-full flex flex-col">
+        <h2 className="text-2xl md:text-3xl font-semibold ml-4 mb-6 mt-3">Editar Produtos</h2>
       
-      <ScrollArea className="h-[72vh] max-h-[calc(100vh-140px)]">
-        <div className="rounded p-3 grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-7 shadow-xl/20 mb-12">
+      <div className="overflow-auto flex-1 min-h-0 thin-red-scrollbar">
+        <div className="rounded p-3 w-full grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-7 shadow-xl/20 pb-8">
           {editableColumns.map((col) => {
             const colNumber = parseInt(col.replace("col", ""), 10);
             const produtoNumber = colNumber - 5;
@@ -198,8 +197,8 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
             );
           })}
         </div>
-      </ScrollArea>
     </div>
+  </div>
   );
 }
 

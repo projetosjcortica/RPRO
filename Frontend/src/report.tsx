@@ -36,7 +36,6 @@ import {
   TableHeader,
   TableRow,
 } from "./components/ui/table";
-import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 import { Button, buttonVariants } from "./components/ui/button";
 import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
@@ -143,7 +142,7 @@ export default function Report() {
     granja: 'Granja', 
     proprietario: 'Proprietario' 
   });
-
+  console.log(sideInfo)
   // Efeitos para side info
   useEffect(() => {
     if (!profileConfigData) return;
@@ -475,7 +474,7 @@ export default function Report() {
   const handlePrint = async () => {
     const blob = await pdf(
       <MyDocument
-        logoUrl={logoUrl}  // 👈 Passando o logo
+        logoUrl={logoUrl}
         total={Number(tableSelection.total) || 0}
         batidas={Number(tableSelection.batidas) || 0}
         periodoInicio={tableSelection.horaInicial}
@@ -662,14 +661,14 @@ export default function Report() {
         </div>
 
         {/* Side Info */}
-        <div className="w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs border gap-2 flex-shrink-0">
+        <div className="w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           {/* Informações Gerais */}
           <div className="grid grid-cols-1 gap-2">
-            <div className="w-83 h-22 max-h-22 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
+            <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
               <p className="text-center text-lg font-bold">Total:  {""}
                 {(resumo && typeof resumo.totalPesos === "number"
                   ? resumo.totalPesos
-                  : tableSelection.total
+                  : tableSelection.total 
                 ).toLocaleString("pt-BR", {
                   minimumFractionDigits: 3,
                   maximumFractionDigits: 3,
@@ -681,7 +680,7 @@ export default function Report() {
                   : tableSelection.batidas}
               </p>
             </div>
-            <div className="w-83 h-22 max-h-22 rounded-lg flex flex-col justify-center shadow-md/16">
+            <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
               <p className="text-center font-bold">Período:  {""}</p>
                 <div className="flex flex-row justify-around px-8 gap-4">
                   <div className="flex flex-col justify-center gap-1">
@@ -690,26 +689,26 @@ export default function Report() {
                         ? formatShortDate(resumo.periodoInicio)
                         :  "--/--/--"}
                     </p>
-                    <p className="text-center text-sm text-gray-400 font-regular">
-                      {resumo && resumo.horaInicial
-                        ? resumo.horaInicial
-                        : "--:--:--"}
+                    <p
+                      className="text-center text-sm text-gray-400 font-regular">
+                      {resumo?.firstDayRange?.date && (
+                        <div className="text-sm text-gray-400">{resumo.firstDayRange.firstTime || '—'} <Separator orientation="vertical"/> {resumo.firstDayRange.lastTime || '—'}</div>
+                      )}
                     </p>
                 </div>
                 
-                <Separator orientation="vertical"/>
+                  <Separator orientation="vertical"/>
                 
                 <div className="flex flex-col justify-center gap-1">
-                    
                     <p className="text-center font-bold text-lg">
                       {resumo && resumo.periodoFim
                         ? formatShortDate(resumo.periodoFim)
                         :  "--/--/--"}
                     </p>
                     <p className="text-center text-sm text-gray-400 font-regular">
-                      {resumo && resumo.horaFinal
-                        ? resumo.horaFinal
-                        : "--:--:--"}
+                      {resumo?.lastDayRange?.date && (
+                        <div className="text-sm text-gray-400">{resumo.lastDayRange.firstTime || '—'} <Separator orientation="vertical"/> {resumo.lastDayRange.lastTime || '—'}</div>
+                      )}
                     </p>
                 </div>
               </div>
@@ -769,7 +768,7 @@ export default function Report() {
                   
                 >
                   {mostrarEditorComentario ? 'Cancelar' : '+ Adcionar Comentário'}
-                </Button>
+              </Button>
             </div>
 
             {/* Seção de Comentários */}
