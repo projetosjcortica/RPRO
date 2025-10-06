@@ -23,6 +23,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import { useGlobalConnection } from './hooks/useGlobalConnection';
 import {
   Pagination,
   PaginationContent,
@@ -120,6 +121,7 @@ export default function Report() {
   const { formData: profileConfigData } = usePersistentForm("profile-config");
   const autoRefreshTimer = useRef<number | null>(null);
   const prevCollectorRunning = useRef<boolean>(false);
+  const { startConnecting, stopConnecting } = useGlobalConnection();
 
   const refreshResumo = useCallback(() => {
     setResumoReloadFlag((flag) => flag + 1);
@@ -321,6 +323,7 @@ export default function Report() {
         let res;
         if (ihmConfig && (ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
           // Send config as POST with body
+          startConnecting('Conectando ao coletor...');
           res = await fetch("http://localhost:3000/api/collector/start", {
             method: "POST",
             headers: {
@@ -341,6 +344,7 @@ export default function Report() {
         const payload = await res.json().catch(() => ({}));
         if (payload && payload.started === false) {
           await fetchCollectorStatus();
+          stopConnecting();
           throw new Error(payload?.message || "Coletor não pôde ser iniciado.");
         }
         await fetchCollectorStatus();
@@ -356,8 +360,21 @@ export default function Report() {
       );
     } finally {
       setCollectorLoading(false);
+      // no-op: global provider handles UI
     }
   };
+  // Poll while collector not running to update status; if global provider active, UI shows spinner
+  useEffect(() => {
+    let intervalId: number | null = null;
+    if (!collectorRunning) {
+      intervalId = window.setInterval(() => {
+        void fetchCollectorStatus();
+      }, 2500) as unknown as number;
+    }
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [collectorRunning, fetchCollectorStatus]);
 
   useEffect(() => {
     if (collectorRunning) {
