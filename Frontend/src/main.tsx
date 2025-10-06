@@ -171,6 +171,7 @@ import App from './App'
 import './index.css'
 import { RuntimeConfigProvider } from './hooks/useRuntimeConfig';
 import { AuthProvider } from './hooks/useAuth';
+import { GlobalConnectionProvider } from './hooks/useGlobalConnection';
 import { Processador, getProcessador, setProcessador } from './Processador' // Ajuste o caminho se necessário
 import { HashRouter } from 'react-router-dom' // Se estiver usando rotas
 
@@ -209,9 +210,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RuntimeConfigProvider>
       <AuthProvider>
-        <HashRouter> {/* Se estiver usando rotas */}
-          <App />
-        </HashRouter>
+        <GlobalConnectionProvider>
+          <HashRouter> {/* Se estiver usando rotas */}
+            <App />
+          </HashRouter>
+        </GlobalConnectionProvider>
       </AuthProvider>
     </RuntimeConfigProvider>
   </React.StrictMode>,
