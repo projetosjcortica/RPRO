@@ -12,7 +12,15 @@ import { resumoService } from "./services/resumoService"; // Importação do ser
 import ExcelJS from "exceljs";
 import { dataPopulationService } from "./services/dataPopulationService"; // Importação do serviço de população de dados
 import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
-import { Relatorio, MateriaPrima, Batch, User, MovimentacaoEstoque, Estoque, Row } from "./entities";
+import {
+  Relatorio,
+  MateriaPrima,
+  Batch,
+  User,
+  MovimentacaoEstoque,
+  Estoque,
+  Row,
+} from "./entities";
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
 import cors from "cors";
@@ -83,26 +91,23 @@ export async function startCollector(overrideConfig?: {
 
   // Prefer override config, then 'ihm-config' topic (object) saved by frontend; fall back to older flat keys and env
   const runtimeIhm = getRuntimeConfig("ihm-config") || {};
-  
-  const finalIp = overrideConfig?.ip ?? 
-    runtimeIhm.ip ??
-    getRuntimeConfig("ip");
-    
-  const finalUser = overrideConfig?.user ?? 
-    runtimeIhm.user ??
-    getRuntimeConfig("user");
-    
-  const finalPassword = overrideConfig?.password ?? 
-    runtimeIhm.password ??
-    getRuntimeConfig("pass");
+
+  const finalIp = overrideConfig?.ip ?? runtimeIhm.ip ?? getRuntimeConfig("ip");
+
+  const finalUser =
+    overrideConfig?.user ?? runtimeIhm.user ?? getRuntimeConfig("user");
+
+  const finalPassword =
+    overrideConfig?.password ?? runtimeIhm.password ?? getRuntimeConfig("pass");
 
   // If we have override config, update the runtime config for future use
   if (overrideConfig) {
     const updatedIhmConfig = { ...runtimeIhm };
     if (overrideConfig.ip) updatedIhmConfig.ip = overrideConfig.ip;
     if (overrideConfig.user) updatedIhmConfig.user = overrideConfig.user;
-    if (overrideConfig.password) updatedIhmConfig.password = overrideConfig.password;
-    
+    if (overrideConfig.password)
+      updatedIhmConfig.password = overrideConfig.password;
+
     try {
       setRuntimeConfigs({ "ihm-config": updatedIhmConfig });
       console.log(`[collector] Updated IHM config with IP: ${finalIp}`);
@@ -232,13 +237,13 @@ const app = express();
 // handler ensures proper handling of preflight OPTIONS requests.
 app.use(cors());
 // Also explicitly respond to OPTIONS preflight for all routes (defensive)
-app.options('*', cors());
+app.options("*", cors());
 
 // Extra safety: ensure the common CORS headers are present on all responses.
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
   next();
 });
 
@@ -247,23 +252,36 @@ app.use((req, res, next) => {
 // otherwise interfere.
 app.use((req, res, next) => {
   try {
-    if (req.method === 'OPTIONS') {
-      console.log('[CORS preflight] ', req.method, req.path, 'from', req.headers.origin);
-      res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
-      res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-      res.setHeader('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || 'Content-Type,Authorization');
-      res.setHeader('Access-Control-Max-Age', '600');
+    if (req.method === "OPTIONS") {
+      console.log(
+        "[CORS preflight] ",
+        req.method,
+        req.path,
+        "from",
+        req.headers.origin
+      );
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+      res.setHeader(
+        "Access-Control-Allow-Methods",
+        "GET,POST,PUT,DELETE,OPTIONS"
+      );
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        req.headers["access-control-request-headers"] ||
+          "Content-Type,Authorization"
+      );
+      res.setHeader("Access-Control-Max-Age", "600");
       return res.status(204).end();
     }
   } catch (e) {
-    console.warn('[CORS preflight handler error]', e);
+    console.warn("[CORS preflight handler error]", e);
   }
   next();
 });
 // Allow larger JSON bodies (base64 images can be large). Default was too small and caused 413 errors.
-app.use(express.json({ limit: '20mb' }));
+app.use(express.json({ limit: "20mb" }));
 // Also accept large urlencoded bodies if any clients send form-encoded data
-app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // Helper: normalize incoming date strings to ISO `yyyy-MM-dd` used in DB
 function normalizeDateParam(d: any): string | null {
@@ -352,69 +370,73 @@ app.get("/api/db/status", async (req, res) => {
 });
 
 // Clear entire database (DELETE all rows from all entities)
-app.post('/api/db/clear', async (req, res) => {
+app.post("/api/db/clear", async (req, res) => {
   try {
     await dbService.init();
     await dbService.clearAll();
     return res.json({ ok: true });
   } catch (e: any) {
-    console.error('[api/db/clear] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[api/db/clear] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
 // Compatibility route: some frontends call /api/database/clean
-app.post('/api/database/clean', async (req, res) => {
+app.post("/api/database/clean", async (req, res) => {
   try {
     await dbService.init();
     await dbService.clearAll();
     return res.json({ ok: true });
   } catch (e: any) {
-    console.error('[api/database/clean] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[api/database/clean] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
 // Export DB dump as JSON (and optionally save to disk). Returns { dump, savedPath }
-app.get('/api/db/dump', async (req, res) => {
+app.get("/api/db/dump", async (req, res) => {
   try {
     await dbService.init();
     const result = await dbService.exportDump(true);
-    return res.json({ ok: true, savedPath: result.savedPath, meta: result.dump._meta });
+    return res.json({
+      ok: true,
+      savedPath: result.savedPath,
+      meta: result.dump._meta,
+    });
   } catch (e: any) {
-    console.error('[api/db/dump] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[api/db/dump] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
 // Import DB dump (JSON body with dump object). This will replace existing tables.
-app.post('/api/db/import', async (req, res) => {
+app.post("/api/db/import", async (req, res) => {
   try {
     const dumpObj = req.body;
-    if (!dumpObj) return res.status(400).json({ error: 'dump body required' });
+    if (!dumpObj) return res.status(400).json({ error: "dump body required" });
     await dbService.init();
     const result = await dbService.importDump(dumpObj);
     return res.json({ ok: true, ...result });
   } catch (e: any) {
-    console.error('[api/db/import] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[api/db/import] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
 // Clear cache DB used by cacheService
-app.post('/api/cache/clear', async (req, res) => {
+app.post("/api/cache/clear", async (req, res) => {
   try {
     await cacheService.init();
     await cacheService.clearAll();
     return res.json({ ok: true });
   } catch (e: any) {
-    console.error('[api/cache/clear] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[api/cache/clear] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
 // Unified clear all: DB + cache + backups
-app.post('/api/clear/all', async (req, res) => {
+app.post("/api/clear/all", async (req, res) => {
   try {
     await dbService.init();
     await cacheService.init();
@@ -422,33 +444,37 @@ app.post('/api/clear/all', async (req, res) => {
     // perform clears
     await dbService.clearAll();
     await cacheService.clearAll();
-    try { await backupSvc.clearAllBackups(); } catch (e) { console.warn('[api/clear/all] clearing backups failed', e); }
+    try {
+      await backupSvc.clearAllBackups();
+    } catch (e) {
+      console.warn("[api/clear/all] clearing backups failed", e);
+    }
     return res.json({ ok: true });
   } catch (e: any) {
-    console.error('[api/clear/all] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[api/clear/all] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
 // Clear production data but keep users and materia prima with default setup
-app.post('/api/clear/production', async (req, res) => {
+app.post("/api/clear/production", async (req, res) => {
   try {
     await dbService.init();
     await cacheService.init();
-    
+
     // Clear production tables (keep User and MateriaPrima)
     const relatorioRepo = AppDataSource.getRepository(Relatorio);
     const batchRepo = AppDataSource.getRepository(Batch);
     const rowRepo = AppDataSource.getRepository(Row);
     const estoqueRepo = AppDataSource.getRepository(Estoque);
     const movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
-    
+
     await relatorioRepo.clear();
     await batchRepo.clear();
     await rowRepo.clear();
     await estoqueRepo.clear();
     await movimentacaoRepo.clear();
-    
+
     // Reset MateriaPrima to default products (optional - you can remove this if you want to keep existing products)
     const materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
     await materiaPrimaRepo.clear();
@@ -460,46 +486,59 @@ app.post('/api/clear/production', async (req, res) => {
         produto: `Produto ${i}`,
         medida: 1, // kg
       });
-    };
-
+    }
 
     for (const prod of defaultProducts) {
       try {
         const newProduct = materiaPrimaRepo.create(prod);
         await materiaPrimaRepo.save(newProduct);
       } catch (e) {
-        console.warn('[api/clear/production] failed to create default product:', prod, e);
+        console.warn(
+          "[api/clear/production] failed to create default product:",
+          prod,
+          e
+        );
       }
     }
-    
+
     // Clear cache (both database records and SQLite file)
     await cacheService.clearAll();
-    
+
     // Also clear the physical cache SQLite file
     try {
-      const cachePath = path.resolve(process.cwd(), process.env.CACHE_SQLITE_PATH || 'cache.sqlite');
+      const cachePath = path.resolve(
+        process.cwd(),
+        process.env.CACHE_SQLITE_PATH || "cache.sqlite"
+      );
       if (fs.existsSync(cachePath)) {
         fs.unlinkSync(cachePath);
-        console.log('[api/clear/production] Cache SQLite file deleted:', cachePath);
+        console.log(
+          "[api/clear/production] Cache SQLite file deleted:",
+          cachePath
+        );
       }
     } catch (e) {
-      console.warn('[api/clear/production] Failed to delete cache SQLite file:', e);
+      console.warn(
+        "[api/clear/production] Failed to delete cache SQLite file:",
+        e
+      );
     }
-    
+
     // Clear backups (optional)
-    try { 
-      await backupSvc.clearAllBackups(); 
-    } catch (e) { 
-      console.warn('[api/clear/production] clearing backups failed', e); 
+    try {
+      await backupSvc.clearAllBackups();
+    } catch (e) {
+      console.warn("[api/clear/production] clearing backups failed", e);
     }
-    
-    return res.json({ 
-      ok: true, 
-      message: 'Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, cache SQLite cleared.' 
+
+    return res.json({
+      ok: true,
+      message:
+        "Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, cache SQLite cleared.",
     });
   } catch (e: any) {
-    console.error('[api/clear/production] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[api/clear/production] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
@@ -615,10 +654,10 @@ app.get("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
-  const pageRaw = req.query.page;
-  const pageSizeRaw = req.query.pageSize;
-  const allRaw = String(req.query.all || '').toLowerCase();
-  const returnAll = allRaw === 'true' || allRaw === '1';
+    const pageRaw = req.query.page;
+    const pageSizeRaw = req.query.pageSize;
+    const allRaw = String(req.query.all || "").toLowerCase();
+    const returnAll = allRaw === "true" || allRaw === "1";
     const pageNum = ((): number => {
       const n = Number(pageRaw);
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
@@ -720,8 +759,8 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     qb.orderBy(`r.${sb}`, sd);
 
     // Always include products for values mapping
-  const offset = (pageNum - 1) * pageSizeNum;
-  const take = pageSizeNum;
+    const offset = (pageNum - 1) * pageSizeNum;
+    const take = pageSizeNum;
 
     let rows: any[] = [];
     let total = 0;
@@ -831,7 +870,11 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
       const parts = normDataFim.split("-");
       let dePlus = normDataFim;
       try {
-        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
         dt.setDate(dt.getDate() + 1);
         const y = dt.getFullYear();
         const m = String(dt.getMonth() + 1).padStart(2, "0");
@@ -860,29 +903,41 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
 
     // Build workbook
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Relatorio');
+    const ws = wb.addWorksheet("Relatorio");
 
     // Header row: Dia, Hora, Nome, Codigo, Numero, Prod_1 ... Prod_40
-    const headers = ['Dia','Hora','Nome','Codigo do programa','Codigo do cliente'];
+    const headers = [
+      "Dia",
+      "Hora",
+      "Nome",
+      "Codigo do programa",
+      "Codigo do cliente",
+    ];
     for (let i = 1; i <= 40; i++) {
       // get product name if available
       const mp = materiasByNum[i];
-      if (mp && mp.produto) headers.push(`${mp.produto}`);
-      else headers.push(`Prod_${i}`);
-    };
+      const unidade = mp?.unidade  ?? (mp && Number(mp.medida) === 0 ? "kg" : "g");
+      if (mp && mp.produto) headers.push(`${mp.produto} (${unidade})`);
+      else headers.push(`Prod_${i} (${unidade})`);
+    }
     ws.addRow(headers);
 
     for (const r of rows) {
       const rowArr: any[] = [];
-      rowArr.push(r.Dia || '');
-      rowArr.push(r.Hora || '');
-      rowArr.push(r.Nome || '');
-      rowArr.push(r.Form1 ?? '');
-      rowArr.push(r.Form2 ?? '');
+      rowArr.push(r.Dia || "");
+      rowArr.push(r.Hora || "");
+      rowArr.push(r.Nome || "");
+      rowArr.push(r.Form1 ?? "");
+      rowArr.push(r.Form2 ?? "");
       for (let i = 1; i <= 40; i++) {
-        let v = typeof r[`Prod_${i}`] === 'number' ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        let v =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
         const mp = materiasByNum[i];
-        if (mp && Number(mp.medida) === 0 && v) v = v / 1000; // grams -> kg
+        // if (mp && Number(mp.medida) === 0 && v) v = v / 1000; // grams -> kg
         rowArr.push(v);
       }
       ws.addRow(rowArr);
@@ -891,23 +946,36 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     // Set number format for product columns
     for (let col = 6; col < 6 + 40; col++) {
       const column = ws.getColumn(col);
-      column.numFmt = '#,##0.##';
+      column.numFmt = "#,##0.##";
+    }
+    // consigo criar uma pagina para enviar os dados do materia prima tambem?
+    const wsMateriais = wb.addWorksheet("Materiais");
+
+    wsMateriais.addRow(["Num", "Produto", "Medida"]);
+    for (const m of materias) {
+      wsMateriais.addRow([m.num, m.produto, m.medida]);
     }
 
     // Stream workbook to response
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=relatorio_${Date.now()}.xlsx`);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=relatorio_${Date.now()}.xlsx`
+    );
     await wb.xlsx.write(res as any);
     // signal end
     res.end();
   } catch (e: any) {
-    console.error('[exportExcel] error', e);
-    return res.status(500).json({ error: 'internal', details: e?.message });
+    console.error("[exportExcel] error", e);
+    return res.status(500).json({ error: "internal", details: e?.message });
   }
 });
 
 // POST variant that accepts same body as paginate POST
-app.post('/api/relatorio/exportExcel', async (req, res) => {
+app.post("/api/relatorio/exportExcel", async (req, res) => {
   try {
     const codigoRaw = req.body.codigo ?? null;
     const numeroRaw = req.body.numero ?? null;
@@ -916,46 +984,53 @@ app.post('/api/relatorio/exportExcel', async (req, res) => {
     const dataFim = req.body.dataFim ?? null;
     const normDataInicio = normalizeDateParam(dataInicio) || null;
     const normDataFim = normalizeDateParam(dataFim) || null;
-    const sortBy = String(req.body.sortBy || 'Dia');
-    const sortDir = String(req.body.sortDir || 'DESC');
+    const sortBy = String(req.body.sortBy || "Dia");
+    const sortDir = String(req.body.sortDir || "DESC");
 
     await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
-    const qb = repo.createQueryBuilder('r');
+    const qb = repo.createQueryBuilder("r");
 
-    if (codigoRaw != null && codigoRaw !== '') {
+    if (codigoRaw != null && codigoRaw !== "") {
       const c = Number(codigoRaw);
-      if (!Number.isNaN(c)) qb.andWhere('r.Form1 = :c', { c });
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :c", { c });
     }
-    if (numeroRaw != null && numeroRaw !== '') {
+    if (numeroRaw != null && numeroRaw !== "") {
       const num = Number(numeroRaw);
-      if (!Number.isNaN(num)) qb.andWhere('r.Form2 = :num', { num });
+      if (!Number.isNaN(num)) qb.andWhere("r.Form2 = :num", { num });
     }
-    if (formulaRaw != null && formulaRaw !== '') {
+    if (formulaRaw != null && formulaRaw !== "") {
       const fNum = Number(formulaRaw);
-      if (!Number.isNaN(fNum)) qb.andWhere('r.Form1 = :fNum', { fNum });
-      else qb.andWhere('LOWER(r.Nome) LIKE :fStr', { fStr: `%${String(formulaRaw).toLowerCase()}%` });
+      if (!Number.isNaN(fNum)) qb.andWhere("r.Form1 = :fNum", { fNum });
+      else
+        qb.andWhere("LOWER(r.Nome) LIKE :fStr", {
+          fStr: `%${String(formulaRaw).toLowerCase()}%`,
+        });
     }
-    if (normDataInicio) qb.andWhere('r.Dia >= :ds', { ds: normDataInicio });
+    if (normDataInicio) qb.andWhere("r.Dia >= :ds", { ds: normDataInicio });
     if (normDataFim) {
-      const parts = normDataFim.split('-');
+      const parts = normDataFim.split("-");
       let dePlus = normDataFim;
       try {
-        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
         dt.setDate(dt.getDate() + 1);
         const y = dt.getFullYear();
-        const m = String(dt.getMonth() + 1).padStart(2, '0');
-        const d = String(dt.getDate()).padStart(2, '0');
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
         dePlus = `${y}-${m}-${d}`;
       } catch (e) {
         dePlus = normDataFim;
       }
-      qb.andWhere('r.Dia < :dePlus', { dePlus });
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
     }
 
-    const allowed = new Set(['Dia','Hora','Nome','Form1','Form2']);
-    const sb = allowed.has(sortBy) ? sortBy : 'Dia';
-    const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
+    const allowed = new Set(["Dia", "Hora", "Nome", "Form1", "Form2"]);
+    const sb = allowed.has(sortBy) ? sortBy : "Dia";
+    const sd = sortDir === "ASC" ? "ASC" : "DESC";
     qb.orderBy(`r.${sb}`, sd);
 
     const rows = await qb.getMany();
@@ -963,146 +1038,174 @@ app.post('/api/relatorio/exportExcel', async (req, res) => {
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
-      const n = typeof m.num === 'number' ? m.num : Number(m.num);
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
     const wb = new ExcelJS.Workbook();
-    const ws = wb.addWorksheet('Relatorio');
-    const headers = ['Dia','Hora','Nome','Codigo','Numero'];
+    const ws = wb.addWorksheet("Relatorio");
+    const headers = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
     for (let i = 1; i <= 40; i++) headers.push(`Prod_${i}`);
     ws.addRow(headers);
     for (const r of rows) {
       const rowArr: any[] = [];
-      rowArr.push(r.Dia || '');
-      rowArr.push(r.Hora || '');
-      rowArr.push(r.Nome || '');
-      rowArr.push(r.Form1 ?? '');
-      rowArr.push(r.Form2 ?? '');
+      rowArr.push(r.Dia || "");
+      rowArr.push(r.Hora || "");
+      rowArr.push(r.Nome || "");
+      rowArr.push(r.Form1 ?? "");
+      rowArr.push(r.Form2 ?? "");
       for (let i = 1; i <= 40; i++) {
-        let v = typeof r[`Prod_${i}`] === 'number' ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        let v =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0 && v) v = v / 1000;
         rowArr.push(v);
       }
       ws.addRow(rowArr);
     }
-    for (let col = 6; col < 6 + 40; col++) ws.getColumn(col).numFmt = '#,##0.##';
+    for (let col = 6; col < 6 + 40; col++)
+      ws.getColumn(col).numFmt = "#,##0.##";
 
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename=relatorio_${Date.now()}.xlsx`);
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=relatorio_${Date.now()}.xlsx`
+    );
     await wb.xlsx.write(res as any);
     res.end();
   } catch (e: any) {
-    console.error('[exportExcel POST] error', e);
-    return res.status(500).json({ error: 'internal', details: e?.message });
+    console.error("[exportExcel POST] error", e);
+    return res.status(500).json({ error: "internal", details: e?.message });
   }
 });
 
 // --- Simple auth endpoints: register, login, upload photo
 // Stores plain-text passwords (per user request). First registered user becomes admin.
-const userUpload = multer({ dest: path.resolve(process.cwd(), 'user_photos') });
-if (!fs.existsSync(path.resolve(process.cwd(), 'user_photos'))) fs.mkdirSync(path.resolve(process.cwd(), 'user_photos'), { recursive: true });
+const userUpload = multer({ dest: path.resolve(process.cwd(), "user_photos") });
+if (!fs.existsSync(path.resolve(process.cwd(), "user_photos")))
+  fs.mkdirSync(path.resolve(process.cwd(), "user_photos"), { recursive: true });
 
 // Serve uploaded profile photos
-app.use('/user_photos', express.static(path.resolve(process.cwd(), 'user_photos')));
+app.use(
+  "/user_photos",
+  express.static(path.resolve(process.cwd(), "user_photos"))
+);
 
-app.post('/api/auth/register', async (req, res) => {
+app.post("/api/auth/register", async (req, res) => {
   try {
     await ensureDatabaseConnection();
     const { username, password, displayName } = req.body;
-    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    if (!username || !password)
+      return res.status(400).json({ error: "username and password required" });
     const repo = AppDataSource.getRepository(User);
     const existing = await repo.findOne({ where: { username } });
-    if (existing) return res.status(409).json({ error: 'username taken' });
+    if (existing) return res.status(409).json({ error: "username taken" });
     // If there are no users yet, make this one admin
     const usersCount = await repo.count();
     const isAdmin = usersCount === 0;
-    const u = repo.create({ username, password: password, displayName: displayName || null, isAdmin });
+    const u = repo.create({
+      username,
+      password: password,
+      displayName: displayName || null,
+      isAdmin,
+    });
     const saved = await repo.save(u as any);
     // Do not return password hash
     const { password: _pw, ...out } = saved as any;
     return res.json(out);
   } catch (e: any) {
-    console.error('[auth/register] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[auth/register] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
-app.post('/api/auth/login', async (req, res) => {
+app.post("/api/auth/login", async (req, res) => {
   try {
     await ensureDatabaseConnection();
     const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    if (!username || !password)
+      return res.status(400).json({ error: "username and password required" });
     const repo = AppDataSource.getRepository(User);
     const user = await repo.findOne({ where: { username } });
-    if (!user) return res.status(401).json({ error: 'invalid' });
-    if ((user as any).password !== password) return res.status(401).json({ error: 'invalid' });
+    if (!user) return res.status(401).json({ error: "invalid" });
+    if ((user as any).password !== password)
+      return res.status(401).json({ error: "invalid" });
     const { password: _pw, ...out } = user as any;
     return res.json(out);
   } catch (e: any) {
-    console.error('[auth/login] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[auth/login] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
-app.post('/api/auth/photo', userUpload.single('photo'), async (req, res) => {
+app.post("/api/auth/photo", userUpload.single("photo"), async (req, res) => {
   try {
     await ensureDatabaseConnection();
     const f: any = req.file;
     const username = req.body.username;
-    if (!username) return res.status(400).json({ error: 'username required' });
-    if (!f) return res.status(400).json({ error: 'photo file required (field: photo)' });
+    if (!username) return res.status(400).json({ error: "username required" });
+    if (!f)
+      return res
+        .status(400)
+        .json({ error: "photo file required (field: photo)" });
     const repo = AppDataSource.getRepository(User);
     const user = await repo.findOne({ where: { username } });
-    if (!user) return res.status(404).json({ error: 'user not found' });
+    if (!user) return res.status(404).json({ error: "user not found" });
     // move file to persistent path and store relative path
-    const destDir = path.resolve(process.cwd(), 'user_photos');
+    const destDir = path.resolve(process.cwd(), "user_photos");
     if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-    const ext = path.extname(f.originalname || f.filename || '');
+    const ext = path.extname(f.originalname || f.filename || "");
     const newName = `${username}_${Date.now()}${ext}`;
     const newPath = path.join(destDir, newName);
     fs.renameSync(f.path, newPath);
     // store a relative URL so frontend can access via /user_photos/<name>
     (user as any).photoPath = `/user_photos/${newName}`;
     await repo.save(user as any);
-  const { password: _pw, ...out } = user as any;
+    const { password: _pw, ...out } = user as any;
     return res.json(out);
   } catch (e: any) {
-    console.error('[auth/photo] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[auth/photo] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
-app.post('/api/auth/update', async (req, res) => {
+app.post("/api/auth/update", async (req, res) => {
   try {
     await ensureDatabaseConnection();
     const { username, displayName } = req.body;
-    if (!username) return res.status(400).json({ error: 'username required' });
+    if (!username) return res.status(400).json({ error: "username required" });
     const repo = AppDataSource.getRepository(User);
     const user = await repo.findOne({ where: { username } });
-    if (!user) return res.status(404).json({ error: 'user not found' });
+    if (!user) return res.status(404).json({ error: "user not found" });
     (user as any).displayName = displayName ?? (user as any).displayName;
     await repo.save(user as any);
     const { passwordHash, ...out } = user as any;
     return res.json(out);
   } catch (e: any) {
-    console.error('[auth/update] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[auth/update] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
 // Accept profile image as base64 data (JSON). This endpoint allows the frontend
 // to store inline image data in the DB instead of relying on filesystem paths.
-app.post('/api/auth/photoBase64', async (req, res) => {
+app.post("/api/auth/photoBase64", async (req, res) => {
   try {
     await ensureDatabaseConnection();
     const { username, photoBase64 } = req.body;
-    if (!username) return res.status(400).json({ error: 'username required' });
-    if (!photoBase64) return res.status(400).json({ error: 'photoBase64 required' });
+    if (!username) return res.status(400).json({ error: "username required" });
+    if (!photoBase64)
+      return res.status(400).json({ error: "photoBase64 required" });
     const repo = AppDataSource.getRepository(User);
     const user = await repo.findOne({ where: { username } });
-    if (!user) return res.status(404).json({ error: 'user not found' });
+    if (!user) return res.status(404).json({ error: "user not found" });
 
     // Store inline base64 (data URL) directly on the user.row
     (user as any).photoData = photoBase64;
@@ -1111,45 +1214,47 @@ app.post('/api/auth/photoBase64', async (req, res) => {
     const { password: _pw, ...out } = user as any;
     return res.json(out);
   } catch (e: any) {
-    console.error('[auth/photoBase64] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[auth/photoBase64] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
 // Endpoints to store/retrieve a report logo path in the settings store.
 // The stored key will be 'report-logo-path' and will be used later when
 // generating reports to include a logo image by path.
-app.post('/api/report/logo', async (req, res) => {
+app.post("/api/report/logo", async (req, res) => {
   try {
     const { path: logoPath } = req.body || {};
-    if (!logoPath) return res.status(400).json({ error: 'path is required' });
+    if (!logoPath) return res.status(400).json({ error: "path is required" });
     // Save as a single config key so it persists in DB via configService
-    await configService.setSettings({ 'report-logo-path': String(logoPath) });
+    await configService.setSettings({ "report-logo-path": String(logoPath) });
     return res.json({ success: true, path: logoPath });
   } catch (e: any) {
-    console.error('[report/logo] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[report/logo] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
-app.get('/api/report/logo', async (req, res) => {
+app.get("/api/report/logo", async (req, res) => {
   try {
-    const val = await configService.getSetting('report-logo-path');
+    const val = await configService.getSetting("report-logo-path");
     return res.json({ path: val ?? null });
   } catch (e: any) {
-    console.error('[report/logo:get] error', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
+    console.error("[report/logo:get] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
-
 
 app.post("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
-  const pageRaw = req.body.page;
-  const pageSizeRaw = req.body.pageSize;
-  const returnAll = req.body && (req.body.all === true || String(req.body.all || '').toLowerCase() === 'true');
+    const pageRaw = req.body.page;
+    const pageSizeRaw = req.body.pageSize;
+    const returnAll =
+      req.body &&
+      (req.body.all === true ||
+        String(req.body.all || "").toLowerCase() === "true");
     const pageNum = ((): number => {
       const n = Number(pageRaw);
       return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
@@ -1435,7 +1540,7 @@ app.get("/api/resumo", async (req, res) => {
       const nf = Number(nomeFormula);
       if (Number.isFinite(nf)) numericFormula = nf;
     }
-      
+
     const result = await resumoService.getResumo({
       areaId,
       formula:
@@ -1520,9 +1625,12 @@ app.get("/api/collector/start", async (req, res) => {
     const overrideConfig: any = {};
     if (req.query.ip) overrideConfig.ip = String(req.query.ip);
     if (req.query.user) overrideConfig.user = String(req.query.user);
-    if (req.query.password) overrideConfig.password = String(req.query.password);
-    
-    const result = await startCollector(Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
+    if (req.query.password)
+      overrideConfig.password = String(req.query.password);
+
+    const result = await startCollector(
+      Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined
+    );
     return res.json(result);
   } catch (e) {
     console.error(e);
@@ -1538,8 +1646,10 @@ app.post("/api/collector/start", async (req, res) => {
     if (ip) overrideConfig.ip = String(ip);
     if (user) overrideConfig.user = String(user);
     if (password) overrideConfig.password = String(password);
-    
-    const result = await startCollector(Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined);
+
+    const result = await startCollector(
+      Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined
+    );
     return res.json(result);
   } catch (e) {
     console.error(e);
@@ -1674,7 +1784,7 @@ app.get("/api/config/", async (req, res) => {
         continue;
       }
       // If it's already an object (shouldn't happen here) just pass through
-      if (typeof raw !== 'string') {
+      if (typeof raw !== "string") {
         normalized[k] = raw;
         continue;
       }
@@ -1693,7 +1803,7 @@ app.get("/api/config/", async (req, res) => {
           // As a last resort try to eval (should be safe as data is from DB)
           try {
             // eslint-disable-next-line no-eval
-            out = eval('(' + raw + ')');
+            out = eval("(" + raw + ")");
           } catch (e3) {
             out = raw;
           }
@@ -1701,10 +1811,13 @@ app.get("/api/config/", async (req, res) => {
       }
 
       // If out looks like a numeric index -> char map, reconstruct string
-      if (out && typeof out === 'object' && !Array.isArray(out)) {
+      if (out && typeof out === "object" && !Array.isArray(out)) {
         const numericKeys = Object.keys(out).filter((x) => /^\d+$/.test(x));
         // Only reconstruct when ALL keys are numeric-indexed (indicates a char map)
-        if (numericKeys.length > 0 && numericKeys.length === Object.keys(out).length) {
+        if (
+          numericKeys.length > 0 &&
+          numericKeys.length === Object.keys(out).length
+        ) {
           // Build string from numeric keys in order
           const chars: string[] = [];
           numericKeys
@@ -1712,10 +1825,10 @@ app.get("/api/config/", async (req, res) => {
             .sort((a, b) => a - b)
             .forEach((i) => {
               const v = out[String(i)];
-              if (typeof v === 'string') chars.push(v);
+              if (typeof v === "string") chars.push(v);
             });
           if (chars.length > 0) {
-            const joined = chars.join('');
+            const joined = chars.join("");
             // try parse joined as json to recover nested object
             try {
               normalized[k] = JSON.parse(joined);
@@ -1733,26 +1846,26 @@ app.get("/api/config/", async (req, res) => {
 
     // Provide sensible defaults and ensure common keys are present separately
     const defaults: Record<string, any> = {
-      'admin-config': '',
-      'db-config': '',
-      'general-config': '',
-      'ihm-config': {
-        nomeCliente: '',
-        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
-        user: '',
-        password: '',
-        localCSV: '',
-        metodoCSV: '',
+      "admin-config": "",
+      "db-config": "",
+      "general-config": "",
+      "ihm-config": {
+        nomeCliente: "",
+        ip: String(getRuntimeConfig("ihm_ip") ?? process.env.IHM_IP ?? ""),
+        user: "",
+        password: "",
+        localCSV: "",
+        metodoCSV: "",
         habilitarCSV: false,
-        serverDB: '',
-        database: '',
-        userDB: '',
-        passwordDB: '',
-        mySqlDir: '',
-        dumpDir: '',
-        batchDumpDir: ''
+        serverDB: "",
+        database: "",
+        userDB: "",
+        passwordDB: "",
+        mySqlDir: "",
+        dumpDir: "",
+        batchDumpDir: "",
       },
-      'produtosInfo': {}
+      produtosInfo: {},
     };
 
     // Merge defaults for missing keys to ensure separation (do not overwrite existing)
@@ -1768,51 +1881,63 @@ app.get("/api/config/", async (req, res) => {
 });
 
 // Return a separated default config structure (frontend can use this to initialize forms)
-app.get('/api/config/defaults', async (req, res) => {
+app.get("/api/config/defaults", async (req, res) => {
   try {
     const defaults = {
-      'admin-config': '',
-      'db-config': '',
-      'general-config': '',
-      'ihm-config': {
-        nomeCliente: '',
-        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
-        user: '',
-        password: '',
-        localCSV: '',
-        metodoCSV: '',
+      "admin-config": "",
+      "db-config": "",
+      "general-config": "",
+      "ihm-config": {
+        nomeCliente: "",
+        ip: String(getRuntimeConfig("ihm_ip") ?? process.env.IHM_IP ?? ""),
+        user: "",
+        password: "",
+        localCSV: "",
+        metodoCSV: "",
         habilitarCSV: false,
-        serverDB: '',
-        database: '',
-        userDB: '',
-        passwordDB: '',
-        mySqlDir: '',
-        dumpDir: '',
-        batchDumpDir: ''
+        serverDB: "",
+        database: "",
+        userDB: "",
+        passwordDB: "",
+        mySqlDir: "",
+        dumpDir: "",
+        batchDumpDir: "",
       },
-      'produtosInfo': {}
+      produtosInfo: {},
     };
     res.json(defaults);
   } catch (e) {
-    console.error('[config/defaults] error', e);
-    res.status(500).json({ error: 'internal' });
+    console.error("[config/defaults] error", e);
+    res.status(500).json({ error: "internal" });
   }
 });
 
 // Accept a combined config object and persist each top-level key as separate settings
-app.post('/api/config/split', async (req, res) => {
+app.post("/api/config/split", async (req, res) => {
   try {
     const configObj = req.body;
-    if (!configObj || typeof configObj !== 'object' || Array.isArray(configObj)) {
-      return res.status(400).json({ error: 'Request body must be an object with top-level config keys' });
+    if (
+      !configObj ||
+      typeof configObj !== "object" ||
+      Array.isArray(configObj)
+    ) {
+      return res
+        .status(400)
+        .json({
+          error: "Request body must be an object with top-level config keys",
+        });
     }
     // Persist each top-level key as a separate Setting row
     await configService.setSettings(configObj);
-    try { setRuntimeConfigs(configObj); } catch (e) { /* ignore */ }
+    try {
+      setRuntimeConfigs(configObj);
+    } catch (e) {
+      /* ignore */
+    }
     return res.json({ success: true, saved: Object.keys(configObj) });
   } catch (e) {
-    console.error('[config/split] Failed to split/save settings', e);
-    return res.status(500).json({ error: 'internal' });
+    console.error("[config/split] Failed to split/save settings", e);
+    return res.status(500).json({ error: "internal" });
   }
 });
 
@@ -1826,37 +1951,38 @@ app.get("/api/config/:key", async (req, res) => {
 
     // Known defaults for frontend topics
     const knownDefaults: Record<string, any> = {
-      'admin-config': '',
-      'db-config': '',
-      'general-config': '',
-      'ihm-config': {
-        nomeCliente: '',
-        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
-        user: '',
-        password: '',
-        localCSV: '',
-        metodoCSV: '',
+      "admin-config": "",
+      "db-config": "",
+      "general-config": "",
+      "ihm-config": {
+        nomeCliente: "",
+        ip: String(getRuntimeConfig("ihm_ip") ?? process.env.IHM_IP ?? ""),
+        user: "",
+        password: "",
+        localCSV: "",
+        metodoCSV: "",
         habilitarCSV: false,
-        serverDB: '',
-        database: '',
-        userDB: '',
-        passwordDB: '',
-        mySqlDir: '',
-        dumpDir: '',
-        batchDumpDir: ''
+        serverDB: "",
+        database: "",
+        userDB: "",
+        passwordDB: "",
+        mySqlDir: "",
+        dumpDir: "",
+        batchDumpDir: "",
       },
-      'produtosInfo': {}
+      produtosInfo: {},
     };
 
     if (raw === null) {
       // Return the known default structure if available
-      if (knownDefaults[key] !== undefined) return res.json({ key, value: knownDefaults[key] });
+      if (knownDefaults[key] !== undefined)
+        return res.json({ key, value: knownDefaults[key] });
       return res.json({ key, value: {} });
     }
 
     // Parse/normalize the stored value similarly to the bulk endpoint
     let out: any = raw;
-    if (typeof raw === 'string') {
+    if (typeof raw === "string") {
       try {
         out = JSON.parse(raw);
       } catch (e) {
@@ -1866,7 +1992,7 @@ app.get("/api/config/:key", async (req, res) => {
         } catch (e2) {
           try {
             // eslint-disable-next-line no-eval
-            out = eval('(' + raw + ')');
+            out = eval("(" + raw + ")");
           } catch (e3) {
             out = raw;
           }
@@ -1875,39 +2001,65 @@ app.get("/api/config/:key", async (req, res) => {
     }
 
     // Reconstruct numeric-index char map if appropriate
-    if (out && typeof out === 'object' && !Array.isArray(out)) {
+    if (out && typeof out === "object" && !Array.isArray(out)) {
       const numericKeys = Object.keys(out).filter((x) => /^\d+$/.test(x));
-      if (numericKeys.length > 0 && numericKeys.length === Object.keys(out).length) {
+      if (
+        numericKeys.length > 0 &&
+        numericKeys.length === Object.keys(out).length
+      ) {
         const chars: string[] = [];
-        numericKeys.map(n => Number(n)).sort((a,b) => a-b).forEach(i => {
-          const v = out[String(i)]; if (typeof v === 'string') chars.push(v);
-        });
+        numericKeys
+          .map((n) => Number(n))
+          .sort((a, b) => a - b)
+          .forEach((i) => {
+            const v = out[String(i)];
+            if (typeof v === "string") chars.push(v);
+          });
         if (chars.length > 0) {
-          const joined = chars.join('');
-          try { out = JSON.parse(joined); } catch { out = joined; }
+          const joined = chars.join("");
+          try {
+            out = JSON.parse(joined);
+          } catch {
+            out = joined;
+          }
         }
       }
     }
 
     // If the client asked for only input fields (e.g. ?inputs=true), filter
     // the returned object to only the input-relevant keys for known topics.
-    const onlyInputs = String(req.query?.inputs || '').toLowerCase() === 'true';
-    if (onlyInputs && out && typeof out === 'object' && !Array.isArray(out)) {
+    const onlyInputs = String(req.query?.inputs || "").toLowerCase() === "true";
+    if (onlyInputs && out && typeof out === "object" && !Array.isArray(out)) {
       const inputsMap: Record<string, string[]> = {
-        'ihm-config': ['ip', 'user', 'password'],
-        'general-config': ['nomeCliente', 'localCSV', 'metodoCSV', 'habilitarCSV', 'serverDB', 'database', 'userDB', 'passwordDB', 'mySqlDir', 'dumpDir', 'batchDumpDir'],
-        'admin-config': [],
-        'db-config': [],
-        'produtosInfo': []
+        "ihm-config": ["ip", "user", "password"],
+        "general-config": [
+          "nomeCliente",
+          "localCSV",
+          "metodoCSV",
+          "habilitarCSV",
+          "serverDB",
+          "database",
+          "userDB",
+          "passwordDB",
+          "mySqlDir",
+          "dumpDir",
+          "batchDumpDir",
+        ],
+        "admin-config": [],
+        "db-config": [],
+        produtosInfo: [],
       };
 
       if (Object.prototype.hasOwnProperty.call(inputsMap, key)) {
-        if (key === 'produtosInfo') {
+        if (key === "produtosInfo") {
           // For produtosInfo return only nome and unidade per column
           const filtered: Record<string, any> = {};
           for (const col of Object.keys(out)) {
             const item = out[col] || {};
-            filtered[col] = { nome: item.nome ?? '', unidade: item.unidade ?? '' };
+            filtered[col] = {
+              nome: item.nome ?? "",
+              unidade: item.unidade ?? "",
+            };
           }
           out = filtered;
         } else {
@@ -1915,7 +2067,12 @@ app.get("/api/config/:key", async (req, res) => {
           const filtered: Record<string, any> = {};
           for (const f of fields) {
             // prefer value in parsed object, otherwise fallback to knownDefaults if present
-            filtered[f] = out[f] !== undefined ? out[f] : (knownDefaults[key] && knownDefaults[key][f] !== undefined ? knownDefaults[key][f] : '');
+            filtered[f] =
+              out[f] !== undefined
+                ? out[f]
+                : knownDefaults[key] && knownDefaults[key][f] !== undefined
+                ? knownDefaults[key][f]
+                : "";
           }
           out = filtered;
         }
@@ -1923,7 +2080,12 @@ app.get("/api/config/:key", async (req, res) => {
     }
 
     // If known default exists and parsed out is empty, return default
-    if ((out === null || out === '' || (typeof out === 'object' && Object.keys(out).length === 0)) && knownDefaults[key] !== undefined) {
+    if (
+      (out === null ||
+        out === "" ||
+        (typeof out === "object" && Object.keys(out).length === 0)) &&
+      knownDefaults[key] !== undefined
+    ) {
       return res.json({ key, value: knownDefaults[key] });
     }
 
@@ -1942,11 +2104,9 @@ app.post("/api/config", async (req, res) => {
       typeof configObj !== "object" ||
       Array.isArray(configObj)
     ) {
-      return res
-        .status(400)
-        .json({
-          error: "Request body must be a JSON object with config keys/values",
-        });
+      return res.status(400).json({
+        error: "Request body must be a JSON object with config keys/values",
+      });
     }
     const keys = Object.keys(configObj);
     if (keys.length === 0) {
@@ -1972,10 +2132,10 @@ app.get("/api/chartdata", async (req, res) => {
     await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
-  // Optional query params: limit, dateStart, dateEnd
-  // If limit is provided and >0 we will apply it. Otherwise return all matching rows.
-  const limitRaw = req.query.limit;
-  const limit = limitRaw != null ? Number(limitRaw) : 0;
+    // Optional query params: limit, dateStart, dateEnd
+    // If limit is provided and >0 we will apply it. Otherwise return all matching rows.
+    const limitRaw = req.query.limit;
+    const limit = limitRaw != null ? Number(limitRaw) : 0;
     const dateStart = req.query.dateStart ? String(req.query.dateStart) : null;
     const dateEnd = req.query.dateEnd ? String(req.query.dateEnd) : null;
     const normDateStartChart = normalizeDateParam(dateStart) || null;
@@ -2064,21 +2224,29 @@ app.get("/api/chartdata/formulas", async (req, res) => {
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
-    
+
     const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
-    
-    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+
+    if (formula)
+      qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
     if (dataInicio) {
       const normalized = normalizeDateParam(dataInicio);
-      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+      if (normalized)
+        qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
     }
     if (dataFim) {
       const normalized = normalizeDateParam(dataFim);
       if (normalized) {
         const parts = normalized.split("-");
-        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
         dt.setDate(dt.getDate() + 1);
-        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        const nextDay = `${dt.getFullYear()}-${String(
+          dt.getMonth() + 1
+        ).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
@@ -2098,7 +2266,7 @@ app.get("/api/chartdata/formulas", async (req, res) => {
     // Agregar por fórmula (Nome) using per-row normalized total (kg)
     const sums: Record<string, number> = {};
     const validCount: Record<string, number> = {};
-    
+
     for (const r of rows) {
       if (!r.Nome) continue;
       const key = r.Nome;
@@ -2106,7 +2274,12 @@ app.get("/api/chartdata/formulas", async (req, res) => {
       // compute row total normalized to kg
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
-        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        const raw =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
@@ -2124,10 +2297,10 @@ app.get("/api/chartdata/formulas", async (req, res) => {
     }
 
     const chartData = Object.entries(sums)
-      .map(([name, value]) => ({ 
-        name, 
+      .map(([name, value]) => ({
+        name,
         value,
-        count: validCount[name]
+        count: validCount[name],
       }))
       .sort((a, b) => b.value - a.value);
 
@@ -2150,21 +2323,29 @@ app.get("/api/chartdata/produtos", async (req, res) => {
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
-    
+
     const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
-    
-    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+
+    if (formula)
+      qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
     if (dataInicio) {
       const normalized = normalizeDateParam(dataInicio);
-      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+      if (normalized)
+        qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
     }
     if (dataFim) {
       const normalized = normalizeDateParam(dataFim);
       if (normalized) {
         const parts = normalized.split("-");
-        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
         dt.setDate(dt.getDate() + 1);
-        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        const nextDay = `${dt.getFullYear()}-${String(
+          dt.getMonth() + 1
+        ).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
@@ -2184,21 +2365,22 @@ app.get("/api/chartdata/produtos", async (req, res) => {
     // Agregar por produto (Prod_1, Prod_2, etc.)
     const productSums: Record<string, number> = {};
     const productUnits: Record<string, string> = {};
-    
+
     for (const r of rows) {
       for (let i = 1; i <= 40; i++) {
-        const v = typeof r[`Prod_${i}`] === "number" 
-          ? r[`Prod_${i}`] 
-          : r[`Prod_${i}`] != null 
-          ? Number(r[`Prod_${i}`]) 
-          : 0;
-        
+        const v =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
+
         if (v <= 0) continue;
-        
+
         const mp = materiasByNum[i];
         const productKey = mp?.produto || `Produto ${i}`;
         const unidade = mp && Number(mp.medida) === 0 ? "g" : "kg";
-        
+
         productSums[productKey] = (productSums[productKey] || 0) + v;
         productUnits[productKey] = unidade;
       }
@@ -2207,12 +2389,12 @@ app.get("/api/chartdata/produtos", async (req, res) => {
     // Normalize product sums to KG for coherent charting
     const chartData = Object.entries(productSums)
       .map(([name, value]) => {
-        const unit = productUnits[name] || 'kg';
-        const valueKg = unit === 'g' ? value / 1000 : value;
+        const unit = productUnits[name] || "kg";
+        const valueKg = unit === "g" ? value / 1000 : value;
         return {
           name,
           value: valueKg,
-          unit: 'kg'
+          unit: "kg",
         };
       })
       .sort((a, b) => b.value - a.value);
@@ -2236,21 +2418,29 @@ app.get("/api/chartdata/horarios", async (req, res) => {
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
-    
+
     const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
-    
-    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+
+    if (formula)
+      qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
     if (dataInicio) {
       const normalized = normalizeDateParam(dataInicio);
-      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+      if (normalized)
+        qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
     }
     if (dataFim) {
       const normalized = normalizeDateParam(dataFim);
       if (normalized) {
         const parts = normalized.split("-");
-        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
         dt.setDate(dt.getDate() + 1);
-        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        const nextDay = `${dt.getFullYear()}-${String(
+          dt.getMonth() + 1
+        ).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
@@ -2270,16 +2460,21 @@ app.get("/api/chartdata/horarios", async (req, res) => {
     // Agregar por hora (0h-23h) using normalized per-row total (kg)
     const hourSums: Record<string, number> = {};
     const hourCounts: Record<string, number> = {};
-    
+
     for (const r of rows) {
       if (!r.Hora) continue;
-      const hour = r.Hora.split(':')[0];
+      const hour = r.Hora.split(":")[0];
       const hourKey = `${hour}h`;
 
       // compute row total normalized to kg
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
-        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        const raw =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
@@ -2296,11 +2491,11 @@ app.get("/api/chartdata/horarios", async (req, res) => {
     }
 
     const chartData = Object.entries(hourSums)
-      .map(([name, value]) => ({ 
-        name, 
+      .map(([name, value]) => ({
+        name,
         value,
         count: hourCounts[name],
-        average: value / hourCounts[name]
+        average: value / hourCounts[name],
       }))
       .sort((a, b) => parseInt(a.name) - parseInt(b.name));
 
@@ -2308,7 +2503,12 @@ app.get("/api/chartdata/horarios", async (req, res) => {
       chartData,
       total: chartData.reduce((sum, item) => sum + item.value, 0),
       totalRecords: rows.length,
-      peakHour: chartData.length > 0 ? chartData.reduce((max, item) => item.value > max.value ? item : max).name : null,
+      peakHour:
+        chartData.length > 0
+          ? chartData.reduce((max, item) =>
+              item.value > max.value ? item : max
+            ).name
+          : null,
       ts: new Date().toISOString(),
     });
   } catch (e) {
@@ -2324,21 +2524,29 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
-    
+
     const qb = repo.createQueryBuilder("r").orderBy("r.Dia", "DESC");
-    
-    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+
+    if (formula)
+      qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
     if (dataInicio) {
       const normalized = normalizeDateParam(dataInicio);
-      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+      if (normalized)
+        qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
     }
     if (dataFim) {
       const normalized = normalizeDateParam(dataFim);
       if (normalized) {
         const parts = normalized.split("-");
-        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
         dt.setDate(dt.getDate() + 1);
-        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        const nextDay = `${dt.getFullYear()}-${String(
+          dt.getMonth() + 1
+        ).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
@@ -2359,9 +2567,9 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
     const parseDia = (dia?: string): Date | null => {
       if (!dia) return null;
       const s = dia.trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + "T00:00:00");
       if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
-        const parts = s.split('/');
+        const parts = s.split("/");
         let y = parts[2];
         if (y.length === 2) y = String(2000 + Number(y));
         return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
@@ -2371,22 +2579,35 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
     };
 
     // Agregar por dia da semana using per-row normalized total (kg)
-    const weekdays = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    const weekdays = [
+      "Domingo",
+      "Segunda",
+      "Terça",
+      "Quarta",
+      "Quinta",
+      "Sexta",
+      "Sábado",
+    ];
     const weekdaySums: Record<string, number> = {};
     const weekdayCounts: Record<string, number> = {};
-    
+
     for (const r of rows) {
       if (!r.Dia) continue;
       const date = parseDia(r.Dia);
       if (!date) continue;
-      
+
       const dayIndex = date.getDay();
       const dayName = weekdays[dayIndex];
 
       // compute row total normalized to kg
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
-        const raw = typeof r[`Prod_${i}`] === "number" ? r[`Prod_${i}`] : r[`Prod_${i}`] != null ? Number(r[`Prod_${i}`]) : 0;
+        const raw =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
@@ -2403,19 +2624,26 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
     }
 
     const chartData = weekdays
-      .map(name => ({ 
-        name, 
+      .map((name) => ({
+        name,
         value: weekdaySums[name] || 0,
         count: weekdayCounts[name] || 0,
-        average: weekdaySums[name] ? weekdaySums[name] / weekdayCounts[name] : 0
+        average: weekdaySums[name]
+          ? weekdaySums[name] / weekdayCounts[name]
+          : 0,
       }))
-      .filter(d => d.value > 0);
+      .filter((d) => d.value > 0);
 
     return res.json({
       chartData,
       total: chartData.reduce((sum, item) => sum + item.value, 0),
       totalRecords: rows.length,
-      peakDay: chartData.length > 0 ? chartData.reduce((max, item) => item.value > max.value ? item : max).name : null,
+      peakDay:
+        chartData.length > 0
+          ? chartData.reduce((max, item) =>
+              item.value > max.value ? item : max
+            ).name
+          : null,
       ts: new Date().toISOString(),
     });
   } catch (e) {
@@ -2431,21 +2659,29 @@ app.get("/api/chartdata/stats", async (req, res) => {
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
-    
+
     const qb = repo.createQueryBuilder("r");
-    
-    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+
+    if (formula)
+      qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
     if (dataInicio) {
       const normalized = normalizeDateParam(dataInicio);
-      if (normalized) qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
+      if (normalized)
+        qb.andWhere("r.Dia >= :dataInicio", { dataInicio: normalized });
     }
     if (dataFim) {
       const normalized = normalizeDateParam(dataFim);
       if (normalized) {
         const parts = normalized.split("-");
-        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        const dt = new Date(
+          Number(parts[0]),
+          Number(parts[1]) - 1,
+          Number(parts[2])
+        );
         dt.setDate(dt.getDate() + 1);
-        const nextDay = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+        const nextDay = `${dt.getFullYear()}-${String(
+          dt.getMonth() + 1
+        ).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
@@ -2460,9 +2696,9 @@ app.get("/api/chartdata/stats", async (req, res) => {
       return sum + (isNaN(v) ? 0 : v);
     }, 0);
 
-    const uniqueFormulas = new Set(rows.map(r => r.Nome)).size;
-    
-    const uniqueDays = new Set(rows.map(r => r.Dia).filter(Boolean)).size;
+    const uniqueFormulas = new Set(rows.map((r) => r.Nome)).size;
+
+    const uniqueDays = new Set(rows.map((r) => r.Dia).filter(Boolean)).size;
 
     return res.json({
       totalGeral,
@@ -2485,15 +2721,19 @@ app.get("/api/chartdata/semana", async (req, res) => {
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { weekStart, formula, codigo, numero } = req.query;
-    
+
     if (!weekStart) {
-      return res.status(400).json({ error: "weekStart parameter is required (YYYY-MM-DD)" });
+      return res
+        .status(400)
+        .json({ error: "weekStart parameter is required (YYYY-MM-DD)" });
     }
 
     // Calcular início e fim da semana
     const startDate = new Date(String(weekStart));
     if (isNaN(startDate.getTime())) {
-      return res.status(400).json({ error: "Invalid weekStart format. Use YYYY-MM-DD" });
+      return res
+        .status(400)
+        .json({ error: "Invalid weekStart format. Use YYYY-MM-DD" });
     }
 
     // Ajustar para o início da semana (domingo)
@@ -2506,16 +2746,22 @@ app.get("/api/chartdata/semana", async (req, res) => {
     endDate.setHours(23, 59, 59, 999);
 
     // Formatar datas para query
-    const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`;
-    const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+    const startStr = `${startDate.getFullYear()}-${String(
+      startDate.getMonth() + 1
+    ).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`;
+    const endStr = `${endDate.getFullYear()}-${String(
+      endDate.getMonth() + 1
+    ).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
 
-    const qb = repo.createQueryBuilder("r")
+    const qb = repo
+      .createQueryBuilder("r")
       .where("r.Dia >= :startStr", { startStr })
       .andWhere("r.Dia <= :endStr", { endStr })
       .orderBy("r.Dia", "ASC")
       .addOrderBy("r.Hora", "ASC");
-    
-    if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+
+    if (formula)
+      qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
     if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
     if (numero) qb.andWhere("r.Numero = :numero", { numero });
 
@@ -2525,9 +2771,9 @@ app.get("/api/chartdata/semana", async (req, res) => {
     const parseDia = (dia?: string): Date | null => {
       if (!dia) return null;
       const s = dia.trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + "T00:00:00");
       if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
-        const parts = s.split('/');
+        const parts = s.split("/");
         let y = parts[2];
         if (y.length === 2) y = String(2000 + Number(y));
         return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
@@ -2537,33 +2783,37 @@ app.get("/api/chartdata/semana", async (req, res) => {
     };
 
     // Agregar por dia da semana
-    const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
     const weekdayTotals = Array(7).fill(0);
     const weekdayCounts = Array(7).fill(0);
-    
+
     for (const r of rows) {
       if (!r.Dia) continue;
       const date = parseDia(r.Dia);
       if (!date) continue;
-      
+
       const dayIndex = date.getDay();
       const v = Number(r.Form1 ?? 0);
-      
+
       if (isNaN(v)) continue;
-      
+
       weekdayTotals[dayIndex] += v;
       weekdayCounts[dayIndex] += 1;
     }
 
-    const chartData = weekdays.map((name, idx) => ({ 
-      name, 
+    const chartData = weekdays.map((name, idx) => ({
+      name,
       value: weekdayTotals[idx],
       count: weekdayCounts[idx],
-      average: weekdayCounts[idx] > 0 ? weekdayTotals[idx] / weekdayCounts[idx] : 0
+      average:
+        weekdayCounts[idx] > 0 ? weekdayTotals[idx] / weekdayCounts[idx] : 0,
     }));
 
     const weekTotal = weekdayTotals.reduce((sum, val) => sum + val, 0);
-    const peakDay = chartData.reduce((max, item) => item.value > max.value ? item : max, chartData[0]);
+    const peakDay = chartData.reduce(
+      (max, item) => (item.value > max.value ? item : max),
+      chartData[0]
+    );
 
     return res.json({
       chartData,
@@ -2589,7 +2839,9 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
     const { weekStarts, formula, codigo, numero } = req.body || {};
 
     if (!Array.isArray(weekStarts) || weekStarts.length === 0) {
-      return res.status(400).json({ error: "weekStarts must be an array of YYYY-MM-DD strings" });
+      return res
+        .status(400)
+        .json({ error: "weekStarts must be an array of YYYY-MM-DD strings" });
     }
 
     const results: any[] = [];
@@ -2597,29 +2849,35 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
     for (const ws of weekStarts) {
       const startDate = new Date(String(ws));
       if (isNaN(startDate.getTime())) {
-        results.push({ weekStart: ws, error: 'invalid date' });
+        results.push({ weekStart: ws, error: "invalid date" });
         continue;
       }
 
       // Adjust to beginning of week (Sunday)
       const dayOfWeek = startDate.getDay();
       startDate.setDate(startDate.getDate() - dayOfWeek);
-      startDate.setHours(0,0,0,0);
+      startDate.setHours(0, 0, 0, 0);
 
       const endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 6);
-      endDate.setHours(23,59,59,999);
+      endDate.setHours(23, 59, 59, 999);
 
-      const startStr = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`;
-      const endStr = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+      const startStr = `${startDate.getFullYear()}-${String(
+        startDate.getMonth() + 1
+      ).padStart(2, "0")}-${String(startDate.getDate()).padStart(2, "0")}`;
+      const endStr = `${endDate.getFullYear()}-${String(
+        endDate.getMonth() + 1
+      ).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
 
-      const qb = repo.createQueryBuilder("r")
+      const qb = repo
+        .createQueryBuilder("r")
         .where("r.Dia >= :startStr", { startStr })
         .andWhere("r.Dia <= :endStr", { endStr })
         .orderBy("r.Dia", "ASC")
         .addOrderBy("r.Hora", "ASC");
 
-      if (formula) qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
+      if (formula)
+        qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
       if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
       if (numero) qb.andWhere("r.Numero = :numero", { numero });
 
@@ -2629,9 +2887,9 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
       const parseDia = (dia?: string): Date | null => {
         if (!dia) return null;
         const s = dia.trim();
-        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T00:00:00');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + "T00:00:00");
         if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
-          const parts = s.split('/');
+          const parts = s.split("/");
           let y = parts[2];
           if (y.length === 2) y = String(2000 + Number(y));
           return new Date(Number(y), Number(parts[1]) - 1, Number(parts[0]));
@@ -2640,7 +2898,7 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
         return !isNaN(dt.getTime()) ? dt : null;
       };
 
-      const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+      const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
       const weekdayTotals = Array(7).fill(0);
       const weekdayCounts = Array(7).fill(0);
 
@@ -2659,11 +2917,15 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
         name,
         value: weekdayTotals[idx],
         count: weekdayCounts[idx],
-        average: weekdayCounts[idx] > 0 ? weekdayTotals[idx] / weekdayCounts[idx] : 0
+        average:
+          weekdayCounts[idx] > 0 ? weekdayTotals[idx] / weekdayCounts[idx] : 0,
       }));
 
       const weekTotal = weekdayTotals.reduce((sum, val) => sum + val, 0);
-      const peakDay = chartData.reduce((max, item) => item.value > max.value ? item : max, chartData[0]);
+      const peakDay = chartData.reduce(
+        (max, item) => (item.value > max.value ? item : max),
+        chartData[0]
+      );
 
       results.push({
         weekStart: startStr,
@@ -2677,8 +2939,8 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
 
     return res.json({ results, ts: new Date().toISOString() });
   } catch (e) {
-    console.error('[api/chartdata/semana/bulk] error', e);
-    return res.status(500).json({ error: 'internal' });
+    console.error("[api/chartdata/semana/bulk] error", e);
+    return res.status(500).json({ error: "internal" });
   }
 });
 
