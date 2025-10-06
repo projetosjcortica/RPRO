@@ -11,7 +11,7 @@ import { CalendarIcon } from "lucide-react";
 import * as React from "react";
 import { type DateRange } from "react-day-picker";
 import { pt } from "date-fns/locale";
-import { Select, SelectContent , SelectGroup , SelectItem , SelectLabel , SelectTrigger , SelectValue } from "./ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "./ui/select";
 
 interface FiltrosBarProps {
   onAplicarFiltros?: (filtros: Filtros) => void;
@@ -33,6 +33,8 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         from: new Date(filtros.dataInicio),
         to: new Date(filtros.dataFim)
       });
+    } else {
+      setDateRange(undefined);
     }
   }, [filtros.dataInicio, filtros.dataFim]);
 
@@ -49,15 +51,28 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('Failed to fetch filtrosAvaliable');
         const body = await resp.json();
+        console.log('[FiltrosBar] Resposta do backend:', body);
+
         if (!mounted) return;
+
         const cods = Array.isArray(body.codigos) ? body.codigos.map((c: any) => String(c)) : [];
         const nums = Array.isArray(body.numeros) ? body.numeros.map((n: any) => String(n)) : [];
+
+        console.log('[FiltrosBar] Códigos processados:', cods);
         setCodigosOptions(cods);
         setNumerosOptions(nums);
+
+        // Manter valor só se ainda estiver nas opções
+        setFiltrosTemporarios(prev => ({
+          ...prev,
+          codigo: cods.includes(prev.codigo) && prev.codigo !== '__all' ? prev.codigo : '',
+          numero: nums.includes(prev.numero) && prev.numero !== '__all' ? prev.numero : ''
+        }));
       } catch (err) {
         console.error('[FiltrosBar] erro ao buscar filtros disponíveis', err);
         setCodigosOptions([]);
         setNumerosOptions([]);
+        setFiltrosTemporarios(prev => ({ ...prev, codigo: '', numero: '' }));
       } finally {
         if (mounted) setLoadingFiltros(false);
       }
@@ -81,23 +96,29 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       setFiltrosTemporarios(prev => ({
         ...prev,
         dataInicio: '',
-        dataFim: ''
+        dataFim: '',
+        codigo: '', // 👈 Resetar ao limpar data
+        numero: ''  // 👈 Resetar ao limpar data
       }));
       return;
     }
 
-    // Formatar datas no formato correto (DD-MM-YYYY)
+    // ✅ FORMATO CORRETO PARA API: yyyy-MM-dd
+    const novaDataInicio = format(date.from!, "yyyy-MM-dd");
+    const novaDataFim = format(date.to!, "yyyy-MM-dd");
+
     setFiltrosTemporarios(prev => ({
       ...prev,
-      dataInicio: format(date.from!, "dd-MM-yyyy"),
-      dataFim: format(date.to!, "dd-MM-yyyy")
+      dataInicio: novaDataInicio,
+      dataFim: novaDataFim,
+      codigo: '', // 👈 Resetar ao mudar intervalo de data
+      numero: ''  // 👈 Resetar ao mudar intervalo de data
     }));
   };
 
   const handleBuscar = () => {
     console.log("[FiltrosBar] Aplicando filtros:", filtrosTemporarios);
     
-    // Garantir que campos vazios sejam undefined
     const filtrosParaAplicar = {
       ...filtrosTemporarios,
       nomeFormula: filtrosTemporarios.nomeFormula || undefined,
@@ -143,6 +164,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       <Select
         value={filtrosTemporarios.codigo}
         onValueChange={(v) => setFiltrosTemporarios(prev => ({ ...prev, codigo: v }))}
+        disabled={loadingFiltros}
       >
         <SelectTrigger className="w-40 border-black">
           <SelectValue placeholder={loadingFiltros ? 'Carregando...' : 'Filtrar por Código'} />
@@ -161,6 +183,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       <Select
         value={filtrosTemporarios.numero}
         onValueChange={(v) => setFiltrosTemporarios(prev => ({ ...prev, numero: v }))}
+        disabled={loadingFiltros}
       >
         <SelectTrigger className="w-42 border-black">
           <SelectValue placeholder={loadingFiltros ? 'Carregando...' : 'Filtrar por Número'} />
@@ -176,33 +199,16 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         </SelectContent>
       </Select>
 
-{/*input antigo codigo e numero
-      <Input
-        type="text"
-        placeholder="Filtrar por Código da fórmula..."
-        value={filtrosTemporarios.codigo}
-        onChange={(e) => handleInputChange('codigo', e.target.value)}
-        className="border-black w-60"
-      />
-      <Input
-        type="text"
-        placeholder="Filtrar por Número da fórmula..."
-        value={filtrosTemporarios.numero}
-        onChange={(e) => handleInputChange('numero', e.target.value)}
-        className="border-black w-60"
-      /> */}
-
       <Popover>
         <PopoverTrigger>
           <Button
             id="date"
             variant="outline"
             className={cn(
-              "w-55 justify-start text-left font-normal border border-black",
+              "w-43 justify-start text-left font-normal border border-black",
               !dateRange && "text-muted-foreground"
             )}
           >
-            <CalendarIcon className="mr-2 h-4 w-4" />
             {dateRange?.from ? (
               dateRange.to ? (
                 <>
@@ -215,6 +221,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             ) : (
               <span>Selecione uma data</span>
             )}
+            <CalendarIcon className="ml-2 h-4 w-4" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">

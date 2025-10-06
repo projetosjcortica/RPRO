@@ -10,8 +10,10 @@ import Products from "./products";
 import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
 import { cn } from "./lib/utils";
-// product labels are persisted server-side now
-// import { usePDFRedirect } from "./hooks/usePDFRedirect";
+
+import { resolvePhotoUrl } from './lib/photoUtils';
+import logo from './public/logo.png'; // ajuste o caminho se necessário
+import useAuth from './hooks/useAuth';
 
 import {
   ChevronsLeft,
@@ -38,17 +40,30 @@ import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
 import { Button, buttonVariants } from "./components/ui/button";
 import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
-// import { MyDocument } from "./Pdf";
 import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
+import { Separator } from "./components/ui/separator";
 
 interface ComentarioRelatorio {
   texto: string;
   data?: string;
-
 }
 
 export default function Report() {
-  // const { handleLegacyPDFClick } = usePDFRedirect();
+  const { user } = useAuth(); // 👈 Adicionado
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined); // 👈 Adicionado
+
+  // Obter logo do usuário
+  useEffect(() => {
+    if (user?.photoData) {
+      setLogoUrl(user.photoData);
+    } else if (user?.photoPath) {
+      setLogoUrl(resolvePhotoUrl(user.photoPath));
+    } else {
+      setLogoUrl(logo);
+    }
+  }, [user]);
+
+  // ... restante do código permanece igual até handlePrint ...
   
   const [filtros, setFiltros] = useState<Filtros>({
     dataInicio: "",
@@ -79,24 +94,24 @@ export default function Report() {
   const [mostrarEditorComentario, setMostrarEditorComentario] = useState<boolean>(false);
 
   const [tableSelection, setTableSelection] = useState<{
-  periodoInicio: string | undefined;
-  periodoFim: string | undefined;
-  total: number;
-  batidas: number;
-  horaInicial: string;
-  horaFinal: string;
-  formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
-  produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
-}>({
-  periodoInicio: undefined,
-  periodoFim: undefined,
-  total: 0,
-  batidas: 0,
-  horaInicial: "--:--",
-  horaFinal: "--:--",
-  produtos: [],
-  formulas: []
-});
+    periodoInicio: string | undefined;
+    periodoFim: string | undefined;
+    total: number;
+    batidas: number;
+    horaInicial: string;
+    horaFinal: string;
+    formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
+    produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
+  }>({
+    periodoInicio: undefined,
+    periodoFim: undefined,
+    total: 0,
+    batidas: 0,
+    horaInicial: "--:--",
+    horaFinal: "--:--",
+    produtos: [],
+    formulas: []
+  });
 
   const [resumo, setResumo] = useState<any | null>(null);
   const [resumoReloadFlag, setResumoReloadFlag] = useState(0);
@@ -131,9 +146,6 @@ export default function Report() {
 
   // Efeitos para side info
   useEffect(() => {
-    
-    console.log(sideInfo);
-    
     if (!profileConfigData) return;
     setSideInfo({
       granja: profileConfigData.nomeCliente || 'Granja',
@@ -159,7 +171,7 @@ export default function Report() {
     const g = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
     setSideInfo({ granja: g, proprietario: p });
   }, [runtime]);
-  // const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ granja: 'Granja', proprietario: 'Proprietario' });
+
   // Fetch resumo sempre que os filtros mudarem
   useEffect(() => {
     let mounted = true;
@@ -203,26 +215,24 @@ export default function Report() {
 
   // Update table selection from resumo
   useEffect(() => {
-    // console.log("RESUMO BACKEND:", resumo);
-  if (resumo && resumo.usosPorProduto) {
-
-    const formulasFromResumo = Object.entries(resumo.formulasUtilizadas || {}).map(
-      ([nome, data]: [string, any]) => ({
-        numero: data.numero ?? 0,
-        nome,
-        quantidade: data.quantidade ?? 0,
-        porcentagem: data.porcentagem ?? 0,
-        somatoriaTotal: data.somatoriaTotal ?? 0,
-      })
-    );
+    if (resumo && resumo.usosPorProduto) {
+      const formulasFromResumo = Object.entries(resumo.formulasUtilizadas || {}).map(
+        ([nome, data]: [string, any]) => ({
+          numero: data.numero ?? 0,
+          nome,
+          quantidade: data.quantidade ?? 0,
+          porcentagem: data.porcentagem ?? 0,
+          somatoriaTotal: data.somatoriaTotal ?? 0,
+        })
+      );
 
       setTableSelection({
         total: resumo.totalPesos || 0,
         batidas: resumo.batitdasTotais || 0,
-        periodoInicio: resumo.periodoInicio || "--:--",
-        periodoFim: resumo.periodoFim || "--:--",
-        horaInicial: resumo.horaInicial || "--:--",
-        horaFinal: resumo.horadFinal || "--:--",
+        periodoInicio: resumo.periodoInicio || "--/--/--",
+        periodoFim: resumo.periodoFim || "--/--/--",
+        horaInicial: resumo.horaInicial || "--:--:--",
+        horaFinal: resumo.horadFinal || "--:--:--",
         formulas: formulasFromResumo,
         produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
           const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
@@ -462,9 +472,10 @@ export default function Report() {
     return valor;
   };
 
-    const handlePrint = async () => {
+  const handlePrint = async () => {
     const blob = await pdf(
       <MyDocument
+        logoUrl={logoUrl}  // 👈 Passando o logo
         total={Number(tableSelection.total) || 0}
         batidas={Number(tableSelection.batidas) || 0}
         periodoInicio={tableSelection.horaInicial}
@@ -472,20 +483,20 @@ export default function Report() {
         formulas={tableSelection.formulas}
         produtos={tableSelection.produtos}
         data={new Date().toLocaleDateString("pt-BR")}
-        empresa={runtime.get('nomeCliente')}
+        empresa={runtime.get('nomeCliente') || 'Relatório RPRO'}
         comentarios={comentarios}
       />
     ).toBlob();
     
     const blobUrl = URL.createObjectURL(blob);
-    const printWindow = window.open("", "_blank"); 
+    const printWindow = window.open("", "_blank", "width=768,height=733"); 
     if (!printWindow) return;
 
     printWindow.document.write(`
       <html>
         <head><title>Print PDF</title></head>
         <body style="margin:0">
-          <iframe src="${blobUrl}" style="width:100%;height:100vh;" frameborder="0"></iframe>
+          <iframe src="${blobUrl}" style="width:100%;height:1000vh;" frameborder="0"></iframe>
         </body>
       </html>
     `);
@@ -494,7 +505,6 @@ export default function Report() {
     const iframe = printWindow.document.querySelector("iframe");
     iframe?.addEventListener("load", () => {
       printWindow.focus();
-      printWindow.print(); 
     });
   };
 
@@ -563,18 +573,18 @@ export default function Report() {
   return (
     <div className="flex flex-col gap-7 w-full h-full">
       <div className="h-[10dvh] flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-2 h-[10dvh]">
+        <div className="flex flex-row items-end gap-1 h-[10dvh]">
           <Button onClick={() => setView("table")}>Relatórios</Button>
           <Button onClick={() => setView("product")}>Produtos</Button>
         </div>
         <div className="flex flex-col items-end justify-end gap-2">
-          <div className="flex flex-row items-end gap-2">
+          <div className="flex flex-row items-end gap-1">
             <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
             <Button
               onClick={handleCollectorToggle}
               disabled={collectorLoading}
               className={cn(
-                "flex items-center gap-2",
+                "flex items-center gap-1",
                 collectorRunning
                   ? "bg-gray-600 hover:bg-red-700"
                   : "bg-red-600 hover:bg-gray-700"
@@ -594,19 +604,6 @@ export default function Report() {
                 : "Iniciar coleta"}
             </Button>
           </div>
-          {/* <div className="flex flex-col items-end gap-1 text-right">
-            {collectorRunning && !collectorLoading && (
-              <div className="flex flex-row items-center gap-2 text-xs text-emerald-600">
-                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>Atualizando em tempo real</span>
-              </div>
-            )}
-            {collectorError && (
-              <span className="text-xs text-red-500 max-w-[240px]">
-                {collectorError}
-              </span>
-            )}
-          </div> */}
         </div>
       </div>
 
@@ -665,9 +662,9 @@ export default function Report() {
         </div>
 
         {/* Side Info */}
-        <div className="w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+        <div className="w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs border gap-2 flex-shrink-0">
           {/* Informações Gerais */}
-          <div className="grid grid-cols-1 gap-2 mt-2">
+          <div className="grid grid-cols-1 gap-2">
             <div className="w-83 h-22 max-h-22 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
               <p className="text-center text-lg font-bold">Total:  {""}
                 {(resumo && typeof resumo.totalPesos === "number"
@@ -684,32 +681,35 @@ export default function Report() {
                   : tableSelection.batidas}
               </p>
             </div>
-            <div className="w-83 h-22 max-h-22 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
+            <div className="w-83 h-22 max-h-22 rounded-lg flex flex-col justify-center shadow-md/16">
               <p className="text-center font-bold">Período:  {""}</p>
-                <div className="flex flex-row justify-center gap-4">
-                  <div className="flex flex-col justify-center gap-2">
-                    <p className="text-center font-bold">
+                <div className="flex flex-row justify-around px-8 gap-4">
+                  <div className="flex flex-col justify-center gap-1">
+                    <p className="text-center font-bold text-lg">
                       {resumo && resumo.periodoInicio
                         ? formatShortDate(resumo.periodoInicio)
-                        : tableSelection.horaInicial}
+                        :  "--/--/--"}
                     </p>
-                    <p className="text-center text-sm text-gray-400 font-semibold">
+                    <p className="text-center text-sm text-gray-400 font-regular">
                       {resumo && resumo.horaInicial
                         ? resumo.horaInicial
-                        : tableSelection.horaInicial}
+                        : "--:--:--"}
                     </p>
                 </div>
-                <div className="flex flex-col justify-center gap-2">
+                
+                <Separator orientation="vertical"/>
+                
+                <div className="flex flex-col justify-center gap-1">
                     
-                    <p className="text-center font-bold">
+                    <p className="text-center font-bold text-lg">
                       {resumo && resumo.periodoFim
                         ? formatShortDate(resumo.periodoFim)
                         :  "--/--/--"}
                     </p>
-                    <p className="text-center text-sm text-gray-400 font-semibold">
+                    <p className="text-center text-sm text-gray-400 font-regular">
                       {resumo && resumo.horaFinal
                         ? resumo.horaFinal
-                        : tableSelection.horaFinal}
+                        : "--:--:--"}
                     </p>
                 </div>
               </div>
@@ -717,23 +717,22 @@ export default function Report() {
           </div>
 
           {/* Produtos */}
-          <div className="border rounded flex-grow overflow-auto scrollbar-custom">
-            <ScrollArea>
+            <div className="border rounded flex-grow overflow-auto thin-red-scrollbar">
               <Table className="h-100">
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-gray-200 border">
                     <TableHead className="text-center">Produtos</TableHead>
                     <TableHead className="text-center">Quantidade</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                                  {displayProducts && displayProducts.length > 0 ? (
+                  {displayProducts && displayProducts.length > 0 ? (
                     displayProducts.map((produto, idx) => (
                       <TableRow key={idx}>
-                        <TableCell className="py-1 px-2">
+                        <TableCell className="py-1  min-w-25 text-right">
                           {produto.nome}
                         </TableCell>
-                        <TableCell className="py-1 px-2 text-right">
+                        <TableCell className="py-1 border text-right">
                           {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
                             minimumFractionDigits: 3,
                             maximumFractionDigits: 3,
@@ -754,32 +753,29 @@ export default function Report() {
                   )}
                 </TableBody>
               </Table>
-              <ScrollBar orientation="vertical" />
-            </ScrollArea>
-          </div>
+            </div>
 
           {/* Impressão e Comentários */}
-          <div className="flex flex-col text-center gap-2 mt-3">
-            <p>Importar/Imprimir</p>
-            <div className="flex flex-row gap-1 justify-center">
+          <div className="flex flex-col fl text-center gap-3 mt-1">
+            <div className="flex flex-row gap-2 justify-center">
               <Button onClick={handlePrint} className="gap-2">
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 Gerar PDF
               </Button>
+              <Button 
+                  onClick={() => setMostrarEditorComentario(!mostrarEditorComentario)}
+                  
+                >
+                  {mostrarEditorComentario ? 'Cancelar' : '+ Adcionar Comentário'}
+                </Button>
             </div>
 
             {/* Seção de Comentários */}
-            <div className="flex flex-col gap-2 mt-4">
+            <div className="flex flex-col gap-2 mt-2">
               <div className="flex items-center justify-center">
                 <p className="font-medium"></p>
-                <Button 
-                  onClick={() => setMostrarEditorComentario(!mostrarEditorComentario)}
-                  size="sm"
-                >
-                  {mostrarEditorComentario ? 'Cancelar' : '+ Adicionar Comentário'}
-                </Button>
               </div>
 
               {/* Editor de Comentário */}
@@ -792,7 +788,7 @@ export default function Report() {
                     className="w-full p-2 border rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500"
                     rows={3}
                   />
-                  <div className="flex justify-end gap-2 mt-2">
+                  <div className="flex justify-end gap-1 mt-2">
                     <Button 
                       onClick={() => setMostrarEditorComentario(false)}
                       variant="outline"

@@ -1,15 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { format as formatDateFn } from "date-fns";
-import {
-  Table,
-  TableHeader,
-  TableHead,
-  TableBody,
-  TableCell,
-  TableRow,
-} from "./components/ui/table";
 import { Filtros, ReportRow } from "./components/types";
-import { ScrollArea, ScrollBar } from "./components/ui/scroll-area";
+// This component renders its own table-like markup and does not use the UI table primitives
 // import { getProcessador } from './Processador'
 import { useReportData } from "./hooks/useReportData";
 
@@ -55,7 +47,6 @@ function getLastTimestamp(arr: any[]) {
   return "";
 }
 
-// Função auxiliar para garantir que sempre retorne uma string
 const safeString = (value: any): string => {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
@@ -115,7 +106,6 @@ function TableComponent({
     const newDados = Array.isArray(dadosFromHook) ? dadosFromHook : [];
     const lastNew = getLastTimestamp(newDados);
     const lastCurrent = getLastTimestamp(dadosAtual);
-    // Atualiza se quantidade de linhas mudou OU se o último timestamp mudou
     if (newDados.length !== dadosAtual.length || lastNew !== lastCurrent) {
       setDadosAtual(newDados);
     }
@@ -172,10 +162,8 @@ function TableComponent({
 
   // Função para obter o label correto da coluna - SEMPRE retorna string
   const getColumnLabel = (colKey: string): string => {
-    // Se for uma coluna fixa, retorna o nome direto
     if (fixedColumns.includes(colKey)) return colKey;
-    // Se for uma coluna dinâmica, busca no colLabels ou usa fallback
-    if (colKey.startsWith("col")) {
+    if (colKey.startsWith('col')) {
       const label = produtosInfo[colKey]?.nome;
       const unidade = produtosInfo[colKey]?.unidade;
       const colNum = parseInt(colKey.replace("col", ""), 10);
@@ -185,15 +173,11 @@ function TableComponent({
     return safeString(colKey);
   };
 
-  // Use provided prop to decide whether to prefer hook data or external props
   const dados = useExternalData ? dadosAtual : dadosFromHook;
 
-  // Gera dynamicColumns baseado nos dados reais
   const dynamicColumns = React.useMemo(() => {
     if (!dados || dados.length === 0) return [];
-
-    const maxValues = Math.max(...dados.map((row) => row.values?.length || 0));
-
+    const maxValues = Math.max(...dados.map(row => row.values?.length || 0));
     const cols = [];
     for (let i = 6; i < 6 + maxValues; i++) {
       const colKey = `col${i}`;
@@ -202,164 +186,172 @@ function TableComponent({
     return cols;
   }, [dados]);
 
-  // Função para formatar valores com conversão de unidade
   const loading = useExternalData
     ? Boolean(loadingProp ?? loadingFromHook)
     : loadingFromHook;
-  const error = useExternalData ? (errorProp ?? null) : errorFromHook;
+  const error = useExternalData ? errorProp ?? null : errorFromHook;
 
   if (loading) return <div className="p-4">Carregando...</div>;
   if (error) return <div className="p-4 text-red-500">Erro: {error}</div>;
-  if ((!dados && !loading) || dados.length === 0)
-    return <div className="p-4">Nenhum dado encontrado</div>;
+  if (!dados || dados.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
 
   return (
-    <div ref={tableRef} className="overflow-hidden w-full h-full flex flex-col">
-      <div className="flex-1 h-full border border-gray-300  shadow-sm/16">
-        <ScrollArea className="overflow-y-auto h-full w-full scrollbar-custom">
-          <Table className="h-full border-collapse table-fixed w-full">
-            <TableHeader className="bg-gray-100 sticky top-0 z-10">
-              <TableRow>
-                {fixedColumns.map((col, idx) => (
-                  <TableHead
+    <div ref={tableRef} className="w-full h-full flex flex-col">
+      <div className="overflow-auto flex-1 thin-red-scrollbar h-[calc(100vh-200px)]">
+        <div id="Table" className="min-w-max w-full">
+          <div id="TableHeader" className="sticky top-0 z-20 bg-gray-200 border-b border-gray-300">
+            <div id="TableRow" className="flex">
+              {fixedColumns.map((col, idx) => {
+                let width = '100px';
+                let minWidth = '100px';
+                if (idx === 0) {
+                  width = '80px';
+                  minWidth = '80px';
+                } else if (idx === 1) {
+                  width = '70px';
+                  minWidth = '70px';
+                } else if (idx === 2) {
+                  width = '200px';
+                  minWidth = '200px';
+                }
+
+                return (
+                  <div
+                    id="TableHead"
                     key={idx}
-                    className="py-1 px-1 md:py-2 md:px-3 break-words text-center border border-gray-300 font-semibold text-xs md:text-sm"
-                    style={{
-                      width: idx === 0 ? "100px" : idx === 1 ? "70px" : "100px",
+                    className="flex items-center justify-center py-1 px-1 md:py-2 md:px-3 border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
+                    style={{ 
+                      width,
+                      minWidth,
+                      whiteSpace: idx === 2 ? 'normal' : 'nowrap',
+                      wordWrap: idx === 2 ? 'break-word' : 'normal',
                     }}
                   >
                     {receba(col, idx)}
-                  </TableHead>
-                ))}
-                {dynamicColumns.map((colKey, idx) => {
-                  const label = getColumnLabel(colKey);
+                  </div>
+                );
+              })}
+              {dynamicColumns.map((colKey, idx) => {
+                const label = getColumnLabel(colKey);
+                return (
+                  <div
+                    id="TableHead"
+                    key={`${colKey}-${idx}`}
+                    className="flex items-center justify-center py-1 px-2 md:py-2 md:px-3 text-center border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
+                    style={{ 
+                      width: '100px',
+                      minWidth: '100px',
+                      whiteSpace: 'normal',
+                      wordWrap: 'break-word'
+                    }}
+                  >
+                    <span className="break-words text-center">{label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Corpo da tabela — alinhamento por coluna */}
+          <div>
+            {dados.map((row, rowIdx) => (
+              <div 
+                key={rowIdx} 
+                className="flex hover:bg-gray-50 border-b border-gray-300"
+              >
+                {fixedColumns.map((col, colIdx) => {
+                  let width = '100px';
+                  let minWidth = '100px';
+                  if (colIdx === 0) {
+                    width = '80px';
+                    minWidth = '80px';
+                  } else if (colIdx === 1) {
+                    width = '70px';
+                    minWidth = '70px';
+                  } else if (colIdx === 2) {
+                    width = '200px';
+                    minWidth = '200px';
+                  }
+
+                  // ✅ Alinhamento dos VALORES no corpo
+                  let justifyContent = 'center'; // padrão
+                  if (colIdx === 2) {
+                    justifyContent = 'flex-start'; // Nome à esquerda
+                  } else if (colIdx >= 3) {
+                    justifyContent = 'flex-end';   // Código, Número, etc. à direita
+                  }
 
                   return (
-                    <TableHead
-                      key={`${colKey}-${idx}`}
-                      className="py-1 px-2 md:py-2 md:px-3 text-center border border-gray-300 font-semibold text-xs md:text-sm"
-                      style={{
-                        width: "100px",
-                        whiteSpace: "normal",
-                        wordWrap: "break-word",
-                      }}
-                    >
-                      <div className="flex flex-col">
-                        <span className="break-words text-center">{label}</span>
-                        {/* {unidade && (
-                          <span className="text-xs text-gray-500">({unidade})</span>
-                        )} */}
-                      </div>
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {dados.map((row, rowIdx) => (
-                <TableRow key={rowIdx} className="hover:bg-gray-50">
-                  {fixedColumns.map((col, colIdx) => (
-                    <TableCell
+                    <div
                       key={`${rowIdx}-${colIdx}`}
-                      className="p-1 md:p-2 border max-h-20 border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm bg-white"
-                      style={{
-                        width:
-                          colIdx === 0
-                            ? "80px"
-                            : colIdx === 1
-                              ? "70px"
-                              : "100px",
+                      className="flex items-center p-1 md:p-2 max-h-20 cursor-pointer select-none text-xs md:text-sm bg-white border-r border-gray-300"
+                      style={{ 
+                        width, 
+                        minWidth,
+                        justifyContent,
                       }}
                     >
                       <div className="truncate">
-                        {col === "Dia"
-                          ? (() => {
-                              const raw = safeString(
-                                row[col as keyof ReportRow]
-                              );
-                              // Try to parse YYYY-MM-DD or DD-MM-YYYY and display as dd/MM/yy
-                              try {
-                                if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-                                  const [y, m, d] = raw.split("-").map(Number);
-                                  return formatDateFn(
-                                    new Date(y, m - 1, d),
-                                    "dd/MM/yy"
-                                  );
-                                }
-                                if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
-                                  const [d, m, y] = raw.split("-").map(Number);
-                                  return formatDateFn(
-                                    new Date(y, m - 1, d),
-                                    "dd/MM/yy"
-                                  );
-                                }
-                                // fallback: try Date parse
-                                const parsed = new Date(raw);
-                                if (!isNaN(parsed.getTime()))
-                                  return formatDateFn(parsed, "dd/MM/yy");
-                                return raw;
-                              } catch (e) {
-                                return raw;
+                        {col === 'Dia' ? (
+                          (() => {
+                            const raw = safeString(row[col as keyof ReportRow]);
+                            try {
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+                                const [y, m, d] = raw.split('-').map(Number);
+                                return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
                               }
-                            })()
-                          : safeString(row[col as keyof ReportRow])}
+                              if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+                                const [d, m, y] = raw.split('-').map(Number);
+                                return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+                              }
+                              const parsed = new Date(raw);
+                              if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yy');
+                              return raw;
+                            } catch (e) {
+                              return raw;
+                            }
+                          })()
+                        ) : (
+                          safeString(row[col as keyof ReportRow])
+                        )}
                       </div>
-                    </TableCell>
-                  ))}
+                    </div>
+                  );
+                })}
 
-                  {dynamicColumns.map((colKey, dynIdx) => {
-                    const rawValue = row.values?.[dynIdx];
-
-                    return (
-                      <TableCell
-                        key={`${rowIdx}-${colKey}-${dynIdx}`}
-                        className="p-1 md:p-2 border border-gray-300 cursor-pointer select-none text-center text-xs md:text-sm bg-white"
-                        style={{ width: "100px" }}
-                      >
-                        <div className="truncate">
-                          {formatValue(rawValue, colKey)}
-                        </div>
-                      </TableCell>
-                    );
-                  })}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <ScrollBar orientation="horizontal" />
-          <ScrollBar orientation="vertical" className="" />
-        </ScrollArea>
+                {dynamicColumns.map((colKey, dynIdx) => {
+                  const rawValue = row.values?.[dynIdx];
+                  return (
+                    <div
+                      key={`${rowIdx}-${colKey}-${dynIdx}`}
+                      className="flex items-center justify-end p-1 md:p-2 cursor-pointer select-none text-right text-xs md:text-sm bg-white border-r border-gray-300"
+                      style={{ width: '100px', minWidth: '100px' }}
+                    >
+                      <div className="truncate">
+                        {formatValue(rawValue, colKey)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-// Memoize the component to avoid re-rendering (and UI flicker) when external
-// data hasn't changed meaningfully. The comparator checks length + last timestamp
-// and shallow compares some props. It re-uses the `shallowEqual` and
-// `getLastTimestamp` helpers defined above.
 export default React.memo(TableComponent, (prevProps, nextProps) => {
-  // If useExternalData changed, re-render
   if (prevProps.useExternalData !== nextProps.useExternalData) return false;
-
-  // If not using external data, allow normal updates (don't block)
   if (!nextProps.useExternalData) return false;
-
-  // Ignore transient loading differences (we rely on data/timestamp to detect
-  // meaningful changes). Keep error differences, they should trigger updates.
   if (prevProps.error !== nextProps.error) return false;
-
-  // Compare simple props
   if (prevProps.page !== nextProps.page) return false;
   if (prevProps.pageSize !== nextProps.pageSize) return false;
-
-  // Shallow compare labels and produtosInfo
   if (!shallowEqual(prevProps.colLabels, nextProps.colLabels)) return false;
   if (!shallowEqual(prevProps.produtosInfo, nextProps.produtosInfo))
     return false;
 
-  // Compare dadosProp by length and last timestamp
   const prevRows = Array.isArray(prevProps.dados) ? prevProps.dados : [];
   const nextRows = Array.isArray(nextProps.dados) ? nextProps.dados : [];
   if (prevRows.length !== nextRows.length) return false;
@@ -367,6 +359,5 @@ export default React.memo(TableComponent, (prevProps, nextProps) => {
   const nextTs = getLastTimestamp(nextRows);
   if (prevTs !== nextTs) return false;
 
-  // No meaningful change -> skip re-render
   return true;
 });
