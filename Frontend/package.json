@@ -105,6 +105,7 @@
     "tw-animate-css": "^1.3.8",
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
+    "tree-kill": "^1.2.2",
     "vite-plugin-electron": "^0.28.6",
     "vite-plugin-electron-renderer": "^0.14.5"
   },
@@ -162,8 +163,7 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "src\\public\\logo.png",
-      "publisherName": "RPRO"
+      "icon": "src\\public\\logo.png"
     }
   }
 }
