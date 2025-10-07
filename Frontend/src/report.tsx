@@ -117,6 +117,8 @@ export default function Report() {
     horaFinal: string;
     formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
     produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
+    empresa: string;
+    usuario: string
   }>({
     periodoInicio: undefined,
     periodoFim: undefined,
@@ -125,7 +127,9 @@ export default function Report() {
     horaInicial: "--:--",
     horaFinal: "--:--",
     produtos: [],
-    formulas: []
+    formulas: [],
+    empresa: "...",
+    usuario: "..."
   });
 
   const [resumo, setResumo] = useState<any | null>(null);
@@ -260,6 +264,8 @@ export default function Report() {
             unidade: val.unidade || "kg",
           };
         }),
+        empresa:sideInfo.proprietario,
+        usuario:user.username
       });
     }
   }, [resumo, produtosInfo]);
@@ -356,7 +362,7 @@ export default function Report() {
 
         if (!res.ok) throw new Error("Falha ao iniciar o coletor.");
         const payload = await res.json().catch(() => ({}));
-        if (payload && payload.started === false) {
+        if (payload && payload.started === true) {
           await fetchCollectorStatus();
           stopConnecting();
           throw new Error(payload?.message || "Coletor não pôde ser iniciado.");
@@ -517,8 +523,9 @@ export default function Report() {
         formulas={tableSelection.formulas}
         produtos={tableSelection.produtos}
         data={new Date().toLocaleDateString("pt-BR")}
-        empresa={runtime.get('nomeCliente') || 'Relatório RPRO'}
+        empresa={sideInfo.proprietario || 'Relatório RPRO'}
         comentarios={comentarios}
+        usuario={user.username}
       />
     ).toBlob();
     

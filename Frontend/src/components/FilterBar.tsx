@@ -43,12 +43,12 @@ export default function FilterBar({
   autoApplyDelay = 500,
   className = "",
 }: FilterBarProps) {
+  
   const [localValues, setLocalValues] = useState<FilterValues>(values);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [filterOptions, setFilterOptions] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
 
-  // Sync external values
   useEffect(() => {
     setLocalValues(values);
     if (values.dataInicio && values.dataFim) {

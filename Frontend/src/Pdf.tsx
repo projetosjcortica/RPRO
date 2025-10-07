@@ -31,7 +31,8 @@ const styles = StyleSheet.create({
   },
   logo: {
     // Fix height to 150 and let width scale to preserve aspect ratio
-    width: 100,
+    maxWidth:60,
+    maxHeight:60,
     marginRight: 15,
   },
   titleContainer: { flex: 1 },
@@ -113,6 +114,7 @@ export interface MyDocumentProps {
   produtos: { nome: string; qtd: number; unidade?: string; categoria?: string }[];
   data?: string;
   empresa?: string;
+  usuario?: string;
   observacoes?: string;
   orientation?: "portrait" | "landscape";
   formulaSums?: Record<string, number>;
@@ -132,6 +134,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
   produtos = [],
   data = new Date().toLocaleDateString("pt-BR"),
   empresa = "Relatório RPRO",
+  usuario = "Administrativo",
   observacoes = "",
   orientation = "portrait",
   formulaSums = {},
@@ -159,7 +162,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
           color: "#bbbbbbff",
         }}
       >
-        Relatório gerado em {dataGeracao} por J.Cortiça
+        Relatório gerado em {dataGeracao} por J.Cortiça ({usuario})
       </Text>
       <Text
         fixed
