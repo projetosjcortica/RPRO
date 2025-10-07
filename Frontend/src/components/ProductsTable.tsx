@@ -15,7 +15,7 @@ export default function ProductsTable({ filters }: { filters?: any }) {
       if (filters?.formula) params.set('formula', String(filters.formula));
       if (filters?.dataInicio) params.set('dataInicio', String(filters.dataInicio));
       if (filters?.dataFim) params.set('dataFim', String(filters.dataFim));
-      const res = await fetch(`/api/chartdata/produtos?${params.toString()}`);
+      const res = await fetch(`http://localhost:3000/api/chartdata/produtos?${params.toString()}`);
       if (!res.ok) throw new Error('fetch failed');
       const body = await res.json();
       setData(body.chartData || []);

@@ -103,6 +103,8 @@ export interface MyDocumentProps {
   batidas?: number;
   periodoInicio?: string;
   periodoFim?: string;
+  horaInicial?: string;
+  horaFinal?: string;
   formulas?: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
   produtos: { nome: string; qtd: number; unidade?: string; categoria?: string }[];
   data?: string;
@@ -120,6 +122,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
   batidas = 0,
   periodoInicio = "-",
   periodoFim = "-",
+  horaInicial = "-",
+  horaFinal = "-",
   formulas = [],
   produtos = [],
   data = new Date().toLocaleDateString("pt-BR"),
@@ -241,7 +245,20 @@ export const MyDocument: FC<MyDocumentProps> = ({
               Data final: <Text style={styles.value}>{periodoFim}</Text>
             </Text>
           </View>
+
+          <View style={{ marginBottom: 6 }}>
+            <Text style={styles.label}>
+              Hora inicial: <Text style={styles.value}>{horaInicial}</Text>
+            </Text>
+          </View>
+
+          <View style={{ marginBottom: 6 }}>
+            <Text style={styles.label}>
+              Hora final: <Text style={styles.value}>{horaFinal}</Text>
+            </Text>
+          </View>
         </View>
+        
 
         {/* Fórmulas */}
         {formulas.length > 0 && (

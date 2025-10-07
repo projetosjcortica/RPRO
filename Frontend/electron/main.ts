@@ -589,7 +589,7 @@ app.whenReady().then(() => {
               });
           });
         } 
-
+      }
     } else {
       // In dev, prefer to fork the backend JS so logs and IPC work as before
       try {
@@ -663,15 +663,13 @@ app.whenReady().then(() => {
             );
           }
         }
-      } finally {
-        console.log(
-          "[main] running in development mode, backend fork will be started by renderer when needed (no backend script found)"
-        );
+      } catch (e) {
+        console.warn(e);
       }
     }
 
     createWindow();
-  }})();
+  })();
 });
 
 

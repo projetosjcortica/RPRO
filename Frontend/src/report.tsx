@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { format as formatDateFn } from 'date-fns';
 
+
+
 import { MyDocument } from "./Pdf";
 import { usePersistentForm } from './config';
 
@@ -231,7 +233,7 @@ export default function Report() {
         periodoInicio: resumo.periodoInicio || "--/--/--",
         periodoFim: resumo.periodoFim || "--/--/--",
         horaInicial: resumo.horaInicial || "--:--:--",
-        horaFinal: resumo.horadFinal || "--:--:--",
+        horaFinal: resumo.horaFinal || "--:--:--",
         formulas: formulasFromResumo,
         produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
           const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
@@ -471,14 +473,17 @@ export default function Report() {
     return valor;
   };
 
+  
   const handlePrint = async () => {
     const blob = await pdf(
       <MyDocument
         logoUrl={logoUrl}
         total={Number(tableSelection.total) || 0}
         batidas={Number(tableSelection.batidas) || 0}
-        periodoInicio={tableSelection.horaInicial}
-        periodoFim={tableSelection.horaFinal}
+        periodoInicio={tableSelection.periodoInicio}
+        periodoFim={tableSelection.periodoFim}
+        horaInicial={tableSelection.horaInicial}
+        horaFinal={tableSelection.horaFinal}
         formulas={tableSelection.formulas}
         produtos={tableSelection.produtos}
         data={new Date().toLocaleDateString("pt-BR")}
