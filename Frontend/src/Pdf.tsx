@@ -285,7 +285,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Produtos</Text>
           
-          {categorias.map((cat, idx) => (
+          {categorias.map((cat, idx) => ( 
             <View key={idx} style={{ marginBottom: 10 }}>
               {renderTable(produtosPorCategoria[cat], (p) => ({
                 col1: p.nome,

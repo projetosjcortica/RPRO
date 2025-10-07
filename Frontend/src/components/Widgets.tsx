@@ -141,8 +141,8 @@ export function DonutChartWidget({ chartType = "produtos", config }: { chartType
             data={data}
             cx="50%"
             cy="50%"
-            innerRadius={60}
-            outerRadius={90}
+            innerRadius={70}
+            outerRadius={110}
             dataKey="value"
             labelLine={false} 
           >
@@ -184,12 +184,12 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
 
   return (
     <div className="h-full w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} layout="horizontal">
+      <ResponsiveContainer className='w-fit h-full'>
+        <BarChart data={data} layout="horizontal" margin={{ left: 20 }}>
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
           <Tooltip content={<CustomTooltip stats={stats} />} />
-          <Bar dataKey="value" fill="#ff2626ff" radius={[0, 4, 4, 0]} />
+          <Bar dataKey="value" fill="#ff2626ff" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
