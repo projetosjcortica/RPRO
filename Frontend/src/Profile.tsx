@@ -13,13 +13,13 @@ const Profile: React.FC = () => {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(
-    user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null)
+    user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
   );
   const [status, setStatus] = useState<string | null>(null);
 
   useEffect(() => {
     setDisplayName(user?.displayName || '');
-    setPreview(user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null));
+    setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
   }, [user]);
 
   useEffect(() => {
@@ -57,72 +57,106 @@ const Profile: React.FC = () => {
   const uploadPhoto = async () => {
     if (!file) return setStatus('Selecione um arquivo');
     setStatus('Enviando...');
-
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string | null;
-        if (!base64) return setStatus('Falha ao ler arquivo');
+      const fd = new FormData();
+      fd.append('username', user.username);
+      fd.append('photo', file);
+      const res = await fetch('http://localhost:3000/api/auth/photo', {
+        method: 'POST',
+        body: fd,
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`upload failed: ${res.status} ${txt}`);
+      }
+      const data = await res.json();
+      // backend returns user without password
+      updateUser(data as any);
+      try {
+        const blobUrl = URL.createObjectURL(file);
+        setPreview(blobUrl);
+      } catch {}
+      setFile(null);
+      setStatus('Foto atualizada');
+    } catch (e: any) {
+      setStatus(String(e?.message || e));
+    }
+  };
 
-        try {
-          const res = await fetch('http://localhost:3000/api/auth/photoBase64', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: user.username, photoBase64: base64 }),
-          });
-          if (!res.ok) {
-            const txt = await res.text().catch(() => '');
-            if (res.status === 413) throw new Error('PAYLOAD_TOO_LARGE');
-            throw new Error(`upload failed: ${res.status} ${txt}`);
-          }
-          const data = await res.json();
-          const newUser = { ...data, photoData: base64 } as any;
-          updateUser(newUser);
-          setPreview(base64);
-          setFile(null);
-          setStatus('Foto atualizada');
-          return;
-        } catch (err: any) {
-          if (
-            String(err?.message || '').includes('PAYLOAD_TOO_LARGE') ||
-            String(err?.message || '').includes('413') ||
-            String(err?.message || '').toLowerCase().includes('payload')
-          ) {
+  const useAsReportLogo = async () => {
+    setStatus('Definindo como logo do relatório...');
+    try {
+      // Resize image using canvas to max height 200, then upload as multipart
+      const toBlobFromImage = (dataUrl: string) =>
+        new Promise<Blob | null>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
             try {
-              const fd = new FormData();
-              fd.append('username', user.username);
-              fd.append('photo', file);
-              const res2 = await fetch('http://localhost:3000/api/auth/photo', {
-                method: 'POST',
-                body: fd,
-              });
-              if (!res2.ok) {
-                const txt2 = await res2.text().catch(() => '');
-                throw new Error(`multipart upload failed: ${res2.status} ${txt2}`);
-              }
-              const data2 = await res2.json();
-              const newUser2 = {
-                ...data2,
-                photoData: preview && preview.startsWith('data:') ? preview : undefined,
-              } as any;
-              updateUser(newUser2);
-              try {
-                const blobUrl = URL.createObjectURL(file);
-                setPreview(blobUrl);
-              } catch {}
-              setFile(null);
-              setStatus('Foto enviada (fallback multipart)');
-              return;
-            } catch (mErr: any) {
-              setStatus(String(mErr?.message || mErr));
-              return;
+              const ratio = img.width / img.height;
+              const h = Math.min(200, img.height);
+              const w = Math.round(h * ratio);
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              if (!ctx) return resolve(null);
+              ctx.clearRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+              canvas.toBlob((b) => resolve(b), 'image/png', 0.9);
+            } catch (err) {
+              resolve(null);
             }
-          }
-          setStatus(String(err?.message || err));
-          return;
+          };
+          img.onerror = () => resolve(null);
+          img.src = dataUrl;
+        });
+
+      // Build a dataUrl from available source
+      let sourceDataUrl: string | null = null;
+      if (file) {
+        sourceDataUrl = await new Promise<string | null>((res) => {
+          const r = new FileReader();
+          r.onload = () => res(String(r.result));
+          r.onerror = () => res(null);
+          r.readAsDataURL(file);
+        });
+      } else if (preview && preview.startsWith('blob:')) {
+        try {
+          const r = await fetch(preview);
+          const b = await r.blob();
+          sourceDataUrl = await new Promise<string | null>((res) => {
+            const r2 = new FileReader();
+            r2.onload = () => res(String(r2.result));
+            r2.onerror = () => res(null);
+            r2.readAsDataURL(b);
+          });
+        } catch (err) {
+          sourceDataUrl = null;
         }
-      };
-      reader.readAsDataURL(file);
+      }
+
+      if (!sourceDataUrl) {
+        setStatus('Nenhum arquivo selecionado para definir como logo');
+        return;
+      }
+
+      const blob = await toBlobFromImage(sourceDataUrl);
+      if (!blob) {
+        setStatus('Falha ao processar imagem');
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('photo', blob, file?.name || 'logo.png');
+      const res = await fetch('http://localhost:3000/api/report/logo/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        throw new Error(`logo upload failed: ${res.status} ${txt}`);
+      }
+      setStatus('Logo do relatório definida');
     } catch (e: any) {
       setStatus(String(e?.message || e));
     }
@@ -131,7 +165,7 @@ const Profile: React.FC = () => {
   const onFileChange = (f: File | null) => {
     setFile(f);
     if (!f) {
-      setPreview(user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null));
+      setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
       return;
     }
     const url = URL.createObjectURL(f);
@@ -160,9 +194,7 @@ const Profile: React.FC = () => {
             size="sm"
             onClick={() => {
               setFile(null);
-              setPreview(
-                user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null)
-              );
+              setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
             }}
           >
             Reverter
@@ -197,11 +229,14 @@ const Profile: React.FC = () => {
               <Button onClick={uploadPhoto} variant="secondary" size="sm" disabled={!file}>
                 Enviar
               </Button>
+              <Button onClick={useAsReportLogo} variant="outline" size="sm" disabled={!file && !preview}>
+                Usar como logo do relatório
+              </Button>
               <Button
                 onClick={() => {
                   setFile(null);
                   setPreview(
-                    user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null)
+                    user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
                   );
                 }}
                 variant="ghost"

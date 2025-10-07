@@ -588,8 +588,10 @@ app.whenReady().then(() => {
                 data: c.toString(),
               });
           });
-        } 
+          console.log("[main] spawned backend stdout attached");
+        }
       }
+
     } else {
       // In dev, prefer to fork the backend JS so logs and IPC work as before
       try {
@@ -663,15 +665,18 @@ app.whenReady().then(() => {
             );
           }
         }
+
       } catch (e) {
-        console.warn(e);
-      }
+        console.warn(
+          "[main] failed to auto-fork backend in dev:",
+          (e as Error).message || e
+        );
+      }  
     }
 
     createWindow();
   })();
 });
-
 
 // Encerrar backend e app corretamente
 app.on("window-all-closed", () => {

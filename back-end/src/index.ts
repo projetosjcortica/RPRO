@@ -1196,28 +1196,7 @@ app.post("/api/auth/update", async (req, res) => {
 
 // Accept profile image as base64 data (JSON). This endpoint allows the frontend
 // to store inline image data in the DB instead of relying on filesystem paths.
-app.post("/api/auth/photoBase64", async (req, res) => {
-  try {
-    await ensureDatabaseConnection();
-    const { username, photoBase64 } = req.body;
-    if (!username) return res.status(400).json({ error: "username required" });
-    if (!photoBase64)
-      return res.status(400).json({ error: "photoBase64 required" });
-    const repo = AppDataSource.getRepository(User);
-    const user = await repo.findOne({ where: { username } });
-    if (!user) return res.status(404).json({ error: "user not found" });
-
-    // Store inline base64 (data URL) directly on the user.row
-    (user as any).photoData = photoBase64;
-    // Optionally keep existing photoPath intact; do not remove it here.
-    await repo.save(user as any);
-    const { password: _pw, ...out } = user as any;
-    return res.json(out);
-  } catch (e: any) {
-    console.error("[auth/photoBase64] error", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
+// NOTE: Inline base64 storage has been removed. Use multipart upload to /api/auth/photo instead.
 
 // Endpoints to store/retrieve a report logo path in the settings store.
 // The stored key will be 'report-logo-path' and will be used later when
@@ -1244,6 +1223,38 @@ app.get("/api/report/logo", async (req, res) => {
     return res.status(500).json({ error: e?.message || "internal" });
   }
 });
+
+// Upload a logo file for reports. Accepts multipart ('photo') only (no base64 in DB)
+app.post(
+  "/api/report/logo/upload",
+  // reuse multer for multipart fallback; if request is JSON it will be ignored
+  userUpload.single("photo"),
+  async (req, res) => {
+    try {
+      // Ensure folder exists
+      const destDir = path.resolve(process.cwd(), "user_photos");
+      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+
+      // If multipart file present, move it into destDir
+      const f: any = req.file;
+      if (f) {
+        const ext = path.extname(f.originalname || f.filename || "") || ".png";
+        const newName = `report_logo_${Date.now()}${ext}`;
+        const newPath = path.join(destDir, newName);
+        fs.renameSync(f.path, newPath);
+        const relative = `/user_photos/${newName}`;
+        await configService.setSettings({ "report-logo-path": relative });
+        return res.json({ success: true, path: relative });
+      }
+
+      // Only multipart file uploads are accepted now. If no file present, return error.
+      return res.status(400).json({ error: "photo file required (multipart form-data field 'photo')" });
+    } catch (e: any) {
+      console.error("[report/logo/upload] error", e);
+      return res.status(500).json({ error: e?.message || "internal" });
+    }
+  }
+);
 
 app.post("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
