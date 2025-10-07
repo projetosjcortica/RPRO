@@ -21,18 +21,22 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 20,
     borderBottomWidth: 2,
     borderBottomColor: "#d1d5db",
     paddingBottom: 10,
   },
   logo: {
-    width: 60,
-    height: 60,
+    // Fix height to 150 and let width scale to preserve aspect ratio
+    width: 100,
     marginRight: 15,
   },
   titleContainer: { flex: 1 },
+  // ensure title can wrap under logo when space is constrained
+  titleWrapper: { flexGrow: 1, minWidth: 100 },
   title: { fontSize: 24, fontWeight: "bold", color: "#af1e1eff", marginBottom: 4 },
   subtitle: { fontSize: 14, color: "#6f6f6fff", marginTop: 4, marginBottom: 5 },
   section: { marginBottom: 20, flexDirection: "column" },
@@ -201,13 +205,16 @@ export const MyDocument: FC<MyDocumentProps> = ({
             <Image
               src={logoUrl}
               style={styles.logo}
+              // preserve aspect ratio; react-pdf will scale width accordingly when only height provided
             />
           )}
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>{empresa}</Text>
-            <Text style={styles.subtitle}>
-              Relatório de Produção - {data}
-            </Text>
+            <View style={styles.titleWrapper}>
+              <Text style={styles.title}>{empresa}</Text>
+              <Text style={styles.subtitle}>
+                Relatório de Produção - {data}
+              </Text>
+            </View>
           </View>
         </View>
 

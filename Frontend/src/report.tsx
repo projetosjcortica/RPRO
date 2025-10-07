@@ -50,18 +50,31 @@ interface ComentarioRelatorio {
 }
 
 export default function Report() {
-  const { user } = useAuth(); // 👈 Adicionado
-  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined); // 👈 Adicionado
+  const { user } = useAuth();
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
 
   // Obter logo do usuário
   useEffect(() => {
-    if (user?.photoData) {
-      setLogoUrl(user.photoData);
-    } else if (user?.photoPath) {
-      setLogoUrl(resolvePhotoUrl(user.photoPath));
-    } else {
-      setLogoUrl(logo);
-    }
+    // Try to load stored report logo path from backend config
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/report/logo');
+        if (!res.ok) return;
+        const js = await res.json().catch(() => ({}));
+        const p = js?.path;
+        if (p && mounted) {
+          const resolved = resolvePhotoUrl(p);
+          setLogoUrl(resolved || undefined);
+        }
+        // If user has a profile photo path and no configured report logo, prefer that
+        if (!p && user && (user as any).photoPath && mounted) {
+          setLogoUrl(resolvePhotoUrl((user as any).photoPath) || undefined);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
   }, [user]);
 
   // ... restante do código permanece igual até handlePrint ...

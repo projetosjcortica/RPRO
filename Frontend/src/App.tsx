@@ -108,7 +108,7 @@ const App = () => {
             <SidebarHeader className="pt-6 ">
                 <div id='avatar' className='flex gap-3'>
                 <Avatar className="h-12 w-12 ml-2 cursor-pointer">
-                  <AvatarImage src={(user?.photoData ? user.photoData : (user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo)) || undefined} alt="Profile" />
+                  <AvatarImage src={(user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo) || undefined} alt="Profile" />
                   <AvatarFallback><Factory/></AvatarFallback>
                 </Avatar>
                 <div className='flex flex-col font-semibold'>
