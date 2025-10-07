@@ -23,6 +23,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import { useGlobalConnection } from './hooks/useGlobalConnection';
 import {
   Pagination,
   PaginationContent,
@@ -48,18 +49,31 @@ interface ComentarioRelatorio {
 }
 
 export default function Report() {
-  const { user } = useAuth(); // 👈 Adicionado
-  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined); // 👈 Adicionado
+  const { user } = useAuth();
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
 
   // Obter logo do usuário
   useEffect(() => {
-    if (user?.photoData) {
-      setLogoUrl(user.photoData);
-    } else if (user?.photoPath) {
-      setLogoUrl(resolvePhotoUrl(user.photoPath));
-    } else {
-      setLogoUrl(logo);
-    }
+    // Try to load stored report logo path from backend config
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/report/logo');
+        if (!res.ok) return;
+        const js = await res.json().catch(() => ({}));
+        const p = js?.path;
+        if (p && mounted) {
+          const resolved = resolvePhotoUrl(p);
+          setLogoUrl(resolved || undefined);
+        }
+        // If user has a profile photo path and no configured report logo, prefer that
+        if (!p && user && (user as any).photoPath && mounted) {
+          setLogoUrl(resolvePhotoUrl((user as any).photoPath) || undefined);
+        }
+      } catch (e) {
+        // ignore
+      }
+    })();
   }, [user]);
 
   // ... restante do código permanece igual até handlePrint ...
@@ -119,6 +133,7 @@ export default function Report() {
   const { formData: profileConfigData } = usePersistentForm("profile-config");
   const autoRefreshTimer = useRef<number | null>(null);
   const prevCollectorRunning = useRef<boolean>(false);
+  const { startConnecting, stopConnecting } = useGlobalConnection();
 
   const refreshResumo = useCallback(() => {
     setResumoReloadFlag((flag) => flag + 1);
@@ -320,6 +335,7 @@ export default function Report() {
         let res;
         if (ihmConfig && (ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
           // Send config as POST with body
+          startConnecting('Conectando ao coletor...');
           res = await fetch("http://localhost:3000/api/collector/start", {
             method: "POST",
             headers: {
@@ -340,6 +356,7 @@ export default function Report() {
         const payload = await res.json().catch(() => ({}));
         if (payload && payload.started === false) {
           await fetchCollectorStatus();
+          stopConnecting();
           throw new Error(payload?.message || "Coletor não pôde ser iniciado.");
         }
         await fetchCollectorStatus();
@@ -355,8 +372,21 @@ export default function Report() {
       );
     } finally {
       setCollectorLoading(false);
+      // no-op: global provider handles UI
     }
   };
+  // Poll while collector not running to update status; if global provider active, UI shows spinner
+  useEffect(() => {
+    let intervalId: number | null = null;
+    if (!collectorRunning) {
+      intervalId = window.setInterval(() => {
+        void fetchCollectorStatus();
+      }, 2500) as unknown as number;
+    }
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+    };
+  }, [collectorRunning, fetchCollectorStatus]);
 
   useEffect(() => {
     if (collectorRunning) {

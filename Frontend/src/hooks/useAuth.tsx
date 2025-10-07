@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type User = { id: number; username: string; displayName?: string; photoPath?: string; photoData?: string; isAdmin?: boolean } | null;
+type User = { id: number; username: string; displayName?: string; photoPath?: string; isAdmin?: boolean } | null;
 
 const STORAGE_KEY = 'rpro_user';
 
