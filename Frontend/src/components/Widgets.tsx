@@ -19,7 +19,7 @@ type ChartDatum = {
   average?: number;
 };
 
-const COLORS = ["#ff2626ff", "#5e5e5eff", "#d4d4d4ff", "#ffa8a8ff", "#1b1b1bff"];
+import { DASHBOARD_COLORS as COLORS } from "../lib/colors";
 
 // Hook para buscar dados do backend
 const useChartData = (chartType: ChartType, filters?: any) => {

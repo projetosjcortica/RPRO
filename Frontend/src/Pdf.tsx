@@ -1,4 +1,5 @@
-import { Document, Page, Text, StyleSheet, View, Font, Image } from "@react-pdf/renderer";
+import { Document, Page, Text, StyleSheet, View, Font, Image, Svg, G, Circle } from "@react-pdf/renderer";
+import { DASHBOARD_COLORS as palette } from './lib/colors';
 import type { FC } from "react";
 
 Font.register({
@@ -88,6 +89,22 @@ const styles = StyleSheet.create({
   comentarioContainer: { marginBottom: 10, padding: 8, backgroundColor: "#f8f9fa", borderRadius: 4 },
   comentarioMeta: { fontSize: 10, color: "#666", marginBottom: 4 },
   comentarioTexto: { fontSize: 11 },
+  // Chart styles
+  chartSection: { marginBottom: 10 },
+  chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  chartLabel: { width: '30%', fontSize: 10, color: '#374151' },
+  chartBarContainer: { width: '55%', height: 12, backgroundColor: '#e6e7ea', borderRadius: 4, overflow: 'hidden', marginRight: 6 },
+  chartBarFill: { height: 12, backgroundColor: '#af1e1eff' },
+  chartValue: { width: '10%', fontSize: 9, textAlign: 'right', color: '#374151' },
+  // donut
+  donutContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  donutBox: { width: '35%', alignItems: 'center', justifyContent: 'center' },
+  donutSvg: { width: 120, height: 120 },
+  donutCenterText: { position: 'absolute', fontSize: 10, textAlign: 'center', width: 120 },
+  legend: { width: '60%', flexDirection: 'column' },
+  legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  legendColorBox: { width: 10, height: 10, borderRadius: 2, marginRight: 6 },
+  smallNote: { fontSize: 9, color: '#6b7280' },
 });
 
 interface Produto {
@@ -131,6 +148,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
   observacoes = "",
   orientation = "portrait",
   formulaSums = {},
+  chartData = [],
   comentarios = [],
 }) => {
   const dataGeracao = new Date().toLocaleString("pt-BR");
@@ -142,6 +160,19 @@ export const MyDocument: FC<MyDocumentProps> = ({
     produtosPorCategoria[cat].push(p);
   });
   const categorias = Object.keys(produtosPorCategoria).sort();
+
+  // Prepare chart source outside of JSX so it's available during render
+  const _chartSource: { name: string; value: number }[] = [];
+  if (chartData && Array.isArray(chartData) && chartData.length > 0) {
+    for (const c of chartData) _chartSource.push({ name: String(c.name), value: Number(c.value) || 0 });
+  } else if (formulaSums && Object.keys(formulaSums).length > 0) {
+    for (const [k, v] of Object.entries(formulaSums)) _chartSource.push({ name: k, value: Number(v) || 0 });
+  }
+  const chartSource = _chartSource;
+  const chartTop = chartSource.length > 0 ? chartSource.slice().sort((a, b) => b.value - a.value).slice(0, 10) : [];
+
+  // use shared palette, fallback to an extended local palette if needed
+  const extendedPalette = palette;
 
   const renderRodape = () => (
     <>
@@ -319,6 +350,94 @@ export const MyDocument: FC<MyDocumentProps> = ({
           </View>
         )}
 
+        {renderRodape()}
+      </Page>
+      {/* Página 3 */}
+      <Page size="A4" style={styles.page} orientation={orientation} wrap>
+        {/* pagina para os graficos */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Gráficos</Text>
+          {chartTop.length === 0 ? (
+            <Text style={styles.smallNote}>Nenhum dado de gráfico disponível.</Text>
+          ) : (
+            <View style={[styles.chartSection, { flexDirection: 'column' }]}>
+              <Text style={{ fontSize: 12, marginBottom: 6 }}>Resumo de Gráficos — Total: {chartTop.reduce((s, it) => s + it.value, 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
+
+              <View style={styles.donutContainer}>
+                {/* Donut + legend */}
+                <View style={styles.donutBox}>
+                  <Svg style={styles.donutSvg} viewBox="0 0 120 120">
+                    <G>
+                      {/* draw background ring */}
+                      <Circle cx={60} cy={60} r={44} fill="#fff" stroke="#eef2f7" strokeWidth={16} />
+                      {/* slices */}
+                      {(() => {
+                        // donut uses only top N for clarity
+                        const topDonut = chartTop.slice(0, 6);
+                        const total = topDonut.reduce((s, it) => s + it.value, 0) || 1;
+                        let offset = 0;
+                        return topDonut.map((it, idx) => {
+                          const pct = (it.value / total);
+                          const circumference = 2 * Math.PI * 44;
+                          const dash = Math.max(0.0001, circumference * pct);
+                          const dashArray = `${dash} ${circumference - dash}`;
+                          const color = extendedPalette[idx % extendedPalette.length];
+                          const style = { stroke: color, strokeWidth: 16, fill: 'none', strokeLinecap: 'butt', strokeDasharray: dashArray, strokeDashoffset: -offset };
+                          offset += dash;
+                          return (
+                            // @ts-ignore - react-pdf svg element
+                            <Circle key={idx} cx={60} cy={60} r={44} {...style} />
+                          );
+                        });
+                      })()}
+                    </G>
+                  </Svg>
+                  <View style={styles.donutCenterText}>
+                    <Text style={{ fontSize: 11, fontWeight: 'bold', textAlign: 'center' }}>{chartTop[0]?.name || ''}</Text>
+                    <Text style={{ fontSize: 9, textAlign: 'center' }}>{(chartTop[0]?.value ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
+                  </View>
+                </View>
+
+                <View style={styles.legend}>
+                  {chartTop.slice(0, 6).map((it, idx) => {
+                    const total = chartTop.slice(0, 6).reduce((s, it2) => s + it2.value, 0) || 1;
+                    const pct = (it.value / total) * 100;
+                    const color = extendedPalette[idx % extendedPalette.length];
+                    return (
+                      <View key={idx} style={styles.legendItem}>
+                        <View style={[styles.legendColorBox, { backgroundColor: color }]} />
+                        <Text style={{ fontSize: 10, flex: 1 }}>{it.name}</Text>
+                        <Text style={{ fontSize: 10, width: 60, textAlign: 'right' }}>{Number(it.value).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
+                        <Text style={{ fontSize: 9, width: 36, textAlign: 'right', color: '#6b7280' }}>{pct.toFixed(1)}%</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Bars (improved) - show all entries sorted */}
+              <View style={{ marginTop: 8 }}>
+                {chartSource.slice().sort((a, b) => b.value - a.value).map((row, i) => {
+                  const totalAll = chartSource.reduce((s, it) => s + it.value, 0) || 1;
+                  const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
+                  const color = extendedPalette[i % extendedPalette.length];
+                  return (
+                    <View key={i} style={styles.chartRow}>
+                      <Text style={styles.chartLabel}>{row.name}</Text>
+                      <View style={styles.chartBarContainer}>
+                        <View style={[styles.chartBarFill, { width: `${Math.max(1, Math.round(pct))}%`, backgroundColor: color }]} />
+                      </View>
+                      <Text style={styles.chartValue}>{Number(row.value).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
+                      <Text style={{ fontSize: 9, width: 36, textAlign: 'right', color: '#6b7280' }}>{pct.toFixed(1)}%</Text>
+                    </View>
+                  );
+                })}
+                <Text style={[styles.smallNote, { marginTop: 6 }]}>Exibindo {chartSource.length} registros.</Text>
+              </View>
+            </View>
+          )}
+        </View>
+          
         {renderRodape()}
       </Page>
     </Document>

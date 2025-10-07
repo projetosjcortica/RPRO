@@ -4,8 +4,10 @@ import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Checkbox } from "./components/ui/checkbox";
 import { Button } from "./components/ui/button";
+import { Loader2 } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
+import { getProcessador } from "./Processador";
 
 import {
   AlertDialog,
@@ -575,6 +577,7 @@ export function AdminConfig({
   const [exportDataInicio, setExportDataInicio] = useState<string | null>(null);
   const [exportDataFim, setExportDataFim] = useState<string | null>(null);
   const [exportFormula, setExportFormula] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   const handleExportExecute = async () => {
     try {
@@ -718,8 +721,39 @@ export function AdminConfig({
             <div id="sidetxt" className="flex flex-row justify-between">
               <Label className="font-medium text-gray-700">Resetar Sistema</Label>
                 
-                <Button className="w-70 bg-red-600 hover:bg-red-700" disabled={!isEditing}>
-                  Resetar Sistema
+                <Button
+                  className="w-70 bg-red-600 hover:bg-red-700"
+                  disabled={!isEditing || resetting}
+                  onClick={async (e) => {
+                    // run the reset directly from the main button as requested
+                    e.preventDefault();
+                    if (!isEditing || resetting) return;
+                    // confirmation
+                    if (!window.confirm('Confirma reset completo do sistema? Esta ação é irreversível.')) return;
+                    setResetting(true);
+                    try {
+                      const processador = getProcessador();
+                      const sucesso = await processador.resetProduction();
+                      if (sucesso) {
+                        toast.success('Sistema resetado com sucesso! Usuários e configurações preservados.');
+                        // refresh UI to reflect cleared DB
+                        setTimeout(() => window.location.reload(), 800);
+                      } else {
+                        toast.error('Erro ao resetar sistema');
+                      }
+                    } catch (err) {
+                      console.error(err);
+                      toast.error('Ocorreu um erro inesperado');
+                    } finally {
+                      setResetting(false);
+                    }
+                  }}
+                >
+                  {resetting ? (
+                    <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Resetando...</span>
+                  ) : (
+                    'Resetar Sistema'
+                  )}
                 </Button>
               
             </div>
@@ -741,21 +775,28 @@ export function AdminConfig({
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction
                 onClick={async () => {
+                  // reuse same behavior as main button (dialog action)
+                  if (resetting) return;
+                  setResetting(true);
                   try {
-                    const sucesso = await configService.cleanProductionData();
+                    const processador = getProcessador();
+                    const sucesso = await processador.resetProduction();
                     if (sucesso) {
                       toast.success("Sistema resetado com sucesso! Usuários e configurações preservados.");
+                      setTimeout(() => window.location.reload(), 800);
                     } else {
                       toast.error("Erro ao resetar sistema");
                     }
                   } catch (err) {
                     console.error(err);
                     toast.error("Ocorreu um erro inesperado");
+                  } finally {
+                    setResetting(false);
                   }
                 }}
                 className="bg-red-600 hover:bg-red-700"
               >
-                Resetar Sistema
+                {resetting ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Resetando...</span> : 'Resetar Sistema'}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
