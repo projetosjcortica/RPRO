@@ -226,7 +226,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
             <Text style={styles.label}>
               Total:{" "}
               <Text style={styles.value}>
-                {total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })}
+                {total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
               </Text>
             </Text>
           </View>
@@ -256,9 +256,9 @@ export const MyDocument: FC<MyDocumentProps> = ({
             <Text style={styles.sectionTitle}>Resumo por Fórmula</Text>
             {renderTable(formulas, (f) => ({
               col1: f.nome,
-              col2: f.somatoriaTotal.toLocaleString("pt-BR", {
+              col2: (f.somatoriaTotal.toLocaleString("pt-BR", {
                 minimumFractionDigits: 3,
-              }),
+              })+" kg"),
             }))}
           </View>
         )}
@@ -270,9 +270,9 @@ export const MyDocument: FC<MyDocumentProps> = ({
             </Text>
             {renderTable(Object.entries(formulaSums), ([nome, val]) => ({
               col1: nome,
-              col2: Number(val).toLocaleString("pt-BR", {
+              col2: (Number(val).toLocaleString("pt-BR", {
                 minimumFractionDigits: 3,
-              }),
+              })+" kg"),
             }))}
           </View>
         )}
@@ -289,9 +289,9 @@ export const MyDocument: FC<MyDocumentProps> = ({
             <View key={idx} style={{ marginBottom: 10 }}>
               {renderTable(produtosPorCategoria[cat], (p) => ({
                 col1: p.nome,
-                col2: p.qtd.toLocaleString("pt-BR", {
+                col2: ((p.unidade === "kg" ? p.qtd : p.qtd / 1000).toLocaleString("pt-BR", {
                   minimumFractionDigits: 3,
-                }),
+                })+" kg"),
               }))}
             </View>
           ))}
