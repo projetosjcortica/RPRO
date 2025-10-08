@@ -384,8 +384,8 @@ app.post("/api/db/clear", async (req, res) => {
 // Compatibility route: some frontends call /api/database/clean
 app.post("/api/database/clean", async (req, res) => {
   try {
-    await dbService.init();
     await dbService.clearAll();
+    await cacheService.clearAll();
     return res.json({ ok: true });
   } catch (e: any) {
     console.error("[api/database/clean] error", e);
@@ -462,66 +462,102 @@ app.post("/api/clear/production", async (req, res) => {
     await dbService.init();
     await cacheService.init();
 
-    // Clear production tables (keep User and MateriaPrima)
+    // Clear production tables (keep User; MateriaPrima will be reset below)
     const relatorioRepo = AppDataSource.getRepository(Relatorio);
     const batchRepo = AppDataSource.getRepository(Batch);
     const rowRepo = AppDataSource.getRepository(Row);
     const estoqueRepo = AppDataSource.getRepository(Estoque);
     const movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
-
-    await relatorioRepo.clear();
-    await batchRepo.clear();
-    await rowRepo.clear();
-    await estoqueRepo.clear();
-    await movimentacaoRepo.clear();
-
-    // Reset MateriaPrima to default products (optional - you can remove this if you want to keep existing products)
     const materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
-    await materiaPrimaRepo.clear();
-    let defaultProducts = [];
-    // Setup default products (example products - adjust as needed)
-    for (let i = 1; i <= 40; i++) {
-      defaultProducts.push({
-        num: i,
-        produto: `Produto ${i}`,
-        medida: 1, // kg
-      });
-    }
 
-    for (const prod of defaultProducts) {
-      try {
-        const newProduct = materiaPrimaRepo.create(prod);
-        await materiaPrimaRepo.save(newProduct);
-      } catch (e) {
-        console.warn(
-          "[api/clear/production] failed to create default product:",
-          prod,
-          e
-        );
+    // Clear child tables first to avoid FK constraint issues when possible.
+    // We'll attempt normal TypeORM clears in a safe order and fallback to a MySQL-specific
+    // disable-foreign-keys + TRUNCATE approach if we hit ER_TRUNCATE_ILLEGAL_FK.
+    const tryNormalClear = async () => {
+      // Order: deepest children first, then parents
+      await movimentacaoRepo.clear(); // references estoque
+      await estoqueRepo.clear(); // references materia_prima
+      await rowRepo.clear(); // references batch
+      await batchRepo.clear(); // references relatorio
+      await relatorioRepo.clear();
+      // await materiaPrimaRepo.clear(); // now safe to clear (estoque already cleared)
+    };
+
+    try {
+      await tryNormalClear();
+    } catch (e: any) {
+      console.warn('[api/clear/production] normal clear failed, attempting fallback:', e?.message || e);
+      // If MySQL and the error is due to truncation with FK, try a safe raw SQL fallback
+      const driverType = (AppDataSource.options as any)?.type || '';
+      if ((driverType === 'mysql' || driverType === 'mariadb') && e?.code === 'ER_TRUNCATE_ILLEGAL_FK') {
+        const manager = AppDataSource.manager;
+        try {
+          await manager.query('SET FOREIGN_KEY_CHECKS=0');
+          // Truncate or delete in order: deepest child tables first
+          const tables = ['movimentacao_estoque', 'estoque', 'row', 'batch', 'relatorio'];
+          for (const t of tables) {
+            try {
+              await manager.query(`TRUNCATE TABLE \`${t}\``);
+            } catch (inner) {
+              // fallback to DELETE if truncate fails for any reason
+              try {
+                await manager.query(`DELETE FROM \`${t}\``);
+              } catch (errDel) {
+                console.warn(`[api/clear/production] failed to truncate/delete table ${t}:`, errDel);
+              }
+            }
+          }
+        } finally {
+          try {
+            await manager.query('SET FOREIGN_KEY_CHECKS=1');
+          } catch (re) {
+            console.warn('[api/clear/production] failed to re-enable FK checks:', re);
+          }
+        }
+      } else {
+        // Not a MySQL FK truncation error or unknown driver: rethrow to surface the error
+        throw e;
       }
     }
+
+    // Reset MateriaPrima to default products after clearing (already cleared above)
+    // let defaultProducts = [];
+    // // Setup default products (example products - adjust as needed)
+    // for (let i = 1; i <= 40; i++) {
+    //   defaultProducts.push({
+    //     num: i,
+    //     produto: `Produto ${i}`,
+    //     medida: 1, // kg
+    //   });
+    // }
+
+    // for (const prod of defaultProducts) {
+    //   try {
+    //     const newProduct = materiaPrimaRepo.create(prod);
+    //     await materiaPrimaRepo.save(newProduct);
+    //   } catch (e) {
+    //     console.warn(
+    //       "[api/clear/production] failed to create default product:",
+    //       prod,
+    //       e
+    //     );
+    //   }
+    // }
 
     // Clear cache (both database records and SQLite file)
     await cacheService.clearAll();
 
-    // Also clear the physical cache SQLite file
+    // Force delete the physical cache SQLite file. Use CacheService.deleteFile() which
+    // closes the datasource and unlinks the file; ignore errors (log only) as requested.
     try {
-      const cachePath = path.resolve(
-        process.cwd(),
-        process.env.CACHE_SQLITE_PATH || "cache.sqlite"
-      );
-      if (fs.existsSync(cachePath)) {
-        fs.unlinkSync(cachePath);
-        console.log(
-          "[api/clear/production] Cache SQLite file deleted:",
-          cachePath
-        );
+      const deleted = await cacheService.deleteFile();
+      if (deleted) {
+        console.log('[api/clear/production] Cache SQLite file deleted via cacheService.deleteFile()');
+      } else {
+        console.log('[api/clear/production] No cache SQLite file found to delete');
       }
     } catch (e) {
-      console.warn(
-        "[api/clear/production] Failed to delete cache SQLite file:",
-        e
-      );
+      console.warn('[api/clear/production] force-delete cache file failed (ignored):', String(e));
     }
 
     // Clear backups (optional)
