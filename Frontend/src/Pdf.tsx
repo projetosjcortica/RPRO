@@ -137,6 +137,8 @@ export interface MyDocumentProps {
   formulaSums?: Record<string, number>;
   chartData?: { name: string; value: number }[];
   comentarios?: ComentarioRelatorio[];
+  showComments?: boolean;
+  showCharts?: boolean;
 }
 
 export const MyDocument: FC<MyDocumentProps> = ({
@@ -150,13 +152,15 @@ export const MyDocument: FC<MyDocumentProps> = ({
   formulas = [],
   produtos = [],
   data = new Date().toLocaleDateString("pt-BR"),
-  empresa = "Relatório RPRO",
-  usuario = "Administrativo",
+  empresa = "Relatório Prodana",
+  usuario = "Sistema",
   observacoes = "",
   orientation = "portrait",
   formulaSums = {},
   chartData = [],
   comentarios = [],
+  showComments = true,
+  showCharts = true,  
 }) => {
   const dataGeracao = new Date().toLocaleString("pt-BR");
 
@@ -313,7 +317,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
             }))}
           </View>
         )}
-
+{/* 
         {Object.keys(formulaSums).length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>
@@ -326,7 +330,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
               })+" kg"),
             }))}
           </View>
-        )}
+        )} */}
 
         {renderRodape()}
       </Page>
@@ -348,7 +352,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
           ))}
         </View>
 
-        {comentarios.length > 0 && (
+        {showComments && comentarios.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Comentários do Relatório</Text>
             {comentarios.map((c, i) => (
@@ -373,6 +377,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {renderRodape()}
       </Page>
       {/* Página 3 */}
+      {showCharts && (
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
         {/* pagina para os graficos */}
         <View style={styles.section}>
@@ -460,6 +465,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
           
         {renderRodape()}
       </Page>
+      )}
     </Document>
   );
 };

@@ -12,9 +12,9 @@ import Products from "./products";
 import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
 import { cn } from "./lib/utils";
+import { ExportDropdown } from "./components/ExportDropdown";
 
 import { resolvePhotoUrl } from './lib/photoUtils';
-import logo from './public/logo.png'; // ajuste o caminho se necessário
 import useAuth from './hooks/useAuth';
 
 import {
@@ -23,7 +23,6 @@ import {
   Play,
   Square,
   Loader2,
-  X,
 } from "lucide-react";
 import { useGlobalConnection } from './hooks/useGlobalConnection';
 import {
@@ -105,8 +104,10 @@ export default function Report() {
 
   // Comentários state
   const [comentarios, setComentarios] = useState<ComentarioRelatorio[]>([]);
-  const [novoComentario, setNovoComentario] = useState<string>('');
-  const [mostrarEditorComentario, setMostrarEditorComentario] = useState<boolean>(false);
+  
+  // Estados para controle de exibição no PDF
+  const [showPdfComments, setShowPdfComments] = useState<boolean>(true);
+  const [showPdfCharts, setShowPdfCharts] = useState<boolean>(true);
 
   const [tableSelection, setTableSelection] = useState<{
     periodoInicio: string | undefined;
@@ -271,22 +272,32 @@ export default function Report() {
   }, [resumo, produtosInfo]);
 
   // Funções de comentários
-  const adicionarComentario = () => {
-    if (!novoComentario.trim()) return;
-    
-    const comentario: ComentarioRelatorio = {
-      texto: novoComentario.trim(),
-      data: new Date().toLocaleString('pt-BR'),
-    };
-    
-    setComentarios(prev => [...prev, comentario]);
-    setNovoComentario('');
-    setMostrarEditorComentario(false);
-  };
-
   const removerComentario = (index: number) => {
     setComentarios(prev => prev.filter((_, i) => i !== index));
   };
+
+  // Funções para o ExportDropdown (com ID)
+  const handleAddCommentFromModal = (texto: string) => {
+    const comentario: ComentarioRelatorio = {
+      texto,
+      data: new Date().toLocaleString('pt-BR'),
+    };
+    setComentarios(prev => [...prev, comentario]);
+  };
+
+  const handleRemoveCommentFromModal = (id: string) => {
+    const index = parseInt(id);
+    if (!isNaN(index)) {
+      removerComentario(index);
+    }
+  };
+
+  // Converter comentários para formato com ID
+  const comentariosComId = comentarios.map((c, idx) => ({
+    id: String(idx),
+    texto: c.texto,
+    data: c.data || new Date().toLocaleString('pt-BR'),
+  }));
 
   // Funções existentes
   const handleAplicarFiltros = (novosFiltros: Filtros) => {
@@ -579,10 +590,12 @@ export default function Report() {
         produtos={tableSelection.produtos}
         data={new Date().toLocaleDateString("pt-BR")}
         empresa={sideInfo.proprietario || 'Relatório RPRO'}
-        comentarios={comentarios}
+        comentarios={comentariosComId}
         chartData={pdfChartData}
         formulaSums={formulaSums}
         usuario={user.username}
+        showComments={showPdfComments}
+        showCharts={showPdfCharts}
       />
     ).toBlob();
     
@@ -604,6 +617,40 @@ export default function Report() {
     iframe?.addEventListener("load", () => {
       printWindow.focus();
     });
+  };
+
+  const handleExcelExport = async (filters: { nomeFormula?: string; dataInicio?: string; dataFim?: string }) => {
+    try {
+      const backendPort = 3000;
+      const base = `http://localhost:${backendPort}`;
+      const params = new URLSearchParams();
+      
+      if (filters.dataInicio) params.append('dataInicio', filters.dataInicio);
+      if (filters.dataFim) params.append('dataFim', filters.dataFim);
+      if (filters.nomeFormula) params.append('formula', filters.nomeFormula);
+
+      const url = `${base}/api/relatorio/exportExcel?${params.toString()}`;
+
+      const resp = await fetch(url, { method: 'GET' });
+      if (!resp.ok) {
+        let txt = '';
+        try { txt = await resp.text(); } catch {}
+        console.error('Falha ao exportar Excel:', txt || resp.statusText);
+        return;
+      }
+
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `relatorio_${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Erro ao exportar Excel:', err);
+    }
   };
 
   const displayProducts = useMemo(() => {
@@ -856,79 +903,17 @@ export default function Report() {
           {/* Impressão e Comentários */}
           <div className="flex flex-col fl text-center gap-3 mt-1">
             <div className="flex flex-row gap-2 justify-center">
-              <Button onClick={handlePrint} className="gap-2">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Gerar PDF
-              </Button>
-              <Button 
-                  onClick={() => setMostrarEditorComentario(!mostrarEditorComentario)}
-                  
-                >
-                  {mostrarEditorComentario ? 'Cancelar' : '+ Adcionar Comentário'}
-              </Button>
-            </div>
-
-            {/* Seção de Comentários */}
-            <div className="flex flex-col gap-2 mt-2">
-              <div className="flex items-center justify-center">
-                <p className="font-medium"></p>
-              </div>
-
-              {/* Editor de Comentário */}
-              {mostrarEditorComentario && (
-                <div className="border rounded-lg p-3 bg-gray-50">
-                  <textarea
-                    value={novoComentario}
-                    onChange={(e) => setNovoComentario(e.target.value)}
-                    placeholder="Digite seu comentário sobre este relatório..."
-                    className="w-full p-2 border rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500"
-                    rows={3}
-                  />
-                  <div className="flex justify-end gap-1 mt-2">
-                    <Button 
-                      onClick={() => setMostrarEditorComentario(false)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button 
-                      onClick={adicionarComentario}
-                      disabled={!novoComentario.trim()}
-                      size="sm"
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      Adicionar
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Lista de Comentários */}
-              {comentarios.length > 0 && (
-                <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-custom">
-                  {comentarios.map((comentario, index) => (
-                    <div key={index} className="border rounded-lg p-3 bg-white text-sm relative group">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-xs text-gray-500">
-                           {comentario.data}
-                        </span>
-                        <Button
-                          onClick={() => removerComentario(index)}
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p className="text-gray-700">{comentario.texto}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ExportDropdown
+                onPdfExport={handlePrint}
+                onExcelExport={handleExcelExport}
+                showComments={showPdfComments}
+                showCharts={showPdfCharts}
+                onToggleComments={() => setShowPdfComments(!showPdfComments)}
+                onToggleCharts={() => setShowPdfCharts(!showPdfCharts)}
+                comments={comentariosComId}
+                onAddComment={handleAddCommentFromModal}
+                onRemoveComment={handleRemoveCommentFromModal}
+              />
             </div>
           </div>
         </div>
