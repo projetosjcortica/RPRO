@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FileDown, FileSpreadsheet, Download, Printer, MessageSquare, BarChart3, X, Plus } from "lucide-react";
+import { PDFViewer } from "@react-pdf/renderer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,7 +29,7 @@ interface Comment {
 interface ExportDropdownProps {
   onPdfExport: () => void;
   onExcelExport: (filters: { nomeFormula?: string; dataInicio?: string; dataFim?: string }) => void;
-  pdfPreview?: React.ReactNode;
+  pdfDocument?: React.ReactElement;
   showComments?: boolean;
   showCharts?: boolean;
   onToggleComments?: () => void;
@@ -41,7 +42,7 @@ interface ExportDropdownProps {
 export function ExportDropdown({
   onPdfExport,
   onExcelExport,
-  pdfPreview,
+  pdfDocument,
   showComments = false,
   showCharts = false,
   onToggleComments,
@@ -57,7 +58,7 @@ export function ExportDropdown({
   const [nomeFormula, setNomeFormula] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState(""); 
-  
+
   // Comentários no modal PDF
   const [showCommentEditor, setShowCommentEditor] = useState(false);
   const [newComment, setNewComment] = useState("");
@@ -124,18 +125,24 @@ export function ExportDropdown({
 
       {/* Modal PDF */}
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto thin-red-scrollbar">
           <DialogHeader>
             <DialogTitle>Preview do PDF</DialogTitle>
-            <DialogDescription>
-              Visualize o PDF antes de baixar ou imprimir
-            </DialogDescription>
+            
           </DialogHeader>
 
-          <div className="my-4 border rounded-lg p-4 bg-gray-50 min-h-[400px] overflow-auto">
-            {pdfPreview || (
-              <div className="flex items-center justify-center h-[400px] text-gray-500">
-                Preview do PDF será exibido aqui
+          <div className="my-4 border rounded-lg overflow-hidden bg-gray-50 min-h-[600px] thin-red-scrollbar">
+            {pdfDocument ? (
+              <PDFViewer width="100%" height="600px" showToolbar={true} >
+                {pdfDocument}
+              </PDFViewer>
+            ) : (
+              <div className="flex items-center justify-center h-[600px] text-gray-500">
+                <div className="text-center">
+                  <FileDown className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Preview do PDF será exibido aqui</p>
+                  <p className="text-sm mt-2">O preview será carregado automaticamente com os dados atuais</p>
+                </div>
               </div>
             )}
           </div>
@@ -148,7 +155,10 @@ export function ExportDropdown({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setShowCommentsSection(!showCommentsSection)}
+                  onClick={() => {
+                    setShowCommentsSection(!showCommentsSection);
+                    onToggleComments();
+                  }}
                   className="gap-2"
                 >
                   <MessageSquare className="h-4 w-4" />
@@ -242,16 +252,7 @@ export function ExportDropdown({
 
           <DialogFooter className="flex flex-wrap gap-2 sm:justify-between mt-4">
             <div className="flex gap-2">
-              {onToggleComments && (
-                <Button
-                  variant="outline"
-                  onClick={onToggleComments}
-                  className="gap-2"
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  {showComments ? "Ocultar" : "Mostrar"} Comentários
-                </Button>
-              )}
+               
               {onToggleCharts && (
                 <Button
                   variant="outline"
@@ -263,6 +264,7 @@ export function ExportDropdown({
                 </Button>
               )}
             </div>
+            {/* 
             <div className="flex gap-2">
               <Button variant="outline" onClick={handlePdfPrint} className="gap-2">
                 <Printer className="h-4 w-4" />
@@ -272,7 +274,7 @@ export function ExportDropdown({
                 <Download className="h-4 w-4" />
                 Download
               </Button>
-            </div>
+            </div> */}
           </DialogFooter>
         </DialogContent>
       </Dialog>
