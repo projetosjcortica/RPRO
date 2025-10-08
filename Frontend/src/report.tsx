@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { format as formatDateFn } from 'date-fns';
 
+
+
 import { MyDocument } from "./Pdf";
 import { usePersistentForm } from './config';
 
@@ -115,6 +117,8 @@ export default function Report() {
     horaFinal: string;
     formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
     produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
+    empresa: string;
+    usuario: string
   }>({
     periodoInicio: undefined,
     periodoFim: undefined,
@@ -123,7 +127,9 @@ export default function Report() {
     horaInicial: "--:--",
     horaFinal: "--:--",
     produtos: [],
-    formulas: []
+    formulas: [],
+    empresa: "...",
+    usuario: "..."
   });
 
   const [resumo, setResumo] = useState<any | null>(null);
@@ -246,7 +252,7 @@ export default function Report() {
         periodoInicio: resumo.periodoInicio || "--/--/--",
         periodoFim: resumo.periodoFim || "--/--/--",
         horaInicial: resumo.horaInicial || "--:--:--",
-        horaFinal: resumo.horadFinal || "--:--:--",
+        horaFinal: resumo.horaFinal || "--:--:--",
         formulas: formulasFromResumo,
         produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
           const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
@@ -258,6 +264,8 @@ export default function Report() {
             unidade: val.unidade || "kg",
           };
         }),
+        empresa:sideInfo.proprietario,
+        usuario:user.username
       });
     }
   }, [resumo, produtosInfo]);
@@ -501,6 +509,7 @@ export default function Report() {
     return valor;
   };
 
+  
   const handlePrint = async () => {
     // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
     const formulaSums: Record<string, number> = (() => {
@@ -561,15 +570,18 @@ export default function Report() {
         logoUrl={logoUrl}
         total={Number(tableSelection.total) || 0}
         batidas={Number(tableSelection.batidas) || 0}
-        periodoInicio={tableSelection.horaInicial}
-        periodoFim={tableSelection.horaFinal}
+        periodoInicio={tableSelection.periodoInicio}
+        periodoFim={tableSelection.periodoFim}
+        horaInicial={tableSelection.horaInicial}
+        horaFinal={tableSelection.horaFinal}
         formulas={tableSelection.formulas}
         produtos={tableSelection.produtos}
         data={new Date().toLocaleDateString("pt-BR")}
-        empresa={runtime.get('nomeCliente') || 'Relatório RPRO'}
+        empresa={sideInfo.proprietario || 'Relatório RPRO'}
         comentarios={comentarios}
         chartData={pdfChartData}
         formulaSums={formulaSums}
+        usuario={user.username}
       />
     ).toBlob();
     
