@@ -32,9 +32,8 @@ export class Processador {
 
   // Método makeRequest corrigido - SEMPRE usa URL absoluta
   private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
-    // ✅ SEMPRE construir URL absoluta
+    
     let url: string;
-
     if (/^https?:\/\//i.test(endpoint)) {
       url = endpoint; // Já é URL absoluta
     } else {
@@ -310,6 +309,20 @@ export class Processador {
 
   public clearAll() {
     return this.makeRequest('/api/clear/all', 'POST');
+  }
+
+  /**
+   * Reset production data (DB clear + cache delete) - convenience wrapper
+   */
+  public async resetProduction(): Promise<boolean> {
+    try {
+      const res = await this.makeRequest('/api/clear/production', 'POST');
+      // some backends return { ok: true } or { success: true }
+      return res && (res.ok === true || res.success === true);
+    } catch (err) {
+      console.error('[Processador] resetProduction failed', err);
+      throw err;
+    }
   }
 
   public estoqueOperation(operation: string, payload: any = {}) {

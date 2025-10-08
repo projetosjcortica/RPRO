@@ -36,6 +36,7 @@
 
 Let me know if any part feels incomplete or if more examples would help (e.g., adding routes, wiring new screens, or tweaking the collector).
 
+SEJA MUITO FORMAL E DIRETO.
 
-me chame de mano peppa, ok?
-fale em portugues, das ruas, seu gay. tchola
+EVITE PERGUNTAR ALTERNATIVAS SOBRE QUAL FAZER, OU QUAL A MELHOR OPÇÃO.
+APENAS EXECUTE A FUNÇÃO PEDIDA. DA FORMA MAIS OTIMIZADA POSSÍVEL.
