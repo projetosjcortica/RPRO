@@ -505,6 +505,7 @@ export default function Report() {
   const converterValor = (valor: number, colKey?: string): number => {
     if (typeof valor !== "number") return valor;
     let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
+    // Backend retorna valores sempre em kg. Se unidade configurada é 'g', dividimos por 1000
     if (unidade === 'g') return valor / 1000;
     return valor;
   };

@@ -35,9 +35,8 @@ export class Processador {
     
     let url: string;
     if (/^https?:\/\//i.test(endpoint)) {
-      url = endpoint; // Já é URL absoluta
+      url = endpoint;
     } else {
-      // ✅ CORRIGIDO: Combinar baseURL com endpoint
       const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
       url = `${this.baseURL}${normalizedEndpoint}`;
     }

@@ -480,7 +480,7 @@ app.post("/api/clear/production", async (req, res) => {
       await rowRepo.clear(); // references batch
       await batchRepo.clear(); // references relatorio
       await relatorioRepo.clear();
-      await materiaPrimaRepo.clear(); // now safe to clear (estoque already cleared)
+      // await materiaPrimaRepo.clear(); // now safe to clear (estoque already cleared)
     };
 
     try {
@@ -494,7 +494,7 @@ app.post("/api/clear/production", async (req, res) => {
         try {
           await manager.query('SET FOREIGN_KEY_CHECKS=0');
           // Truncate or delete in order: deepest child tables first
-          const tables = ['movimentacao_estoque', 'estoque', 'row', 'batch', 'relatorio', 'materia_prima'];
+          const tables = ['movimentacao_estoque', 'estoque', 'row', 'batch', 'relatorio'];
           for (const t of tables) {
             try {
               await manager.query(`TRUNCATE TABLE \`${t}\``);
@@ -521,28 +521,28 @@ app.post("/api/clear/production", async (req, res) => {
     }
 
     // Reset MateriaPrima to default products after clearing (already cleared above)
-    let defaultProducts = [];
-    // Setup default products (example products - adjust as needed)
-    for (let i = 1; i <= 40; i++) {
-      defaultProducts.push({
-        num: i,
-        produto: `Produto ${i}`,
-        medida: 1, // kg
-      });
-    }
+    // let defaultProducts = [];
+    // // Setup default products (example products - adjust as needed)
+    // for (let i = 1; i <= 40; i++) {
+    //   defaultProducts.push({
+    //     num: i,
+    //     produto: `Produto ${i}`,
+    //     medida: 1, // kg
+    //   });
+    // }
 
-    for (const prod of defaultProducts) {
-      try {
-        const newProduct = materiaPrimaRepo.create(prod);
-        await materiaPrimaRepo.save(newProduct);
-      } catch (e) {
-        console.warn(
-          "[api/clear/production] failed to create default product:",
-          prod,
-          e
-        );
-      }
-    }
+    // for (const prod of defaultProducts) {
+    //   try {
+    //     const newProduct = materiaPrimaRepo.create(prod);
+    //     await materiaPrimaRepo.save(newProduct);
+    //   } catch (e) {
+    //     console.warn(
+    //       "[api/clear/production] failed to create default product:",
+    //       prod,
+    //       e
+    //     );
+    //   }
+    // }
 
     // Clear cache (both database records and SQLite file)
     await cacheService.clearAll();
