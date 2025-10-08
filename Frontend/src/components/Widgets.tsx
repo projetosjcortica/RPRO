@@ -63,7 +63,7 @@ const useChartData = (chartType: ChartType, filters?: any) => {
 };
 
 // Tooltip customizado
-const CustomTooltip = ({ active, payload, label, stats }: any) => {
+const CustomTooltip = ({ active, payload, stats }: any) => {
   if (!active || !payload || !payload.length) return null;
 
   const data = payload[0].payload;

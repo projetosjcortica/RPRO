@@ -255,21 +255,25 @@ export default function Report() {
         horaInicial: resumo.horaInicial || "--:--:--",
         horaFinal: resumo.horaFinal || "--:--:--",
         formulas: formulasFromResumo,
-        produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
-          const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
-          const nome = produtosInfo[produtoId]?.nome || key;
-          return {
-            colKey: produtoId,
-            nome,
-            qtd: Number(val.quantidade) ?? 0,
-            unidade: val.unidade || "kg",
-          };
-        }),
+        produtos: (() => {
+          const items = Object.entries(resumo.usosPorProduto).map(([key, val]: [string, unknown]) => {
+            const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
+            const nome = produtosInfo[produtoId]?.nome || key;
+            const v = val as Record<string, unknown> | undefined;
+            const rawQtd = v?.['quantidade'];
+            const qtd = Number(rawQtd ?? 0) || 0;
+            const unidade = (v?.['unidade'] as string) || 'kg';
+            const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
+            return { colKey: produtoId, nome, qtd, unidade, idx };
+          });
+          items.sort((a, b) => a.idx - b.idx);
+          return items.map(({ colKey, nome, qtd, unidade }) => ({ colKey, nome, qtd, unidade }));
+        })(),
         empresa:sideInfo.proprietario,
         usuario:user.username
       });
     }
-  }, [resumo, produtosInfo]);
+  }, [resumo, produtosInfo, sideInfo.proprietario, user.username]);
 
   // Funções de comentários
   const removerComentario = (index: number) => {
@@ -730,23 +734,33 @@ export default function Report() {
 
   const displayProducts = useMemo(() => {
     if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
-      let produtoId, label; 
-      return Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
-        produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
-        label = produtosInfo[produtoId]?.nome || key;
-        return {
-          colKey: produtoId,
-          nome: label,
-          qtd: Number(val.quantidade) || 0,
-        };
+      // Build an array with numeric column index so we can sort it to match the main table
+      const items: { colKey: string; nome: string; qtd: number; idx: number }[] = Object.entries(
+        resumo.usosPorProduto
+      ).map(([key, val]: [string, unknown]) => {
+        const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
+        const nome = produtosInfo[produtoId]?.nome || String(key);
+        const v = val as Record<string, unknown> | undefined;
+        const rawQtd = v?.['quantidade'];
+        const qtd = Number(rawQtd ?? 0) || 0;
+        const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
+        return { colKey: produtoId, nome, qtd, idx };
       });
+
+      // Sort by the numeric part of the column key (col6, col7, ...)
+      items.sort((a, b) => a.idx - b.idx);
+
+      return items.map(({ colKey, nome, qtd }) => ({ colKey, nome, qtd }));
     }
-    return tableSelection.produtos.map((p, idx) => ({
-      colKey: `col${idx + 1}`,
-      nome: p.nome,
-      qtd: p.qtd,
-      unidade: "kg",
-    }));
+    return tableSelection.produtos.map((p, idx) => {
+      const inferredCol = p.colKey || `col${idx + 6}`;
+      return {
+        colKey: inferredCol,
+        nome: p.nome,
+        qtd: p.qtd,
+        unidade: p.unidade || produtosInfo[inferredCol]?.unidade || "kg",
+      };
+    });
   }, [resumo, tableSelection, produtosInfo]);
 
   // Renderização condicional do conteúdo
