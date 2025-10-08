@@ -185,7 +185,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             variant="outline"
             role="combobox"
             aria-expanded={openCodigo}
-            className="w-42 justify-between border-black font-normal text-gray-400 thin-red-scrollbar"
+            className="w-52 justify-between border-black font-normal text-gray-400 thin-red-scrollbar"
           >
             {filtrosTemporarios.codigo
               ? filtrosTemporarios.codigo === '__all'
@@ -193,14 +193,14 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 : filtrosTemporarios.codigo
               : loadingFiltros
               ? 'Carregando...'
-              : 'Filtrar por Código'}
+              : 'Filtrar por códg. do prog'}
             <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-40 p-0">
+        <PopoverContent className="w-52 p-0">
           <Command>
             <CommandInput
-              placeholder="Pesquisar código..."
+              placeholder="Pesquisar códg. do prog..."
               value={filtrosTemporarios.codigo === '__all' ? '' : filtrosTemporarios.codigo}
               onValueChange={(value) => {
                 if (value === '') {
@@ -264,7 +264,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             variant="outline"
             role="combobox"
             aria-expanded={openNumero}
-            className="w-42 justify-between border-black font-normal text-gray-400 thin-red-scrollbar"
+            className="w-52 justify-between border-black font-normal text-gray-400"
           >
             {filtrosTemporarios.numero
               ? filtrosTemporarios.numero === '__all'
@@ -272,8 +272,8 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 : String(filtrosTemporarios.numero).padStart(3, '0')
               : loadingFiltros
               ? 'Carregando...'
-              : 'Filtrar por Número'}
-            <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              : 'Filtrar por códg. do cliente'}
+            <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-42 p-0">
@@ -342,7 +342,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           <Button
             variant="outline"
             className={cn(
-              "w-43 justify-start text-left font-normal border border-black",
+              "w-44 justify-start text-left font-normal border border-black",
               !dateRange && "text-gray-400"
             )}
           >
@@ -358,7 +358,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             ) : (
               <span>Selecione uma data</span>
             )}
-            <CalendarIcon className="ml-2 h-4 w-4" />
+            <CalendarIcon className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0">
