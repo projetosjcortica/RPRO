@@ -78,15 +78,12 @@ const CustomTooltip = ({ active, payload, label, stats }: any) => {
   return (
     <div className="bg-white border border-gray-300 rounded-lg shadow-lg p-3 min-w-[200px]">
       <div className="border-b border-gray-200 pb-2 mb-2">
-        <p className="text-sm font-bold text-gray-900">{label}</p>
+        <p className="text-xs text-gray-500 font-bold">{data.name}</p>
       </div>
       <div className="space-y-1">
         <p className="text-sm font-bold text-red-600">
           {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
         </p>
-        {data.name !== '' && ( 
-          <p className="text-xs text-gray-500 font-bold">Nome: {data.name}</p>
-        )}
         {count > 0 && (
           <p className="text-xs text-gray-500">Registros: {count}</p>
         )}

@@ -23,10 +23,10 @@ export default function SidebarStats({ filters }: { filters?: Filters }) {
         if (filters?.codigo) params.set("codigo", String(filters.codigo));
         if (filters?.numero) params.set("numero", String(filters.numero));
 
-        const statsRes = await fetch(`/api/chartdata/stats?${params.toString()}`);
+        const statsRes = await fetch(`http://localhost:3000/api/chartdata/stats?${params.toString()}`);
         const statsBody = statsRes.ok ? await statsRes.json() : null;
 
-        const prodRes = await fetch(`/api/chartdata/produtos?${params.toString()}`);
+        const prodRes = await fetch(`http://localhost:3000/api/chartdata/produtos?${params.toString()}`);
         const prodBody = prodRes.ok ? await prodRes.json() : null;
 
         // normalize

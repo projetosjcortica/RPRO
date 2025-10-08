@@ -142,9 +142,9 @@ function TableComponent({
     }
 
     const unidade = produtosInfo[colKey]?.unidade || "kg";
-    if (unidade === "g") {
-      return n / 1000; // mostrar em gramas
-    }
+    // if (unidade === "g") {
+    //   return n / 1000; // mostrar em gramas
+    // }
     return n; // padrão kg
   };
 
