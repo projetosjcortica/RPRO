@@ -525,6 +525,81 @@ export default function Report() {
     return valor;
   };
 
+  // Função para gerar o documento PDF para preview
+  const createPdfDocument = () => {
+    // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
+    const formulaSums: Record<string, number> = (() => {
+      const out: Record<string, number> = {};
+      try {
+        if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
+          for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
+            out[name] = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
+          }
+        } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+          for (const f of tableSelection.formulas) {
+            out[f.nome] = Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0;
+          }
+        }
+      } catch (e) {}
+      return out;
+    })();
+
+    const pdfChartData = (() => {
+      const out: { name: string; value: number }[] = [];
+      try {
+        if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
+          for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
+            const v = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
+            out.push({ name, value: v });
+          }
+        } else if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
+          for (const [key, val] of Object.entries(resumo.usosPorProduto)) {
+            const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
+            const nome = produtosInfo[produtoId]?.nome || String(key);
+            let v = Number((val as any)?.quantidade ?? 0) || 0;
+            const unidade = produtosInfo[produtoId]?.unidade || 'kg';
+            if (unidade === 'g') v = v / 1000;
+            out.push({ name: nome, value: v });
+          }
+        } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+          for (const f of tableSelection.formulas) {
+            out.push({ name: f.nome, value: Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0 });
+          }
+        } else if (tableSelection && tableSelection.produtos && tableSelection.produtos.length > 0) {
+          for (const p of tableSelection.produtos) {
+            const v = converterValor(Number(p.qtd) || 0, p.colKey);
+            out.push({ name: p.nome, value: Number(v) || 0 });
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      return out.sort((a, b) => b.value - a.value).slice(0, 50);
+    })();
+
+    return (
+      <MyDocument
+        logoUrl={logoUrl}
+        total={Number(tableSelection.total) || 0}
+        batidas={Number(tableSelection.batidas) || 0}
+        periodoInicio={tableSelection.periodoInicio}
+        periodoFim={tableSelection.periodoFim}
+        horaInicial={tableSelection.horaInicial}
+        horaFinal={tableSelection.horaFinal}
+        formulas={tableSelection.formulas}
+        produtos={tableSelection.produtos}
+        data={new Date().toLocaleDateString("pt-BR")}
+        empresa={sideInfo.proprietario || 'Relatório RPRO'}
+        comentarios={comentariosComId}
+        chartData={pdfChartData}
+        formulaSums={formulaSums}
+        usuario={user.username}
+        showComments={showPdfComments}
+        showCharts={showPdfCharts}
+      />
+    );
+  };
+
   
   const handlePrint = async () => {
     // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
@@ -920,6 +995,7 @@ export default function Report() {
               <ExportDropdown
                 onPdfExport={handlePrint}
                 onExcelExport={handleExcelExport}
+                pdfDocument={createPdfDocument()}
                 showComments={showPdfComments}
                 showCharts={showPdfCharts}
                 onToggleComments={() => setShowPdfComments(!showPdfComments)}

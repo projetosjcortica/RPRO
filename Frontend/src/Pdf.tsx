@@ -1,4 +1,4 @@
-import { Document, Page, Text, StyleSheet, View, Font, Image, Svg, G, Circle } from "@react-pdf/renderer";
+import { Document, Page, Text, StyleSheet, View, Font, Image } from "@react-pdf/renderer";
 import { DASHBOARD_COLORS as palette } from './lib/colors';
 import type { FC } from "react";
 
@@ -32,8 +32,8 @@ const styles = StyleSheet.create({
   },
   logo: {
     // Fix height to 150 and let width scale to preserve aspect ratio
-    maxWidth:60,
-    maxHeight:60,
+    width:90,
+    maxHeight:150,
     marginRight: 15,
   },
   titleContainer: { flex: 1 },
@@ -183,8 +183,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
   const chartTop = chartSource.length > 0 ? chartSource.slice().sort((a, b) => b.value - a.value).slice(0, 10) : [];
 
   // use shared palette, fallback to an extended local palette if needed
-  const extendedPalette = palette;
-
   const renderRodape = () => (
     <>
       <Text
@@ -236,7 +234,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
       })}
     </View>
   );
-
+ 
   return (
     <Document>
       {/* Página 1 */}
@@ -358,8 +356,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
             {comentarios.map((c, i) => (
               <View key={i} style={styles.comentarioContainer}>
                 <Text style={styles.comentarioMeta}>
-                  {c.autor || "Sistema"} •{" "}
-                  {c.data || new Date().toLocaleDateString("pt-BR")}
+                  {c.autor || "Sistema"} • {c.data || new Date().toLocaleDateString("pt-BR")}
                 </Text>
                 <Text style={styles.comentarioTexto}>{c.texto}</Text>
               </View>
@@ -381,71 +378,17 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
         {/* pagina para os graficos */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Gráficos</Text>
+          <Text style={styles.sectionTitle}>Porcentagens</Text>
           {chartTop.length === 0 ? (
             <Text style={styles.smallNote}>Nenhum dado de gráfico disponível.</Text>
           ) : (
             <View style={[styles.chartSection, { flexDirection: 'column' }]}>
-              <Text style={{ fontSize: 12, marginBottom: 6 }}>Resumo de Gráficos — Total: {chartTop.reduce((s, it) => s + it.value, 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
-
-              <View style={styles.donutContainer}>
-                {/* Donut + legend */}
-                <View style={styles.donutBox}>
-                  <Svg style={styles.donutSvg} viewBox="0 0 120 120">
-                    <G>
-                      {/* draw background ring */}
-                      <Circle cx={60} cy={60} r={44} fill="#fff" stroke="#eef2f7" strokeWidth={16} />
-                      {/* slices */}
-                      {(() => {
-                        // donut uses only top N for clarity
-                        const topDonut = chartTop.slice(0, 6);
-                        const total = topDonut.reduce((s, it) => s + it.value, 0) || 1;
-                        let offset = 0;
-                        return topDonut.map((it, idx) => {
-                          const pct = (it.value / total);
-                          const circumference = 2 * Math.PI * 44;
-                          const dash = Math.max(0.0001, circumference * pct);
-                          const dashArray = `${dash} ${circumference - dash}`;
-                          const color = extendedPalette[idx % extendedPalette.length];
-                          const style = { stroke: color, strokeWidth: 16, fill: 'none', strokeLinecap: 'butt', strokeDasharray: dashArray, strokeDashoffset: -offset };
-                          offset += dash;
-                          return (
-                            // @ts-ignore - react-pdf svg element
-                            <Circle key={idx} cx={60} cy={60} r={44} {...style} />
-                          );
-                        });
-                      })()}
-                    </G>
-                  </Svg>
-                  <View style={styles.donutCenterText}>
-                    <Text style={{ fontSize: 11, fontWeight: 'bold', textAlign: 'center' }}>{chartTop[0]?.name || ''}</Text>
-                    <Text style={{ fontSize: 9, textAlign: 'center' }}>{(chartTop[0]?.value ?? 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
-                  </View>
-                </View>
-
-                <View style={styles.legend}>
-                  {chartTop.slice(0, 6).map((it, idx) => {
-                    const total = chartTop.slice(0, 6).reduce((s, it2) => s + it2.value, 0) || 1;
-                    const pct = (it.value / total) * 100;
-                    const color = extendedPalette[idx % extendedPalette.length];
-                    return (
-                      <View key={idx} style={styles.legendItem}>
-                        <View style={[styles.legendColorBox, { backgroundColor: color }]} />
-                        <Text style={{ fontSize: 10, flex: 1 }}>{it.name}</Text>
-                        <Text style={{ fontSize: 10, width: 60, textAlign: 'right' }}>{Number(it.value).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
-                        <Text style={{ fontSize: 9, width: 36, textAlign: 'right', color: '#6b7280' }}>{pct.toFixed(1)}%</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-
               {/* Bars (improved) - show all entries sorted */}
               <View style={{ marginTop: 8 }}>
                 {chartSource.slice().sort((a, b) => b.value - a.value).map((row, i) => {
                   const totalAll = chartSource.reduce((s, it) => s + it.value, 0) || 1;
                   const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
-                  const color = extendedPalette[i % extendedPalette.length];
+                  const color = palette[i % palette.length];
                   return (
                     <View key={i} style={styles.chartRow}>
                       <Text style={styles.chartLabel}>{row.name}</Text>
