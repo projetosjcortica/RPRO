@@ -717,37 +717,13 @@ export function AdminConfig({
         </div>
 
         <AlertDialog>
-          <AlertDialogTrigger asChild>
+          <AlertDialogTrigger asChild disabled={!isEditing}>
             <div id="sidetxt" className="flex flex-row justify-between">
               <Label className="font-medium text-gray-700">Resetar Sistema</Label>
                 
                 <Button
                   className="w-70 bg-red-600 hover:bg-red-700"
-                  disabled={!isEditing || resetting}
-                  onClick={async (e) => {
-                    // run the reset directly from the main button as requested
-                    e.preventDefault();
-                    if (!isEditing || resetting) return;
-                    // confirmation
-                    if (!window.confirm('Confirma reset completo do sistema? Esta ação é irreversível.')) return;
-                    setResetting(true);
-                    try {
-                      const processador = getProcessador();
-                      const sucesso = await processador.resetProduction();
-                      if (sucesso) {
-                        toast.success('Sistema resetado com sucesso! Usuários e configurações preservados.');
-                        // refresh UI to reflect cleared DB
-                        setTimeout(() => window.location.reload(), 800);
-                      } else {
-                        toast.error('Erro ao resetar sistema');
-                      }
-                    } catch (err) {
-                      console.error(err);
-                      toast.error('Ocorreu um erro inesperado');
-                    } finally {
-                      setResetting(false);
-                    }
-                  }}
+                  disabled={!isEditing} 
                 >
                   {resetting ? (
                     <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Resetando...</span>
@@ -758,6 +734,7 @@ export function AdminConfig({
               
             </div>
           </AlertDialogTrigger>
+            {isEditing ? (<>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Resetar sistema completo?</AlertDialogTitle>
@@ -800,27 +777,9 @@ export function AdminConfig({
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
+           </>) : null }
         </AlertDialog>
-        <div id="excelExport" className="mb-4 flex flex-row justify-between">
-        <Label className="font-medium text-gray-700 justify-between">Exportar relatórios</Label>
-          {!exportOpen ? (
-            <Button onClick={() => setExportOpen(true)} className="w-70" disabled={!isEditing}>
-              Exportar Relatório (XLSX)
-            </Button>
-          ) : (
-            <div className="flex flex-col gap-2 p-3 border rounded bg-gray-50">
-              <div className="flex gap-2">
-                <Input type="date" onChange={(e) => setExportDataInicio(e.target.value)} value={exportDataInicio ?? ''} />
-                <Input type="date" onChange={(e) => setExportDataFim(e.target.value)} value={exportDataFim ?? ''} />
-              </div>
-              <Input placeholder="Fórmula (nome ou código)" onChange={(e) => setExportFormula(e.target.value)} value={exportFormula ?? ''} />
-              <div className="flex gap-2 justify-end">
-                <Button onClick={() => { setExportOpen(false); setExportDataInicio(null); setExportDataFim(null); setExportFormula(null); }} variant="outline">Cancelar</Button>
-                <Button onClick={handleExportExecute} className="bg-red-600 hover:bg-red-700">Exportar</Button>
-              </div>
-            </div>
-          )}
-      </div>
+         
       </div>
 
       <div
