@@ -164,7 +164,7 @@ const formatShortDate = (raw?: string | null) => {
                 ) : (
                   <div className="space-y-3 flex flex-col gap-3">
                     <div id="total+horas" className="flex flex-col items-center justify-between mb-6 gap-2">
-                      <div className="w-80 h-25 max-h-25 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
+                      <div className="w-80 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
                         <p className="text-center text-lg font-bold">Total:  {""}
                           {(resumo && typeof resumo.totalPesos === "number"
                             ? resumo.totalPesos
@@ -180,7 +180,7 @@ const formatShortDate = (raw?: string | null) => {
                             : "..."}
                         </p>
                       </div>
-                      <div className=" w-80 h-25 max-h-25 rounded-lg flex flex-col justify-center shadow-md/16">
+                      <div className=" w-80 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
                         <p className="text-center font-bold">Período:  {""}</p>
                           <div className="flex flex-row justify-around px-8 gap-4">
                             <div className="flex flex-col justify-center gap-1">

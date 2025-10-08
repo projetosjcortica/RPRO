@@ -174,7 +174,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           placeholder="Filtrar por nome da fórmula"
           value={filtrosTemporarios.nomeFormula}
           onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
-          className="flex h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
 
@@ -185,7 +185,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             variant="outline"
             role="combobox"
             aria-expanded={openCodigo}
-            className="w-42 justify-between border-black font-normal"
+            className="w-42 justify-between border-black font-normal text-gray-400 thin-red-scrollbar"
           >
             {filtrosTemporarios.codigo
               ? filtrosTemporarios.codigo === '__all'
@@ -264,7 +264,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             variant="outline"
             role="combobox"
             aria-expanded={openNumero}
-            className="w-42 justify-between border-black font-normal"
+            className="w-42 justify-between border-black font-normal text-gray-400 thin-red-scrollbar"
           >
             {filtrosTemporarios.numero
               ? filtrosTemporarios.numero === '__all'
@@ -343,7 +343,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             variant="outline"
             className={cn(
               "w-43 justify-start text-left font-normal border border-black",
-              !dateRange && "text-muted-foreground"
+              !dateRange && "text-gray-400"
             )}
           >
             {dateRange?.from ? (
