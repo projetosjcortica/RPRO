@@ -6,7 +6,7 @@ import { format as formatDateFn } from 'date-fns';
 import { MyDocument } from "./Pdf";
 import { usePersistentForm } from './config';
 
-import { pdf } from "@react-pdf/renderer";
+// import { pdf } from "@react-pdf/renderer";
 import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
@@ -601,102 +601,102 @@ export default function Report() {
   };
 
   
-  const handlePrint = async () => {
-    // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
-    const formulaSums: Record<string, number> = (() => {
-      const out: Record<string, number> = {};
-      try {
-        if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
-          for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
-            out[name] = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
-          }
-        } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
-          for (const f of tableSelection.formulas) {
-            out[f.nome] = Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0;
-          }
-        }
-      } catch (e) {}
-      return out;
-    })();
+  // const handlePrint = async () => {
+  //   // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
+  //   const formulaSums: Record<string, number> = (() => {
+  //     const out: Record<string, number> = {};
+  //     try {
+  //       if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
+  //         for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
+  //           out[name] = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
+  //         }
+  //       } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+  //         for (const f of tableSelection.formulas) {
+  //           out[f.nome] = Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0;
+  //         }
+  //       }
+  //     } catch (e) {}
+  //     return out;
+  //   })();
 
-    const pdfChartData = (() => {
-      const out: { name: string; value: number }[] = [];
-      try {
-        if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
-          for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
-            const v = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
-            out.push({ name, value: v });
-          }
-        } else if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
-          for (const [key, val] of Object.entries(resumo.usosPorProduto)) {
-            const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
-            const nome = produtosInfo[produtoId]?.nome || String(key);
-            let v = Number((val as any)?.quantidade ?? 0) || 0;
-            const unidade = produtosInfo[produtoId]?.unidade || 'kg';
-            if (unidade === 'g') v = v / 1000;
-            out.push({ name: nome, value: v });
-          }
-        } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
-          for (const f of tableSelection.formulas) {
-            out.push({ name: f.nome, value: Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0 });
-          }
-        } else if (tableSelection && tableSelection.produtos && tableSelection.produtos.length > 0) {
-          for (const p of tableSelection.produtos) {
-            const v = converterValor(Number(p.qtd) || 0, p.colKey);
-            out.push({ name: p.nome, value: Number(v) || 0 });
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-      return out.sort((a, b) => b.value - a.value).slice(0, 50);
-    })();
+  //   const pdfChartData = (() => {
+  //     const out: { name: string; value: number }[] = [];
+  //     try {
+  //       if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
+  //         for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
+  //           const v = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
+  //           out.push({ name, value: v });
+  //         }
+  //       } else if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
+  //         for (const [key, val] of Object.entries(resumo.usosPorProduto)) {
+  //           const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
+  //           const nome = produtosInfo[produtoId]?.nome || String(key);
+  //           let v = Number((val as any)?.quantidade ?? 0) || 0;
+  //           const unidade = produtosInfo[produtoId]?.unidade || 'kg';
+  //           if (unidade === 'g') v = v / 1000;
+  //           out.push({ name: nome, value: v });
+  //         }
+  //       } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+  //         for (const f of tableSelection.formulas) {
+  //           out.push({ name: f.nome, value: Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0 });
+  //         }
+  //       } else if (tableSelection && tableSelection.produtos && tableSelection.produtos.length > 0) {
+  //         for (const p of tableSelection.produtos) {
+  //           const v = converterValor(Number(p.qtd) || 0, p.colKey);
+  //           out.push({ name: p.nome, value: Number(v) || 0 });
+  //         }
+  //       }
+  //     } catch (e) {
+  //       // ignore
+  //     }
+  //     return out.sort((a, b) => b.value - a.value).slice(0, 50);
+  //   })();
 
-  // Debug: log chart payload to the console so we can inspect why charts may be empty
-  console.log('[PDF] chartData:', pdfChartData);
-  console.log('[PDF] formulaSums:', formulaSums);
+  // // Debug: log chart payload to the console so we can inspect why charts may be empty
+  // console.log('[PDF] chartData:', pdfChartData);
+  // console.log('[PDF] formulaSums:', formulaSums);
 
-  const blob = await pdf(
-      <MyDocument
-        logoUrl={logoUrl}
-        total={Number(tableSelection.total) || 0}
-        batidas={Number(tableSelection.batidas) || 0}
-        periodoInicio={tableSelection.periodoInicio}
-        periodoFim={tableSelection.periodoFim}
-        horaInicial={tableSelection.horaInicial}
-        horaFinal={tableSelection.horaFinal}
-        formulas={tableSelection.formulas}
-        produtos={tableSelection.produtos}
-        data={new Date().toLocaleDateString("pt-BR")}
-        empresa={sideInfo.proprietario || 'Relatório RPRO'}
-        comentarios={comentariosComId}
-        chartData={pdfChartData}
-        formulaSums={formulaSums}
-        usuario={user.username}
-        showComments={showPdfComments}
-        showCharts={showPdfCharts}
-      />
-    ).toBlob();
+  // const blob = await pdf(
+  //     <MyDocument
+  //       logoUrl={logoUrl}
+  //       total={Number(tableSelection.total) || 0}
+  //       batidas={Number(tableSelection.batidas) || 0}
+  //       periodoInicio={tableSelection.periodoInicio}
+  //       periodoFim={tableSelection.periodoFim}
+  //       horaInicial={tableSelection.horaInicial}
+  //       horaFinal={tableSelection.horaFinal}
+  //       formulas={tableSelection.formulas}
+  //       produtos={tableSelection.produtos}
+  //       data={new Date().toLocaleDateString("pt-BR")}
+  //       empresa={sideInfo.proprietario || 'Relatório RPRO'}
+  //       comentarios={comentariosComId}
+  //       chartData={pdfChartData}
+  //       formulaSums={formulaSums}
+  //       usuario={user.username}
+  //       showComments={showPdfComments}
+  //       showCharts={showPdfCharts}
+  //     />
+  //   ).toBlob();
     
-    const blobUrl = URL.createObjectURL(blob);
-    const printWindow = window.open("", "_blank", "width=768,height=733"); 
-    if (!printWindow) return;
+  //   const blobUrl = URL.createObjectURL(blob);
+  //   const printWindow = window.open("", "_blank", "width=768,height=733"); 
+  //   if (!printWindow) return;
 
-    printWindow.document.write(`
-      <html>
-        <head><title>Print PDF</title></head>
-        <body style="margin:0">
-          <iframe src="${blobUrl}" style="width:100%;height:1000vh;" frameborder="0"></iframe>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  //   printWindow.document.write(`
+  //     <html>
+  //       <head><title>Print PDF</title></head>
+  //       <body style="margin:0">
+  //         <iframe src="${blobUrl}" style="width:100%;height:1000vh;" frameborder="0"></iframe>
+  //       </body>
+  //     </html>
+  //   `);
+  //   printWindow.document.close();
 
-    const iframe = printWindow.document.querySelector("iframe");
-    iframe?.addEventListener("load", () => {
-      printWindow.focus();
-    });
-  };
+  //   const iframe = printWindow.document.querySelector("iframe");
+  //   iframe?.addEventListener("load", () => {
+  //     printWindow.focus();
+  //   });
+  // };
 
   const handleExcelExport = async (filters: { nomeFormula?: string; dataInicio?: string; dataFim?: string }) => {
     try {
@@ -993,7 +993,7 @@ export default function Report() {
           <div className="flex flex-col fl text-center gap-3 mt-1">
             <div className="flex flex-row gap-2 justify-center">
               <ExportDropdown
-                onPdfExport={handlePrint}
+                // onPdfExport={handlePrint}
                 onExcelExport={handleExcelExport}
                 pdfDocument={createPdfDocument()}
                 showComments={showPdfComments}
