@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileDown, FileSpreadsheet, Download, Printer, MessageSquare, BarChart3, X, Plus } from "lucide-react";
+import { FileDown, FileSpreadsheet, MessageSquare, BarChart3, X, Plus } from "lucide-react";
 import { PDFViewer } from "@react-pdf/renderer";
 import {
   DropdownMenu,
@@ -27,7 +27,6 @@ interface Comment {
 }
 
 interface ExportDropdownProps {
-  onPdfExport: () => void;
   onExcelExport: (filters: { nomeFormula?: string; dataInicio?: string; dataFim?: string }) => void;
   pdfDocument?: React.ReactElement;
   showComments?: boolean;
@@ -40,10 +39,9 @@ interface ExportDropdownProps {
 }
 
 export function ExportDropdown({
-  onPdfExport,
   onExcelExport,
   pdfDocument,
-  showComments = false,
+  // ...existing code...
   showCharts = false,
   onToggleComments,
   onToggleCharts,
@@ -72,14 +70,9 @@ export function ExportDropdown({
     setExcelModalOpen(true);
   };
 
-  const handlePdfDownload = () => {
-    onPdfExport();
-    setPdfModalOpen(false);
-  };
+  // ...existing code...
 
-  const handlePdfPrint = () => {
-    window.print();
-  };
+  // ...existing code...
 
   const handleAddComment = () => {
     if (newComment.trim() && onAddComment) {

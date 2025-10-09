@@ -16,7 +16,7 @@ const Profile: React.FC = () => {
   const [preview, setPreview] = useState<string | null>(
     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
   );
-  const [status, setStatus] = useState<string | null>(null);
+  // ...existing code...
 
   useEffect(() => {
     setDisplayName(user?.displayName || "");
@@ -39,7 +39,6 @@ const Profile: React.FC = () => {
   }
 
   const saveName = async () => {
-    setStatus(null);
     try {
       const res = await fetch("http://localhost:3000/api/auth/update", {
         method: "POST",
@@ -49,15 +48,12 @@ const Profile: React.FC = () => {
       if (!res.ok) throw new Error(`update failed: ${res.status}`);
       const data = await res.json();
       updateUser(data);
-      setStatus("Nome atualizado");
     } catch (e: any) {
-      setStatus(String(e?.message || e));
     }
   };
 
   const uploadPhoto = async () => {
-    if (!file) return setStatus("Selecione um arquivo");
-    setStatus("Enviando...");
+  if (!file) return;
     try {
       const fd = new FormData();
       fd.append("username", user.username);
@@ -78,14 +74,11 @@ const Profile: React.FC = () => {
         setPreview(blobUrl);
       } catch {}
       setFile(null);
-      setStatus("Foto atualizada");
     } catch (e: any) {
-      setStatus(String(e?.message || e));
     }
   };
 
   const useAsReportLogo = async () => {
-    setStatus("Definindo como logo do relatório...");
     try {
       // Resize image using canvas to max height 200, then upload as multipart
       const toBlobFromImage = (dataUrl: string) =>
@@ -137,13 +130,11 @@ const Profile: React.FC = () => {
       }
 
       if (!sourceDataUrl) {
-        setStatus("Nenhum arquivo selecionado para definir como logo");
         return;
       }
 
       const blob = await toBlobFromImage(sourceDataUrl);
       if (!blob) {
-        setStatus("Falha ao processar imagem");
         return;
       }
 
@@ -157,9 +148,7 @@ const Profile: React.FC = () => {
         const txt = await res.text().catch(() => "");
         throw new Error(`logo upload failed: ${res.status} ${txt}`);
       }
-      setStatus("Logo do relatório definida");
     } catch (e: any) {
-      setStatus(String(e?.message || e));
     }
   };
 

@@ -615,6 +615,13 @@ export function AdminConfig({
     }
   };
 
+  // prevent unused variable TS6133 in some build configurations
+  void exportOpen;
+  void setExportDataInicio;
+  void setExportDataFim;
+  void setExportFormula;
+  void handleExportExecute;
+
   // ✅ Loading state DEPOIS dos hooks
   if (isLoading) {
     return (
@@ -707,12 +714,211 @@ export function AdminConfig({
       </div>
 
       <div id="CmdAdvancedDB" className="mb-4 flex flex-col gap-5">
-        <div id="sidetxt" className=" flex flex-row justify-between">
-          <Label className="font-medium text-gray-700 justify-between">
-            Importar dump padrão
-          </Label>
-          <Button className="w-70" disabled={!isEditing}>
-              Importar Dump
+        {/* Importar Dump */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild disabled={!isEditing}>
+            <div id="sidetxt" className="flex flex-row justify-between items-center">
+              <div className="flex-1">
+                <Label className="font-medium text-gray-700">
+                  Importar Dump SQL
+                </Label>
+              </div>
+              <Button 
+                className="w-70 bg-red-600 hover:bg-red-700" 
+                disabled={!isEditing}
+              >
+                Importar
+              </Button>
+            </div>
+          </AlertDialogTrigger>
+          {isEditing ? (
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Importar Dump SQL</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Escolha como deseja importar o dump:
+                  <br /><br />
+                  <strong>Limpar dados antes:</strong>
+                  <br />• Remove todos os dados atuais
+                  <br />• Recomendado para dump completo
+                  <br />• Garante estado limpo do banco
+                  <br /><br />
+                  <strong>Adicionar aos existentes:</strong>
+                  <br />• Mantém dados atuais
+                  <br />• Adiciona novos registros
+                  <br />• Pode causar duplicatas
+                  <br /><br />
+                  O sistema detectará automaticamente se o dump usa formato de data legado (DD/MM/YY) e converterá para o formato correto.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                 <AlertDialogAction
+                  onClick={async () => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.sql,.dump';
+                    input.onchange = async (e: any) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      const formData = new FormData();
+                      formData.append('dump', file);
+
+                      try {
+                        toast.info('Processando dump...');
+                        
+                        const url = new URL('http://localhost:3000/api/db/import-legacy');
+                        url.searchParams.set('clearBefore', 'true');
+                        url.searchParams.set('skipCreateTable', 'true');
+
+                        const response = await fetch(url.toString(), {
+                          method: 'POST',
+                          body: formData,
+                        });
+
+                        if (!response.ok) {
+                          const errorData = await response.json().catch(() => ({}));
+                          throw new Error(errorData.error || 'Erro ao importar dump');
+                        }
+
+                        const result = await response.json();
+                        
+                        if (result.ok) {
+                          let message = `Dump importado com sucesso!\n`;
+                          message += `• Statements executados: ${result.result.statementsExecuted}`;
+                          if (result.result.statementsFailed > 0) {
+                            message += `\n• Statements ignorados: ${result.result.statementsFailed}`;
+                          }
+                          if (result.dateConversionApplied) {
+                            message += `\n• Conversão de datas aplicada (DD/MM/YY → YYYY-MM-DD)`;
+                          }
+                          toast.success(message);
+                        } else {
+                          toast.error('Falha ao importar dump');
+                        }
+                      } catch (err: any) {
+                        console.error('Erro ao importar dump:', err);
+                        toast.error(err.message || 'Erro ao importar dump');
+                      }
+                    };
+                    input.click();
+                  }}
+                  className="bg-accent text-accent-foreground hover:border rounded-lg hover:bg-accent/50"
+                >
+                  Limpar e Importar
+                </AlertDialogAction>
+                <AlertDialogAction
+                  onClick={async () => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.sql,.dump';
+                    input.onchange = async (e: any) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      const formData = new FormData();
+                      formData.append('dump', file);
+
+                      try {
+                        toast.info('Processando dump...');
+                        
+                        const url = new URL('http://localhost:3000/api/db/import-legacy');
+                        url.searchParams.set('clearBefore', 'false');
+                        url.searchParams.set('skipCreateTable', 'true');
+
+                        const response = await fetch(url.toString(), {
+                          method: 'POST',
+                          body: formData,
+                        });
+
+                        if (!response.ok) {
+                          const errorData = await response.json().catch(() => ({}));
+                          throw new Error(errorData.error || 'Erro ao importar dump');
+                        }
+
+                        const result = await response.json();
+                        
+                        if (result.ok) {
+                          let message = `Dump importado com sucesso!\n`;
+                          message += `• Statements executados: ${result.result.statementsExecuted}`;
+                          if (result.result.statementsFailed > 0) {
+                            message += `\n• Statements ignorados: ${result.result.statementsFailed}`;
+                          }
+                          if (result.dateConversionApplied) {
+                            message += `\n• Conversão de datas aplicada (DD/MM/YY → YYYY-MM-DD)`;
+                          }
+                          toast.success(message);
+                        } else {
+                          toast.error('Falha ao importar dump');
+                        }
+                      } catch (err: any) {
+                        console.error('Erro ao importar dump:', err);
+                        toast.error(err.message || 'Erro ao importar dump');
+                      }
+                    };
+                    input.click();
+                  }}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Adicionar aos Existentes
+                </AlertDialogAction>
+               
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          ) : null}
+        </AlertDialog>
+
+        {/* Exportar Dump */}
+        <div id="sidetxt" className="flex flex-row justify-between items-center">
+
+            <Label className="font-medium text-gray-700">
+              Exportar Dump SQL
+            </Label>
+          <Button 
+            className="w-70 bg-red-600 hover:bg-red-700" 
+            disabled={!isEditing}
+            onClick={async () => {
+              if (!isEditing) return;
+              
+              try {
+                toast.info('Gerando dump SQL...');
+                
+                const response = await fetch('http://localhost:3000/api/db/export-sql', {
+                  method: 'GET',
+                });
+
+                if (!response.ok) {
+                  throw new Error('Erro ao exportar dump');
+                }
+
+                // Get filename from Content-Disposition header
+                const disposition = response.headers.get('Content-Disposition');
+                let filename = 'dump.sql';
+                if (disposition) {
+                  const matches = /filename="(.+)"/.exec(disposition);
+                  if (matches) filename = matches[1];
+                }
+
+                // Download the file
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+
+                toast.success(`Dump exportado: ${filename}`);
+              } catch (err: any) {
+                console.error('Erro ao exportar dump:', err);
+                toast.error(err.message || 'Erro ao exportar dump');
+              }
+            }}
+          >
+            Exportar
           </Button>
         </div>
 

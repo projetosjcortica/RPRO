@@ -222,12 +222,29 @@ export class DBService extends BaseService {
     await queryRunner.connect();
     try {
       await queryRunner.startTransaction();
+      
+      // Disable foreign key checks temporarily
+      if (this.useMysql) {
+        await queryRunner.query('SET FOREIGN_KEY_CHECKS=0');
+      } else {
+        // SQLite
+        await queryRunner.query('PRAGMA foreign_keys = OFF');
+      }
+      
       for (const e of entities) {
         // Use manager.clear to remove all rows
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         await queryRunner.manager.clear(e);
       }
+      
+      // Re-enable foreign key checks
+      if (this.useMysql) {
+        await queryRunner.query('SET FOREIGN_KEY_CHECKS=1');
+      } else {
+        await queryRunner.query('PRAGMA foreign_keys = ON');
+      }
+      
       await queryRunner.commitTransaction();
     } catch (err) {
       try {
@@ -325,6 +342,260 @@ export class DBService extends BaseService {
       await queryRunner.release();
     }
     return { importedAt: new Date().toISOString() };
+  }
+
+  /**
+   * Execute a SQL file directly against the database.
+   * Useful for importing raw SQL dumps.
+   * 
+   * @param sqlFilePath - Path to the SQL file to execute
+   * @param options - Execution options (failOnError, clearBefore, etc.)
+   * @returns Execution result with status and details
+   */
+  async executeSqlFile(
+    sqlFilePath: string, 
+    options?: { 
+      failOnError?: boolean; 
+      clearBefore?: boolean;
+      skipCreateTable?: boolean;
+    }
+  ): Promise<{ success: boolean; message: string; statementsExecuted?: number; statementsFailed?: number }> {
+    await this.init();
+
+    if (!fs.existsSync(sqlFilePath)) {
+      throw new Error(`SQL file not found: ${sqlFilePath}`);
+    }
+
+    const sqlContent = fs.readFileSync(sqlFilePath, 'utf-8');
+    
+    // Split SQL into individual statements with improved parsing
+    // Handle multi-line statements and various comment styles
+    const statements = this.parseSqlStatements(sqlContent, options?.skipCreateTable);
+
+    console.log(`[DBService] Executing ${statements.length} SQL statements from ${sqlFilePath}`);
+
+    const queryRunner = this.ds.createQueryRunner();
+    await queryRunner.connect();
+    
+    let executedCount = 0;
+    let failedCount = 0;
+    
+    try {
+      // Optionally clear tables before import
+      if (options?.clearBefore) {
+        console.log('[DBService] Clearing existing data before import...');
+        await this.clearAll();
+      }
+
+      await queryRunner.startTransaction();
+      
+      for (const statement of statements) {
+        if (statement.trim()) {
+          try {
+            await queryRunner.query(statement);
+            executedCount++;
+          } catch (err) {
+            failedCount++;
+            const preview = statement.substring(0, 100).replace(/\s+/g, ' ');
+            console.warn(`[DBService] Statement ${executedCount + failedCount} failed: ${err}`, preview);
+            
+            // If failOnError is true, stop execution
+            if (options?.failOnError) {
+              throw err;
+            }
+            // Otherwise continue with other statements (default behavior)
+          }
+        }
+      }
+      
+      await queryRunner.commitTransaction();
+      
+      return {
+        success: true,
+        message: `Executed ${executedCount}/${statements.length} SQL statements successfully`,
+        statementsExecuted: executedCount,
+        statementsFailed: failedCount
+      };
+    } catch (err) {
+      try {
+        await queryRunner.rollbackTransaction();
+      } catch {}
+      console.error('[DBService] SQL file execution failed:', err);
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Parse SQL content into individual statements
+   * Handles comments, multi-line statements, and various SQL dialects
+   */
+  private parseSqlStatements(sqlContent: string, skipCreateTable?: boolean): string[] {
+    const lines = sqlContent.split('\n');
+    const statements: string[] = [];
+    let currentStatement = '';
+    let inMultilineComment = false;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      // Handle multi-line comments /* ... */
+      if (trimmed.includes('/*')) {
+        inMultilineComment = true;
+      }
+      if (inMultilineComment) {
+        if (trimmed.includes('*/')) {
+          inMultilineComment = false;
+        }
+        continue;
+      }
+
+      // Skip single-line comments
+      if (trimmed.startsWith('--') || trimmed.startsWith('#')) {
+        continue;
+      }
+
+      // Skip empty lines
+      if (!trimmed) {
+        continue;
+      }
+
+      // Skip CREATE TABLE if requested
+      if (skipCreateTable && trimmed.toUpperCase().startsWith('CREATE TABLE')) {
+        // Skip until we find the ending semicolon
+        let depth = 0;
+        for (let i = 0; i < line.length; i++) {
+          if (line[i] === '(') depth++;
+          if (line[i] === ')') depth--;
+          if (depth === 0 && line[i] === ';') break;
+        }
+        continue;
+      }
+
+      currentStatement += line + '\n';
+
+      // Check if statement is complete (ends with semicolon)
+      if (trimmed.endsWith(';')) {
+        statements.push(currentStatement.trim());
+        currentStatement = '';
+      }
+    }
+
+    // Add any remaining statement
+    if (currentStatement.trim()) {
+      statements.push(currentStatement.trim());
+    }
+
+    return statements;
+  }
+
+  /**
+   * Export database as SQL dump file
+   * Compatible with both MySQL and SQLite
+   * 
+   * @param outputPath - Optional path for the dump file
+   * @returns Path to the generated dump file
+   */
+  async exportSqlDump(outputPath?: string): Promise<{ filePath: string; size: number; tables: string[] }> {
+    await this.init();
+
+    // Generate default output path if not provided
+    if (!outputPath) {
+      const runtime = getRuntimeConfig('ihm-config') || {};
+      const dumpDir = runtime.dumpDir || process.env.DUMP_DIR || 'dumps';
+      const absDumpDir = path.isAbsolute(dumpDir) ? dumpDir : path.resolve(process.cwd(), dumpDir);
+      if (!fs.existsSync(absDumpDir)) fs.mkdirSync(absDumpDir, { recursive: true });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
+      outputPath = path.join(absDumpDir, `dump_${timestamp}.sql`);
+    }
+
+    console.log(`[DBService] Exporting SQL dump to: ${outputPath}`);
+
+    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, Setting, User];
+    const exportedTables: string[] = [];
+    let sqlContent = '';
+
+    // Add header
+    sqlContent += `-- SQL Dump Generated by RPRO\n`;
+    sqlContent += `-- Date: ${new Date().toISOString()}\n`;
+    sqlContent += `-- Database: ${this.useMysql ? 'MySQL' : 'SQLite'}\n\n`;
+
+    // Disable foreign key checks for import
+    if (this.useMysql) {
+      sqlContent += `SET FOREIGN_KEY_CHECKS=0;\n\n`;
+    }
+
+    // Export each table
+    for (const entity of entities) {
+      const repo = this.ds.getRepository(entity);
+      const tableName = repo.metadata.tableName;
+      const rows = await repo.find();
+
+      if (rows.length === 0) {
+        console.log(`[DBService] Skipping empty table: ${tableName}`);
+        continue;
+      }
+
+      exportedTables.push(tableName);
+      console.log(`[DBService] Exporting ${rows.length} rows from ${tableName}`);
+
+      sqlContent += `-- Table: ${tableName}\n`;
+      
+      // Get column names
+      const columns = repo.metadata.columns.map(col => col.databaseName);
+      
+      // Generate INSERT statements
+      for (const row of rows) {
+        const values = columns.map(col => {
+          const value = (row as any)[col];
+          
+          if (value === null || value === undefined) {
+            return 'NULL';
+          }
+          
+          if (typeof value === 'string') {
+            // Escape single quotes
+            return `'${value.replace(/'/g, "''")}'`;
+          }
+          
+          if (typeof value === 'number') {
+            return value.toString();
+          }
+          
+          if (typeof value === 'boolean') {
+            return value ? '1' : '0';
+          }
+          
+          if (value instanceof Date) {
+            return `'${value.toISOString().substring(0, 10)}'`;
+          }
+          
+          return `'${String(value).replace(/'/g, "''")}'`;
+        });
+
+        sqlContent += `INSERT INTO ${tableName} (${columns.join(', ')}) VALUES (${values.join(', ')});\n`;
+      }
+
+      sqlContent += `\n`;
+    }
+
+    // Re-enable foreign key checks
+    if (this.useMysql) {
+      sqlContent += `SET FOREIGN_KEY_CHECKS=1;\n`;
+    }
+
+    // Write to file
+    fs.writeFileSync(outputPath, sqlContent, 'utf-8');
+    const fileSize = fs.statSync(outputPath).size;
+
+    console.log(`[DBService] SQL dump exported successfully: ${(fileSize / 1024).toFixed(2)} KB`);
+
+    return {
+      filePath: outputPath,
+      size: fileSize,
+      tables: exportedTables
+    };
   }
 }
 

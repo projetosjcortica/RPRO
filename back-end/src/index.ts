@@ -12,6 +12,7 @@ import { resumoService } from "./services/resumoService"; // Importação do ser
 import ExcelJS from "exceljs";
 import { dataPopulationService } from "./services/dataPopulationService"; // Importação do serviço de população de dados
 import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
+import { dumpConverterService } from "./services/dumpConverterService"; // Importação do serviço de conversão de dump
 import {
   Relatorio,
   MateriaPrima,
@@ -420,6 +421,133 @@ app.post("/api/db/import", async (req, res) => {
   } catch (e: any) {
     console.error("[api/db/import] error", e);
     return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// Upload and import SQL dump (supports both legacy DD/MM/YY and modern YYYY-MM-DD formats)
+const dumpUpload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
+});
+
+app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No dump file uploaded" });
+    }
+
+    console.log(`[api/db/import-legacy] Received file: ${req.file.originalname}, size: ${(req.file.size / 1024).toFixed(2)} KB`);
+
+    // Check if file has legacy dates
+    const originalContent = req.file.buffer.toString('utf-8');
+    const hadLegacyDates = dumpConverterService.hasLegacyDates(originalContent);
+
+    let finalContent = originalContent;
+    let convertedSizes = {
+      originalSize: req.file.size,
+      convertedSize: req.file.size
+    };
+    let warnings: string[] = [];
+
+    // Convert legacy dates if detected
+    if (hadLegacyDates) {
+      console.log('[api/db/import-legacy] Legacy dates detected, converting...');
+      const converted = dumpConverterService.convertDumpFromBuffer(
+        req.file.buffer,
+        req.file.originalname
+      );
+      finalContent = converted.convertedContent;
+      convertedSizes = {
+        originalSize: converted.originalSize,
+        convertedSize: converted.convertedSize
+      };
+    } else {
+      console.log('[api/db/import-legacy] No legacy dates detected, importing as-is');
+    }
+
+    // Sanitize dump for compatibility (handles partial dumps, different formats, etc.)
+    const sanitized = dumpConverterService.sanitizeDump(finalContent);
+    finalContent = sanitized.sanitized;
+    warnings = sanitized.warnings;
+    
+    if (warnings.length > 0) {
+      console.log('[api/db/import-legacy] Dump sanitized with warnings:', warnings);
+    }
+
+    // Save dump to temporary file for import
+    const tmpDumpPath = path.join(TMP_DIR, `import_${Date.now()}.sql`);
+    fs.writeFileSync(tmpDumpPath, finalContent, 'utf-8');
+
+    console.log(`[api/db/import-legacy] Dump saved to: ${tmpDumpPath}`);
+
+    // Get import options from query params
+    const clearBefore = req.query.clearBefore === 'true';
+    const skipCreateTable = req.query.skipCreateTable === 'true';
+
+    // Execute SQL dump using dbService
+    await dbService.init();
+    
+    // Import the SQL file with options
+    const result = await dbService.executeSqlFile(tmpDumpPath, {
+      failOnError: false,
+      clearBefore,
+      skipCreateTable
+    });
+
+    // Clean up temporary file
+    try {
+      fs.unlinkSync(tmpDumpPath);
+    } catch (e) {
+      console.warn(`[api/db/import-legacy] Failed to delete temp file: ${tmpDumpPath}`, e);
+    }
+
+    return res.json({
+      ok: true,
+      message: "Dump importado com sucesso",
+      hadLegacyDates,
+      originalSize: convertedSizes.originalSize,
+      convertedSize: convertedSizes.convertedSize,
+      dateConversionApplied: hadLegacyDates,
+      clearBefore,
+      skipCreateTable,
+      warnings,
+      result
+    });
+  } catch (e: any) {
+    console.error("[api/db/import-legacy] error", e);
+    return res.status(500).json({ 
+      error: e?.message || "Erro ao importar dump",
+      details: e?.stack 
+    });
+  }
+});
+
+// Export database as SQL dump file
+app.get("/api/db/export-sql", async (req, res) => {
+  try {
+    await dbService.init();
+    
+    console.log('[api/db/export-sql] Generating SQL dump...');
+    
+    const result = await dbService.exportSqlDump();
+    
+    console.log(`[api/db/export-sql] Dump generated: ${result.filePath}, ${(result.size / 1024).toFixed(2)} KB`);
+
+    // Read the file and send it as download
+    const fileContent = fs.readFileSync(result.filePath, 'utf-8');
+    const filename = path.basename(result.filePath);
+
+    res.setHeader('Content-Type', 'application/sql');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', result.size);
+    
+    return res.send(fileContent);
+  } catch (e: any) {
+    console.error("[api/db/export-sql] error", e);
+    return res.status(500).json({ 
+      error: e?.message || "Erro ao exportar dump",
+      details: e?.stack 
+    });
   }
 });
 
