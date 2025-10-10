@@ -832,10 +832,11 @@ export default function Report() {
                 <Play className="h-4 w-4" />
               )}
               {collectorLoading
-                ? "Processando..."
+                ? <p className="hidden 3xl:flex">Processando...</p>
                 : collectorRunning
-                ? "Parar coleta"
-                : "Iniciar coleta"}
+                ? <p className="hidden 3xl:flex"> Parar coleta</p>
+                : <p className="hidden 3xl:flex">Iniciar coleta</p>
+              }
             </Button>
           </div>
         </div>
@@ -896,7 +897,7 @@ export default function Report() {
         </div>
 
         {/* Side Info */}
-        <div className="w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+        <div className="w-87 h-[72.5vh] 3xl:h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
           {/* Informações Gerais */}
           <div className="grid grid-cols-1 gap-2">
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">

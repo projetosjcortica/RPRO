@@ -32,40 +32,41 @@ export default function ProductsTable({ filters }: { filters?: any }) {
   const top = data;
 
   return (
-    <div>
+  <>
+    <p className="text-lg font-medium">Produtos</p>
+    <div className='h-72 overflow-auto'>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-medium">Produtos</div>
         <div className="flex items-center gap-2">
           {/* <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="sm">Ver todos</Button>
-            </SheetTrigger>
-            <SheetContent side="right">
-              <SheetHeader>
-                <SheetTitle>Produtos (completos)</SheetTitle>
-              </SheetHeader>
-              <div className="p-4 overflow-auto thin-red-scrollbar ">
-                <Table className=''>
-                  <TableHeader>
-                    <tr>
-                      <TableHead>Produto</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="text-right">Unidade</TableHead>
-                    </tr>
-                  </TableHeader>
-                  <TableBody>
-                    {data.map((p, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="max-w-[260px] truncate">{p.name}</TableCell>
-                        <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</TableCell>
-                        <TableCell className="text-right">{p.unit ?? 'kg'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </SheetContent>
-          </Sheet> */}
+      <SheetTrigger asChild>
+        <Button variant="outline" size="sm">Ver todos</Button>
+      </SheetTrigger>
+      <SheetContent side="right">
+        <SheetHeader>
+          <SheetTitle>Produtos (completos)</SheetTitle>
+        </SheetHeader>
+        <div className="p-4 overflow-auto thin-red-scrollbar ">
+          <Table className=''>
+            <TableHeader>
+              <tr>
+                <TableHead>Produto</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
+                <TableHead className="text-right">Unidade</TableHead>
+              </tr>
+            </TableHeader>
+            <TableBody>
+              {data.map((p, idx) => (
+                <TableRow key={idx}>
+                  <TableCell className="max-w-[260px] truncate">{p.name}</TableCell>
+                  <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</TableCell>
+                  <TableCell className="text-right">{p.unit ?? 'kg'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </SheetContent>
+    </Sheet> */}
         </div>
       </div>
 
@@ -81,7 +82,7 @@ export default function ProductsTable({ filters }: { filters?: any }) {
             {top.map((p, idx) => (
               <TableRow key={idx}>
                 <TableCell className="max-w-[160px] truncate">{p.name}</TableCell>
-                <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3})} {'Kg'}</TableCell>
+                <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} {'Kg'}</TableCell>
               </TableRow>
             ))}
             {top.length === 0 && (
@@ -92,6 +93,6 @@ export default function ProductsTable({ filters }: { filters?: any }) {
           </TableBody>
         </Table>
       </div>
-    </div>
+    </div></>
   );
 }

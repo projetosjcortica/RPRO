@@ -211,7 +211,7 @@ const formatShortDate = (raw?: string | null) => {
 
   return (
     <div className="w-full h-full p-4 scrollbar-custom overflow-hidden">
-      <div className="flex gap-2 3xl:gap-6 justify-between scrollbar-custom overflow-hidden">
+      <div className="flex gap-6 justify-between scrollbar-custom overflow-hidden">
         <div className="flex w-full space-y-6 flex-col">
           {/* First row: Formulas Donut */}
           <Card className=" shadow-md border border-indigo-50 rounded-xl overflow-hidden h-90 w-full 3xl:h-105">
@@ -255,14 +255,13 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-col lg:flex-row gap-4">
-                <div className="w-full lg:w-1/2 min-h-[220px]">
+            <CardContent className="flex flex-col lg:flex-row gap-4">
+                <div className="w-full lg:w-1/2 min-h-[220px] -translate-y- 3xl:-translate-y-0">
                   <DonutChartWidget chartType="formulas" config={{ filters: { ...(filters || {}), ...(donutFilters || {}) } }} />
                 </div>
                 <div className="w-full lg:w-1/2">
                   <div className="text-sm font-medium text-gray-900 mb-2">Todas as Fórmulas</div>
-                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                  <div className="3xl:h-60 h-46 overflow-y-auto space-y-2 pr-2">
                     {loadingResumo ? (
                       <div className="text-sm text-gray-500">Carregando...</div>
                     ) : (
@@ -270,16 +269,15 @@ const formatShortDate = (raw?: string | null) => {
                         const list = computeTopFormulas();
                         if (!list || list.length === 0) return <div className="text-sm text-gray-500">Nenhuma fórmula</div>;
                         return list.map((f: FormulaItem, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between text-sm">
+                          <div key={idx} className="flex items-center justify-between text-sm border-b">
                             <div className="truncate pr-2">{f.label}</div>
-                            <div className="font-medium">{f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</div>
+                            <div className="font-regular">{f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—'}{"kg"}</div>
                           </div>
                         ));
                       })()
                     )}
                   </div>
                 </div>
-              </div>
             </CardContent>
           </Card>
 
@@ -385,7 +383,7 @@ const formatShortDate = (raw?: string | null) => {
           </div>
         </div>
         {/* Sidebar  */}
-        <div className=" w-130 space-y-6 max-h-screen md:max-h-[calc(100vh-2rem)] overflow-auto thin-red-scrollbar">
+        <div className=" w-130 space-y-6   overflow-hidden">
           <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden">
             <CardHeader className="border-b px-6 py-4">
               <div className="flex items-center justify-between">
@@ -395,7 +393,7 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="">
 
                 {resumoError ? (
                   <div className="text-sm text-red-600">Erro ao carregar resumo: {resumoError}</div>
@@ -477,7 +475,7 @@ const formatShortDate = (raw?: string | null) => {
 
                     <div id="produtos" className="pt-2 flex flex-col min-h-0">
                       <div className="flex-1 overflow-hidden">
-                        <ProductsTable filters={filters} />
+                        <ProductsTable filters={filters}  />
                       </div>
                     </div>
                   </div>
