@@ -149,6 +149,13 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleBuscar();
+    }
+  };
+
   // --- Combobox para Código ---
   const [openCodigo, setOpenCodigo] = useState(false);
   const filteredCodigos = useMemo(() => {
@@ -174,6 +181,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           placeholder="Filtrar por nome da fórmula"
           value={filtrosTemporarios.nomeFormula}
           onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
+          onKeyDown={handleKeyDown}
           className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
@@ -247,6 +255,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   setFiltrosTemporarios(prev => ({ ...prev, codigo: value }));
                 }
               }}
+              onKeyDown={handleKeyDown}
               disabled={loadingFiltros}
             />
             <CommandList>
@@ -326,6 +335,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   setFiltrosTemporarios(prev => ({ ...prev, numero: value }));
                 }
               }}
+              onKeyDown={handleKeyDown}
               disabled={loadingFiltros}
             />
             <CommandList>

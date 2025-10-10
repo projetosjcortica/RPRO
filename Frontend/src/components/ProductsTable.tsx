@@ -5,7 +5,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 
 type ProdDatum = { name: string; value: number; unit?: string };
 
-export default function ProductsTable({ filters }: { filters?: any }) {
+export default function ProductsTable({ filters, onHoverName, onLeave }: { filters?: any; onHoverName?: (name: string) => void; onLeave?: () => void }) {
   const [data, setData] = useState<ProdDatum[]>([]);
   
 
@@ -80,7 +80,10 @@ export default function ProductsTable({ filters }: { filters?: any }) {
           </TableHeader>
           <TableBody>
             {top.map((p, idx) => (
-              <TableRow key={idx}>
+              <TableRow key={idx}
+                onMouseEnter={() => onHoverName?.(p.name)}
+                onMouseLeave={() => onLeave?.()}
+              >
                 <TableCell className="max-w-[160px] truncate">{p.name}</TableCell>
                 <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} {'Kg'}</TableCell>
               </TableRow>

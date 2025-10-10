@@ -43,6 +43,7 @@ import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
 import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 import { Separator } from "./components/ui/separator";
+import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 
 interface ComentarioRelatorio {
   texto: string;
@@ -92,6 +93,18 @@ export default function Report() {
     Record<string, { nome?: string; unidade?: string; num?: number }>
   >({});
   const [view, setView] = useState<"table" | "product">("table");
+  // Drawer de gráficos (atrás do sideinfo)
+  const [chartsOpen, setChartsOpen] = useState<boolean>(false);
+  const [highlightProduto, setHighlightProduto] = useState<string | null>(null);
+  const [highlightFormula, setHighlightFormula] = useState<string | null>(null);
+  const [sideListMode, setSideListMode] = useState<'produtos' | 'formulas'>('produtos');
+
+  // abre automaticamente ao aplicar filtros/busca
+  useEffect(() => {
+    if (filtros && (filtros.dataInicio || filtros.dataFim || filtros.nomeFormula || filtros.codigo || filtros.numero)) {
+      setChartsOpen(true);
+    }
+  }, [filtros.dataInicio, filtros.dataFim, filtros.nomeFormula, filtros.codigo, filtros.numero]);
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(100);
 
@@ -307,6 +320,7 @@ export default function Report() {
   const handleAplicarFiltros = (novosFiltros: Filtros) => {
     setPage(1);
     setFiltros(novosFiltros);
+    setChartsOpen(true); // Abre o drawer ao buscar
   };
 
   const formatShortDate = (raw?: string | null) => {
@@ -896,10 +910,85 @@ export default function Report() {
           </div>
         </div>
 
-        {/* Side Info */}
-        <div className="w-87 h-[72.5vh] 3xl:h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+        {/* Side Info com drawer de gráficos atrás */}
+        <div className="relative w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
+          {/* Drawer de gráficos compacto, por trás do sideinfo */}
+          {chartsOpen && (
+            <div className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
+                 style={{ zIndex: 5 }}>
+            <div className="h-full flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-red-50 to-gray-50">
+                <div className="text-base font-bold text-gray-900">Resumo Visual</div>
+              </div>
+              <div className="p-4 space-y-4 overflow-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {/* Produtos Donut */}
+                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="text-sm font-bold text-gray-800">Produtos</div>
+                    <div className="text-xs text-gray-600 font-medium mt-0.5">
+                      {resumo?.produtosCount ?? (displayProducts?.length || 0)} itens • {(resumo?.totalPesos ?? tableSelection.total).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg
+                    </div>
+                  </div>
+                  <div className="h-[280px] px-3 py-3">
+                    <DonutChartWidget
+                      chartType="produtos"
+                      config={{ filters: filtros }}
+                      compact
+                      highlightName={highlightProduto}
+                      onSliceHover={(name) => setHighlightProduto(name)}
+                      onSliceLeave={() => setHighlightProduto(null)}
+                    />
+                  </div>
+                </div>
+
+                {/* Fórmulas Donut */}
+                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="text-sm font-bold text-gray-800">Fórmulas</div>
+                    <div className="text-xs text-gray-600 font-medium mt-0.5">
+                      {resumo?.formulasUtilizadas ? Object.keys(resumo.formulasUtilizadas).length : (tableSelection.formulas?.length || 0)} fórmulas • {(resumo?.batitdasTotais ?? tableSelection.batidas).toLocaleString('pt-BR')} batidas
+                    </div>
+                  </div>
+                  <div className="h-[280px] px-3 py-3">
+                    <DonutChartWidget
+                      chartType="formulas"
+                      config={{ filters: filtros }}
+                      compact
+                      highlightName={highlightFormula}
+                      onSliceHover={(name) => setHighlightFormula(name)}
+                      onSliceLeave={() => setHighlightFormula(null)}
+                    />
+                  </div>
+                </div>
+
+                {/* Horários BarChart */}
+                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="text-sm font-bold text-gray-800">Horários de Produção</div>
+                    <div className="text-xs text-gray-600 font-medium mt-0.5">Distribuição por hora</div>
+                  </div>
+                  <div className="h-[280px] px-3 py-3">
+                    <BarChartWidget chartType="horarios" config={{ filters: filtros }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            </div>
+          )}
+
+          {/* Botão para abrir/fechar drawer (fica colado à esquerda do sideinfo) */}
+          <button
+            className="absolute -left-6 top-1/2 -translate-y-1/2 bg-white border rounded-l px-1.5 py-2 shadow hover:bg-gray-50"
+            onClick={() => setChartsOpen(s => !s)}
+            title={chartsOpen ? 'Ocultar gráficos' : 'Mostrar gráficos'}
+            style={{ zIndex: 7 }}
+          >
+            {chartsOpen ? '▶' : '◀'}
+          </button>
+
+          {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
-          <div className="grid grid-cols-1 gap-2">
+          <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
               <p className="text-center text-lg font-bold">Total:  {""}
                 {(resumo && typeof resumo.totalPesos === "number"
@@ -952,42 +1041,82 @@ export default function Report() {
           </div>
 
           {/* Produtos */}
-            <div className="border rounded flex-grow overflow-auto thin-red-scrollbar">
-              <Table className="h-100">
-                <TableHeader>
-                  <TableRow className="bg-gray-200 border">
-                    <TableHead className="text-center">Produtos</TableHead>
-                    <TableHead className="text-center">Quantidade</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayProducts && displayProducts.length > 0 ? (
-                    displayProducts.map((produto, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="py-1  min-w-25 text-right">
-                          {produto.nome}
-                        </TableCell>
-                        <TableCell className="py-1 border text-right">
-                          {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
-                            minimumFractionDigits: 3,
-                            maximumFractionDigits: 3,
-                          })}{" "}
-                          {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        colSpan={2}
-                        className="text-center text-gray-500 py-4"
-                      >
-                        Nenhum produto selecionado
-                      </TableCell>
+            <div className="border rounded flex-grow overflow-auto thin-red-scrollbar w-full">
+              {/* Toggle entre Produtos e Fórmulas */}
+              <div className="flex gap-2 p-2 border-b sticky top-0 bg-white z-10">
+                <button
+                  className={`text-xs px-2 py-1 rounded border ${sideListMode === 'produtos' ? 'bg-red-600 text-white border-red-600' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
+                  onClick={() => setSideListMode('produtos')}
+                >
+                  Produtos
+                </button>
+                <button
+                  className={`text-xs px-2 py-1 rounded border ${sideListMode === 'formulas' ? 'bg-red-600 text-white border-red-600' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
+                  onClick={() => setSideListMode('formulas')}
+                >
+                  Fórmulas
+                </button>
+              </div>
+
+              {sideListMode === 'produtos' ? (
+                <Table className="h-100 w-full table-fixed">
+                  <TableHeader>
+                    <TableRow className="bg-gray-200 border">
+                      <TableHead className="text-center w-1/2 border-r">Produtos</TableHead>
+                      <TableHead className="text-center w-1/2">Quantidade</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {displayProducts && displayProducts.length > 0 ? (
+                      displayProducts.map((produto, idx) => (
+                        <TableRow key={idx}
+                          onMouseEnter={() => setHighlightProduto(produto.nome)}
+                          onMouseLeave={() => setHighlightProduto(null)}
+                          className="hover:bg-gray-50 cursor-default"
+                        >
+                          <TableCell className="py-1 text-right border-r">
+                            {produto.nome}
+                          </TableCell>
+                          <TableCell className="py-1 text-right">
+                            {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 3,
+                              maximumFractionDigits: 3,
+                            })} {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-center text-gray-500 py-4">Nenhum produto selecionado</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Table className="h-100 w-full table-fixed">
+                  <TableHeader>
+                    <TableRow className="bg-gray-200 border">
+                      <TableHead className="text-center w-1/2 border-r">Fórmulas</TableHead>
+                      <TableHead className="text-center w-1/2">Quantidade</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0
+                      ? Object.entries(resumo.formulasUtilizadas).map(([nome, data]: any) => ({ nome, valor: Number(data?.somatoriaTotal ?? data?.quantidade ?? 0) }))
+                      : (tableSelection.formulas || []).map((f) => ({ nome: f.nome, valor: Number(f.somatoriaTotal ?? f.quantidade ?? 0) }))
+                    ).map((f, idx) => (
+                      <TableRow key={idx}
+                        onMouseEnter={() => setHighlightFormula(f.nome)}
+                        onMouseLeave={() => setHighlightFormula(null)}
+                        className="hover:bg-gray-50 cursor-default"
+                      >
+                        <TableCell className="py-1 text-right border-r">{f.nome}</TableCell>
+                        <TableCell className="py-1 text-right">{f.valor.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
 
           {/* Impressão e Comentários */}
