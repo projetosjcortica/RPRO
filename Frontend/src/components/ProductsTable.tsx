@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
-import { Button } from './ui/button';
-import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
+// import { Button } from './ui/button';
+// import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 
 type ProdDatum = { name: string; value: number; unit?: string };
 
-export default function ProductsTable({ filters }: { filters?: any }) {
+export default function ProductsTable({ filters, onHoverName, onLeave }: { filters?: any; onHoverName?: (name: string) => void; onLeave?: () => void }) {
   const [data, setData] = useState<ProdDatum[]>([]);
   
 
@@ -36,7 +36,7 @@ export default function ProductsTable({ filters }: { filters?: any }) {
       <div className="flex items-center justify-between mb-2">
         <div className="text-lg font-medium">Produtos</div>
         <div className="flex items-center gap-2">
-          <Sheet>
+          {/* <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="sm">Ver todos</Button>
             </SheetTrigger>
@@ -65,7 +65,7 @@ export default function ProductsTable({ filters }: { filters?: any }) {
                 </Table>
               </div>
             </SheetContent>
-          </Sheet>
+          </Sheet> */}
         </div>
       </div>
 
@@ -79,7 +79,10 @@ export default function ProductsTable({ filters }: { filters?: any }) {
           </TableHeader>
           <TableBody>
             {top.map((p, idx) => (
-              <TableRow key={idx}>
+              <TableRow key={idx}
+                onMouseEnter={() => onHoverName?.(p.name)}
+                onMouseLeave={() => onLeave?.()}
+              >
                 <TableCell className="max-w-[160px] truncate">{p.name}</TableCell>
                 <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3})} {'Kg'}</TableCell>
               </TableRow>

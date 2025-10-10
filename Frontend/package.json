@@ -1,7 +1,7 @@
 {
   "name": "rpro",
   "private": true,
-  "version": "1.0.0beta",
+  "version": "1.1.0beta",
   "author": "J.Cortiça, Kauã Okuma, Miguel Dias",
   "description": "Sistema RPRO",
   "type": "module",

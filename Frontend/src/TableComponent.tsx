@@ -67,14 +67,16 @@ const safeString = (value: any): string => {
 const receba = (col: any, idx: number) => {
   if (idx === 3) {
     return (
-      <div>
-        Código do <br /> programa
+      <div className="text-left">
+        <div>Código do</div>
+        <div>programa</div>
       </div>
     );
   } else if (idx === 4) {
     return (
-      <div>
-        Código do <br /> cliente
+      <div className="text-left">
+        <div>Código do</div>
+        <div>cliente</div>
       </div>
     );
   }
@@ -121,6 +123,19 @@ function TableComponent({
     }
   }, [dadosProp, useExternalData, dadosAtual]);
 
+  // Listen for product updates to force re-render when units change
+  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+  useEffect(() => {
+    const handleProdutosUpdated = () => {
+      // Force component to re-render when product info (units) change
+      forceUpdate();
+    };
+    window.addEventListener('produtos-updated', handleProdutosUpdated as EventListener);
+    return () => {
+      window.removeEventListener('produtos-updated', handleProdutosUpdated as EventListener);
+    };
+  }, []);
+
   // Use produtosInfo passed from parent (backend-provided). Keep as a const alias.
   const produtosInfo = produtosInfoProp || {};
 
@@ -142,9 +157,10 @@ function TableComponent({
     }
 
     const unidade = produtosInfo[colKey]?.unidade || "kg";
-    // if (unidade === "g") {
-    //   return n / 1000; // mostrar em gramas
-    // }
+    // Backend retorna valores sempre em kg. Se unidade configurada é 'g', dividimos por 1000
+    if (unidade === "g") {
+      return n / 1000; // mostrar valor em escala de gramas
+    }
     return n; // padrão kg
   };
 

@@ -6,15 +6,15 @@ import { format as formatDateFn } from 'date-fns';
 import { MyDocument } from "./Pdf";
 import { usePersistentForm } from './config';
 
-import { pdf } from "@react-pdf/renderer";
+// import { pdf } from "@react-pdf/renderer";
 import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
 import { cn } from "./lib/utils";
+import { ExportDropdown } from "./components/ExportDropdown";
 
 import { resolvePhotoUrl } from './lib/photoUtils';
-import logo from './public/logo.png'; // ajuste o caminho se necessário
 import useAuth from './hooks/useAuth';
 
 import {
@@ -23,7 +23,6 @@ import {
   Play,
   Square,
   Loader2,
-  X,
 } from "lucide-react";
 import { useGlobalConnection } from './hooks/useGlobalConnection';
 import {
@@ -44,6 +43,7 @@ import { Filtros } from "./components/types";
 import FiltrosBar from "./components/searchBar";
 import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 import { Separator } from "./components/ui/separator";
+import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 
 interface ComentarioRelatorio {
   texto: string;
@@ -93,6 +93,18 @@ export default function Report() {
     Record<string, { nome?: string; unidade?: string; num?: number }>
   >({});
   const [view, setView] = useState<"table" | "product">("table");
+  // Drawer de gráficos (atrás do sideinfo)
+  const [chartsOpen, setChartsOpen] = useState<boolean>(false);
+  const [highlightProduto, setHighlightProduto] = useState<string | null>(null);
+  const [highlightFormula, setHighlightFormula] = useState<string | null>(null);
+  const [sideListMode, setSideListMode] = useState<'produtos' | 'formulas'>('produtos');
+
+  // abre automaticamente ao aplicar filtros/busca
+  useEffect(() => {
+    if (filtros && (filtros.dataInicio || filtros.dataFim || filtros.nomeFormula || filtros.codigo || filtros.numero)) {
+      setChartsOpen(true);
+    }
+  }, [filtros.dataInicio, filtros.dataFim, filtros.nomeFormula, filtros.codigo, filtros.numero]);
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(100);
 
@@ -105,8 +117,10 @@ export default function Report() {
 
   // Comentários state
   const [comentarios, setComentarios] = useState<ComentarioRelatorio[]>([]);
-  const [novoComentario, setNovoComentario] = useState<string>('');
-  const [mostrarEditorComentario, setMostrarEditorComentario] = useState<boolean>(false);
+  
+  // Estados para controle de exibição no PDF
+  const [showPdfComments, setShowPdfComments] = useState<boolean>(true);
+  const [showPdfCharts, setShowPdfCharts] = useState<boolean>(true);
 
   const [tableSelection, setTableSelection] = useState<{
     periodoInicio: string | undefined;
@@ -254,44 +268,59 @@ export default function Report() {
         horaInicial: resumo.horaInicial || "--:--:--",
         horaFinal: resumo.horaFinal || "--:--:--",
         formulas: formulasFromResumo,
-        produtos: Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
-          const produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
-          const nome = produtosInfo[produtoId]?.nome || key;
-          return {
-            colKey: produtoId,
-            nome,
-            qtd: Number(val.quantidade) ?? 0,
-            unidade: val.unidade || "kg",
-          };
-        }),
+        produtos: (() => {
+          const items = Object.entries(resumo.usosPorProduto).map(([key, val]: [string, unknown]) => {
+            const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
+            const nome = produtosInfo[produtoId]?.nome || key;
+            const v = val as Record<string, unknown> | undefined;
+            const rawQtd = v?.['quantidade'];
+            const qtd = Number(rawQtd ?? 0) || 0;
+            const unidade = (v?.['unidade'] as string) || 'kg';
+            const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
+            return { colKey: produtoId, nome, qtd, unidade, idx };
+          });
+          items.sort((a, b) => a.idx - b.idx);
+          return items.map(({ colKey, nome, qtd, unidade }) => ({ colKey, nome, qtd, unidade }));
+        })(),
         empresa:sideInfo.proprietario,
         usuario:user.username
       });
     }
-  }, [resumo, produtosInfo]);
+  }, [resumo, produtosInfo, sideInfo.proprietario, user.username]);
 
   // Funções de comentários
-  const adicionarComentario = () => {
-    if (!novoComentario.trim()) return;
-    
-    const comentario: ComentarioRelatorio = {
-      texto: novoComentario.trim(),
-      data: new Date().toLocaleString('pt-BR'),
-    };
-    
-    setComentarios(prev => [...prev, comentario]);
-    setNovoComentario('');
-    setMostrarEditorComentario(false);
-  };
-
   const removerComentario = (index: number) => {
     setComentarios(prev => prev.filter((_, i) => i !== index));
   };
+
+  // Funções para o ExportDropdown (com ID)
+  const handleAddCommentFromModal = (texto: string) => {
+    const comentario: ComentarioRelatorio = {
+      texto,
+      data: new Date().toLocaleString('pt-BR'),
+    };
+    setComentarios(prev => [...prev, comentario]);
+  };
+
+  const handleRemoveCommentFromModal = (id: string) => {
+    const index = parseInt(id);
+    if (!isNaN(index)) {
+      removerComentario(index);
+    }
+  };
+
+  // Converter comentários para formato com ID
+  const comentariosComId = comentarios.map((c, idx) => ({
+    id: String(idx),
+    texto: c.texto,
+    data: c.data || new Date().toLocaleString('pt-BR'),
+  }));
 
   // Funções existentes
   const handleAplicarFiltros = (novosFiltros: Filtros) => {
     setPage(1);
     setFiltros(novosFiltros);
+    setChartsOpen(true); // Abre o drawer ao buscar
   };
 
   const formatShortDate = (raw?: string | null) => {
@@ -505,12 +534,13 @@ export default function Report() {
   const converterValor = (valor: number, colKey?: string): number => {
     if (typeof valor !== "number") return valor;
     let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
+    // Backend retorna valores sempre em kg. Se unidade configurada é 'g', dividimos por 1000
     if (unidade === 'g') return valor / 1000;
     return valor;
   };
 
-  
-  const handlePrint = async () => {
+  // Função para gerar o documento PDF para preview
+  const createPdfDocument = () => {
     // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
     const formulaSums: Record<string, number> = (() => {
       const out: Record<string, number> = {};
@@ -561,11 +591,7 @@ export default function Report() {
       return out.sort((a, b) => b.value - a.value).slice(0, 50);
     })();
 
-  // Debug: log chart payload to the console so we can inspect why charts may be empty
-  console.log('[PDF] chartData:', pdfChartData);
-  console.log('[PDF] formulaSums:', formulaSums);
-
-  const blob = await pdf(
+    return (
       <MyDocument
         logoUrl={logoUrl}
         total={Number(tableSelection.total) || 0}
@@ -578,52 +604,177 @@ export default function Report() {
         produtos={tableSelection.produtos}
         data={new Date().toLocaleDateString("pt-BR")}
         empresa={sideInfo.proprietario || 'Relatório RPRO'}
-        comentarios={comentarios}
+        comentarios={comentariosComId}
         chartData={pdfChartData}
         formulaSums={formulaSums}
         usuario={user.username}
+        showComments={showPdfComments}
+        showCharts={showPdfCharts}
       />
-    ).toBlob();
+    );
+  };
+
+  
+  // const handlePrint = async () => {
+  //   // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
+  //   const formulaSums: Record<string, number> = (() => {
+  //     const out: Record<string, number> = {};
+  //     try {
+  //       if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
+  //         for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
+  //           out[name] = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
+  //         }
+  //       } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+  //         for (const f of tableSelection.formulas) {
+  //           out[f.nome] = Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0;
+  //         }
+  //       }
+  //     } catch (e) {}
+  //     return out;
+  //   })();
+
+  //   const pdfChartData = (() => {
+  //     const out: { name: string; value: number }[] = [];
+  //     try {
+  //       if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
+  //         for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
+  //           const v = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
+  //           out.push({ name, value: v });
+  //         }
+  //       } else if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
+  //         for (const [key, val] of Object.entries(resumo.usosPorProduto)) {
+  //           const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
+  //           const nome = produtosInfo[produtoId]?.nome || String(key);
+  //           let v = Number((val as any)?.quantidade ?? 0) || 0;
+  //           const unidade = produtosInfo[produtoId]?.unidade || 'kg';
+  //           if (unidade === 'g') v = v / 1000;
+  //           out.push({ name: nome, value: v });
+  //         }
+  //       } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+  //         for (const f of tableSelection.formulas) {
+  //           out.push({ name: f.nome, value: Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0 });
+  //         }
+  //       } else if (tableSelection && tableSelection.produtos && tableSelection.produtos.length > 0) {
+  //         for (const p of tableSelection.produtos) {
+  //           const v = converterValor(Number(p.qtd) || 0, p.colKey);
+  //           out.push({ name: p.nome, value: Number(v) || 0 });
+  //         }
+  //       }
+  //     } catch (e) {
+  //       // ignore
+  //     }
+  //     return out.sort((a, b) => b.value - a.value).slice(0, 50);
+  //   })();
+
+  // // Debug: log chart payload to the console so we can inspect why charts may be empty
+  // console.log('[PDF] chartData:', pdfChartData);
+  // console.log('[PDF] formulaSums:', formulaSums);
+
+  // const blob = await pdf(
+  //     <MyDocument
+  //       logoUrl={logoUrl}
+  //       total={Number(tableSelection.total) || 0}
+  //       batidas={Number(tableSelection.batidas) || 0}
+  //       periodoInicio={tableSelection.periodoInicio}
+  //       periodoFim={tableSelection.periodoFim}
+  //       horaInicial={tableSelection.horaInicial}
+  //       horaFinal={tableSelection.horaFinal}
+  //       formulas={tableSelection.formulas}
+  //       produtos={tableSelection.produtos}
+  //       data={new Date().toLocaleDateString("pt-BR")}
+  //       empresa={sideInfo.proprietario || 'Relatório RPRO'}
+  //       comentarios={comentariosComId}
+  //       chartData={pdfChartData}
+  //       formulaSums={formulaSums}
+  //       usuario={user.username}
+  //       showComments={showPdfComments}
+  //       showCharts={showPdfCharts}
+  //     />
+  //   ).toBlob();
     
-    const blobUrl = URL.createObjectURL(blob);
-    const printWindow = window.open("", "_blank", "width=768,height=733"); 
-    if (!printWindow) return;
+  //   const blobUrl = URL.createObjectURL(blob);
+  //   const printWindow = window.open("", "_blank", "width=768,height=733"); 
+  //   if (!printWindow) return;
 
-    printWindow.document.write(`
-      <html>
-        <head><title>Print PDF</title></head>
-        <body style="margin:0">
-          <iframe src="${blobUrl}" style="width:100%;height:1000vh;" frameborder="0"></iframe>
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  //   printWindow.document.write(`
+  //     <html>
+  //       <head><title>Print PDF</title></head>
+  //       <body style="margin:0">
+  //         <iframe src="${blobUrl}" style="width:100%;height:1000vh;" frameborder="0"></iframe>
+  //       </body>
+  //     </html>
+  //   `);
+  //   printWindow.document.close();
 
-    const iframe = printWindow.document.querySelector("iframe");
-    iframe?.addEventListener("load", () => {
-      printWindow.focus();
-    });
+  //   const iframe = printWindow.document.querySelector("iframe");
+  //   iframe?.addEventListener("load", () => {
+  //     printWindow.focus();
+  //   });
+  // };
+
+  const handleExcelExport = async (filters: { nomeFormula?: string; dataInicio?: string; dataFim?: string }) => {
+    try {
+      const backendPort = 3000;
+      const base = `http://localhost:${backendPort}`;
+      const params = new URLSearchParams();
+      
+      if (filters.dataInicio) params.append('dataInicio', filters.dataInicio);
+      if (filters.dataFim) params.append('dataFim', filters.dataFim);
+      if (filters.nomeFormula) params.append('formula', filters.nomeFormula);
+
+      const url = `${base}/api/relatorio/exportExcel?${params.toString()}`;
+
+      const resp = await fetch(url, { method: 'GET' });
+      if (!resp.ok) {
+        let txt = '';
+        try { txt = await resp.text(); } catch {}
+        console.error('Falha ao exportar Excel:', txt || resp.statusText);
+        return;
+      }
+
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `relatorio_${Date.now()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Erro ao exportar Excel:', err);
+    }
   };
 
   const displayProducts = useMemo(() => {
     if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
-      let produtoId, label; 
-      return Object.entries(resumo.usosPorProduto).map(([key, val]: any) => {
-        produtoId = "col" + (Number(key.split("Produto_")[1]) + 5);
-        label = produtosInfo[produtoId]?.nome || key;
-        return {
-          colKey: produtoId,
-          nome: label,
-          qtd: Number(val.quantidade) || 0,
-        };
+      // Build an array with numeric column index so we can sort it to match the main table
+      const items: { colKey: string; nome: string; qtd: number; idx: number }[] = Object.entries(
+        resumo.usosPorProduto
+      ).map(([key, val]: [string, unknown]) => {
+        const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
+        const nome = produtosInfo[produtoId]?.nome || String(key);
+        const v = val as Record<string, unknown> | undefined;
+        const rawQtd = v?.['quantidade'];
+        const qtd = Number(rawQtd ?? 0) || 0;
+        const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
+        return { colKey: produtoId, nome, qtd, idx };
       });
+
+      // Sort by the numeric part of the column key (col6, col7, ...)
+      items.sort((a, b) => a.idx - b.idx);
+
+      return items.map(({ colKey, nome, qtd }) => ({ colKey, nome, qtd }));
     }
-    return tableSelection.produtos.map((p, idx) => ({
-      colKey: `col${idx + 1}`,
-      nome: p.nome,
-      qtd: p.qtd,
-      unidade: "kg",
-    }));
+    return tableSelection.produtos.map((p, idx) => {
+      const inferredCol = p.colKey || `col${idx + 6}`;
+      return {
+        colKey: inferredCol,
+        nome: p.nome,
+        qtd: p.qtd,
+        unidade: p.unidade || produtosInfo[inferredCol]?.unidade || "kg",
+      };
+    });
   }, [resumo, tableSelection, produtosInfo]);
 
   // Renderização condicional do conteúdo
@@ -758,10 +909,85 @@ export default function Report() {
           </div>
         </div>
 
-        {/* Side Info */}
-        <div className="w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0">
+        {/* Side Info com drawer de gráficos atrás */}
+        <div className="relative w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
+          {/* Drawer de gráficos compacto, por trás do sideinfo */}
+          {chartsOpen && (
+            <div className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
+                 style={{ zIndex: 5 }}>
+            <div className="h-full flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-red-50 to-gray-50">
+                <div className="text-base font-bold text-gray-900">Resumo Visual</div>
+              </div>
+              <div className="p-4 space-y-4 overflow-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                {/* Produtos Donut */}
+                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="text-sm font-bold text-gray-800">Produtos</div>
+                    <div className="text-xs text-gray-600 font-medium mt-0.5">
+                      {resumo?.produtosCount ?? (displayProducts?.length || 0)} itens • {(resumo?.totalPesos ?? tableSelection.total).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg
+                    </div>
+                  </div>
+                  <div className="h-[280px] px-3 py-3">
+                    <DonutChartWidget
+                      chartType="produtos"
+                      config={{ filters: filtros }}
+                      compact
+                      highlightName={highlightProduto}
+                      onSliceHover={(name) => setHighlightProduto(name)}
+                      onSliceLeave={() => setHighlightProduto(null)}
+                    />
+                  </div>
+                </div>
+
+                {/* Fórmulas Donut */}
+                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="text-sm font-bold text-gray-800">Fórmulas</div>
+                    <div className="text-xs text-gray-600 font-medium mt-0.5">
+                      {resumo?.formulasUtilizadas ? Object.keys(resumo.formulasUtilizadas).length : (tableSelection.formulas?.length || 0)} fórmulas • {(resumo?.batitdasTotais ?? tableSelection.batidas).toLocaleString('pt-BR')} batidas
+                    </div>
+                  </div>
+                  <div className="h-[280px] px-3 py-3">
+                    <DonutChartWidget
+                      chartType="formulas"
+                      config={{ filters: filtros }}
+                      compact
+                      highlightName={highlightFormula}
+                      onSliceHover={(name) => setHighlightFormula(name)}
+                      onSliceLeave={() => setHighlightFormula(null)}
+                    />
+                  </div>
+                </div>
+
+                {/* Horários BarChart */}
+                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                    <div className="text-sm font-bold text-gray-800">Horários de Produção</div>
+                    <div className="text-xs text-gray-600 font-medium mt-0.5">Distribuição por hora</div>
+                  </div>
+                  <div className="h-[280px] px-3 py-3">
+                    <BarChartWidget chartType="horarios" config={{ filters: filtros }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            </div>
+          )}
+
+          {/* Botão para abrir/fechar drawer (fica colado à esquerda do sideinfo) */}
+          <button
+            className="absolute -left-6 top-1/2 -translate-y-1/2 bg-white border rounded-l px-1.5 py-2 shadow hover:bg-gray-50"
+            onClick={() => setChartsOpen(s => !s)}
+            title={chartsOpen ? 'Ocultar gráficos' : 'Mostrar gráficos'}
+            style={{ zIndex: 7 }}
+          >
+            {chartsOpen ? '▶' : '◀'}
+          </button>
+
+          {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
-          <div className="grid grid-cols-1 gap-2">
+          <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
               <p className="text-center text-lg font-bold">Total:  {""}
                 {(resumo && typeof resumo.totalPesos === "number"
@@ -814,120 +1040,99 @@ export default function Report() {
           </div>
 
           {/* Produtos */}
-            <div className="border rounded flex-grow overflow-auto thin-red-scrollbar">
-              <Table className="h-100">
-                <TableHeader>
-                  <TableRow className="bg-gray-200 border">
-                    <TableHead className="text-center">Produtos</TableHead>
-                    <TableHead className="text-center">Quantidade</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {displayProducts && displayProducts.length > 0 ? (
-                    displayProducts.map((produto, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="py-1  min-w-25 text-right">
-                          {produto.nome}
-                        </TableCell>
-                        <TableCell className="py-1 border text-right">
-                          {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
-                            minimumFractionDigits: 3,
-                            maximumFractionDigits: 3,
-                          })}{" "}
-                          {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell
-                        colSpan={2}
-                        className="text-center text-gray-500 py-4"
-                      >
-                        Nenhum produto selecionado
-                      </TableCell>
+            <div className="border rounded flex-grow overflow-auto thin-red-scrollbar w-full">
+              {/* Toggle entre Produtos e Fórmulas */}
+              <div className="flex gap-2 p-2 border-b sticky top-0 bg-white z-10">
+                <button
+                  className={`text-xs px-2 py-1 rounded border ${sideListMode === 'produtos' ? 'bg-red-600 text-white border-red-600' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
+                  onClick={() => setSideListMode('produtos')}
+                >
+                  Produtos
+                </button>
+                <button
+                  className={`text-xs px-2 py-1 rounded border ${sideListMode === 'formulas' ? 'bg-red-600 text-white border-red-600' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
+                  onClick={() => setSideListMode('formulas')}
+                >
+                  Fórmulas
+                </button>
+              </div>
+
+              {sideListMode === 'produtos' ? (
+                <Table className="h-100 w-full table-fixed">
+                  <TableHeader>
+                    <TableRow className="bg-gray-200 border">
+                      <TableHead className="text-center w-1/2 border-r">Produtos</TableHead>
+                      <TableHead className="text-center w-1/2">Quantidade</TableHead>
                     </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {displayProducts && displayProducts.length > 0 ? (
+                      displayProducts.map((produto, idx) => (
+                        <TableRow key={idx}
+                          onMouseEnter={() => setHighlightProduto(produto.nome)}
+                          onMouseLeave={() => setHighlightProduto(null)}
+                          className="hover:bg-gray-50 cursor-default"
+                        >
+                          <TableCell className="py-1 text-right border-r">
+                            {produto.nome}
+                          </TableCell>
+                          <TableCell className="py-1 text-right">
+                            {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 3,
+                              maximumFractionDigits: 3,
+                            })} {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-center text-gray-500 py-4">Nenhum produto selecionado</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              ) : (
+                <Table className="h-100 w-full table-fixed">
+                  <TableHeader>
+                    <TableRow className="bg-gray-200 border">
+                      <TableHead className="text-center w-1/2 border-r">Fórmulas</TableHead>
+                      <TableHead className="text-center w-1/2">Quantidade</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0
+                      ? Object.entries(resumo.formulasUtilizadas).map(([nome, data]: any) => ({ nome, valor: Number(data?.somatoriaTotal ?? data?.quantidade ?? 0) }))
+                      : (tableSelection.formulas || []).map((f) => ({ nome: f.nome, valor: Number(f.somatoriaTotal ?? f.quantidade ?? 0) }))
+                    ).map((f, idx) => (
+                      <TableRow key={idx}
+                        onMouseEnter={() => setHighlightFormula(f.nome)}
+                        onMouseLeave={() => setHighlightFormula(null)}
+                        className="hover:bg-gray-50 cursor-default"
+                      >
+                        <TableCell className="py-1 text-right border-r">{f.nome}</TableCell>
+                        <TableCell className="py-1 text-right">{f.valor.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
 
           {/* Impressão e Comentários */}
           <div className="flex flex-col fl text-center gap-3 mt-1">
             <div className="flex flex-row gap-2 justify-center">
-              <Button onClick={handlePrint} className="gap-2">
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Gerar PDF
-              </Button>
-              <Button 
-                  onClick={() => setMostrarEditorComentario(!mostrarEditorComentario)}
-                  
-                >
-                  {mostrarEditorComentario ? 'Cancelar' : '+ Adcionar Comentário'}
-              </Button>
-            </div>
-
-            {/* Seção de Comentários */}
-            <div className="flex flex-col gap-2 mt-2">
-              <div className="flex items-center justify-center">
-                <p className="font-medium"></p>
-              </div>
-
-              {/* Editor de Comentário */}
-              {mostrarEditorComentario && (
-                <div className="border rounded-lg p-3 bg-gray-50">
-                  <textarea
-                    value={novoComentario}
-                    onChange={(e) => setNovoComentario(e.target.value)}
-                    placeholder="Digite seu comentário sobre este relatório..."
-                    className="w-full p-2 border rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-red-500"
-                    rows={3}
-                  />
-                  <div className="flex justify-end gap-1 mt-2">
-                    <Button 
-                      onClick={() => setMostrarEditorComentario(false)}
-                      variant="outline"
-                      size="sm"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button 
-                      onClick={adicionarComentario}
-                      disabled={!novoComentario.trim()}
-                      size="sm"
-                      className="bg-red-600 hover:bg-red-700"
-                    >
-                      Adicionar
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Lista de Comentários */}
-              {comentarios.length > 0 && (
-                <div className="space-y-2 max-h-40 overflow-y-auto scrollbar-custom">
-                  {comentarios.map((comentario, index) => (
-                    <div key={index} className="border rounded-lg p-3 bg-white text-sm relative group">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-xs text-gray-500">
-                           {comentario.data}
-                        </span>
-                        <Button
-                          onClick={() => removerComentario(index)}
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 w-5 p-0 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                      <p className="text-gray-700">{comentario.texto}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <ExportDropdown
+                // onPdfExport={handlePrint}
+                onExcelExport={handleExcelExport}
+                pdfDocument={createPdfDocument()}
+                showComments={showPdfComments}
+                showCharts={showPdfCharts}
+                onToggleComments={() => setShowPdfComments(!showPdfComments)}
+                onToggleCharts={() => setShowPdfCharts(!showPdfCharts)}
+                comments={comentariosComId}
+                onAddComment={handleAddCommentFromModal}
+                onRemoveComment={handleRemoveCommentFromModal}
+              />
             </div>
           </div>
         </div>
