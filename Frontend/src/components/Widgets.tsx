@@ -22,7 +22,7 @@ type ChartDatum = {
 import { DASHBOARD_COLORS as COLORS } from "../lib/colors";
 
 // Hook para buscar dados do backend
-const useChartData = (chartType: ChartType, filters?: any) => {
+export const useChartData = (chartType: ChartType, filters?: any) => {
   const [data, setData] = useState<ChartDatum[]>([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
@@ -32,11 +32,12 @@ const useChartData = (chartType: ChartType, filters?: any) => {
       try {
         setLoading(true);
         const params = new URLSearchParams();
-        if (filters?.formula) params.set('formula', String(filters.formula));
-        if (filters?.dataInicio) params.set('dataInicio', String(filters.dataInicio));
-        if (filters?.dataFim) params.set('dataFim', String(filters.dataFim));
-        if (filters?.codigo) params.set('codigo', String(filters.codigo));
-        if (filters?.numero) params.set('numero', String(filters.numero));
+        // Só adiciona parâmetros se não forem vazios ou undefined
+        if (filters?.formula && String(filters.formula).trim()) params.set('formula', String(filters.formula));
+        if (filters?.dataInicio && String(filters.dataInicio).trim()) params.set('dataInicio', String(filters.dataInicio));
+        if (filters?.dataFim && String(filters.dataFim).trim()) params.set('dataFim', String(filters.dataFim));
+        if (filters?.codigo && String(filters.codigo).trim()) params.set('codigo', String(filters.codigo));
+        if (filters?.numero && String(filters.numero).trim()) params.set('numero', String(filters.numero));
 
         const url = `http://localhost:3000/api/chartdata/${chartType}?${params.toString()}`;
         const res = await fetch(url);
@@ -99,8 +100,66 @@ const CustomTooltip = ({ active, payload, stats }: any) => {
   );
 };
 
+// Tooltip compacto para gráfico de horários
+const CompactBarTooltip = ({ active, payload, stats }: any) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const data = payload[0].payload;
+  const value = data.value || 0;
+  const count = data.count || 0;
+  const average = data.average || 0;
+  
+  const total = stats?.total || 0;
+  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+
+  return (
+    <div className="bg-gray-900 text-white rounded px-3 py-2 shadow-lg">
+      <div className="font-bold text-sm mb-1 border-b border-gray-700 pb-1">{data.name}</div>
+      <div className="space-y-0.5">
+        <div className="text-sm font-semibold text-red-400">
+          {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
+        </div>
+        {count > 0 && (
+          <div className="text-xs text-gray-300">
+            Registros: {count}
+          </div>
+        )}
+        {average > 0 && (
+          <div className="text-xs text-gray-300">
+            Média: {average.toFixed(2)} kg
+          </div>
+        )}
+        <div className="text-xs text-gray-400">
+          {percentage}% do total
+        </div>
+      </div>
+    </div>
+  );
+};;
+
+// Tooltip compacto para donut (interno)
+const CompactDonutTooltip = ({ active, payload, stats }: any) => {
+  if (!active || !payload || !payload.length) return null;
+
+  const data = payload[0].payload;
+  const value = data.value || 0;
+  const unit = data.unit || 'kg';
+  
+  const total = stats?.total || payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
+  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+
+  return (
+    <div className="bg-gray-900 text-white rounded px-2 py-1 text-xs shadow-lg">
+      <div className="font-semibold truncate max-w-[120px]">{data.name}</div>
+      <div className="text-[10px]">
+        {value.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} {unit} • {percentage}%
+      </div>
+    </div>
+  );
+};
+
 // COMPONENTE: DonutChart
-export function DonutChartWidget({ chartType = "produtos", config }: { chartType?: ChartType; config?: any }) {
+export function DonutChartWidget({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean }) {
   const { data, loading, stats } = useChartData(chartType, config?.filters);
 
   if (loading) {
@@ -121,16 +180,18 @@ export function DonutChartWidget({ chartType = "produtos", config }: { chartType
 
   return (
     <div className="h-full w-full relative">
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        {/* center total */}
-        <div className="text-center">
-          <div className="text-xs text-gray-500">Total</div>
-          <div className="text-lg font-bold text-red-600">
-            {(stats?.total ?? data.reduce((s, d) => s + d.value, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+      {!compact && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {/* center total */}
+          <div className="text-center">
+            <div className="text-xs text-gray-500">Total</div>
+            <div className="text-lg font-bold text-red-600">
+              {(stats?.total ?? data.reduce((s, d) => s + d.value, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="text-xs text-gray-500">{(data[0]?.unit) ?? 'kg'}</div>
           </div>
-          <div className="text-xs text-gray-500">{(data[0]?.unit) ?? 'kg'}</div>
         </div>
-      </div>
+      )}
 
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
@@ -138,17 +199,28 @@ export function DonutChartWidget({ chartType = "produtos", config }: { chartType
             data={data}
             cx="50%"
             cy="50%"
-            innerRadius={70}
-            outerRadius={110}
+            innerRadius={compact ? 50 : 70}
+            outerRadius={compact ? 80 : 110}
             dataKey="value"
-            labelLine={false} 
+            labelLine={false}
+            onMouseLeave={() => onSliceLeave?.()}
           >
-            {data.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
+            {data.map((d, index) => {
+              const isHighlighted = !!highlightName && d.name === highlightName;
+              const dimmed = !!highlightName && d.name !== highlightName;
+              return (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={COLORS[index % COLORS.length]}
+                  fillOpacity={dimmed ? 0.35 : 1}
+                  stroke={isHighlighted ? '#111827' : '#ffffff'}
+                  strokeWidth={isHighlighted ? 2 : 1}
+                  onMouseEnter={() => onSliceHover?.(d.name)}
+                />
+              );
+            })}
           </Pie>
-          <Tooltip content={<CustomTooltip stats={stats} />} />
-          {/* <Legend verticalAlign="bottom" height={36} /> */}
+          <Tooltip content={compact ? <CompactDonutTooltip stats={stats} /> : <CustomTooltip stats={stats} />} />
         </PieChart>
       </ResponsiveContainer>
     </div>
@@ -179,6 +251,25 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
     data.sort((a, b) => b.value - a.value);
   }
 
+  // Determinar labels baseado no chartType
+  const getAxisLabels = () => {
+    switch (chartType) {
+      case "horarios":
+        return { xLabel: "Hora", yLabel: "Produção (kg)" };
+      case "formulas":
+        return { xLabel: "Fórmula", yLabel: "Quantidade (kg)" };
+      case "produtos":
+        return { xLabel: "Produto", yLabel: "Quantidade (kg)" };
+      default:
+        return { xLabel: "", yLabel: "Valor (kg)" };
+    }
+  };
+
+  const { xLabel, yLabel } = getAxisLabels();
+  
+  // Usar tooltip compacto para horários
+  const isHorarios = chartType === "horarios";
+
   return (
     <div className="h-full w-full">
       <ResponsiveContainer  width="100%" height="87%">
@@ -194,13 +285,21 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
 }
 
 // COMPONENTE: WeeklyChart
-export function WeeklyChartWidget({ rows }: { rows: Entry[] | null }) {
+export function WeeklyChartWidget({ rows, weekStart }: { rows: Entry[] | null, weekStart?: Date }) {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    if (weekStart) return weekStart;
     const now = new Date();
     const day = now.getDay();
     const diff = now.getDate() - day;
     return new Date(now.setDate(diff));
   });
+
+  // Sincronizar com weekStart externo
+  useEffect(() => {
+    if (weekStart) {
+      setCurrentWeekStart(weekStart);
+    }
+  }, [weekStart]);
 
   const parseDia = (dia?: string): Date | null => {
     if (!dia) return null;
@@ -244,51 +343,8 @@ export function WeeklyChartWidget({ rows }: { rows: Entry[] | null }) {
     return weekdays.map((name, idx) => ({ name, value: totals[idx] }));
   }, [rows, currentWeekStart]);
 
-  const formatWeekRange = () => {
-    const start = new Date(currentWeekStart);
-    const end = new Date(currentWeekStart);
-    end.setDate(end.getDate() + 6);
-    const nowYear = new Date().getFullYear();
-    const fmt = (d: Date) => {
-      const dd = d.getDate().toString().padStart(2, '0');
-      const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-      const yy = d.getFullYear();
-      return `${dd}/${mm}${yy !== nowYear ? `/${yy}` : ''}`;
-    };
-    return `${fmt(start)} → ${fmt(end)}`;
-  };
-
-  const goToPrevWeek = () => {
-    const newStart = new Date(currentWeekStart);
-    newStart.setDate(newStart.getDate() - 7);
-    setCurrentWeekStart(newStart);
-  };
-
-  const goToNextWeek = () => {
-    const newStart = new Date(currentWeekStart);
-    newStart.setDate(newStart.getDate() + 7);
-    setCurrentWeekStart(newStart);
-  };
-
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3 px-2">
-        <button
-          onClick={goToPrevWeek}
-          className="p-1 hover:bg-gray-100 rounded transition-colors"
-          title="Semana anterior"
-        >
-          <span className="text-xl">◀</span>
-        </button>
-        <span className="text-sm font-medium text-gray-700">{formatWeekRange()}</span>
-        <button
-          onClick={goToNextWeek}
-          className="p-1 hover:bg-gray-100 rounded transition-colors"
-          title="Próxima semana"
-        >
-          <span className="text-xl">▶</span>
-        </button>
-      </div>
       <div className="flex-1">
         <ResponsiveContainer width="100%" height="85%">
           <BarChart data={weekData}>

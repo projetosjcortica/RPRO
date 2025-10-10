@@ -67,14 +67,16 @@ const safeString = (value: any): string => {
 const receba = (col: any, idx: number) => {
   if (idx === 3) {
     return (
-      <div>
-        Código do <br /> programa
+      <div className="text-left">
+        <div>Código do</div>
+        <div>programa</div>
       </div>
     );
   } else if (idx === 4) {
     return (
-      <div>
-        Código do <br /> cliente
+      <div className="text-left">
+        <div>Código do</div>
+        <div>cliente</div>
       </div>
     );
   }
