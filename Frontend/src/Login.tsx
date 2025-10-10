@@ -47,7 +47,7 @@ const Login: React.FC = () => {
           )}
           {error && <div className="text-red-600">{error}</div>}
           <div className="flex items-center justify-between">
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">{isRegister ? 'Registrar' : 'Entrar'}</button>
+            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded">{isRegister ? 'Registrar' : 'Entrar'}</button>
             <button type="button" onClick={() => setIsRegister(!isRegister)} className="text-sm text-blue-600">{isRegister ? 'Já tenho conta' : 'Criar conta'}</button>
           </div>
         </form>
