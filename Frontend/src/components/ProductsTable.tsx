@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
-import { Button } from './ui/button';
-import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
+// import { Button } from './ui/button';
+// import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 
 type ProdDatum = { name: string; value: number; unit?: string };
 
@@ -36,7 +36,7 @@ export default function ProductsTable({ filters }: { filters?: any }) {
       <div className="flex items-center justify-between mb-2">
         <div className="text-lg font-medium">Produtos</div>
         <div className="flex items-center gap-2">
-          <Sheet>
+          {/* <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" size="sm">Ver todos</Button>
             </SheetTrigger>
@@ -65,7 +65,7 @@ export default function ProductsTable({ filters }: { filters?: any }) {
                 </Table>
               </div>
             </SheetContent>
-          </Sheet>
+          </Sheet> */}
         </div>
       </div>
 
