@@ -181,7 +181,7 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
 
   return (
     <div className="h-full w-full">
-      <ResponsiveContainer className='w-fit h-full'>
+      <ResponsiveContainer  width="100%" height="80%">
         <BarChart data={data} layout="horizontal" margin={{ left: 20 }}>
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
@@ -290,7 +290,7 @@ export function WeeklyChartWidget({ rows }: { rows: Entry[] | null }) {
         </button>
       </div>
       <div className="flex-1">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="85%">
           <BarChart data={weekData}>
             <XAxis dataKey="name" />
             <YAxis />
