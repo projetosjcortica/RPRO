@@ -84,16 +84,7 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
 
   console.log(loadingResumo)
 
-  const makePeriodText = (filt: any) => {
-    const effective = { ...(filters || {}), ...(filt || {}) };
-    if (!effective) return "Todos os períodos";
-    const s = effective.dataInicio || "";
-    const e = effective.dataFim || "";
-    if (s && e) return `${s} → ${e}`;
-    if (s) return `Desde ${s}`;
-    if (e) return `Até ${e}`;
-    return "Todos os períodos";
-  };
+  // makePeriodText removed (unused)
 
   useEffect(() => {
     let mounted = true;
@@ -106,9 +97,16 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
         // resumo follows the dashboard-level `filters` prop (not per-chart filters)
         const result = await proc.getResumo(undefined, filters?.nomeFormula || undefined, filters?.dataInicio || undefined, filters?.dataFim || undefined, filters?.codigo || undefined, filters?.numero || undefined);
         if (mounted) setResumo(result || null);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Erro ao buscar resumo:', err);
-        if (mounted) setResumoError(String(err?.message || err));
+        const isErrWithMessage = (e: unknown): e is { message: unknown } => typeof e === 'object' && e !== null && 'message' in e;
+        const msg = ((): string => {
+          if (!err) return 'Erro desconhecido';
+          if (typeof err === 'string') return err;
+          if (isErrWithMessage(err) && typeof err.message === 'string') return err.message;
+          return String(err);
+        })();
+        if (mounted) setResumoError(msg);
       } finally {
         if (mounted) setLoadingResumo(false);
       }
@@ -140,11 +138,11 @@ const formatShortDate = (raw?: string | null) => {
 
 
   // helper to filter rows by provided date range (dataInicio/dataFim are strings)
-  const filterRowsByDateRange = (inputRows: Entry[] | null, overrideFilters?: any) => {
+  const filterRowsByDateRange = (inputRows: Entry[] | null, overrideFilters?: unknown) => {
     if (!inputRows) return null;
-    const effective = { ...(filters || {}), ...(overrideFilters || {}) };
-    const s = effective?.dataInicio;
-    const e = effective?.dataFim;
+  const effective: Record<string, unknown> = { ...(filters || {}), ...(typeof overrideFilters === 'object' && overrideFilters ? (overrideFilters as Record<string, unknown>) : {}) };
+  const s = typeof effective?.dataInicio === 'string' ? effective.dataInicio as string : undefined;
+  const e = typeof effective?.dataFim === 'string' ? effective.dataFim as string : undefined;
     if (!s && !e) return inputRows;
 
     const parseDate = (raw?: string | null) => {
@@ -153,7 +151,7 @@ const formatShortDate = (raw?: string | null) => {
       // yyyy-mm-dd
       if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return new Date(v + 'T00:00:00');
       // dd-mm-yyyy or dd/mm/yyyy
-      if (/^\d{2}[-\/]\d{2}[-\/]\d{4}$/.test(v)) {
+      if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(v)) {
         const sep = v.includes('/') ? '/' : '-';
         const parts = v.split(sep);
         const d = Number(parts[0]);
@@ -185,12 +183,38 @@ const formatShortDate = (raw?: string | null) => {
 
   const filteredRowsForWeek = filterRowsByDateRange(rows, weeklyFilters);
 
+  // Compute top formulas either from resumo.formulasUtilizadas or derive from rows
+  type FormulaItem = { label: string; value: number };
+  const computeTopFormulas = (): FormulaItem[] => {
+    try {
+      if (resumo && typeof resumo === 'object' && 'formulasUtilizadas' in resumo) {
+        const fu = (resumo as Record<string, unknown>)['formulasUtilizadas'];
+        let values: Array<Record<string, unknown>> = [];
+        if (Array.isArray(fu)) values = fu as Array<Record<string, unknown>>;
+        else if (fu && typeof fu === 'object') values = Object.values(fu as Record<string, unknown>) as Array<Record<string, unknown>>;
+        return values
+          .map((f) => ({ label: String(f['nome'] ?? f['numero'] ?? '—'), value: f['somatoriaTotal'] != null ? Number(f['somatoriaTotal']) : (f['quantidade'] != null ? Number(f['quantidade']) : 0) }))
+          .sort((a, b) => b.value - a.value);
+      }
+    } catch (err: unknown) {
+      // ignore and fallback
+    }
+    if (!rows) return [];
+    const map = new Map<string, number>();
+    rows.forEach((r: Entry) => {
+      const name = r.Nome || '—';
+      const sum = Array.isArray(r.values) ? r.values.reduce((a: number, b: number) => a + (Number(b) || 0), 0) : 0;
+      map.set(name, (map.get(name) || 0) + sum);
+    });
+  return Array.from(map.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
+  };
+
   return (
     <div className="w-full h-full p-4 scrollbar-custom overflow-hidden">
-      <div className="flex gap-6 justify-between scrollbar-custom overflow-hidden">
+      <div className="flex gap-2 3xl:gap-6 justify-between scrollbar-custom overflow-hidden">
         <div className="flex w-full space-y-6 flex-col">
           {/* First row: Formulas Donut */}
-          <Card className=" shadow-md border border-indigo-50 rounded-xl overflow-hidden h-90 w-full ">
+          <Card className=" shadow-md border border-indigo-50 rounded-xl overflow-hidden h-90 w-full 3xl:h-105">
             <CardHeader className="border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
@@ -231,16 +255,37 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className=" flex flex-col h-[calc(100%-40px)]">
-              <div className="flex-1 min-h-[250px]">
-                <DonutChartWidget chartType="formulas" config={{ filters: { ...(filters || {}), ...(donutFilters || {}) } }} />
+            <CardContent>
+              <div className="flex flex-col lg:flex-row gap-4">
+                <div className="w-full lg:w-1/2 min-h-[220px]">
+                  <DonutChartWidget chartType="formulas" config={{ filters: { ...(filters || {}), ...(donutFilters || {}) } }} />
+                </div>
+                <div className="w-full lg:w-1/2">
+                  <div className="text-sm font-medium text-gray-900 mb-2">Todas as Fórmulas</div>
+                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
+                    {loadingResumo ? (
+                      <div className="text-sm text-gray-500">Carregando...</div>
+                    ) : (
+                      (() => {
+                        const list = computeTopFormulas();
+                        if (!list || list.length === 0) return <div className="text-sm text-gray-500">Nenhuma fórmula</div>;
+                        return list.map((f: FormulaItem, idx: number) => (
+                          <div key={idx} className="flex items-center justify-between text-sm">
+                            <div className="truncate pr-2">{f.label}</div>
+                            <div className="font-medium">{f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</div>
+                          </div>
+                        ));
+                      })()
+                    )}
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Second row: Products & Hours */}
           <div className="flex gap-6">
-            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden w-1/2 h-87 3xl:h-136">
+            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden w-1/2 h-87 3xl:h-121">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
@@ -290,7 +335,7 @@ const formatShortDate = (raw?: string | null) => {
           
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-87 w-1/2 3xl:h-136 ">
+            <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-87 w-1/2 3xl:h-121 ">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
