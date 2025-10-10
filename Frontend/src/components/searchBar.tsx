@@ -178,6 +178,44 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         />
       </div>
 
+      {/* DatePicker */}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "w-44 justify-start text-left font-normal border border-black",
+              !dateRange && "text-gray-400"
+            )}
+          >
+            {dateRange?.from ? (
+              dateRange.to ? (
+                <>
+                  {format(dateRange.from, "dd/MM/yy")} -{" "}
+                  {format(dateRange.to, "dd/MM/yy")}
+                </>
+              ) : (
+                format(dateRange.from, "dd/MM/yyyy")
+              )
+            ) : (
+              <span>Selecione uma data</span>
+            )}
+            <CalendarIcon className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0">
+          <Calendar
+            autoFocus
+            mode="range"
+            locale={pt}
+            defaultMonth={dateRange?.from}
+            selected={dateRange}
+            onSelect={handleDateChange}
+            numberOfMonths={1}
+          />
+        </PopoverContent>
+      </Popover>
+      
       {/* Combobox Código */}
       <Popover open={openCodigo} onOpenChange={setOpenCodigo}>
         <PopoverTrigger asChild>
@@ -185,7 +223,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             variant="outline"
             role="combobox"
             aria-expanded={openCodigo}
-            className="w-52 justify-between border-black font-normal text-gray-400 thin-red-scrollbar"
+            className="w-52 justify-between border-black font-normal text-gray-400 "
           >
             {filtrosTemporarios.codigo
               ? filtrosTemporarios.codigo === '__all'
@@ -197,7 +235,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-52 p-0">
+        <PopoverContent className="w-52 p-0 thin-red-scrollbar">
           <Command>
             <CommandInput
               placeholder="Pesquisar códg. do prog..."
@@ -276,7 +314,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-42 p-0">
+        <PopoverContent className="w-52 p-0 thin-red-scrollbar" > 
           <Command>
             <CommandInput
               placeholder="Pesquisar número..."
@@ -336,43 +374,6 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         </PopoverContent>
       </Popover>
 
-      {/* DatePicker */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              "w-44 justify-start text-left font-normal border border-black",
-              !dateRange && "text-gray-400"
-            )}
-          >
-            {dateRange?.from ? (
-              dateRange.to ? (
-                <>
-                  {format(dateRange.from, "dd/MM/yy")} -{" "}
-                  {format(dateRange.to, "dd/MM/yy")}
-                </>
-              ) : (
-                format(dateRange.from, "dd/MM/yyyy")
-              )
-            ) : (
-              <span>Selecione uma data</span>
-            )}
-            <CalendarIcon className="h-4 w-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0">
-          <Calendar
-            autoFocus
-            mode="range"
-            locale={pt}
-            defaultMonth={dateRange?.from}
-            selected={dateRange}
-            onSelect={handleDateChange}
-            numberOfMonths={1}
-          />
-        </PopoverContent>
-      </Popover>
 
       <Button variant="outline" onClick={handleBuscar} className="text-black">
         Buscar
