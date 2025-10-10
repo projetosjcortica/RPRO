@@ -272,22 +272,11 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
 
   return (
     <div className="h-full w-full">
-      <ResponsiveContainer className='w-fit h-full'>
-        <BarChart data={data} layout="horizontal" margin={{ left: 20, bottom: 20, right: 10 }}>
-          <YAxis 
-            type="number" 
-            dataKey="value"
-            label={{ value: yLabel, angle: -90, position: 'insideLeft', style: { fontSize: '11px', fill: '#666' } }}
-            style={{ fontSize: '10px' }}
-          />
-          <XAxis 
-            type="category" 
-            dataKey="name" 
-            width={60}
-            label={{ value: xLabel, position: 'insideBottom', offset: -10, style: { fontSize: '11px', fill: '#666' } }}
-            style={{ fontSize: '10px' }}
-          />
-          <Tooltip content={isHorarios ? <CompactBarTooltip stats={stats} /> : <CustomTooltip stats={stats} />} />
+      <ResponsiveContainer  width="100%" height="80%">
+        <BarChart data={data} layout="horizontal" margin={{ left: 20 }}>
+          <YAxis type="number" dataKey="value" />
+          <XAxis type="category" dataKey="name" width={60} />
+          <Tooltip content={<CustomTooltip stats={stats} />} />
           <Bar dataKey="value" fill="#ff2626ff" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
@@ -357,7 +346,7 @@ export function WeeklyChartWidget({ rows, weekStart }: { rows: Entry[] | null, w
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="85%">
           <BarChart data={weekData}>
             <XAxis dataKey="name" />
             <YAxis />
