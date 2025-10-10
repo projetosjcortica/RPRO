@@ -190,8 +190,8 @@ const formatShortDate = (raw?: string | null) => {
       <div className="flex gap-6 justify-between scrollbar-custom overflow-hidden">
         <div className="flex w-full space-y-6 flex-col">
           {/* First row: Formulas Donut */}
-          <Card className=" shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px] w-full md:h-[300px]">
-            <CardHeader className="border-b border-gray-100 pb-2 pt-3 px-6">
+          <Card className=" shadow-md border border-indigo-50 rounded-xl overflow-hidden h-90 w-full ">
+            <CardHeader className="border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
@@ -200,7 +200,7 @@ const formatShortDate = (raw?: string | null) => {
                 <div className="flex items-center space-x-2">
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!donutDateRange && "text-gray-400") }>
+                      <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!donutDateRange && "text-gray-400") }>
                         {donutDateRange?.from ? (
                           donutDateRange.to ? (
                             <>{formatDate(donutDateRange.from, 'dd/MM/yy')} - {formatDate(donutDateRange.to, 'dd/MM/yy')}</>
@@ -208,7 +208,7 @@ const formatShortDate = (raw?: string | null) => {
                             formatDate(donutDateRange.from, 'dd/MM/yyyy')
                           )
                         ) : (
-                          <span>Período</span>
+                          <span>Selecione um Período</span>
                         )}
                         <CalendarIcon className="ml-2 h-4 w-4" />
                       </Button>
@@ -228,11 +228,10 @@ const formatShortDate = (raw?: string | null) => {
                       </div>
                     </PopoverContent>
                   </Popover>
-                  <span className="text-xs text-gray-400">{makePeriodText(donutFilters)}</span>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-6 flex flex-col h-[calc(100%-40px)]">
+            <CardContent className=" flex flex-col h-[calc(100%-40px)]">
               <div className="flex-1 min-h-[250px]">
                 <DonutChartWidget chartType="formulas" config={{ filters: { ...(filters || {}), ...(donutFilters || {}) } }} />
               </div>
@@ -241,8 +240,8 @@ const formatShortDate = (raw?: string | null) => {
 
           {/* Second row: Products & Hours */}
           <div className="flex gap-6">
-            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px] w-1/2">
-              <CardHeader className="border-b border-gray-100 pb-2 pt-3 px-6">
+            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden w-1/2 h-87 3xl:h-136">
+              <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
@@ -251,7 +250,7 @@ const formatShortDate = (raw?: string | null) => {
                   <div>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!horariosDateRange && "text-gray-400") }>
+                        <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!horariosDateRange && "text-gray-400") }>
                           {horariosDateRange?.from ? (
                             horariosDateRange.to ? (
                               <>{formatDate(horariosDateRange.from, 'dd/MM/yy')} - {formatDate(horariosDateRange.to, 'dd/MM/yy')}</>
@@ -259,7 +258,7 @@ const formatShortDate = (raw?: string | null) => {
                               formatDate(horariosDateRange.from, 'dd/MM/yyyy')
                             )
                           ) : (
-                            <span>Período</span>
+                            <span>Selecione um Período</span>
                           )}
                           <CalendarIcon className="ml-2 h-4 w-4" />
                         </Button>
@@ -282,7 +281,7 @@ const formatShortDate = (raw?: string | null) => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 flex flex-col h-[calc(100%-40px)]">
+              <CardContent className="p-3 flex flex-col h-[calc(100%-40px)]">
                 <div className="flex-1 min-h-[250px]">
                   <BarChartWidget chartType="horarios" config={{ filters: { ...(filters || {}), ...(horariosFilters || {}) } }} />
                 </div>
@@ -290,56 +289,56 @@ const formatShortDate = (raw?: string | null) => {
             </Card>
           
 
-          {/* Third row: Weekly Chart */}
-          <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[400px] w-full md:w-1/2">
-            <CardHeader className="border-b border-gray-100 pb-2 pt-3 px-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
-                  <CardTitle className="text-sm font-semibold text-gray-900">Produção Semanal</CardTitle>
-                </div>
-                <div>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!weeklyDateRange && "text-gray-400") }>
-                        {weeklyDateRange?.from ? (
-                          weeklyDateRange.to ? (
-                            <>{formatDate(weeklyDateRange.from, 'dd/MM/yy')} - {formatDate(weeklyDateRange.to, 'dd/MM/yy')}</>
+            {/* Third row: Weekly Chart */}
+            <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-87 w-1/2 3xl:h-136 ">
+              <CardHeader className="border-b border-gray-100 ">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
+                    <CardTitle className="text-sm font-semibold text-gray-900">Produção Semanal</CardTitle>
+                  </div>
+                  <div>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!weeklyDateRange && "text-gray-400") }>
+                          {weeklyDateRange?.from ? (
+                            weeklyDateRange.to ? (
+                              <>{formatDate(weeklyDateRange.from, 'dd/MM/yy')} - {formatDate(weeklyDateRange.to, 'dd/MM/yy')}</>
+                            ) : (
+                              formatDate(weeklyDateRange.from, 'dd/MM/yyyy')
+                            )
                           ) : (
-                            formatDate(weeklyDateRange.from, 'dd/MM/yyyy')
-                          )
-                        ) : (
-                          <span>Período</span>
-                        )}
-                        <CalendarIcon className="ml-2 h-4 w-4" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-2">
-                      <Calendar
-                        mode="range"
-                        locale={pt}
-                        defaultMonth={weeklyDateRange?.from}
-                        selected={weeklyDateRange}
-                        onSelect={handleWeeklyDateChange}
-                        numberOfMonths={1}
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <Button variant="outline" onClick={clearWeeklyFilters}>Limpar</Button>
-                        <Button onClick={applyWeeklyFilters}>Aplicar</Button>
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                            <span>Selecione um Período</span>
+                          )}
+                          <CalendarIcon className="ml-2 h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto">
+                        <Calendar
+                          mode="range"
+                          locale={pt}
+                          defaultMonth={weeklyDateRange?.from}
+                          selected={weeklyDateRange}
+                          onSelect={handleWeeklyDateChange}
+                          numberOfMonths={1}
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <Button variant="outline" onClick={clearWeeklyFilters}>Limpar</Button>
+                          <Button onClick={applyWeeklyFilters}>Aplicar</Button>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-6 flex flex-col h-[calc(100%-40px)]">
-              <div className="flex-1 min-h-[250px]">
-                <WeeklyChartWidget rows={filteredRowsForWeek} />
-              </div>
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent className=" flex flex-col h-[calc(100%-40px)]">
+                <div className="flex-1 min-h-[250px]">
+                  <WeeklyChartWidget rows={filteredRowsForWeek} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
         {/* Sidebar  */}
         <div className=" w-130 space-y-6 max-h-screen md:max-h-[calc(100vh-2rem)] overflow-auto thin-red-scrollbar">
           <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden">
@@ -358,7 +357,7 @@ const formatShortDate = (raw?: string | null) => {
                 ) : (
                   <div className="space-y-3 flex flex-col gap-3">
                     <div id="total+horas" className="flex flex-col items-center justify-between mb-6 gap-2">
-                      <div className="w-full h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
+                      <div className="w-80 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
                         <p className="text-center text-lg font-bold">Total:  {""}
                           {(resumo && typeof resumo.totalPesos === "number"
                             ? resumo.totalPesos
