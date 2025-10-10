@@ -272,7 +272,7 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
 
   return (
     <div className="h-full w-full">
-      <ResponsiveContainer  width="100%" height="80%">
+      <ResponsiveContainer  width="100%" height="87%">
         <BarChart data={data} layout="horizontal" margin={{ left: 20 }}>
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
