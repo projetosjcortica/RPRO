@@ -312,7 +312,6 @@ const formatShortDate = (raw?: string | null) => {
             <CardHeader className="border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                   <CardTitle className="text-sm font-semibold text-gray-900">Análise de Fórmulas</CardTitle>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -381,20 +380,12 @@ const formatShortDate = (raw?: string | null) => {
 
           {/* Second row: Horarios & Weekly */}
           <div className="flex gap-6">
-            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden w-1/2 h-87 3xl:h-121">
+            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden w-1/2 h-83 3xl:h-121">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                     <CardTitle className="text-sm font-semibold text-gray-900">Horário de Produção</CardTitle>
-                    {horariosDateRange?.from && (
-                      <span className="text-xs text-gray-500 font-normal">
-                        ({formatDate(horariosDateRange.from, 'dd/MM')}
-                        {horariosDateRange.to && horariosDateRange.to.getTime() !== horariosDateRange.from.getTime() 
-                          ? ` - ${formatDate(horariosDateRange.to, 'dd/MM')}` 
-                          : ''})
-                      </span>
-                    )}
+                    
                   </div>
                   <div className="flex items-center space-x-2">
                     <Popover>
@@ -423,7 +414,7 @@ const formatShortDate = (raw?: string | null) => {
                         />
                         <div className="flex gap-2 mt-2 px-1">
                           <Button variant="outline" onClick={clearHorariosFilters} size="sm" className="flex-1">
-                            Dia Anterior
+                            Ontem
                           </Button>
                           <Button onClick={applyHorariosFilters} size="sm" className="flex-1">
                             Aplicar
@@ -434,22 +425,21 @@ const formatShortDate = (raw?: string | null) => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-3 flex flex-col h-[calc(100%-40px)]">
-                <div className="flex-1 min-h-[250px]">
+              <CardContent className=" flex flex-col h-[calc(100%-40px)]">
+                <div className="flex-1 min-h-[250px] pb-7">
                   <BarChartWidget chartType="horarios" config={{ filters: { ...(filters || {}), ...(horariosFilters || {}) } }} />
                 </div>
               </CardContent>
             </Card>
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-87 w-1/2 3xl:h-121 ">
+            <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-83 w-1/2 3xl:h-121 ">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                     <CardTitle className="text-sm font-semibold text-gray-900">Produção Semanal</CardTitle>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -458,9 +448,9 @@ const formatShortDate = (raw?: string | null) => {
                         prevWeekStart.setDate(prevWeekStart.getDate() - 7);
                         handleWeeklyDateChange(prevWeekStart);
                       }}
-                      className="h-8 px-2"
+                      className="h-8 px-1.5"
                     >
-                      ← Anterior
+                      ←
                     </Button>
                     <Popover>
                       <PopoverTrigger asChild>
@@ -470,7 +460,7 @@ const formatShortDate = (raw?: string | null) => {
                           ) : (
                             <span>Selecione uma semana</span>
                           )}
-                          <CalendarIcon className="ml-2 h-4 w-4" />
+                          <CalendarIcon className=" h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-2" align="end">
@@ -496,15 +486,15 @@ const formatShortDate = (raw?: string | null) => {
                         nextWeekStart.setDate(nextWeekStart.getDate() + 7);
                         handleWeeklyDateChange(nextWeekStart);
                       }}
-                      className="h-8 px-2"
+                      className="h-8 px-1.5"
                     >
-                      Próxima →
+                         →
                     </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 flex flex-col h-[calc(100%-60px)]">
-                <div className="flex-1 min-h-[250px]">
+              <CardContent className="flex flex-col h-[calc(100%-60px)]">
+                <div className="flex-1 min-h-[250px] pb-4">
                   <WeeklyChartWidget rows={filteredRowsForWeek} weekStart={weeklyDateRange?.from} />
                 </div>
               </CardContent>
@@ -517,7 +507,6 @@ const formatShortDate = (raw?: string | null) => {
             <CardHeader className="border-b px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                   <CardTitle className="text-sm font-semibold">Resumo de Produção</CardTitle>
                 </div>
               </div>
@@ -587,7 +576,7 @@ const formatShortDate = (raw?: string | null) => {
                     <div id="produtos" className="pt-2 flex flex-col min-h-0">
                       <div className="flex-1 overflow-hidden">
                         <ProductsTable
-                          filters={filters}
+                          filters={filters} 
                           onHoverName={(name) => setHighlightProduto(name)}
                           onLeave={() => setHighlightProduto(null)}
                         />
