@@ -282,7 +282,7 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
 
   return (
     <div className="h-full w-full relative">
-      <div className="absolute top-2 left-8 text-gray-700 font-semibold z-10">
+      <div className="text-gray-700 font-semibold z-10">
         Produção (kg)
       </div>
       <ResponsiveContainer  width="100%" height="87%">
@@ -358,7 +358,7 @@ export function WeeklyChartWidget({ rows, weekStart }: { rows: Entry[] | null, w
 
   return (
     <div className="h-full flex flex-col relative">
-      <div className="absolute top-2 left-8 text-gray-700 font-semibold z-10">
+      <div className=" text-gray-700 font-semibold z-10">
         Produção (kg)
       </div>
       <div className="flex-1">

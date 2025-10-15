@@ -67,7 +67,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen overflow-auto thin-red-scrollbar">
-      <div>
+      <div className="h-full pt-4">
         <FixedDashboard rows={rows} filters={filtros} />
       </div>
     </div>
