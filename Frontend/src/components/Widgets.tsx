@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useMemo, useState, useEffect } from "react";
 import { Pie, PieChart, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import type { ChartType } from "../home";
@@ -101,41 +102,41 @@ const CustomTooltip = ({ active, payload, stats }: any) => {
 };
 
 // Tooltip compacto para gráfico de horários
-const CompactBarTooltip = ({ active, payload, stats }: any) => {
-  if (!active || !payload || !payload.length) return null;
+// const CompactBarTooltip = ({ active, payload, stats }: any) => {
+//   if (!active || !payload || !payload.length) return null;
 
-  const data = payload[0].payload;
-  const value = data.value || 0;
-  const count = data.count || 0;
-  const average = data.average || 0;
+//   const data = payload[0].payload;
+//   const value = data.value || 0;
+//   const count = data.count || 0;
+//   const average = data.average || 0;
   
-  const total = stats?.total || 0;
-  const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+//   const total = stats?.total || 0;
+//   const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
 
-  return (
-    <div className="bg-gray-900 text-white rounded px-3 py-2 shadow-lg">
-      <div className="font-bold text-sm mb-1 border-b border-gray-700 pb-1">{data.name}</div>
-      <div className="space-y-0.5">
-        <div className="text-sm font-semibold text-red-400">
-          {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
-        </div>
-        {count > 0 && (
-          <div className="text-xs text-gray-300">
-            Registros: {count}
-          </div>
-        )}
-        {average > 0 && (
-          <div className="text-xs text-gray-300">
-            Média: {average.toFixed(2)} kg
-          </div>
-        )}
-        <div className="text-xs text-gray-400">
-          {percentage}% do total
-        </div>
-      </div>
-    </div>
-  );
-};;
+//   return (
+//     <div className="bg-gray-900 text-white rounded px-3 py-2 shadow-lg">
+//       <div className="font-bold text-sm mb-1 border-b border-gray-700 pb-1">{data.name}</div>
+//       <div className="space-y-0.5">
+//         <div className="text-sm font-semibold text-red-400">
+//           {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
+//         </div>
+//         {count > 0 && (
+//           <div className="text-xs text-gray-300">
+//             Registros: {count}
+//           </div>
+//         )}
+//         {average > 0 && (
+//           <div className="text-xs text-gray-300">
+//             Média: {average.toFixed(2)} kg
+//           </div>
+//         )}
+//         <div className="text-xs text-gray-400">
+//           {percentage}% do total
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
 
 // Tooltip compacto para donut (interno)
 const CompactDonutTooltip = ({ active, payload, stats }: any) => {
@@ -266,9 +267,12 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
   };
 
   const { xLabel, yLabel } = getAxisLabels();
+
+  console.log(xLabel, yLabel);
   
   // Usar tooltip compacto para horários
   const isHorarios = chartType === "horarios";
+  console.log(isHorarios);
 
   return (
     <div className="h-full w-full">

@@ -214,10 +214,6 @@ const App = () => {
                                   </SidebarMenuSubButton>
                                 </DialogTrigger>
                                 <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>ADM</DialogTitle>
-                                    <DialogDescription>Opções administrativas</DialogDescription>
-                                  </DialogHeader>
                                   <AdminConfig/>
                                 </DialogContent>
                               </Dialog>

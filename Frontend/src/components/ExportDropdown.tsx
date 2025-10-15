@@ -19,6 +19,12 @@ import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Textarea } from "./ui/textarea";
+import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
+import { Calendar } from './ui/calendar';
+import { CalendarIcon } from 'lucide-react';
+import { format as formatDate } from 'date-fns';
+import { pt } from 'date-fns/locale';
+import type { DateRange } from 'react-day-picker';
 
 interface Comment {
   id: string;
@@ -56,6 +62,8 @@ export function ExportDropdown({
   const [nomeFormula, setNomeFormula] = useState("");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState(""); 
+  const [excelDateRange, setExcelDateRange] = useState<DateRange | undefined>(undefined);
+  const [excelPopoverOpen, setExcelPopoverOpen] = useState(false);
 
   // Comentários no modal PDF
   const [showCommentEditor, setShowCommentEditor] = useState(false);
@@ -83,16 +91,19 @@ export function ExportDropdown({
   };
 
   const handleExcelExport = () => {
+    const exportedDataInicio = dataInicio || (excelDateRange?.from ? formatDate(excelDateRange.from, 'yyyy-MM-dd') : undefined);
+    const exportedDataFim = dataFim || (excelDateRange?.to ? formatDate(excelDateRange.to, 'yyyy-MM-dd') : undefined);
     onExcelExport({
       nomeFormula: nomeFormula || undefined,
-      dataInicio: dataInicio || undefined,
-      dataFim: dataFim || undefined,
+      dataInicio: exportedDataInicio || undefined,
+      dataFim: exportedDataFim || undefined,
     });
     setExcelModalOpen(false);
     // Limpar filtros
     setNomeFormula("");
     setDataInicio("");
     setDataFim("");
+    setExcelDateRange(undefined);
   };
 
   return ( 
@@ -282,7 +293,7 @@ export function ExportDropdown({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
+          <div className="flex flex-row gap-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="nomeFormula">Nome da Fórmula</Label>
               <Input
@@ -293,22 +304,39 @@ export function ExportDropdown({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="dataInicio">Data Início</Label>
-              <Input
-                id="dataInicio"
-                type="date"
-                value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="dataFim">Data Fim</Label>
-              <Input
-                id="dataFim"
-                type="date"
-                value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
-              />
+              <Label>Período</Label>
+              <Popover open={excelPopoverOpen} onOpenChange={setExcelPopoverOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className={"w-full justify-start text-left font-normal " + (!excelDateRange && !dataInicio && !dataFim ? "text-gray-400" : "")}>
+                    {excelDateRange?.from ? (
+                      excelDateRange.to ? (
+                        <>{formatDate(excelDateRange.from, 'dd/MM/yy')} - {formatDate(excelDateRange.to, 'dd/MM/yy')}</>
+                      ) : (
+                        formatDate(excelDateRange.from, 'dd/MM/yyyy')
+                      )
+                    ) : (dataInicio || dataFim) ? (
+                      <>{dataInicio && (<>{dataInicio}</>)}{dataInicio && dataFim ? (' - ' + dataFim) : ''}</>
+                    ) : (
+                      <span>Selecione um Período</span>
+                    )}
+                    <CalendarIcon className="ml-2 h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-2">
+                  <Calendar
+                    mode="range"
+                    locale={pt}
+                    defaultMonth={excelDateRange?.from}
+                    selected={excelDateRange}
+                    onSelect={(r) => setExcelDateRange(r)}
+                    numberOfMonths={1}
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <Button variant="outline" onClick={() => { setExcelDateRange(undefined); setDataInicio(''); setDataFim(''); }}>Limpar</Button>
+                    <Button onClick={() => setExcelPopoverOpen(false)}>Aplicar</Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 

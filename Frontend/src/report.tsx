@@ -856,9 +856,10 @@ export default function Report() {
         </div>
       </div>
 
+
       <div className="flex flex-row gap-2 justify-start w-full">
-        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[80vh] w-[68px]">
-          <div className="flex w-full h-[100dvh] overflow-hidden shadow-md/16 flex border">
+        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-196.5 w-[68px]">
+          <div className="flex w-full h-[568px] 3xl:h-196.5 overflow-hidden shadow-md/16 flex border">
             {content}
           </div>
 

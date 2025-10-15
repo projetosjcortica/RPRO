@@ -77,6 +77,10 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     };
   });
 
+  const [highlightProduto, setHighlightProduto] = useState<string | null>(null);
+
+  console.log(highlightProduto)
+
   // Per-chart handlers
   const handleDonutDateChange = (range: any) => setDonutDateRange(range);
   const applyDonutFilters = () => {
