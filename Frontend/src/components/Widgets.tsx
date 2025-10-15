@@ -34,6 +34,7 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         setLoading(true);
         const params = new URLSearchParams();
         // Só adiciona parâmetros se não forem vazios ou undefined
+        if (filters?.nomeFormula && String(filters.nomeFormula).trim()) params.set('nomeFormula', String(filters.nomeFormula));
         if (filters?.formula && String(filters.formula).trim()) params.set('formula', String(filters.formula));
         if (filters?.dataInicio && String(filters.dataInicio).trim()) params.set('dataInicio', String(filters.dataInicio));
         if (filters?.dataFim && String(filters.dataFim).trim()) params.set('dataFim', String(filters.dataFim));
@@ -41,15 +42,17 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         if (filters?.numero && String(filters.numero).trim()) params.set('numero', String(filters.numero));
 
         const url = `http://localhost:3000/api/chartdata/${chartType}?${params.toString()}`;
+        console.log(`[useChartData] Fetching ${chartType} with filters:`, filters);
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = await res.json();
         
+        console.log(`[useChartData] ${chartType} response:`, body);
         setData(body.chartData || []);
         setStats(body);
         setLoading(false);
       } catch (err) {
-        console.error('Erro ao buscar dados:', err);
+        console.error(`[useChartData] Erro ao buscar dados de ${chartType}:`, err);
         setData([]);
         setStats(null);
         setLoading(false);
@@ -181,6 +184,9 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
 
   return (
     <div className="h-full w-full relative">
+      {/* <div className="absolute top-0 left-0 bg-red-600 text-white px-3 py-1 rounded-br-lg text-xs font-semibold z-10 shadow-md">
+        Medida em KG
+      </div> */}
       {!compact && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           {/* center total */}
@@ -275,9 +281,12 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
   console.log(isHorarios);
 
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full relative">
+      <div className="absolute top-2 left-8 text-gray-700 font-semibold z-10">
+        Produção (kg)
+      </div>
       <ResponsiveContainer  width="100%" height="87%">
-        <BarChart data={data} layout="horizontal" margin={{ left: 20 }}>
+        <BarChart data={data} layout="horizontal" margin={{ left: 20, top: 35 }}>
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
           <Tooltip content={<CustomTooltip stats={stats} />} />
@@ -348,10 +357,13 @@ export function WeeklyChartWidget({ rows, weekStart }: { rows: Entry[] | null, w
   }, [rows, currentWeekStart]);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col relative">
+      <div className="absolute top-2 left-8 text-gray-700 font-semibold z-10">
+        Produção (kg)
+      </div>
       <div className="flex-1">
         <ResponsiveContainer width="100%" height="85%">
-          <BarChart data={weekData}>
+          <BarChart data={weekData} margin={{ top: 35 }}>
             <XAxis dataKey="name" />
             <YAxis />
             <Tooltip content={<CustomTooltip />} />

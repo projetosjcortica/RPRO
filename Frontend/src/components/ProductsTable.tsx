@@ -1,13 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
-// import { Button } from './ui/button';
-// import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 
 type ProdDatum = { name: string; value: number; unit?: string };
 
-export default function ProductsTable({ filters, onHoverName, onLeave }: { filters?: any; onHoverName?: (name: string) => void; onLeave?: () => void }) {
+export default function ProductsTable({ filters, onHoverName, onLeave, highlightName }: { filters?: any; onHoverName?: (name: string) => void; onLeave?: () => void; highlightName?: string | null }) {
   const [data, setData] = useState<ProdDatum[]>([]);
+  // Estado para guardar informações de produtos (unidades, etc)
+  const [produtosInfo, setProdutosInfo] = useState<Record<string, { nome: string; unidade: string }>>({});
   
+  // Buscar informações de produtos
+  useEffect(() => {
+    const fetchProdutosInfo = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/materiaprima/labels');
+        if (!res.ok) return;
+        const data = await res.json();
+        setProdutosInfo(data);
+      } catch (e) {
+        console.error('Erro ao buscar info de produtos:', e);
+      }
+    };
+    
+    fetchProdutosInfo();
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -29,73 +44,62 @@ export default function ProductsTable({ filters, onHoverName, onLeave }: { filte
     void fetchData();
   }, [JSON.stringify(filters)]);
 
-  const top = data;
+  // Converter valor de acordo com a unidade
+  const converterValor = (valor: number, colKey?: string): number => {
+    if (typeof valor !== "number") return valor;
+    let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
+    // Backend retorna valores sempre em kg. Se unidade configurada é 'g', dividimos por 1000
+    if (unidade === 'g') return valor / 1000;
+    return valor;
+  };
+
+  // Formatar dados para exibição igual à página de relatórios
+  const displayProducts = data.map((p, idx) => {
+    const colKey = `col${idx + 6}`; // Simular colKey como na página de relatórios
+    return {
+      nome: p.name,
+      qtd: p.value,
+      colKey
+    };
+  });
 
   return (
-  <>
-    <p className="text-lg font-medium">Produtos</p>
-    <div className='h-72 overflow-auto'>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2">
-          {/* <Sheet>
-      <SheetTrigger asChild>
-        <Button variant="outline" size="sm">Ver todos</Button>
-      </SheetTrigger>
-      <SheetContent side="right">
-        <SheetHeader>
-          <SheetTitle>Produtos (completos)</SheetTitle>
-        </SheetHeader>
-        <div className="p-4 overflow-auto thin-red-scrollbar ">
-          <Table className=''>
-            <TableHeader>
-              <tr>
-                <TableHead>Produto</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-                <TableHead className="text-right">Unidade</TableHead>
-              </tr>
-            </TableHeader>
-            <TableBody>
-              {data.map((p, idx) => (
-                <TableRow key={idx}>
-                  <TableCell className="max-w-[260px] truncate">{p.name}</TableCell>
-                  <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</TableCell>
-                  <TableCell className="text-right">{p.unit ?? 'kg'}</TableCell>
+    <div className="border rounded w-full h-full overflow-auto thin-red-scrollbar">
+      <Table className="w-full table-fixed">
+        <TableHeader>
+          <TableRow className="bg-gray-200 border sticky top-0 z-10">
+            <TableHead className="text-center w-1/2 border-r">Produtos</TableHead>
+            <TableHead className="text-center w-1/2">Quantidade</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {displayProducts && displayProducts.length > 0 ? (
+            displayProducts.map((produto, idx) => {
+              return (
+                <TableRow key={idx}
+                  onMouseEnter={() => onHoverName?.(produto.nome)}
+                  onMouseLeave={() => onLeave?.()}
+                  className={`hover:bg-gray-50 cursor-default ${highlightName === produto.nome ? 'bg-red-50' : ''}`}
+                >
+                  <TableCell className="py-1 text-right border-r">
+                    {produto.nome}
+                  </TableCell>
+                  <TableCell className="py-1 text-right">
+                    {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
+                      minimumFractionDigits: 3,
+                      maximumFractionDigits: 3,
+                    })} {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
+                  </TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </SheetContent>
-    </Sheet> */}
-        </div>
-      </div>
-
-      <div>
-        <Table>
-          <TableHeader>
-            <tr>
-              <TableHead>Produto</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {top.map((p, idx) => (
-              <TableRow key={idx}
-                onMouseEnter={() => onHoverName?.(p.name)}
-                onMouseLeave={() => onLeave?.()}
-              >
-                <TableCell className="max-w-[160px] truncate">{p.name}</TableCell>
-                <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} {'Kg'}</TableCell>
-              </TableRow>
-            ))}
-            {top.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={2}>Nenhum produto</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-    </div></>
+              );
+            })
+          ) : (
+            <TableRow>
+              <TableCell colSpan={2} className="text-center text-gray-500 py-4">Nenhum produto</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

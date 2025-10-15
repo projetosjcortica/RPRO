@@ -182,6 +182,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           value={filtrosTemporarios.nomeFormula}
           onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
           onKeyDown={handleKeyDown}
+          onBlur={handleBuscar}
           className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
@@ -211,7 +212,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             <CalendarIcon className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0">
+        <PopoverContent className="w-auto p-0" onInteractOutside={handleBuscar}>
           <Calendar
             autoFocus
             mode="range"
@@ -243,7 +244,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-52 p-0 thin-red-scrollbar">
+        <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}>
           <Command>
             <CommandInput
               placeholder="Pesquisar códg. do prog..."
@@ -267,6 +268,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   onSelect={() => {
                     setFiltrosTemporarios(prev => ({ ...prev, codigo: '__all' }));
                     setOpenCodigo(false);
+                    handleBuscar();
                   }}
                 >
                   <CheckIcon
@@ -287,6 +289,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                         codigo: prev.codigo === currentValue ? '' : currentValue
                       }));
                       setOpenCodigo(false);
+                       handleBuscar();
                     }}
                   >
                     <CheckIcon
@@ -323,7 +326,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-52 p-0 thin-red-scrollbar" > 
+        <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}> 
           <Command>
             <CommandInput
               placeholder="Pesquisar número..."

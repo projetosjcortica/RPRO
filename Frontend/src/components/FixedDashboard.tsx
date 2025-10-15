@@ -3,6 +3,7 @@ import {
   DonutChartWidget,
   BarChartWidget,
   WeeklyChartWidget,
+  useChartData,
 } from "./Widgets";
 import ProductsTable from './ProductsTable';
 import { useEffect, useState } from 'react';
@@ -78,6 +79,7 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
   });
 
   const [highlightProduto, setHighlightProduto] = useState<string | null>(null);
+  const [highlightFormula, setHighlightFormula] = useState<string | null>(null);
 
   console.log(highlightProduto)
 
@@ -277,31 +279,9 @@ const formatShortDate = (raw?: string | null) => {
 
   const filteredRowsForWeek = filterRowsByDateRange(rows, weeklyFilters);
 
-  // Compute top formulas either from resumo.formulasUtilizadas or derive from rows
-  type FormulaItem = { label: string; value: number };
-  const computeTopFormulas = (): FormulaItem[] => {
-    try {
-      if (resumo && typeof resumo === 'object' && 'formulasUtilizadas' in resumo) {
-        const fu = (resumo as Record<string, unknown>)['formulasUtilizadas'];
-        let values: Array<Record<string, unknown>> = [];
-        if (Array.isArray(fu)) values = fu as Array<Record<string, unknown>>;
-        else if (fu && typeof fu === 'object') values = Object.values(fu as Record<string, unknown>) as Array<Record<string, unknown>>;
-        return values
-          .map((f) => ({ label: String(f['nome'] ?? f['numero'] ?? '—'), value: f['somatoriaTotal'] != null ? Number(f['somatoriaTotal']) : (f['quantidade'] != null ? Number(f['quantidade']) : 0) }))
-          .sort((a, b) => b.value - a.value);
-      }
-    } catch (err: unknown) {
-      // ignore and fallback
-    }
-    if (!rows) return [];
-    const map = new Map<string, number>();
-    rows.forEach((r: Entry) => {
-      const name = r.Nome || '—';
-      const sum = Array.isArray(r.values) ? r.values.reduce((a: number, b: number) => a + (Number(b) || 0), 0) : 0;
-      map.set(name, (map.get(name) || 0) + sum);
-    });
-  return Array.from(map.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
-  };
+  // Buscar dados dos gráficos diretamente
+  const { data: formulasChartData, loading: loadingFormulasChart } = useChartData('formulas', { ...(filters || {}), ...(donutFilters || {}) });
+  // const { data: horariosChartData, loading: loadingHorariosChart } = useChartData('horarios', { ...(filters || {}), ...(horariosFilters || {}) });
 
   return (
     <div className="w-full h-full p-4 scrollbar-custom overflow-hidden">
@@ -330,7 +310,7 @@ const formatShortDate = (raw?: string | null) => {
                         <CalendarIcon className="ml-2 h-4 w-4" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-2" align="end">
+                      <PopoverContent className="w-auto p-2" align="end" onInteractOutside={applyDonutFilters}>
                       <Calendar
                         mode="range"
                         locale={pt}
@@ -352,26 +332,40 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex flex-col lg:flex-row gap-4">
-                <div className="w-full lg:w-1/2 min-h-[220px] -translate-y- 3xl:-translate-y-0">
-                  <DonutChartWidget chartType="formulas" config={{ filters: { ...(filters || {}), ...(donutFilters || {}) } }} />
+            <CardContent className="flex flex-col lg:flex-row gap-4 p-6">
+                <div className="w-full lg:w-1/2 min-h-[220px]">
+                  <DonutChartWidget 
+                    chartType="formulas" 
+                    config={{ filters: { ...(filters || {}), ...(donutFilters || {}) } }}
+                    highlightName={highlightFormula}
+                    onSliceHover={(name) => setHighlightFormula(name)}
+                    onSliceLeave={() => setHighlightFormula(null)}
+                  />
                 </div>
                 <div className="w-full lg:w-1/2">
-                  <div className="text-sm font-medium text-gray-900 mb-2">Todas as Fórmulas</div>
-                  <div className="3xl:h-60 h-46 overflow-y-auto space-y-2 pr-2">
-                    {loadingResumo ? (
+                  <div className="text-sm font-semibold text-gray-900 mb-3">Todas as Fórmulas</div>
+                  <div className="3xl:h-60 h-46 overflow-y-auto space-y-2 pr-2 thin-red-scrollbar">
+                    {loadingFormulasChart ? (
                       <div className="text-sm text-gray-500">Carregando...</div>
+                    ) : !formulasChartData || formulasChartData.length === 0 ? (
+                      <div className="text-sm text-gray-500">Nenhuma fórmula</div>
                     ) : (
-                      (() => {
-                        const list = computeTopFormulas();
-                        if (!list || list.length === 0) return <div className="text-sm text-gray-500">Nenhuma fórmula</div>;
-                        return list.map((f: FormulaItem, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between text-sm border-b">
-                            <div className="truncate pr-2">{f.label}</div>
-                            <div className="font-regular">{f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—'}{"kg"}</div>
+                      formulasChartData.map((f, idx) => {
+                        // const isHighlighted = highlightFormula === f.name;
+                        return (
+                          <div 
+                            key={idx} 
+                            className={`flex items-center justify-between text-sm border-b pb-2 transition-all hover:bg-gray-50`}
+                            onMouseEnter={() => setHighlightFormula(f.name)}
+                            onMouseLeave={() => setHighlightFormula(null)}
+                          >
+                            <div className="truncate pr-2 text-gray-700">{f.name}</div>
+                            <div className={`font-medium whitespace-nowrap text-gray-900`}>
+                              {f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'} kg
+                            </div>
                           </div>
-                        ));
-                      })()
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -403,7 +397,7 @@ const formatShortDate = (raw?: string | null) => {
                           <CalendarIcon className="ml-2 h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" align="end">
+                      <PopoverContent className="w-auto p-2" align="end" onInteractOutside={applyHorariosFilters}>
                         <Calendar
                           mode="range"
                           locale={pt}
@@ -425,10 +419,10 @@ const formatShortDate = (raw?: string | null) => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className=" flex flex-col h-[calc(100%-40px)]">
-                <div className="flex-1 min-h-[250px] pb-7">
+              <CardContent className="flex flex-col lg:flex-row gap-4 h-[calc(100%-64px)] p-6">
+                <div className="w-full  min-h-[250px]">
                   <BarChartWidget chartType="horarios" config={{ filters: { ...(filters || {}), ...(horariosFilters || {}) } }} />
-                </div>
+                </div> 
               </CardContent>
             </Card>
 
@@ -470,6 +464,24 @@ const formatShortDate = (raw?: string | null) => {
                           selected={weeklyDateRange?.from}
                           onSelect={(date) => handleWeeklyDateChange(date)}
                           numberOfMonths={1}
+                          modifiers={{
+                            weekRange: (date) => {
+                              if (!weeklyDateRange?.from) return false;
+                              const start = new Date(weeklyDateRange.from);
+                              start.setHours(0, 0, 0, 0);
+                              const end = new Date(start);
+                              end.setDate(end.getDate() + 6);
+                              end.setHours(23, 59, 59, 999);
+                              return date >= start && date <= end;
+                            }
+                          }}
+                          modifiersStyles={{
+                            weekRange: { 
+                              backgroundColor: 'rgb(254 202 202)', 
+                              color: 'rgb(127 29 29)',
+                              fontWeight: 'bold'
+                            }
+                          }}
                         />
                         <div className="flex gap-2 mt-2 px-1">
                           <Button variant="outline" onClick={clearWeeklyFilters} size="sm" className="w-full">
@@ -503,21 +515,21 @@ const formatShortDate = (raw?: string | null) => {
         </div>
         {/* Sidebar  */}
         <div className=" w-130 space-y-6   overflow-hidden">
-          <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden">
-            <CardHeader className="border-b px-6 py-4">
+          <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[calc(100vh-60px)] flex flex-col">
+            <CardHeader className="border-b px-6 py-4 flex-shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
                   <CardTitle className="text-sm font-semibold">Resumo de Produção</CardTitle>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="">
+            <CardContent className="flex flex-col flex-grow overflow-hidden">
 
                 {resumoError ? (
                   <div className="text-sm text-red-600">Erro ao carregar resumo: {resumoError}</div>
                 ) : (
-                  <div className="space-y-3 flex flex-col gap-3">
-                    <div id="total+horas" className="flex flex-col items-center justify-between mb-6 gap-2">
+                  <div className="flex flex-col h-full gap-3">
+                    <div id="total+horas" className="flex flex-col items-center justify-between mb-6 gap-2 flex-shrink-0">
                       <div className="w-80 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
                         <p className="text-center text-lg font-bold">Total:  {""}
                           {(resumo && typeof resumo.totalPesos === "number"
@@ -573,12 +585,14 @@ const formatShortDate = (raw?: string | null) => {
                     </div>
                      
 
-                    <div id="produtos" className="pt-2 flex flex-col min-h-0">
-                      <div className="flex-1 overflow-hidden">
-                        <ProductsTable
+                    <div id="produtos" className="pt-2 flex flex-col flex-grow min-h-0">
+                      {/* <div className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">Produtos</div> */}
+                      <div className="flex-grow min-h-0">
+                        <ProductsTable 
                           filters={filters} 
                           onHoverName={(name) => setHighlightProduto(name)}
                           onLeave={() => setHighlightProduto(null)}
+                          highlightName={highlightProduto}
                         />
                       </div>
                     </div>

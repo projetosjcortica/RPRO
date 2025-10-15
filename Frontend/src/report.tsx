@@ -918,7 +918,7 @@ export default function Report() {
             <div className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
                  style={{ zIndex: 5 }}>
             <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-red-50 to-gray-50">
+              <div className="flex items-center justify-between px-4 py-3 border-b ">
                 <div className="text-base font-bold text-gray-900">Resumo Visual</div>
               </div>
               <div className="p-4 space-y-4 overflow-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
