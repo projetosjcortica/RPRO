@@ -182,11 +182,11 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                         onValueChange={(value) => handleUnidadeChange(col, value)}
                       >
                         <div className="flex flex-row items-center">
-                          <RadioGroupItem value="1" id={`${col}-g`} />
+                          <RadioGroupItem value="1" id={`${col}-g`} className="border-gray-500" />
                           <Label htmlFor={`${col}-g`} className="text-sm cursor-pointer ml-1">g</Label>
                         </div>
                         <div className="flex flex-row items-center">
-                          <RadioGroupItem value="2" id={`${col}-kg`} />
+                          <RadioGroupItem value="2" id={`${col}-kg`} className="border-gray-500" />
                           <Label htmlFor={`${col}-kg`} className="text-sm cursor-pointer ml-1">kg</Label>
                         </div>
                       </RadioGroup>
