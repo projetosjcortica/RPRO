@@ -7,7 +7,6 @@ import useAuth from './hooks/useAuth';
 import { ProfileConfig, IHMConfig, DatabaseConfig, AdminConfig, usePersistentForm } from './config';
 import Report from './report';
 // import CustomReports from './CustomReports';
-import Estoque from './estoque';
 import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel,} from "./components/ui/sidebar";
 import { HomeIcon, Settings, Sheet } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
@@ -88,6 +87,11 @@ const App = () => {
     //   title:"Estoque",
     //   icon:BarChart3,
     //   path: '/estoque'
+    // },
+    // {
+    //   title:"Gestão de Estoque",
+    //   icon:Factory,
+    //   path: '/estoque-management'
     // }
   ]
   const itemsFooter=[
@@ -98,6 +102,32 @@ const App = () => {
     }
   ]
 
+  const [isBackendReady, setIsBackendReady] = useState(false);
+
+  useEffect(() => {
+    const pingBackend = async () => {
+      try {
+        const response = await fetch('/api/ping');
+        if (response.ok) {
+          setIsBackendReady(true);
+        } else {
+          setTimeout(pingBackend, 1000); // Retry after 1 second
+        }
+      } catch (error) {
+        setTimeout(pingBackend, 1000); // Retry after 1 second
+      }
+    };
+
+    pingBackend();
+  }, []);
+
+  if (!isBackendReady) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="spinner" />
+      </div>
+    );
+  }
   
   return (
     <div id='app' className='flex flex-row w-screen h-dvh overflow-hidden'>
@@ -238,10 +268,9 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
             <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
-            <Route path="/report" element={<RequireAuth><Report /></RequireAuth>} />
-            {/* <Route path="/custom-reports" element={<RequireAuth><CustomReports /></RequireAuth>} /> */}
-            <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
-            {/* <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} /> */}
+            <Route path="/report" element={<RequireAuth><Report /></RequireAuth>} /> 
+            {/* <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} /> 
+            <Route path="/estoque-management" element={<RequireAuth><EstoqueManagement /></RequireAuth>} />  */}
             <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />
           </Routes>
           <ToastContainer

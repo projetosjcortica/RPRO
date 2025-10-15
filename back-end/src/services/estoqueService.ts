@@ -3,22 +3,63 @@ import { AppDataSource } from './dbService';
 import { Estoque } from '../entities/Estoque';
 import { MovimentacaoEstoque, TipoMovimentacao } from '../entities/MovimentacaoEstoque';
 import { MateriaPrima } from '../entities/MateriaPrima';
-import { Repository } from 'typeorm';
+import { Repository, Between, LessThanOrEqual, MoreThan } from 'typeorm';
+import { Row } from '../entities/Row';
 
 /**
- * Serviço de gerenciamento de estoque.
- * Responsável por gerenciar o estoque de matérias-primas.
+ * Interface para relatório de consumo
+ */
+interface ConsumoMateriaPrima {
+  materiaPrimaId: string;
+  nome: string;
+  totalConsumido: number;
+  quantidadeBatidas: number;
+  mediaPorBatida: number;
+  periodo: { inicio: Date; fim: Date };
+}
+
+/**
+ * Interface para projeção de estoque
+ */
+interface ProjecaoEstoque {
+  materiaPrimaId: string;
+  nome: string;
+  estoqueAtual: number;
+  consumoMedioDiario: number;
+  diasRestantes: number;
+  dataEstimadaFalta: Date | null;
+  necessidadeReposicao: boolean;
+  quantidadeSugerida: number;
+}
+
+/**
+ * Interface para estatísticas de estoque
+ */
+interface EstatisticasEstoque {
+  totalItens: number;
+  itensAbaixoMinimo: number;
+  itensAcimaMaximo: number;
+  valorTotalEstoque: number;
+  itensInativos: number;
+  taxaRotatividade: number;
+}
+
+/**
+ * Serviço de gerenciamento de estoque aprimorado.
+ * Responsável por gerenciar estoque, projeções e análises.
  */
 export class EstoqueService extends BaseService {
   private estoqueRepo: Repository<Estoque>;
   private movimentacaoRepo: Repository<MovimentacaoEstoque>;
   private materiaPrimaRepo: Repository<MateriaPrima>;
+  private rowRepo: Repository<Row>;
 
   constructor() {
     super('EstoqueService');
     this.estoqueRepo = AppDataSource.getRepository(Estoque);
     this.movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
     this.materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
+    this.rowRepo = AppDataSource.getRepository(Row);
   }
 
   /**
@@ -344,6 +385,224 @@ export class EstoqueService extends BaseService {
 
     return estoque;
   }
+
+  /**
+   * Calcula consumo de matérias-primas baseado nas batidas registradas
+   */
+  async calcularConsumo(dataInicio?: Date, dataFim?: Date): Promise<ConsumoMateriaPrima[]> {
+    try {
+      const whereCondition: any = {};
+      
+      if (dataInicio && dataFim) {
+        whereCondition.datetime = Between(dataInicio, dataFim);
+      } else if (dataInicio) {
+        whereCondition.datetime = MoreThan(dataInicio);
+      } else if (dataFim) {
+        whereCondition.datetime = LessThanOrEqual(dataFim);
+      }
+
+      const rows = await this.rowRepo.find({
+        where: whereCondition,
+        order: { datetime: 'ASC' }
+      });
+
+      if (rows.length === 0) return [];
+
+      const materiasPrimas = await this.materiaPrimaRepo.find();
+      const consumoPorMateria: Map<string, ConsumoMateriaPrima> = new Map();
+
+      for (const row of rows) {
+        const valores = row.values;
+        if (!valores) continue;
+        
+        for (let i = 0; i < valores.length; i++) {
+          const quantidade = valores[i];
+          if (quantidade && quantidade > 0) {
+            const materia = materiasPrimas.find(m => m.num === i);
+            
+            if (materia) {
+              const consumoExistente = consumoPorMateria.get(materia.id);
+              
+              if (consumoExistente) {
+                consumoExistente.totalConsumido += quantidade;
+                consumoExistente.quantidadeBatidas++;
+                consumoExistente.mediaPorBatida = consumoExistente.totalConsumido / consumoExistente.quantidadeBatidas;
+              } else {
+                const primeiraData = rows[0].datetime || new Date();
+                const ultimaData = rows[rows.length - 1].datetime || new Date();
+                
+                consumoPorMateria.set(materia.id, {
+                  materiaPrimaId: materia.id,
+                  nome: materia.produto,
+                  totalConsumido: quantidade,
+                  quantidadeBatidas: 1,
+                  mediaPorBatida: quantidade,
+                  periodo: {
+                    inicio: dataInicio || primeiraData,
+                    fim: dataFim || ultimaData
+                  }
+                });
+              }
+            }
+          }
+        }
+      }
+
+      return Array.from(consumoPorMateria.values());
+    } catch (error) {
+      console.error(`[EstoqueService] Erro ao calcular consumo: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Projeta quando o estoque acabará baseado no consumo histórico
+   */
+  async projetarEstoque(diasHistorico: number = 30): Promise<ProjecaoEstoque[]> {
+    try {
+      const hoje = new Date();
+      const dataInicio = new Date(hoje.getTime() - (diasHistorico * 24 * 60 * 60 * 1000));
+
+      const consumos = await this.calcularConsumo(dataInicio, hoje);
+      const estoques = await this.listarEstoque();
+      
+      const projecoes: ProjecaoEstoque[] = [];
+
+      for (const estoque of estoques) {
+        const consumo = consumos.find(c => c.materiaPrimaId === estoque.materia_prima_id);
+        
+        if (!consumo || consumo.totalConsumido === 0) {
+          projecoes.push({
+            materiaPrimaId: estoque.materia_prima_id,
+            nome: estoque.materiaPrima.produto,
+            estoqueAtual: estoque.quantidade,
+            consumoMedioDiario: 0,
+            diasRestantes: Infinity,
+            dataEstimadaFalta: null,
+            necessidadeReposicao: estoque.quantidade < estoque.quantidade_minima,
+            quantidadeSugerida: Math.max(0, estoque.quantidade_minima - estoque.quantidade)
+          });
+          continue;
+        }
+
+        const diasPeriodo = (consumo.periodo.fim.getTime() - consumo.periodo.inicio.getTime()) / (24 * 60 * 60 * 1000);
+        const consumoMedioDiario = consumo.totalConsumido / (diasPeriodo || 1);
+        
+        const diasRestantes = consumoMedioDiario > 0 ? estoque.quantidade / consumoMedioDiario : Infinity;
+        const dataEstimadaFalta = diasRestantes !== Infinity && diasRestantes < 365
+          ? new Date(hoje.getTime() + (diasRestantes * 24 * 60 * 60 * 1000))
+          : null;
+        
+        const necessidadeReposicao = diasRestantes < 7 || estoque.quantidade < estoque.quantidade_minima;
+        const quantidadeSugerida = necessidadeReposicao
+          ? Math.max(estoque.quantidade_maxima - estoque.quantidade, consumoMedioDiario * 30 - estoque.quantidade)
+          : 0;
+
+        projecoes.push({
+          materiaPrimaId: estoque.materia_prima_id,
+          nome: estoque.materiaPrima.produto,
+          estoqueAtual: estoque.quantidade,
+          consumoMedioDiario,
+          diasRestantes,
+          dataEstimadaFalta,
+          necessidadeReposicao,
+          quantidadeSugerida: Math.max(0, quantidadeSugerida)
+        });
+      }
+
+      return projecoes.sort((a, b) => {
+        if (a.diasRestantes === Infinity) return 1;
+        if (b.diasRestantes === Infinity) return -1;
+        return a.diasRestantes - b.diasRestantes;
+      });
+    } catch (error) {
+      console.error(`[EstoqueService] Erro ao projetar estoque: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Gera estatísticas gerais do estoque
+   */
+  async gerarEstatisticas(): Promise<EstatisticasEstoque> {
+    try {
+      const estoques = await this.listarEstoque();
+      
+      const estatisticas: EstatisticasEstoque = {
+        totalItens: estoques.length,
+        itensAbaixoMinimo: 0,
+        itensAcimaMaximo: 0,
+        valorTotalEstoque: 0,
+        itensInativos: 0,
+        taxaRotatividade: 0
+      };
+
+      for (const estoque of estoques) {
+        if (!estoque.ativo) {
+          estatisticas.itensInativos++;
+          continue;
+        }
+
+        if (estoque.quantidade < estoque.quantidade_minima) estatisticas.itensAbaixoMinimo++;
+        if (estoque.quantidade > estoque.quantidade_maxima) estatisticas.itensAcimaMaximo++;
+        estatisticas.valorTotalEstoque += estoque.quantidade;
+      }
+
+      const dataInicio = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const movimentacoes = await this.movimentacaoRepo.find({
+        where: { tipo: TipoMovimentacao.SAIDA, data_movimentacao: MoreThan(dataInicio) }
+      });
+
+      const totalSaidas = movimentacoes.reduce((sum, mov) => sum + Number(mov.quantidade), 0);
+      estatisticas.taxaRotatividade = estatisticas.valorTotalEstoque > 0
+        ? (totalSaidas / estatisticas.valorTotalEstoque) * 100
+        : 0;
+
+      return estatisticas;
+    } catch (error) {
+      console.error(`[EstoqueService] Erro ao gerar estatísticas: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Gera dados de exemplo para teste
+   */
+  async gerarDadosExemplo(): Promise<void> {
+    try {
+      console.log('[EstoqueService] Gerando dados de exemplo para estoque...');
+
+      const materiasPrimas = await this.materiaPrimaRepo.find();
+
+      if (materiasPrimas.length === 0) {
+        console.warn('[EstoqueService] Nenhuma matéria-prima encontrada');
+        return;
+      }
+
+      for (const materia of materiasPrimas) {
+        const estoqueExistente = await this.estoqueRepo.findOne({
+          where: { materia_prima_id: materia.id }
+        });
+
+        if (estoqueExistente) continue;
+
+        const quantidadeInicial = Math.floor(Math.random() * 500) + 100;
+        const quantidadeMinima = Math.floor(quantidadeInicial * 0.2);
+        const quantidadeMaxima = Math.floor(quantidadeInicial * 2);
+
+        await this.inicializarEstoque(materia.id, quantidadeInicial, quantidadeMinima, quantidadeMaxima);
+        console.log(`[EstoqueService] Estoque inicializado: ${materia.produto} - ${quantidadeInicial}kg`);
+      }
+
+      console.log('[EstoqueService] Dados de exemplo gerados com sucesso!');
+    } catch (error) {
+      console.error(`[EstoqueService] Erro ao gerar dados de exemplo: ${error}`);
+      throw error;
+    }
+  }
+
+  // Temporarily disable EstoqueService methods
+  // Note: Feature flags can be added to gate responses if needed.
 }
 
 export const estoqueService = new EstoqueService();

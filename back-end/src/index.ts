@@ -234,42 +234,23 @@ async function ensureDatabaseConnection() {
 }
 
 const app = express();
-// Allow CORS from any origin during development. Using the default `cors()`
-// handler ensures proper handling of preflight OPTIONS requests.
-app.use(cors());
-// Also explicitly respond to OPTIONS preflight for all routes (defensive)
-app.options("*", cors());
 
-// Extra safety: ensure the common CORS headers are present on all responses.
-app.use((req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
-  next();
-});
+// Import middlewares
+import { setupCors, errorHandler } from './middleware';
 
-// Defensive: log and respond to preflight OPTIONS explicitly so the browser
-// receives the required CORS headers even if some route middleware would
-// otherwise interfere.
+// Setup CORS
+setupCors(app);
+
+// Defensive: log and respond to preflight OPTIONS explicitly
 app.use((req, res, next) => {
   try {
     if (req.method === "OPTIONS") {
-      console.log(
-        "[CORS preflight] ",
-        req.method,
-        req.path,
-        "from",
-        req.headers.origin
-      );
+      console.log("[CORS preflight]", req.method, req.path, "from", req.headers.origin);
       res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
-      res.setHeader(
-        "Access-Control-Allow-Methods",
-        "GET,POST,PUT,DELETE,OPTIONS"
-      );
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
       res.setHeader(
         "Access-Control-Allow-Headers",
-        req.headers["access-control-request-headers"] ||
-          "Content-Type,Authorization"
+        req.headers["access-control-request-headers"] || "Content-Type,Authorization"
       );
       res.setHeader("Access-Control-Max-Age", "600");
       return res.status(204).end();
@@ -279,9 +260,9 @@ app.use((req, res, next) => {
   }
   next();
 });
-// Allow larger JSON bodies (base64 images can be large). Default was too small and caused 413 errors.
+
+// Allow larger JSON bodies (base64 images can be large)
 app.use(express.json({ limit: "20mb" }));
-// Also accept large urlencoded bodies if any clients send form-encoded data
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // Helper: normalize incoming date strings to ISO `yyyy-MM-dd` used in DB
@@ -307,261 +288,45 @@ function normalizeDateParam(d: any): string | null {
   return null;
 }
 
-app.get("/api/materiaprima/labels", async (req, res) => {
-  try {
-    await ensureDatabaseConnection();
-    const materias = await materiaPrimaService.getAll();
-    // Map MateriaPrima records to frontend-friendly keys.
-    // Assumes `num` is the product index (1..n) and product columns in table start at col6 = Prod_1.
-    const mapping: any = {};
-    const colOffset = 5; // Prod_1 -> col6
-    for (const m of materias) {
-      if (!m) continue;
-      const num = typeof m.num === "number" ? m.num : Number(m.num);
-      if (Number.isNaN(num)) continue;
-      const colKey = `col${num + colOffset}`;
-      mapping[colKey] = {
-        produto: m.produto ?? `Produto ${num}`,
-        medida:
-          typeof m.medida === "number"
-            ? m.medida
-            : m.medida
-            ? Number(m.medida)
-            : 1,
-      };
-    }
-    return res.json(mapping);
-  } catch (e) {
-    console.error("Failed to get materia prima labels", e);
-    return res.status(500).json({});
-  }
-});
+// Route moved to routes/materiaPrima.routes.ts
 
 // --- HTTP API parity for websocket commands ---
 
-app.get("/api/ping", async (req, res) => {
-  try {
-    return res.json({ pong: true, ts: new Date().toISOString() });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "internal" });
-  }
-});
+// Import modularized routes
+import { healthRoutes } from './routes/health.routes';
+import { databaseRoutes } from './routes/database.routes';
+import { collectorRoutes } from './routes/collector.routes';
+import { configRoutes } from './routes/config.routes';
+import { fileRoutes } from './routes/file.routes';
+import { ihmRoutes } from './routes/ihm.routes';
+import { materiaPrimaRoutes } from './routes/materiaPrima.routes';
+import { relatorioRoutes } from './routes/relatorio.routes';
 
-app.get("/api/db/status", async (req, res) => {
-  try {
-    await dbService.init();
-    const repo = AppDataSource.getRepository(Relatorio);
-    const count = await repo.count();
-    return res.json({
-      status: "connected",
-      isInitialized: AppDataSource.isInitialized,
-      relatorioCount: count,
-      ts: new Date().toISOString(),
-    });
-  } catch (e: any) {
-    console.error("[db/status] Error:", e);
-    return res.status(500).json({
-      status: "error",
-      error: e?.message || "internal",
-      isInitialized: AppDataSource.isInitialized,
-      ts: new Date().toISOString(),
-    });
-  }
-});
+// Register health check routes
+healthRoutes(app);
 
-// Clear entire database (DELETE all rows from all entities)
-app.post("/api/db/clear", async (req, res) => {
-  try {
-    await dbService.init();
-    await dbService.clearAll();
-    return res.json({ ok: true });
-  } catch (e: any) {
-    console.error("[api/db/clear] error", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
+// Register database routes
+databaseRoutes(app);
 
-// Compatibility route: some frontends call /api/database/clean
-app.post("/api/database/clean", async (req, res) => {
-  try {
-    await dbService.clearAll();
-    await cacheService.clearAll();
-    return res.json({ ok: true });
-  } catch (e: any) {
-    console.error("[api/database/clean] error", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
+// Register collector routes
+collectorRoutes(app);
 
-// Export DB dump as JSON (and optionally save to disk). Returns { dump, savedPath }
-app.get("/api/db/dump", async (req, res) => {
-  try {
-    await dbService.init();
-    const result = await dbService.exportDump(true);
-    return res.json({
-      ok: true,
-      savedPath: result.savedPath,
-      meta: result.dump._meta,
-    });
-  } catch (e: any) {
-    console.error("[api/db/dump] error", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
+// Register config routes
+configRoutes(app);
 
-// Import DB dump (JSON body with dump object). This will replace existing tables.
-app.post("/api/db/import", async (req, res) => {
-  try {
-    const dumpObj = req.body;
-    if (!dumpObj) return res.status(400).json({ error: "dump body required" });
-    await dbService.init();
-    const result = await dbService.importDump(dumpObj);
-    return res.json({ ok: true, ...result });
-  } catch (e: any) {
-    console.error("[api/db/import] error", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
+// Register file upload routes
+fileRoutes(app);
 
-// Upload and import SQL dump (supports both legacy DD/MM/YY and modern YYYY-MM-DD formats)
-const dumpUpload = multer({ 
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
-});
+// Register IHM helper routes
+ihmRoutes(app);
 
-app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: "No dump file uploaded" });
-    }
+// Register materia-prima routes
+materiaPrimaRoutes(app);
 
-    console.log(`[api/db/import-legacy] Received file: ${req.file.originalname}, size: ${(req.file.size / 1024).toFixed(2)} KB`);
+// Register relatório routes
+relatorioRoutes(app);
 
-    // Check if file has legacy dates
-    const originalContent = req.file.buffer.toString('utf-8');
-    const hadLegacyDates = dumpConverterService.hasLegacyDates(originalContent);
-
-    let finalContent = originalContent;
-    let convertedSizes = {
-      originalSize: req.file.size,
-      convertedSize: req.file.size
-    };
-    let warnings: string[] = [];
-
-    // Convert legacy dates if detected
-    if (hadLegacyDates) {
-      console.log('[api/db/import-legacy] Legacy dates detected, converting...');
-      const converted = dumpConverterService.convertDumpFromBuffer(
-        req.file.buffer,
-        req.file.originalname
-      );
-      finalContent = converted.convertedContent;
-      convertedSizes = {
-        originalSize: converted.originalSize,
-        convertedSize: converted.convertedSize
-      };
-    } else {
-      console.log('[api/db/import-legacy] No legacy dates detected, importing as-is');
-    }
-
-    // Sanitize dump for compatibility (handles partial dumps, different formats, etc.)
-    const sanitized = dumpConverterService.sanitizeDump(finalContent);
-    finalContent = sanitized.sanitized;
-    warnings = sanitized.warnings;
-    
-    if (warnings.length > 0) {
-      console.log('[api/db/import-legacy] Dump sanitized with warnings:', warnings);
-    }
-
-    // Save dump to temporary file for import
-    const tmpDumpPath = path.join(TMP_DIR, `import_${Date.now()}.sql`);
-    fs.writeFileSync(tmpDumpPath, finalContent, 'utf-8');
-
-    console.log(`[api/db/import-legacy] Dump saved to: ${tmpDumpPath}`);
-
-    // Get import options from query params
-    const clearBefore = req.query.clearBefore === 'true';
-    const skipCreateTable = req.query.skipCreateTable === 'true';
-
-    // Execute SQL dump using dbService
-    await dbService.init();
-    
-    // Import the SQL file with options
-    const result = await dbService.executeSqlFile(tmpDumpPath, {
-      failOnError: false,
-      clearBefore,
-      skipCreateTable
-    });
-
-    // Clean up temporary file
-    try {
-      fs.unlinkSync(tmpDumpPath);
-    } catch (e) {
-      console.warn(`[api/db/import-legacy] Failed to delete temp file: ${tmpDumpPath}`, e);
-    }
-
-    return res.json({
-      ok: true,
-      message: "Dump importado com sucesso",
-      hadLegacyDates,
-      originalSize: convertedSizes.originalSize,
-      convertedSize: convertedSizes.convertedSize,
-      dateConversionApplied: hadLegacyDates,
-      clearBefore,
-      skipCreateTable,
-      warnings,
-      result
-    });
-  } catch (e: any) {
-    console.error("[api/db/import-legacy] error", e);
-    return res.status(500).json({ 
-      error: e?.message || "Erro ao importar dump",
-      details: e?.stack 
-    });
-  }
-});
-
-// Export database as SQL dump file
-app.get("/api/db/export-sql", async (req, res) => {
-  try {
-    await dbService.init();
-    
-    console.log('[api/db/export-sql] Generating SQL dump...');
-    
-    const result = await dbService.exportSqlDump();
-    
-    console.log(`[api/db/export-sql] Dump generated: ${result.filePath}, ${(result.size / 1024).toFixed(2)} KB`);
-
-    // Read the file and send it as download
-    const fileContent = fs.readFileSync(result.filePath, 'utf-8');
-    const filename = path.basename(result.filePath);
-
-    res.setHeader('Content-Type', 'application/sql');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Length', result.size);
-    
-    return res.send(fileContent);
-  } catch (e: any) {
-    console.error("[api/db/export-sql] error", e);
-    return res.status(500).json({ 
-      error: e?.message || "Erro ao exportar dump",
-      details: e?.stack 
-    });
-  }
-});
-
-// Clear cache DB used by cacheService
-app.post("/api/cache/clear", async (req, res) => {
-  try {
-    await cacheService.init();
-    await cacheService.clearAll();
-    return res.json({ ok: true });
-  } catch (e: any) {
-    console.error("[api/cache/clear] error", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
+// Additional utility routes below (cache, clearing, etc.)
 
 // Unified clear all: DB + cache + backups
 app.post("/api/clear/all", async (req, res) => {
@@ -733,267 +498,9 @@ app.get("/api/file/process", async (req, res) => {
   }
 });
 
-// Upload CSV and import into DB. Form field: `file` (multipart/form-data)
-const upload = multer({ dest: TMP_DIR });
-app.post("/api/file/upload", upload.single("file"), async (req, res) => {
-  try {
-    await ensureDatabaseConnection();
-    const f: any = req.file;
-    if (!f)
-      return res
-        .status(400)
-        .json({ error: "file is required (field name: file)" });
-    // Determine the saved path (multer uses f.path in some setups, otherwise use destination+filename)
-    const savedPath =
-      f.path || (f.destination ? path.join(f.destination, f.filename) : null);
-    if (!savedPath || !fs.existsSync(savedPath))
-      return res
-        .status(500)
-        .json({ error: "uploaded file not found on server" });
+// Upload route handled by routes/file.routes.ts
 
-    // Backup the uploaded file
-    const meta = await backupSvc.backupFile({
-      originalname: f.originalname || f.filename,
-      path: savedPath,
-      size: f.size,
-    });
-    // Parse
-    const parsed = await parserService.processFile(savedPath);
-    // Insert into DB
-    if (parsed.rows && parsed.rows.length > 0) {
-      await dbService.insertRelatorioRows(
-        parsed.rows as any[],
-        meta.workPath || meta.backupPath || path.basename(savedPath)
-      );
-    }
-    return res.json({
-      ok: true,
-      meta,
-      processed: {
-        rowsCount: parsed.rows.length,
-        processedPath: parsed.processedPath,
-      },
-    });
-  } catch (e: any) {
-    console.error("[api/file/upload] error:", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
-
-app.get("/api/ihm/fetchLatest", async (req, res) => {
-  try {
-    const ip = String(req.query.ip || "");
-    const user = String(req.query.user || "anonymous");
-    const password = String(req.query.password || "");
-    if (!ip) return res.status(400).json({ error: "ip is required" });
-    const tmpDir = path.resolve(
-      process.cwd(),
-      process.env.COLLECTOR_TMP || "tmp"
-    );
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-    const ihm = new IHMService(ip, user, password);
-    const downloaded = await ihm.findAndDownloadNewFiles(tmpDir);
-    if (!downloaded || downloaded.length === 0)
-      return res.json({ ok: true, message: "Nenhum CSV novo encontrado" });
-    const result = downloaded[0];
-    const fileStat = fs.statSync(result.localPath);
-    const fileObj: any = {
-      originalname: result.name,
-      path: result.localPath,
-      mimetype: "text/csv",
-      size: fileStat.size,
-    };
-    const meta = await backupSvc.backupFile(fileObj);
-    const processed = await parserService.processFile(
-      meta.workPath || meta.backupPath
-    );
-    return res.json({ meta, processed });
-  } catch (e: any) {
-    console.error(e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
-
-app.get("/api/relatorio/paginate", async (req, res) => {
-  // quero que seja pro GET e POST
-  try {
-    // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
-    const pageRaw = req.query.page;
-    const pageSizeRaw = req.query.pageSize;
-    const allRaw = String(req.query.all || "").toLowerCase();
-    const returnAll = allRaw === "true" || allRaw === "1";
-    const pageNum = ((): number => {
-      const n = Number(pageRaw);
-      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
-    })();
-    const pageSizeNum = ((): number => {
-      const n = Number(pageSizeRaw);
-      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100;
-    })();
-
-    // Separate filters: `codigo` (Form1 generated by IHM), `numero` (Form2 provided by user), and `formula` (name or code)
-    const codigoRaw = req.query.codigo ?? null;
-    const numeroRaw = req.query.numero ?? null;
-    const formulaRaw = req.query.formula ?? null;
-    const dataInicio = req.query.dataInicio ?? null;
-    const dataFim = req.query.dataFim ?? null;
-    // Normalize date params to yyyy-mm-dd when present
-    const normDataInicio = normalizeDateParam(dataInicio) || null;
-    const normDataFim = normalizeDateParam(dataFim) || null;
-    const sortBy = String(req.query.sortBy || "Dia");
-    const sortDir = String(req.query.sortDir || "DESC");
-    const includeProducts =
-      String(req.query.includeProducts || "true") === "true"; // Default to true for values
-
-    try {
-      await dbService.init();
-    } catch (dbError: any) {
-      console.error(
-        "[relatorio/paginate] Database initialization failed:",
-        dbError
-      );
-      return res.status(500).json({
-        error: "Database connection failed",
-        details: dbError?.message,
-      });
-    }
-
-    const repo = AppDataSource.getRepository(Relatorio);
-    const qb = repo.createQueryBuilder("r");
-
-    // Apply separate numeric filters when provided
-    if (codigoRaw != null && String(codigoRaw) !== "") {
-      const c = Number(codigoRaw);
-      if (!Number.isNaN(c)) {
-        qb.andWhere("r.Form1 = :c", { c });
-      }
-    }
-
-    if (numeroRaw != null && String(numeroRaw) !== "") {
-      const num = Number(numeroRaw);
-      if (!Number.isNaN(num)) {
-        qb.andWhere("r.Form2 = :num", { num });
-      }
-    }
-
-    // Support filtering by formula: numeric => Form1, string => Nome like
-    if (formulaRaw != null && String(formulaRaw) !== "") {
-      const fNum = Number(String(formulaRaw));
-      if (!Number.isNaN(fNum)) {
-        qb.andWhere("r.Form1 = :fNum", { fNum });
-      } else {
-        const fStr = String(formulaRaw).toLowerCase();
-        qb.andWhere("LOWER(r.Nome) LIKE :fStr", { fStr: `%${fStr}%` });
-      }
-    }
-
-    if (normDataInicio) qb.andWhere("r.Dia >= :ds", { ds: normDataInicio });
-    // For inclusive end-date when Dia is date-only, compare with exclusive next day
-    if (normDataFim) {
-      // compute next day
-      const parts = normDataFim.split("-");
-      let dePlus = normDataFim;
-      try {
-        const dt = new Date(
-          Number(parts[0]),
-          Number(parts[1]) - 1,
-          Number(parts[2])
-        );
-        dt.setDate(dt.getDate() + 1);
-        const y = dt.getFullYear();
-        const m = String(dt.getMonth() + 1).padStart(2, "0");
-        const d = String(dt.getDate()).padStart(2, "0");
-        dePlus = `${y}-${m}-${d}`;
-      } catch (e) {
-        dePlus = normDataFim;
-      }
-      qb.andWhere("r.Dia < :dePlus", { dePlus });
-    }
-
-    const allowed = new Set([
-      "Dia",
-      "Hora",
-      "Nome",
-      "Form1",
-      "Form2",
-      // "processedFile",
-    ]);
-    const sb = allowed.has(sortBy) ? sortBy : "Dia";
-    const sd = sortDir === "ASC" ? "ASC" : "DESC";
-    qb.orderBy(`r.${sb}`, sd);
-
-    // Always include products for values mapping
-    const offset = (pageNum - 1) * pageSizeNum;
-    const take = pageSizeNum;
-
-    let rows: any[] = [];
-    let total = 0;
-
-    try {
-      if (returnAll) {
-        rows = await qb.getMany();
-        total = rows.length;
-      } else {
-        [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
-      }
-    } catch (queryError: any) {
-      console.error("[relatorio/paginate] Query execution failed:", queryError);
-      return res
-        .status(500)
-        .json({ error: "Database query failed", details: queryError?.message });
-    }
-
-    // Map rows to include values array from Prod_1 to Prod_40
-    // Normalize product values according to MateriaPrima.measure (grams->kg)
-    const materias = await materiaPrimaService.getAll();
-    const materiasByNum: Record<number, any> = {};
-    for (const m of materias) {
-      const n = typeof m.num === "number" ? m.num : Number(m.num);
-      if (!Number.isNaN(n)) materiasByNum[n] = m;
-    }
-
-    const mappedRows = rows.map((row: any) => {
-      const values: number[] = [];
-      for (let i = 1; i <= 40; i++) {
-        const prodValue = row[`Prod_${i}`];
-        let v =
-          typeof prodValue === "number"
-            ? prodValue
-            : prodValue != null
-            ? Number(prodValue)
-            : 0;
-        const materia = materiasByNum[i];
-        // If materia exists and medida===0 (grams), normalize to kg by dividing 1000
-        if (materia && Number(materia.medida) === 0 && v) {
-          v = v / 1000;
-        }
-        values.push(v);
-      }
-
-      return {
-        Dia: row.Dia || "",
-        Hora: row.Hora || "",
-        Nome: row.Nome || "",
-        Codigo: row.Form1 ?? 0,
-        Numero: row.Form2 ?? 0,
-        values,
-      };
-    });
-
-    const totalPages = Math.ceil(total / pageSizeNum);
-
-    return res.json({
-      rows: mappedRows,
-      total,
-      page: pageNum,
-      pageSize: pageSizeNum,
-      totalPages,
-    });
-  } catch (e: any) {
-    console.error("[relatorio/paginate] Unexpected error:", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
+// IHM helper route handled by routes/ihm.routes.ts
 
 // Export filtered relatorio rows to Excel
 app.get("/api/relatorio/exportExcel", async (req, res) => {
@@ -1378,47 +885,6 @@ app.post("/api/report/logo", async (req, res) => {
   }
 });
 
-app.get("/api/report/logo", async (req, res) => {
-  try {
-    const val = await configService.getSetting("report-logo-path");
-    return res.json({ path: val ?? null });
-  } catch (e: any) {
-    console.error("[report/logo:get] error", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
-
-// Upload a logo file for reports. Accepts multipart ('photo') only (no base64 in DB)
-app.post(
-  "/api/report/logo/upload",
-  // reuse multer for multipart fallback; if request is JSON it will be ignored
-  userUpload.single("photo"),
-  async (req, res) => {
-    try {
-      // Ensure folder exists
-      const destDir = path.resolve(process.cwd(), "user_photos");
-      if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
-
-      // If multipart file present, move it into destDir
-      const f: any = req.file;
-      if (f) {
-        const ext = path.extname(f.originalname || f.filename || "") || ".png";
-        const newName = `report_logo_${Date.now()}${ext}`;
-        const newPath = path.join(destDir, newName);
-        fs.renameSync(f.path, newPath);
-        const relative = `/user_photos/${newName}`;
-        await configService.setSettings({ "report-logo-path": relative });
-        return res.json({ success: true, path: relative });
-      }
-
-      // Only multipart file uploads are accepted now. If no file present, return error.
-      return res.status(400).json({ error: "photo file required (multipart form-data field 'photo')" });
-    } catch (e: any) {
-      console.error("[report/logo/upload] error", e);
-      return res.status(500).json({ error: e?.message || "internal" });
-    }
-  }
-);
 
 app.post("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
@@ -1794,62 +1260,7 @@ app.post("/api/db/populate", async (req, res) => {
   }
 });
 
-app.get("/api/collector/start", async (req, res) => {
-  try {
-    // Accept optional override parameters
-    const overrideConfig: any = {};
-    if (req.query.ip) overrideConfig.ip = String(req.query.ip);
-    if (req.query.user) overrideConfig.user = String(req.query.user);
-    if (req.query.password)
-      overrideConfig.password = String(req.query.password);
-
-    const result = await startCollector(
-      Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined
-    );
-    return res.json(result);
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "internal" });
-  }
-});
-
-app.post("/api/collector/start", async (req, res) => {
-  try {
-    // Accept optional override parameters in body
-    const { ip, user, password } = req.body || {};
-    const overrideConfig: any = {};
-    if (ip) overrideConfig.ip = String(ip);
-    if (user) overrideConfig.user = String(user);
-    if (password) overrideConfig.password = String(password);
-
-    const result = await startCollector(
-      Object.keys(overrideConfig).length > 0 ? overrideConfig : undefined
-    );
-    return res.json(result);
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "internal" });
-  }
-});
-
-app.get("/api/collector/stop", async (req, res) => {
-  try {
-    const result = await stopCollector();
-    return res.json(result);
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "internal" });
-  }
-});
-
-app.get("/api/collector/status", async (_req, res) => {
-  try {
-    return res.json(getCollectorStatus());
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "internal" });
-  }
-});
+// Collector routes moved to routes/collector.routes.ts
 
 app.get("/api/relatorioPdf", async (req, res) => {});
 
@@ -3150,6 +2561,261 @@ fileProcessorService.addObserver({
       String(e)
     );
   }
+
+  // =====================================
+  // ROTAS DE ESTOQUE
+  // =====================================
+  
+  /**
+   * GET /api/estoque - Lista todo o estoque
+   */
+  app.get("/api/estoque", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      const apenasAtivos = req.query.ativos === 'true';
+      const apenasAbaixoMinimo = req.query.abaixo_minimo === 'true';
+      
+      let estoques = await estoqueService.listarEstoque(apenasAtivos);
+      
+      if (apenasAbaixoMinimo) {
+        estoques = estoques.filter(e => e.quantidade < e.quantidade_minima);
+      }
+      
+      res.json(estoques);
+    } catch (error) {
+      console.error('[Estoque] Erro ao listar estoque:', error);
+      res.status(500).json({ error: 'Erro ao listar estoque', details: String(error) });
+    }
+  });
+
+  /**
+   * GET /api/estoque/:id - Busca estoque por matéria-prima
+   */
+  app.get("/api/estoque/:materiaPrimaId", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      const estoque = await estoqueService.obterEstoque(req.params.materiaPrimaId);
+      
+      if (!estoque) {
+        return res.status(404).json({ error: 'Estoque não encontrado' });
+      }
+      
+      res.json(estoque);
+    } catch (error) {
+      console.error('[Estoque] Erro ao buscar estoque:', error);
+      res.status(500).json({ error: 'Erro ao buscar estoque', details: String(error) });
+    }
+  });
+
+  /**
+   * POST /api/estoque/inicializar - Inicializa estoque para uma matéria-prima
+   */
+  app.post("/api/estoque/inicializar", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      const { materiaPrimaId, quantidadeInicial, minimo, maximo } = req.body;
+      
+      if (!materiaPrimaId) {
+        return res.status(400).json({ error: 'ID da matéria-prima é obrigatório' });
+      }
+      
+      const estoque = await estoqueService.inicializarEstoque(
+        materiaPrimaId,
+        quantidadeInicial || 0,
+        minimo || 0,
+        maximo || 0
+      );
+      
+      res.json(estoque);
+    } catch (error) {
+      console.error('[Estoque] Erro ao inicializar estoque:', error);
+      res.status(500).json({ error: 'Erro ao inicializar estoque', details: String(error) });
+    }
+  });
+
+  /**
+   * POST /api/estoque/entrada - Registra entrada de estoque
+   */
+  app.post("/api/estoque/entrada", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      const { materiaPrimaId, quantidade, observacoes, responsavel, documentoReferencia } = req.body;
+      
+      if (!materiaPrimaId || !quantidade || quantidade <= 0) {
+        return res.status(400).json({ error: 'Matéria-prima e quantidade válida são obrigatórios' });
+      }
+      
+      const estoque = await estoqueService.adicionarEstoque(
+        materiaPrimaId,
+        Number(quantidade),
+        observacoes,
+        responsavel,
+        documentoReferencia
+      );
+      
+      res.json({ success: true, estoque });
+    } catch (error) {
+      console.error('[Estoque] Erro ao registrar entrada:', error);
+      res.status(500).json({ error: 'Erro ao registrar entrada', details: String(error) });
+    }
+  });
+
+  /**
+   * POST /api/estoque/saida - Registra saída de estoque
+   */
+  app.post("/api/estoque/saida", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      const { materiaPrimaId, quantidade, observacoes, responsavel, documentoReferencia } = req.body;
+      
+      if (!materiaPrimaId || !quantidade || quantidade <= 0) {
+        return res.status(400).json({ error: 'Matéria-prima e quantidade válida são obrigatórios' });
+      }
+      
+      const estoque = await estoqueService.removerEstoque(
+        materiaPrimaId,
+        Number(quantidade),
+        observacoes,
+        responsavel,
+        documentoReferencia
+      );
+      
+      res.json({ success: true, estoque });
+    } catch (error) {
+      console.error('[Estoque] Erro ao registrar saída:', error);
+      res.status(400).json({ error: String(error) });
+    }
+  });
+
+  /**
+   * GET /api/estoque/movimentacoes - Lista histórico de movimentações
+   */
+  app.get("/api/estoque/movimentacoes", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      
+      const { materiaPrimaId, tipo, dataInicio, dataFim } = req.query;
+      
+      const movimentacoes = await estoqueService.listarMovimentacoes(
+        materiaPrimaId as string | undefined,
+        tipo as any,
+        dataInicio ? new Date(dataInicio as string) : undefined,
+        dataFim ? new Date(dataFim as string) : undefined
+      );
+      
+      res.json(movimentacoes);
+    } catch (error) {
+      console.error('[Estoque] Erro ao listar movimentações:', error);
+      res.status(500).json({ error: 'Erro ao listar movimentações', details: String(error) });
+    }
+  });
+
+  /**
+   * GET /api/estoque/consumo - Calcula consumo de matérias-primas
+   */
+  app.get("/api/estoque/consumo", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      
+      const { dataInicio, dataFim } = req.query;
+      
+      const consumo = await estoqueService.calcularConsumo(
+        dataInicio ? new Date(dataInicio as string) : undefined,
+        dataFim ? new Date(dataFim as string) : undefined
+      );
+      
+      res.json(consumo);
+    } catch (error) {
+      console.error('[Estoque] Erro ao calcular consumo:', error);
+      res.status(500).json({ error: 'Erro ao calcular consumo', details: String(error) });
+    }
+  });
+
+  /**
+   * GET /api/estoque/projecao - Projeta quando o estoque acabará
+   */
+  app.get("/api/estoque/projecao", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      
+      const diasHistorico = req.query.dias ? Number(req.query.dias) : 30;
+      const projecao = await estoqueService.projetarEstoque(diasHistorico);
+      
+      res.json(projecao);
+    } catch (error) {
+      console.error('[Estoque] Erro ao projetar estoque:', error);
+      res.status(500).json({ error: 'Erro ao projetar estoque', details: String(error) });
+    }
+  });
+
+  /**
+   * GET /api/estoque/estatisticas - Gera estatísticas do estoque
+   */
+  app.get("/api/estoque/estatisticas", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      
+      const estatisticas = await estoqueService.gerarEstatisticas();
+      res.json(estatisticas);
+    } catch (error) {
+      console.error('[Estoque] Erro ao gerar estatísticas:', error);
+      res.status(500).json({ error: 'Erro ao gerar estatísticas', details: String(error) });
+    }
+  });
+
+  /**
+   * POST /api/estoque/gerar-dados-exemplo - Gera dados de exemplo
+   */
+  app.post("/api/estoque/gerar-dados-exemplo", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      
+      await estoqueService.gerarDadosExemplo();
+      res.json({ success: true, message: 'Dados de exemplo gerados com sucesso' });
+    } catch (error) {
+      console.error('[Estoque] Erro ao gerar dados de exemplo:', error);
+      res.status(500).json({ error: 'Erro ao gerar dados de exemplo', details: String(error) });
+    }
+  });
+
+  /**
+   * PUT /api/estoque/limites - Atualiza limites mínimo e máximo
+   */
+  app.put("/api/estoque/limites", async (req, res) => {
+    try {
+      await ensureDatabaseConnection();
+      const { estoqueService } = await import('./services/estoqueService');
+      const { materiaPrimaId, minimo, maximo } = req.body;
+      
+      if (!materiaPrimaId || minimo === undefined || maximo === undefined) {
+        return res.status(400).json({ error: 'Matéria-prima, mínimo e máximo são obrigatórios' });
+      }
+      
+      const estoque = await estoqueService.atualizarLimites(
+        materiaPrimaId,
+        Number(minimo),
+        Number(maximo)
+      );
+      
+      res.json(estoque);
+    } catch (error) {
+      console.error('[Estoque] Erro ao atualizar limites:', error);
+      res.status(500).json({ error: 'Erro ao atualizar limites', details: String(error) });
+    }
+  });
+
+  // Error handler middleware (deve ser o último)
+  app.use(errorHandler);
 
   app.listen(HTTP_PORT, () =>
     console.log(`[Server] API server running on port ${HTTP_PORT}`)

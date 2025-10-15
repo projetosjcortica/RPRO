@@ -361,6 +361,27 @@ export class Processador {
     return this.estoqueOperation('inicializar', { materiaPrimaId, quantidade, minimo, maximo });
   }
 
+  // Generic GET/POST methods for estoque routes
+  public sendGet(endpoint: string, params?: any) {
+    const url = endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`;
+    return this.makeRequest(url, 'GET', params);
+  }
+
+  public sendPost(endpoint: string, data?: any) {
+    const url = endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`;
+    return this.makeRequest(url, 'POST', data);
+  }
+
+  public sendPut(endpoint: string, data?: any) {
+    const url = endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`;
+    return this.makeRequest(url, 'PUT', data);
+  }
+
+  public sendDelete(endpoint: string, params?: any) {
+    const url = endpoint.startsWith('/') ? endpoint : `/api/${endpoint}`;
+    return this.makeRequest(url, 'DELETE', params);
+  }
+
   // Método genérico para executar comandos
   public executarWs(comando: string, parametros: any = {}) {
     return this.sendWithConnectionCheck(comando, parametros);
@@ -454,3 +475,6 @@ export function clearProcessador(): void {
     globalProcessadorInstance = null;
   }
 }
+
+// Default export for compatibility
+export default getProcessador();

@@ -586,8 +586,6 @@ const formatShortDate = (raw?: string | null) => {
                       <div className="flex-1 overflow-hidden">
                         <ProductsTable
                           filters={filters}
-                          onHoverName={(name) => setHighlightProduto(name)}
-                          onLeave={() => setHighlightProduto(null)}
                         />
                       </div>
                     </div>
