@@ -288,7 +288,7 @@ const formatShortDate = (raw?: string | null) => {
       <div className="flex gap-6 h-full justify-between scrollbar-custom overflow-hidden">
         <div className="flex w-full space-y-6 flex-col">
           {/* First row: Formulas Donut */}
-          <Card className=" shadow-md border border-indigo-50 rounded-xl overflow-hidden h-90 w-full 3xl:h-105">
+          <Card className=" shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 w-full 3xl:h-105">
             <CardHeader className="border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
@@ -374,7 +374,7 @@ const formatShortDate = (raw?: string | null) => {
 
           {/* Second row: Horarios & Weekly */}
           <div className="flex gap-6">
-            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden w-1/2 h-80 3xl:h-121">
+            <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden w-1/2 h-80 3xl:h-121">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -427,7 +427,7 @@ const formatShortDate = (raw?: string | null) => {
             </Card>
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-80 w-1/2 3xl:h-121 ">
+            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden h-80 w-1/2 3xl:h-121 ">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -514,8 +514,8 @@ const formatShortDate = (raw?: string | null) => {
           </div>
         </div>
         {/* Sidebar  */}
-        <div className=" w-130 space-y-6 overflow-hidden shadow-md h-[calc(100vh-64px)] 3xl:h-[calc(100vh-54px)] rounded-xl">
-          <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-[calc(100vh-64px)] 3xl:h-[calc(100vh-54px)] flex flex-col">
+        <div className=" w-130 space-y-6 overflow-hidden shadow-xl h-[calc(100vh-64px)] 3xl:h-[calc(100vh-54px)] rounded-xl">
+          <Card className="bg-white shadow-md border border-gray-300 rounded-xl overflow-hidden h-[calc(100vh-64px)] 3xl:h-[calc(100vh-54px)] flex flex-col">
             <CardHeader className="border-b px-6 py-4 flex-shrink-0 border-indigo-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">

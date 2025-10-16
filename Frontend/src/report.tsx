@@ -941,7 +941,7 @@ export default function Report() {
 
       <div className="flex flex-row gap-2 justify-start w-full">
         <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-196.5 w-[68px]">
-          <div className="flex w-full h-[568px] 3xl:h-196.5 overflow-hidden shadow-md/16 flex border">
+          <div className="flex w-full h-[568px] 3xl:h-196.5 overflow-hidden shadow-xl rounded flex border border-gray-300">
             {content}
           </div>
 
@@ -994,7 +994,7 @@ export default function Report() {
         </div>
 
         {/* Side Info com drawer de gráficos atrás */}
-        <div className="relative w-87 h-[74vh] flex flex-col p-2 shadow-md/16 rounded-xs gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
+        <div className="relative w-87 h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
           {chartsOpen && (
             <div className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
@@ -1115,7 +1115,7 @@ export default function Report() {
 
           {/* Botão para abrir/fechar drawer (fica colado à esquerda do sideinfo) */}
           <button
-            className="absolute -left-6 top-1/2 -translate-y-1/2 bg-white border rounded-l px-1.5 py-2 shadow hover:bg-gray-50"
+            className="absolute -left-6 top-1/2 -translate-y-1/2 bg-white border border-gray-300 rounded-l px-1.5 py-2 shadow hover:bg-gray-50"
             onClick={() => setChartsOpen(s => !s)}
             title={chartsOpen ? 'Ocultar gráficos' : 'Mostrar gráficos'}
             style={{ zIndex: 7 }}
@@ -1178,7 +1178,7 @@ export default function Report() {
           </div>
 
           {/* Produtos */}
-            <div className="border rounded flex-grow overflow-auto thin-red-scrollbar w-full">
+            <div className="border border-gray-300 rounded flex-grow overflow-auto thin-red-scrollbar w-full">
               {/* Toggle entre Produtos e Fórmulas */}
               <div className="flex gap-2 p-2 border-b sticky top-0 bg-white z-10">
                 <button

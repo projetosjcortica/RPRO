@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Input } from "./components/ui/input";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
+import { Separator } from "./components/ui/separator";
 
 interface ProductsProps {
   colLabels: { [key: string]: string };
@@ -177,7 +178,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
 
                     <div className="flex items-center justify-center border border-gray-400 rounded-lg px-2 min-w-24">
                       <RadioGroup
-                        className="flex flex-row gap-1"
+                        className="flex flex-row gap-3"
                         value={unidadeAtual === "g" ? "1" : "2"}
                         onValueChange={(value) => handleUnidadeChange(col, value)}
                       >
