@@ -325,14 +325,14 @@ export function ProfileConfig({
       <Profile />
       
       {user?.isAdmin && (
-        <div className="mt-4 border rounded p-3 bg-white">
-          <Label className="mt-2">
+        <div className="mt-4 border border-gray-300 rounded p-3 bg-white">
+          <Label>
             Nome da empresa
             <Input
               type="text"
               value={formData.nomeCliente || ""}
               onChange={(e) => onChange("nomeCliente", e.target.value)}
-              className="mt-2"
+              className="mt-2 border border-black"
             />
           </Label>
         </div>
@@ -628,7 +628,7 @@ export function AdminConfig({
 
   // ✅ RETURN FINAL
   return (
-    <div id="adm" className="flex flex-col gap-4 bg-white">
+    <div id="adm" className="flex flex-col gap-3 bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
       </h2>

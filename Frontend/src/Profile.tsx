@@ -163,9 +163,9 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto bg-white rounded-md shadow-sm">
+    <div className="p-6 max-w-2xl mx-auto bg-white rounded-md ">
       <div className="flex items-center gap-6">
-        <Avatar className="size-20">
+        <Avatar className="size-20 bg-gray">
           {preview ? (
             <AvatarImage src={preview} alt="avatar" />
           ) : (
@@ -206,6 +206,7 @@ const Profile: React.FC = () => {
             <Input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
+              className="border border-black"
             />  
             <Button onClick={saveName} size="sm">
               Salvar nome
@@ -219,7 +220,7 @@ const Profile: React.FC = () => {
           <div className="flex items-center gap-3">
             <label
               htmlFor="profile-upload"
-              className="cursor-pointer flex items-center gap-2 px-3 py-2  shadow-xs border rounded-lg  hover:bg-gray-100 transition"
+              className="cursor-pointer flex items-center gap-2 px-3 py-2 shadow-xs border border-black rounded-lg hover:bg-gray-100 transition"
             >
               <Plus className="h-4 w-4 text-red-600" />
               <span className="text-sm text-gray-700 font-medium">
@@ -229,7 +230,7 @@ const Profile: React.FC = () => {
                 id="profile-upload"
                 type="file"
                 accept="image/*"
-                className="hidden"  
+                className="hidden border border-black"  
                 onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
               />
             </label>
@@ -242,7 +243,7 @@ const Profile: React.FC = () => {
                 variant="secondary"
                 size="sm"
                 disabled={!file}
-                className="enabled:bg-destructive/90 enabled:text-white "
+                className="bg-gray-300 enabled:bg-destructive/90 enabled:text-white "
               >
                 Enviar
               </Button>
@@ -253,7 +254,7 @@ const Profile: React.FC = () => {
                     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
                   );
                 }}
-                variant="ghost"
+                variant="outline"
                 size="sm"
               >
                 Cancelar
