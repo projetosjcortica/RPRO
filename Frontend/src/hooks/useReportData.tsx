@@ -16,6 +16,51 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
     setReloadFlag((flag) => flag + 1);
   }, []);
 
+  // Prefetch function - carrega dados em segundo plano sem afetar o estado
+  const prefetchData = useCallback(async (prefetchPage: number) => {
+    try {
+      const params = new URLSearchParams();
+      params.set("page", String(prefetchPage || 1));
+      params.set("pageSize", String(pageSize || 100));
+
+      // Map frontend filtros to backend query params
+      if ((filtros as any).nomeFormula) params.set("formula", String((filtros as any).nomeFormula));
+      if ((filtros as any).dataInicio) params.set("dataInicio", String((filtros as any).dataInicio));
+      if ((filtros as any).dataFim) params.set("dataFim", String((filtros as any).dataFim));
+      if ((filtros as any).codigo) params.set("codigo", String((filtros as any).codigo));
+      if ((filtros as any).numero) params.set("numero", String((filtros as any).numero));
+
+      const cacheKey = `${params.toString()}-${prefetchPage}-${pageSize}`;
+      
+      // Se já estiver em cache, não precisa buscar novamente
+      if (reportDataCache[cacheKey]) return;
+      
+      console.log(`[useReportData] Prefetching página ${prefetchPage}`);
+      const url = `http://localhost:3000/api/relatorio/paginate?${params.toString()}`;
+      
+      const res = await fetch(url, { 
+        method: "GET", 
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      
+      if (!res.ok) return;
+      
+      const body = await res.json();
+      const newRows = Array.isArray(body.rows) ? body.rows as any[] : [];
+      const newTotal = Number(body.total) || 0;
+      
+      // Atualizar cache
+      reportDataCache[cacheKey] = {
+        data: newRows,
+        total: newTotal,
+        timestamp: Date.now()
+      };
+    } catch (err) {
+      // Ignora erros no prefetch
+      console.log(`[useReportData] Prefetch falhou para página ${prefetchPage}`);
+    }
+  }, [filtros, pageSize]);
+
   useEffect(() => {
     const controller = new AbortController();
     const signal = controller.signal;
@@ -43,10 +88,10 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
         // Criar chave de cache
         const cacheKey = `${params.toString()}-${page}-${pageSize}`;
         
-        // Verificar cache (válido por 30 segundos)
+        // Verificar cache (válido por 2 minutos)
         const now = Date.now();
         const cachedItem = reportDataCache[cacheKey];
-        if (cachedItem && (now - cachedItem.timestamp < 30000)) {
+        if (cachedItem && (now - cachedItem.timestamp < 120000)) {
           console.log(`[useReportData] Usando cache para página ${page}`);
           setDados(cachedItem.data);
           setTotal(cachedItem.total);
@@ -107,6 +152,13 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
         }
         
         setRetryCount(0);
+      
+      // Prefetch próximas páginas em segundo plano
+      if (page > 1) {
+        setTimeout(() => prefetchData(page - 1), 300);
+      }
+      setTimeout(() => prefetchData(page + 1), 100);
+      setTimeout(() => prefetchData(page + 2), 500);
       } catch (err: any) {
         if (!isMounted) return;
         if (err.name === 'AbortError') return;
@@ -155,7 +207,7 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
       if (retryTimeout) clearTimeout(retryTimeout);
     };
   // Use serialized filtros to avoid needless re-runs when object identity changes
-  }, [JSON.stringify(filtros), page, pageSize, reloadFlag, retryCount]);
+  }, [JSON.stringify(filtros), page, pageSize, reloadFlag, retryCount, prefetchData]);
 
   return { dados, loading, error, total, refetch };
 }

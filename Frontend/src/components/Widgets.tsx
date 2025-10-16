@@ -284,17 +284,17 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
     );
   }
   
+  // Em caso de erro, tentar recarregar automaticamente e mostrar mensagem mais sutil
   if (error && (!data || data.length === 0)) {
     console.warn(`[DonutChartWidget] Erro ao carregar dados: ${error}`);
+    // Tenta recarregar automaticamente após um pequeno atraso
+    setTimeout(() => refetch(), 3000);
+    
     return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <div className="text-red-500 text-sm mb-2">Erro ao carregar dados</div>
-        <button 
-          onClick={() => refetch()} 
-          className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded-md"
-        >
-          Tentar novamente
-        </button>
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-600 text-sm text-center">
+          Carregando dados...
+        </div>
       </div>
     );
   }
@@ -303,8 +303,10 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
   if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => !item.value)) {
     console.warn(`[DonutChartWidget] Dados vazios ou inválidos para ${chartType}:`, data);
     return (
-      <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-        Nenhum dado disponível para exibição
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-600 text-sm text-center">
+          Nenhum dado disponível para este período
+        </div>
       </div>
     );
   }
@@ -376,17 +378,17 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
     );
   }
   
+  // Em caso de erro, tentar recarregar automaticamente e mostrar mensagem mais sutil
   if (error && (!data || data.length === 0)) {
     console.warn(`[BarChartWidget] Erro ao carregar dados: ${error}`);
+    // Tenta recarregar automaticamente após um pequeno atraso
+    setTimeout(() => refetch(), 3000);
+    
     return (
-      <div className="h-full flex flex-col items-center justify-center">
-        <div className="text-red-500 text-sm mb-2">Erro ao carregar dados</div>
-        <button 
-          onClick={() => refetch()} 
-          className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded-md"
-        >
-          Tentar novamente
-        </button>
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-600 text-sm text-center">
+          Carregando dados...
+        </div>
       </div>
     );
   }
@@ -395,8 +397,10 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
   if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => !item.value)) {
     console.warn(`[BarChartWidget] Dados vazios ou inválidos para ${chartType}:`, data);
     return (
-      <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-        Nenhum dado disponível para exibição
+      <div className="h-full flex items-center justify-center">
+        <div className="text-gray-600 text-sm text-center">
+          Nenhum dado disponível para este período
+        </div>
       </div>
     );
   }

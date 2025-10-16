@@ -64,8 +64,8 @@ const App = () => {
   useEffect(() => {
     // If runtime configs are loaded, prefer those values
     if (!runtime || runtime.loading) return;
-    const p = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
-    const g = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
+    const g = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
+    const p = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
     setSideInfo({ granja: g, proprietario: p });
   }, [runtime]);
   

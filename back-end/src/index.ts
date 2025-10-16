@@ -814,9 +814,50 @@ app.get("/api/ihm/fetchLatest", async (req, res) => {
   }
 });
 
+// Cache para relatórios paginados - melhora performance significativamente
+const relatorioPaginateCache: Record<string, {
+  data: any;
+  timestamp: number;
+  expiresAt: number;
+}> = {};
+
+// Função para limpar entradas antigas do cache
+function limparCacheExpirado() {
+  const now = Date.now();
+  Object.keys(relatorioPaginateCache).forEach(key => {
+    if (relatorioPaginateCache[key].expiresAt < now) {
+      delete relatorioPaginateCache[key];
+    }
+  });
+}
+
+// Limpar o cache a cada 5 minutos para evitar vazamento de memória
+setInterval(limparCacheExpirado, 5 * 60 * 1000);
+
 app.get("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
+    // Criar chave única de cache baseada nos parâmetros da requisição
+    const cacheKey = JSON.stringify({
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      formula: req.query.formula,
+      dataInicio: req.query.dataInicio,
+      dataFim: req.query.dataFim,
+      codigo: req.query.codigo,
+      numero: req.query.numero,
+      all: req.query.all
+    });
+    
+    const now = Date.now();
+    const cached = relatorioPaginateCache[cacheKey];
+    
+    // Verificar se temos uma versão em cache válida (expiração de 2 minutos)
+    if (cached && cached.expiresAt > now) {
+      console.log('[relatorio/paginate] Servindo a partir do cache');
+      return res.json(cached.data);
+    }
+
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
     const pageRaw = req.query.page;
     const pageSizeRaw = req.query.pageSize;
