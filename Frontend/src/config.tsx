@@ -370,8 +370,7 @@ export function IHMConfig({
 
   // ✅ RETURN FINAL
   return (
-    <div id="webCfg" className="flex flex-col gap-4 bg-white">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">Configuração IHM</h2>
+    <div id="webCfg" className="flex flex-col gap-4 bg-white"> 
 
       <Label className="font-medium text-gray-700">
         IP da IHM
@@ -481,10 +480,7 @@ export function DatabaseConfig({
 
   // ✅ RETURN FINAL
   return (
-    <div id="dbCfg" className="flex flex-col gap-4 bg-white">
-      <h2 className="text-xl font-bold text-gray-800 mb-4">
-        Configuração do Banco de Dados
-      </h2>
+    <div id="dbCfg" className="flex flex-col gap-4 bg-white"> 
 
       <Label className="font-medium text-gray-700">
         Server
