@@ -218,14 +218,14 @@ const formatShortDate = (raw?: string | null) => {
     try {
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
         const [y, m, d] = s.split('-').map(Number);
-        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
       }
       if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
         const [d, m, y] = s.split('-').map(Number);
-        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
       }
       const parsed = new Date(s);
-      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yy');
+      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
       return s;
     } catch (e) {
       return s;

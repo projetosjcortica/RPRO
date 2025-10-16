@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Pie, PieChart, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import type { ChartType } from "../home";
 
@@ -22,16 +22,29 @@ type ChartDatum = {
 
 import { DASHBOARD_COLORS as COLORS } from "../lib/colors";
 
+// Cache para armazenar os resultados de consultas anteriores
+const chartDataCache: Record<string, { data: ChartDatum[], stats: any, timestamp: number }> = {};
+
 // Hook para buscar dados do backend
 export const useChartData = (chartType: ChartType, filters?: any) => {
   const [data, setData] = useState<ChartDatum[]>([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    
     const fetchData = async () => {
+      if (!isMounted) return;
+      
       try {
         setLoading(true);
+        setError(null);
+        
+        // Construir parâmetros de consulta
         const params = new URLSearchParams();
         // Só adiciona parâmetros se não forem vazios ou undefined
         if (filters?.nomeFormula && String(filters.nomeFormula).trim()) params.set('nomeFormula', String(filters.nomeFormula));
@@ -41,30 +54,124 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         if (filters?.codigo && String(filters.codigo).trim()) params.set('codigo', String(filters.codigo));
         if (filters?.numero && String(filters.numero).trim()) params.set('numero', String(filters.numero));
 
+        // Criar chave de cache usando tipo de gráfico e parâmetros
+        const cacheKey = `${chartType}:${params.toString()}`;
+        
+        // Verificar cache (válido por 1 minuto)
+        const now = Date.now();
+        const cachedItem = chartDataCache[cacheKey];
+        if (cachedItem && (now - cachedItem.timestamp < 60000)) {
+          console.log(`[useChartData] Usando cache para ${chartType}`);
+          setData(cachedItem.data);
+          setStats(cachedItem.stats);
+          setLoading(false);
+          return;
+        }
+        
         const url = `http://localhost:3000/api/chartdata/${chartType}?${params.toString()}`;
         console.log(`[useChartData] Fetching ${chartType} with filters:`, filters);
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = await res.json();
         
-        console.log(`[useChartData] ${chartType} response:`, body);
-        setData(body.chartData || []);
+        console.log(`[useChartData] Fetching from: ${url}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // Aumentado para 20 segundos timeout
+        
+        try {
+          const res = await fetch(url, { 
+            signal: controller.signal,
+            headers: { 'Cache-Control': 'no-cache' }
+          });
+          
+          clearTimeout(timeoutId);
+          
+          console.log(`[useChartData] Response status: ${res.status} ${res.statusText}`);
+          
+          if (!res.ok) throw new Error(`Erro HTTP ${res.status} ${res.statusText}`);
+          
+          const body = await res.json();
+          if (!isMounted) return;
+          
+          console.log(`[useChartData] ${chartType} response body:`, body);
+          
+          // Verificar se os dados estão realmente presentes
+          if (!body || !body.chartData) {
+            console.warn(`[useChartData] Resposta inválida ou vazia para ${chartType}`);
+            throw new Error("Dados inválidos ou incompletos");
+          }
+          
+          // Garantir que o chartData seja um array válido
+          const chartData = Array.isArray(body.chartData) ? body.chartData : [];
+          
+          console.log(`[useChartData] ${chartType} chartData:`, chartData);
+          
+          // Verificar se o array tem elementos
+          if (chartData.length === 0) {
+            console.warn(`[useChartData] Array vazio de chartData para ${chartType}`);
+          }
+          
+          // Atualizar cache
+          chartDataCache[cacheKey] = {
+            data: chartData,
+            stats: body,
+            timestamp: now
+          };
+          
+          setData(chartData);
+        } catch (innerError) {
+          console.error(`[useChartData] Erro na requisição fetch: ${innerError}`);
+          throw innerError;
+        }
         setStats(body);
-        setLoading(false);
-      } catch (err) {
+        setRetryCount(0);
+      } catch (err: any) {
+        if (!isMounted) return;
+        
         console.error(`[useChartData] Erro ao buscar dados de ${chartType}:`, err);
-        setData([]);
-        setStats(null);
-        setLoading(false);
+        
+        // Tentar novamente até 3 vezes em caso de erro de rede
+        if (retryCount < 3 && (err.name === 'AbortError' || err.message.includes('network') || err.message.includes('failed'))) {
+          setRetryCount(prev => prev + 1);
+          console.log(`[useChartData] Tentando novamente (${retryCount + 1}/3)...`);
+          retryTimeout = setTimeout(() => {
+            if (isMounted) fetchData();
+          }, 2000); // espera 2 segundos antes de tentar novamente
+          return;
+        }
+        
+        setError(err.message || 'Erro ao carregar dados');
+        
+        // Se houver dados em cache, usar mesmo vencido em caso de erro
+        const cacheKey = `${chartType}:${params.toString()}`;
+        const cachedItem = chartDataCache[cacheKey];
+        if (cachedItem) {
+          console.log(`[useChartData] Usando cache vencido devido a erro`);
+          setData(cachedItem.data);
+          setStats(cachedItem.stats);
+        } else {
+          setData([]);
+          setStats(null);
+        }
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
 
     if (chartType) {
       void fetchData();
     }
-  }, [chartType, JSON.stringify(filters)]);
+    
+    // Limpeza ao desmontar componente
+    return () => {
+      isMounted = false;
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
+  }, [chartType, JSON.stringify(filters), retryCount]);
 
-  return { data, loading, stats };
+  // Função para forçar atualização manual
+  const refetch = useCallback(() => {
+    setRetryCount(prev => prev + 1);
+  }, []);
+
+  return { data, loading, stats, error, refetch };
 };
 
 // Tooltip customizado
@@ -164,8 +271,11 @@ const CompactDonutTooltip = ({ active, payload, stats }: any) => {
 
 // COMPONENTE: DonutChart
 export function DonutChartWidget({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean }) {
-  const { data, loading, stats } = useChartData(chartType, config?.filters);
+  const { data, loading, stats, error, refetch } = useChartData(chartType, config?.filters);
 
+  // Log para depurar a renderização do gráfico
+  console.log(`[DonutChartWidget] Rendering ${chartType}: loading=${loading}, error=${error}, data=`, data);
+  
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -173,11 +283,28 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
       </div>
     );
   }
+  
+  if (error && (!data || data.length === 0)) {
+    console.warn(`[DonutChartWidget] Erro ao carregar dados: ${error}`);
+    return (
+      <div className="h-full flex flex-col items-center justify-center">
+        <div className="text-red-500 text-sm mb-2">Erro ao carregar dados</div>
+        <button 
+          onClick={() => refetch()} 
+          className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded-md"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
-  if (!data || data.length === 0) {
+  // Validação adicional para garantir que temos um array válido com dados reais
+  if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => !item.value)) {
+    console.warn(`[DonutChartWidget] Dados vazios ou inválidos para ${chartType}:`, data);
     return (
       <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-        Nenhum dado disponível
+        Nenhum dado disponível para exibição
       </div>
     );
   }
@@ -236,8 +363,11 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
 
 // COMPONENTE: BarChart
 export function BarChartWidget({ chartType = "formulas", config }: { chartType?: ChartType; config?: any }) {
-  const { data, loading, stats } = useChartData(chartType, config?.filters);
+  const { data, loading, stats, error, refetch } = useChartData(chartType, config?.filters);
 
+  // Log para depurar a renderização do gráfico
+  console.log(`[BarChartWidget] Rendering ${chartType}: loading=${loading}, error=${error}, data=`, data);
+  
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -245,11 +375,28 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
       </div>
     );
   }
+  
+  if (error && (!data || data.length === 0)) {
+    console.warn(`[BarChartWidget] Erro ao carregar dados: ${error}`);
+    return (
+      <div className="h-full flex flex-col items-center justify-center">
+        <div className="text-red-500 text-sm mb-2">Erro ao carregar dados</div>
+        <button 
+          onClick={() => refetch()} 
+          className="px-2 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-xs rounded-md"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
-  if (!data || data.length === 0) {
+  // Validação adicional para garantir que temos um array válido com dados reais
+  if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => !item.value)) {
+    console.warn(`[BarChartWidget] Dados vazios ou inválidos para ${chartType}:`, data);
     return (
       <div className="h-full flex items-center justify-center text-gray-500 text-sm">
-        Nenhum dado disponível
+        Nenhum dado disponível para exibição
       </div>
     );
   }

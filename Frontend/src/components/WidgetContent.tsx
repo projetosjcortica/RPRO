@@ -30,16 +30,29 @@ interface WidgetContentProps {
   config?: any;
 }
 
+// Cache para armazenar os resultados de consultas anteriores
+const chartDataCache: Record<string, { data: ChartDatum[], stats: any, timestamp: number }> = {};
+
 // Hook para buscar dados do backend
 const useChartData = (chartType: ChartType, filters?: any) => {
   const [data, setData] = useState<ChartDatum[]>([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
+    let isMounted = true;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    
     const fetchData = async () => {
+      if (!isMounted) return;
+      
       try {
         setLoading(true);
+        setError(null);
+        
+        // Construir parâmetros de consulta
         const params = new URLSearchParams();
         if (filters?.formula) params.set('formula', String(filters.formula));
         if (filters?.dataInicio) params.set('dataInicio', String(filters.dataInicio));
@@ -47,30 +60,108 @@ const useChartData = (chartType: ChartType, filters?: any) => {
         if (filters?.codigo) params.set('codigo', String(filters.codigo));
         if (filters?.numero) params.set('numero', String(filters.numero));
 
+        // Criar chave de cache usando tipo de gráfico e parâmetros
+        const cacheKey = `${chartType}:${params.toString()}`;
+        
+        // Verificar cache (válido por 1 minuto)
+        const now = Date.now();
+        const cachedItem = chartDataCache[cacheKey];
+        if (cachedItem && (now - cachedItem.timestamp < 60000)) {
+          console.log(`[useChartData] Usando cache para ${chartType}`);
+          setData(cachedItem.data);
+          setStats(cachedItem.stats);
+          setLoading(false);
+          return;
+        }
+        
         const url = `http://localhost:3000/api/chartdata/${chartType}?${params.toString()}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        console.log(`[useChartData] Fetching ${chartType} with filters:`, filters);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 segundos timeout
+        
+        const res = await fetch(url, { 
+          signal: controller.signal,
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
         
         const body = await res.json();
-        setData(body.chartData || []);
-        setStats({
+        if (!isMounted) return;
+        
+        // Garantir que o chartData seja um array
+        const chartData = Array.isArray(body.chartData) ? body.chartData : [];
+        
+        // Preparar objeto stats
+        const statsData = {
           total: body.total,
           totalRecords: body.totalRecords,
           peakHour: body.peakHour,
           peakDay: body.peakDay,
-        });
-      } catch (err) {
-        console.error(`Erro ao buscar dados de ${chartType}:`, err);
-        setData([]);
+        };
+        
+        // Atualizar cache
+        chartDataCache[cacheKey] = {
+          data: chartData,
+          stats: statsData,
+          timestamp: now
+        };
+        
+        console.log(`[useChartData] ${chartType} response:`, body);
+        setData(chartData);
+        setStats(statsData);
+        setRetryCount(0);
+      } catch (err: any) {
+        if (!isMounted) return;
+        
+        console.error(`[useChartData] Erro ao buscar dados de ${chartType}:`, err);
+        
+        // Tentar novamente até 3 vezes em caso de erro de rede
+        if (retryCount < 3 && (err.name === 'AbortError' || err.message.includes('network') || err.message.includes('failed'))) {
+          setRetryCount(prev => prev + 1);
+          console.log(`[useChartData] Tentando novamente (${retryCount + 1}/3)...`);
+          retryTimeout = setTimeout(() => {
+            if (isMounted) fetchData();
+          }, 2000); // espera 2 segundos antes de tentar novamente
+          return;
+        }
+        
+        setError(err.message || 'Erro ao carregar dados');
+        
+        // Se houver dados em cache, usar mesmo vencido em caso de erro
+        const cacheKey = `${chartType}:${params.toString()}`;
+        const cachedItem = chartDataCache[cacheKey];
+        if (cachedItem) {
+          console.log(`[useChartData] Usando cache vencido devido a erro`);
+          setData(cachedItem.data);
+          setStats(cachedItem.stats);
+        } else {
+          setData([]);
+          setStats(null);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchData();
-  }, [chartType, JSON.stringify(filters)]);
+    
+    // Limpeza ao desmontar componente
+    return () => {
+      isMounted = false;
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
+  }, [chartType, JSON.stringify(filters), retryCount]);
 
-  return { data, loading, stats };
+  // Função para forçar atualização manual
+  const refetch = useCallback(() => {
+    setRetryCount(prev => prev + 1);
+  }, []);
+
+  return { data, loading, stats, error, refetch };
 };
 
 // Funções de agregação
@@ -168,7 +259,7 @@ const CustomTooltip = ({ active, payload, label, stats }: any) => {
 
 export default function WidgetContent({ type, rows, chartType = "produtos", onChartTypeChange, config }: WidgetContentProps) {
   // Usar hook para buscar dados do backend (mais otimizado)
-  const { data: apiData, loading: apiLoading, stats } = useChartData(chartType, config?.filters);
+  const { data: apiData, loading: apiLoading, stats, error, refetch } = useChartData(chartType, config?.filters);
 
   // Fallback: usar agregação local se rows estiver disponível e apiData vazio
   const localData = useMemo(() => {
@@ -186,6 +277,32 @@ export default function WidgetContent({ type, rows, chartType = "produtos", onCh
   }, [rows, chartType, apiData]);
 
   const data = apiData.length > 0 ? apiData : localData;
+  
+  // Renderizar estado de erro
+  if (error && data.length === 0) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-4">
+        <div className="text-red-500 mb-2 text-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mx-auto mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Erro ao carregar dados
+        </div>
+        <p className="text-gray-500 text-sm mb-3 text-center">
+          Não foi possível carregar os dados do gráfico.
+        </p>
+        <button 
+          onClick={() => refetch()} 
+          className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded-md flex items-center"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
 
   // Widget: Gráfico Donut
   if (type === "donut-chart") {

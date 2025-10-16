@@ -68,8 +68,16 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
       <Table className="w-full table-fixed">
         <TableHeader>
           <TableRow className="bg-gray-200 border sticky top-0 z-10">
-            <TableHead className="text-center w-1/2 border-r">Produtos</TableHead>
-            <TableHead className="text-center w-1/2">Quantidade</TableHead>
+            <TableHead className="text-center w-1/2 border-r">
+              <div className="truncate max-w-full" title="Produtos">
+                Produtos
+              </div>
+            </TableHead>
+            <TableHead className="text-center w-1/2">
+              <div className="truncate max-w-full" title="Quantidade">
+                Quantidade
+              </div>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -82,7 +90,9 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
                   className={`hover:bg-gray-50 cursor-default ${highlightName === produto.nome ? 'bg-red-50' : ''}`}
                 >
                   <TableCell className="py-1 text-right border-r">
-                    {produto.nome}
+                    <div className="truncate max-w-full" title={produto.nome}>
+                      {produto.nome}
+                    </div>
                   </TableCell>
                   <TableCell className="py-1 text-right">
                     {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {

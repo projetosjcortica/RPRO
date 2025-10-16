@@ -243,7 +243,9 @@ function TableComponent({
                       wordWrap: idx === 2 ? 'break-word' : 'normal',
                     }}
                   >
-                    {receba(col, idx)}
+                    <div className="truncate max-w-full" title={receba(col, idx)}>
+                      {receba(col, idx)}
+                    </div>
                   </div>
                 );
               })}
@@ -261,7 +263,9 @@ function TableComponent({
                       wordWrap: 'break-word'
                     }}
                   >
-                    <span className="break-words text-center">{label}</span>
+                    <span className="truncate max-w-full text-center" title={label}>
+                      {label}
+                    </span>
                   </div>
                 );
               })}
@@ -307,30 +311,35 @@ function TableComponent({
                         justifyContent,
                       }}
                     >
-                      <div className="truncate">
-                        {col === 'Dia' ? (
-                          (() => {
+                      {col === 'Dia' ? (
+                        <div className="truncate">
+                          {(() => {
                             const raw = safeString(row[col as keyof ReportRow]);
                             try {
                               if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
                                 const [y, m, d] = raw.split('-').map(Number);
-                                return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+                                return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
                               }
                               if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
                                 const [d, m, y] = raw.split('-').map(Number);
-                                return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+                                return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
                               }
                               const parsed = new Date(raw);
-                              if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yy');
+                              if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
                               return raw;
                             } catch (e) {
                               return raw;
                             }
-                          })()
-                        ) : (
-                          safeString(row[col as keyof ReportRow])
-                        )}
-                      </div>
+                          })()}
+                        </div>
+                      ) : (
+                        <div 
+                          className="truncate max-w-full"
+                          title={safeString(row[col as keyof ReportRow])}
+                        >
+                          {safeString(row[col as keyof ReportRow])}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -343,7 +352,10 @@ function TableComponent({
                       className="flex items-center justify-end p-1 md:p-2 cursor-pointer select-none text-right text-xs md:text-sm bg-white border-r border-gray-300"
                       style={{ width: '100px', minWidth: '100px' }}
                     >
-                      <div className="truncate">
+                      <div 
+                        className="truncate max-w-full"
+                        title={formatValue(rawValue, colKey)}
+                      >
                         {formatValue(rawValue, colKey)}
                       </div>
                     </div>

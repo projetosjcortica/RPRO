@@ -238,6 +238,44 @@ export class Processador {
     return this.makeRequest('/api/collector/stop');
   }
 
+  // Versão atualizada com suporte a AbortSignal
+  private async makeRequestWithSignal(endpoint: string, signal: AbortSignal, method = 'GET', data?: any): Promise<any> {
+    let url: string;
+    if (/^https?:\/\//i.test(endpoint)) {
+      url = endpoint;
+    } else {
+      const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      url = `${this.baseURL}${normalizedEndpoint}`;
+    }
+
+    console.log(`[Processador] Making request to ${url} with method ${method} (with signal)`, data);
+
+    const headers: Record<string, string> = { 'Accept': 'application/json', 'Cache-Control': 'no-cache' };
+    const config: RequestInit = { method, headers, signal };
+
+    // GET → colocar parâmetros na URL
+    if (method === 'GET' && data) {
+      const params = new URLSearchParams();
+      Object.entries(data).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && v !== '') params.append(k, String(v));
+      });
+      const queryString = params.toString();
+      if (queryString) url += `?${queryString}`;
+    } else if (method !== 'GET' && data !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(data);
+    }
+
+    try {
+      const response = await fetch(url, config);
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      return await response.json();
+    } catch (error) {
+      console.error(`[Processador] Request failed to ${url}:`, error);
+      throw error;
+    }
+  }
+
   public getResumo(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string) {
     const params: any = {};
     if (areaId) params.areaId = areaId;
@@ -248,6 +286,19 @@ export class Processador {
     if (numero !== undefined && numero !== null && String(numero) !== '') params.numero = numero;
 
     return this.makeRequest('/api/resumo', 'GET', params);
+  }
+  
+  // Nova versão com suporte a AbortSignal
+  public getResumoWithSignal(signal: AbortSignal, areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string) {
+    const params: any = {};
+    if (areaId) params.areaId = areaId;
+    if (nomeFormula) params.nomeFormula = nomeFormula;
+    if (dataInicio) params.dataInicio = dataInicio;
+    if (dataFim) params.dataFim = dataFim;
+    if (codigo !== undefined && codigo !== null && String(codigo) !== '') params.codigo = codigo;
+    if (numero !== undefined && numero !== null && String(numero) !== '') params.numero = numero;
+
+    return this.makeRequestWithSignal('/api/resumo', signal, 'GET', params);
   }
 
   /**
