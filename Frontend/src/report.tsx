@@ -951,9 +951,16 @@ export default function Report() {
               <PaginationContent>
                 <PaginationItem>
                   <button
-                    onClick={() => setPage(Math.max(1, page - 1))}
-                    disabled={page === 1}
+                    onClick={() => {
+                      if (page !== 1) {
+                        // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setPage(Math.max(1, page - 1));
+                      }
+                    }}
+                    disabled={page === 1 || loading}
                     className="p-1"
+                    title="Página anterior"
                   >
                     <ChevronsLeft className="h-4 w-4" />
                   </button>
@@ -964,13 +971,22 @@ export default function Report() {
                   return (
                     <PaginationItem key={p}>
                       <button
-                        onClick={() => setPage(p)}
+                        onClick={() => {
+                          if (p !== page) {
+                            // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            setPage(p);
+                          }
+                        }}
                         aria-current={isActive ? "page" : undefined}
+                        disabled={loading && p !== page} 
                         className={cn(
                           buttonVariants({ variant: "default" }),
                           isActive
                             ? "bg-red-600 text-white"
-                            : "bg-gray-300 text-black"
+                            : loading && p !== page 
+                              ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+                              : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
                         )}
                       >
                         {p}
@@ -981,9 +997,16 @@ export default function Report() {
 
                 <PaginationItem>
                   <button
-                    onClick={() => setPage(Math.min(page + 1, totalPages))}
-                    disabled={page === totalPages}
+                    onClick={() => {
+                      if (page !== totalPages) {
+                        // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        setPage(Math.min(page + 1, totalPages));
+                      }
+                    }}
+                    disabled={page === totalPages || loading}
                     className="p-1"
+                    title="Próxima página"
                   >
                     <ChevronsRight className="h-4 w-4" />
                   </button>
@@ -994,7 +1017,7 @@ export default function Report() {
         </div>
 
         {/* Side Info com drawer de gráficos atrás */}
-        <div className="relative w-87 h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
+        <div className="relative w-87 h-[70vh] 3xl:h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
           {chartsOpen && (
             <div className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
@@ -1020,15 +1043,10 @@ export default function Report() {
                     )}
                     
                     {resumoError && (
-                      <button 
-                        onClick={() => setResumoRetryCount(prev => prev + 1)}
-                        className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Recarregar
-                      </button>
+                      <>
+                        {/* Tentar recarregar automaticamente após um pequeno atraso */}
+                        {setTimeout(() => setResumoRetryCount(prev => prev + 1), 3000) && null}
+                      </>
                     )}
                     
                     <DonutChartWidget
@@ -1058,15 +1076,10 @@ export default function Report() {
                     )}
                     
                     {resumoError && (
-                      <button 
-                        onClick={() => setResumoRetryCount(prev => prev + 1)}
-                        className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Recarregar
-                      </button>
+                      <>
+                        {/* Tentar recarregar automaticamente após um pequeno atraso */}
+                        {setTimeout(() => setResumoRetryCount(prev => prev + 1), 3000) && null}
+                      </>
                     )}
                     
                     <DonutChartWidget
@@ -1196,7 +1209,7 @@ export default function Report() {
               </div>
 
               {sideListMode === 'produtos' ? (
-                <Table className="h-100 w-full table-fixed">
+                <Table className="h-80 w-full table-fixed">
                   <TableHeader>
                     <TableRow className="bg-gray-200 border">
                       <TableHead className="text-center w-1/2 border-r">Produtos</TableHead>

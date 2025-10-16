@@ -4,6 +4,7 @@ import { Filtros, ReportRow } from "./components/types";
 // This component renders its own table-like markup and does not use the UI table primitives
 // import { getProcessador } from './Processador'
 import { useReportData } from "./hooks/useReportData";
+import { Loader2 } from "lucide-react";
 
 interface TableComponentProps {
   filtros?: Filtros;
@@ -207,9 +208,31 @@ function TableComponent({
     : loadingFromHook;
   const error = useExternalData ? errorProp ?? null : errorFromHook;
 
-  if (loading) return <div className="p-4">Carregando...</div>;
-  if (error) return <div className="p-4 text-red-500">Erro: {error}</div>;
-  if (!dados || dados.length === 0) return <div className="p-4">Nenhum dado encontrado</div>;
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[50vh]">
+      <Loader2 className="h-10 w-10 animate-spin text-red-600" />
+      <p className="text-lg font-medium">Carregando dados...</p>
+      <p className="text-sm text-gray-500">Os dados estão sendo processados, por favor aguarde.</p>
+    </div>
+  );
+  if (error) return (
+    <div className="flex flex-col items-center justify-center p-8 space-y-3 h-[50vh]">
+      <div className="text-gray-700 font-semibold text-lg">Erro ao carregar dados</div>
+      <div className="text-sm text-gray-600">{error}</div>
+      <button 
+        className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors"
+        onClick={() => window.location.reload()}
+      >
+        Tentar novamente
+      </button>
+    </div>
+  );
+  if (!dados || dados.length === 0) return (
+    <div className="flex flex-col items-center justify-center p-8 h-[50vh]">
+      <div className="text-gray-700 font-semibold text-lg">Nenhum dado encontrado</div>
+      <div className="text-sm text-gray-600 mt-1">Tente ajustar os filtros para ver mais resultados.</div>
+    </div>
+  );
 
   return (
     <div ref={tableRef} className="w-full h-full flex flex-col">
@@ -243,7 +266,7 @@ function TableComponent({
                       wordWrap: idx === 2 ? 'break-word' : 'normal',
                     }}
                   >
-                    <div className="truncate max-w-full" title={receba(col, idx)}>
+                    <div className="truncate max-w-full" title={typeof receba(col, idx) === 'string' ? receba(col, idx) : col}>
                       {receba(col, idx)}
                     </div>
                   </div>
