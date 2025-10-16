@@ -18,6 +18,7 @@ import { Factory } from 'lucide-react';
 import { Separator } from '@radix-ui/react-separator';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from './components/ui/dialog';
+// Tooltips removidos - usando title nativo agora
 // import { Button } from './components/ui/button';
 // import { useMediaQuery } from './hooks/use-mobile';
 import logo from './public/logo.png'
@@ -112,8 +113,13 @@ const App = () => {
                   <AvatarFallback><Factory/></AvatarFallback>
                 </Avatar>
                 <div className='flex flex-col font-semibold'>
-                  <h2>{sideInfo.proprietario}</h2>
-                  <p className='text-sm'>{user?.displayName || sideInfo.granja}</p>
+                  <h2 className="truncate max-w-[175px]" title={sideInfo.proprietario}>
+                    {sideInfo.proprietario}
+                  </h2>
+                  
+                  <p className='text-sm truncate max-w-[175px]' title={user?.displayName || sideInfo.granja}>
+                    {user?.displayName || sideInfo.granja}
+                  </p>
                 </div>
               </div>
             </SidebarHeader>

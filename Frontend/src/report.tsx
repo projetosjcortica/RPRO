@@ -207,17 +207,35 @@ export default function Report() {
   }, [runtime]);
 
   // Fetch resumo sempre que os filtros mudarem
+  // Estados para controle de resumo
+  const [resumoError, setResumoError] = useState<string | null>(null);
+  const [resumoLoading, setResumoLoading] = useState(false);
+  const [resumoRetryCount, setResumoRetryCount] = useState(0);
+  
   useEffect(() => {
     let mounted = true;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    
     const fetchResumo = async () => {
+      if (!mounted) return;
+      
       try {
+        setResumoLoading(true);
+        setResumoError(null);
+        
         const processador = getProcessador();
         const dateStart = filtros.dataInicio || undefined;
         const dateEnd = filtros.dataFim || undefined;
         const formula = filtros.nomeFormula || undefined;
         const areaId = (filtros as any).areaId || undefined;
 
-        const result = await processador.getResumo(
+        console.log(`[resumo] Buscando dados com filtros`, filtros);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+        
+        const result = await processador.getResumoWithSignal(
+          controller.signal,
           areaId as string | undefined,
           formula as string | undefined,
           dateStart as string | undefined,
@@ -225,17 +243,41 @@ export default function Report() {
           (filtros && filtros.codigo !== undefined && filtros.codigo !== '') ? filtros.codigo : undefined,
           (filtros && filtros.numero !== undefined && filtros.numero !== '') ? filtros.numero : undefined,
         );
+        
+        clearTimeout(timeoutId);
         if (!mounted) return;
+        
+        console.log(`[resumo] Dados recebidos:`, result);
         setResumo(result || null);
-      } catch (err) {
-        console.error("Erro ao buscar resumo:", err);
-        if (mounted) setResumo(null);
+        setResumoRetryCount(0);
+      } catch (err: any) {
+        if (!mounted) return;
+        
+        console.error("[resumo] Erro ao buscar dados:", err);
+        
+        // Tentar novamente até 3 vezes em caso de erro de rede
+        if (resumoRetryCount < 3 && (err.name === 'AbortError' || err.message?.includes('network') || err.message?.includes('failed'))) {
+          setResumoRetryCount(prev => prev + 1);
+          console.log(`[resumo] Tentando novamente (${resumoRetryCount + 1}/3)...`);
+          retryTimeout = setTimeout(() => {
+            if (mounted) fetchResumo();
+          }, 2000); // espera 2 segundos antes de tentar novamente
+          return;
+        }
+        
+        setResumoError(err.message || "Erro ao carregar resumo");
+      } finally {
+        if (mounted) setResumoLoading(false);
       }
     };
 
     fetchResumo();
-    return () => { mounted = false; };
-  }, [filtros, resumoReloadFlag]);
+    
+    return () => { 
+      mounted = false; 
+      if (retryTimeout) clearTimeout(retryTimeout);
+    };
+  }, [filtros, resumoReloadFlag, resumoRetryCount]);
 
   useEffect(() => {
     void fetchCollectorStatus();
@@ -329,14 +371,14 @@ export default function Report() {
     try {
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
         const [y, m, d] = s.split('-').map(Number);
-        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
       }
       if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
         const [d, m, y] = s.split('-').map(Number);
-        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
       }
       const parsed = new Date(s);
-      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yy');
+      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
       return s;
     } catch (e) {
       return s;
@@ -485,43 +527,83 @@ export default function Report() {
   // Load produtosInfo
   useEffect(() => {
     let mounted = true;
-    const load = async () => {
+    const loadFromBackend = async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/materiaprima/labels');
-        if (!res.ok) return;
+        console.log("[Produtos] Carregando produtos do backend...");
+        const res = await fetch('http://localhost:3000/api/materiaprima/labels', {
+          headers: { 'Cache-Control': 'no-cache' },
+          cache: 'no-store'
+        });
+        if (!res.ok) {
+          console.warn("[Produtos] Erro ao carregar produtos do backend:", res.status);
+          return;
+        }
+        
         const data = await res.json();
         if (!mounted) return;
+        
+        console.log("[Produtos] Dados recebidos:", data);
+        
+        if (!data || typeof data !== 'object') {
+          console.warn("[Produtos] Dados inválidos recebidos do backend");
+          return;
+        }
+        
         const parsed: Record<string, any> = {};
         Object.entries(data).forEach(([colKey, val]: any) => {
           const medida = typeof val.medida === 'number' ? val.medida : Number(val.medida || 1);
           const numMatch = colKey.match(/^col(\d+)$/);
           const num = numMatch ? Number(numMatch[1]) - 5 : undefined;
-          parsed[colKey] = { nome: val.produto || `Produto ${num}`, unidade: medida === 0 ? 'g' : 'kg', num };
+          parsed[colKey] = { 
+            nome: val.produto || `Produto ${num}`, 
+            unidade: medida === 0 ? 'g' : 'kg', 
+            num 
+          };
         });
+        
+        console.log("[Produtos] Dados processados:", parsed);
         setProdutosInfo(parsed);
+        
+        // Salvar no localStorage para uso offline
+        localStorage.setItem('produtosInfo', JSON.stringify(parsed));
       } catch (e) {
-        console.warn('Failed to load product labels from backend', e);
+        console.warn('[Produtos] Falha ao carregar produtos do backend:', e);
+        // Em caso de erro, tentar carregar do localStorage
+        loadFromLocalStorage();
       }
     };
-    load();
     
-    const onProdutosUpdated = () => {
+    const loadFromLocalStorage = () => {
       try {
+        console.log("[Produtos] Tentando carregar do localStorage...");
         const raw = localStorage.getItem('produtosInfo');
         if (raw) {
-          try {
-            const parsedLocal = JSON.parse(raw);
-            const parsedObj: Record<string, any> = {};
-            Object.keys(parsedLocal).forEach((colKey) => {
-              const val = parsedLocal[colKey];
-              parsedObj[colKey] = { nome: val?.nome || `Produto`, unidade: val?.unidade || 'kg' };
-            });
-            setProdutosInfo(parsedObj);
-          } catch (err) {}
+          const parsedLocal = JSON.parse(raw);
+          const parsedObj: Record<string, any> = {};
+          Object.keys(parsedLocal).forEach((colKey) => {
+            const val = parsedLocal[colKey];
+            parsedObj[colKey] = { 
+              nome: val?.nome || `Produto`, 
+              unidade: val?.unidade || 'kg' 
+            };
+          });
+          console.log("[Produtos] Carregado do localStorage:", parsedObj);
+          setProdutosInfo(parsedObj);
         }
-        setFiltros((prev) => ({ ...prev }));
-        setPage((p) => Math.max(1, p));
-      } catch (err) {}
+      } catch (err) {
+        console.error("[Produtos] Erro ao carregar do localStorage:", err);
+      }
+    };
+    
+    // Tenta carregar do backend primeiro
+    loadFromBackend();
+    
+    const onProdutosUpdated = () => {
+      console.log("[Produtos] Evento de atualização de produtos recebido");
+      loadFromBackend();
+      // Recarrega os dados da tabela também
+      setFiltros((prev) => ({ ...prev }));
+      setPage((p) => Math.max(1, p));
     };
     
     window.addEventListener('produtos-updated', onProdutosUpdated as EventListener);
@@ -930,7 +1012,25 @@ export default function Report() {
                       {resumo?.produtosCount ?? (displayProducts?.length || 0)} itens • {(resumo?.totalPesos ?? tableSelection.total).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg
                     </div>
                   </div>
-                  <div className="h-[280px] px-3 py-3">
+                  <div className="h-[280px] px-3 py-3 relative">
+                    {resumoLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                      </div>
+                    )}
+                    
+                    {resumoError && (
+                      <button 
+                        onClick={() => setResumoRetryCount(prev => prev + 1)}
+                        className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Recarregar
+                      </button>
+                    )}
+                    
                     <DonutChartWidget
                       chartType="produtos"
                       config={{ filters: filtros }}
@@ -950,7 +1050,25 @@ export default function Report() {
                       {resumo?.formulasUtilizadas ? Object.keys(resumo.formulasUtilizadas).length : (tableSelection.formulas?.length || 0)} fórmulas • {(resumo?.batitdasTotais ?? tableSelection.batidas).toLocaleString('pt-BR')} batidas
                     </div>
                   </div>
-                  <div className="h-[280px] px-3 py-3">
+                  <div className="h-[280px] px-3 py-3 relative">
+                    {resumoLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                      </div>
+                    )}
+                    
+                    {resumoError && (
+                      <button 
+                        onClick={() => setResumoRetryCount(prev => prev + 1)}
+                        className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Recarregar
+                      </button>
+                    )}
+                    
                     <DonutChartWidget
                       chartType="formulas"
                       config={{ filters: filtros }}
@@ -968,7 +1086,25 @@ export default function Report() {
                     <div className="text-sm font-bold text-gray-800">Horários de Produção</div>
                     <div className="text-xs text-gray-600 font-medium mt-0.5">Distribuição por hora</div>
                   </div>
-                  <div className="h-[280px] px-3 py-3">
+                  <div className="h-[280px] px-3 py-3 relative">
+                    {resumoLoading && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                      </div>
+                    )}
+                    
+                    {resumoError && (
+                      <button 
+                        onClick={() => setResumoRetryCount(prev => prev + 1)}
+                        className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Recarregar
+                      </button>
+                    )}
+                    
                     <BarChartWidget chartType="horarios" config={{ filters: filtros }} />
                   </div>
                 </div>
@@ -1076,7 +1212,12 @@ export default function Report() {
                           className="hover:bg-gray-50 cursor-default"
                         >
                           <TableCell className="py-1 text-right border-r">
-                            {produto.nome}
+                            <div 
+                              className="truncate max-w-full" 
+                              title={produto.nome} // Tooltip nativo para mostrar o nome completo
+                            >
+                              {produto.nome}
+                            </div>
                           </TableCell>
                           <TableCell className="py-1 text-right">
                             {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
@@ -1111,7 +1252,11 @@ export default function Report() {
                         onMouseLeave={() => setHighlightFormula(null)}
                         className="hover:bg-gray-50 cursor-default"
                       >
-                        <TableCell className="py-1 text-right border-r">{f.nome}</TableCell>
+                        <TableCell className="py-1 text-right border-r">
+                          <div className="truncate max-w-full" title={f.nome}>
+                            {f.nome}
+                          </div>
+                        </TableCell>
                         <TableCell className="py-1 text-right">{f.valor.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</TableCell>
                       </TableRow>
                     ))}
