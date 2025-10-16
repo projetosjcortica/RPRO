@@ -67,10 +67,11 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
         setCodigosOptions(cods);
         setNumerosOptions(nums);
 
+        // Preserve existing filters regardless of availability
         setFiltrosTemporarios(prev => ({
           ...prev,
-          codigo: cods.includes(prev.codigo) && prev.codigo !== '__all' ? prev.codigo : '',
-          numero: nums.includes(prev.numero) && prev.numero !== '__all' ? prev.numero : ''
+          codigo: prev.codigo || '',
+          numero: prev.numero || ''
         }));
       } catch (err) {
         console.error('[FiltrosBar] erro ao buscar filtros disponíveis', err);
@@ -97,9 +98,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       setFiltrosTemporarios(prev => ({
         ...prev,
         dataInicio: '',
-        dataFim: '',
-        codigo: '',
-        numero: ''
+        dataFim: ''
       }));
       return;
     }
@@ -110,9 +109,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
     setFiltrosTemporarios(prev => ({
       ...prev,
       dataInicio: novaDataInicio,
-      dataFim: novaDataFim,
-      codigo: '',
-      numero: ''
+      dataFim: novaDataFim
     }));
   };
 
@@ -218,7 +215,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             mode="range"
             locale={pt}
             defaultMonth={dateRange?.from}
-            selected={dateRange}
+            selected={dateRange} 
             onSelect={handleDateChange}
             numberOfMonths={1}
           />
