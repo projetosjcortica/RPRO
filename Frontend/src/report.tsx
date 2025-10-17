@@ -98,8 +98,11 @@ export default function Report() {
   const [sideListMode, setSideListMode] = useState<"produtos" | "formulas">(
     "produtos"
   );
+  
+  // Função de reset de colunas da tabela
+  const [resetTableColumns, setResetTableColumns] = useState<(() => void) | null>(null);
 
-  // abre automaticamente ao aplicar filtros/busca
+  //  my bode washedih
   useEffect(() => {
     if (
       filtros &&
@@ -826,7 +829,6 @@ export default function Report() {
         chartData={pdfChartData}
         formulaSums={formulaSums}
         usuario={user.username}
-        showComments={showPdfComments}
         showCharts={showPdfCharts}
       />
     );
@@ -916,6 +918,11 @@ export default function Report() {
     });
   }, [resumo, tableSelection, produtosInfo]);
 
+  // Callback estável para receber função de reset da tabela
+  const handleResetColumnsReady = useCallback((resetFn: () => void) => {
+    setResetTableColumns(() => resetFn);
+  }, []);
+
   // Renderização condicional do conteúdo
   let content;
   if (view === "table") {
@@ -930,6 +937,7 @@ export default function Report() {
         pageSize={pageSize}
         produtosInfo={produtosInfo}
         useExternalData
+        onResetColumnsReady={handleResetColumnsReady}
       />
     );
   } else if (view === "product") {
@@ -1001,6 +1009,18 @@ export default function Report() {
           <div className="flex w-full h-[568px] 3xl:h-196.5 overflow-hidden shadow-xl rounded flex border border-gray-300">
             {content}
           </div>
+
+          {/* Link para resetar colunas (apenas na view table) */}
+          {view === "table" && resetTableColumns && (
+            <div className="flex justify-end mb-1">
+              <button
+                onClick={resetTableColumns}
+                className="text-xs text-gray-500 hover:text-gray-700 hover:underline transition-colors"
+              >
+                Resetar colunas
+              </button>
+            </div>
+          )}
 
           {/* Paginação */}
           <div className="flex flex-row items-center justify-end mt-2">
