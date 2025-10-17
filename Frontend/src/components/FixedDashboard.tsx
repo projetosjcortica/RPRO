@@ -37,8 +37,22 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
   const [resumoError, setResumoError] = useState<string | null>(null);
 
   // Local UI state for independent date pickers and applied filters for each chart
-  const [donutDateRange, setDonutDateRange] = useState<any>(undefined);
-  const [donutFilters, setDonutFilters] = useState<any>({ dataInicio: filters?.dataInicio || '', dataFim: filters?.dataFim || '' });
+  // Inicializar com o mês anterior completo
+  const [donutDateRange, setDonutDateRange] = useState<any>(() => {
+    const today = new Date();
+    const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    return { from: firstDayLastMonth, to: lastDayLastMonth };
+  });
+  
+  const [donutFilters, setDonutFilters] = useState<any>(() => {
+    const today = new Date();
+    const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    const dataInicio = formatDate(firstDayLastMonth, 'yyyy-MM-dd');
+    const dataFim = formatDate(lastDayLastMonth, 'yyyy-MM-dd');
+    return { dataInicio, dataFim };
+  });
 
   // Inicializar com o dia anterior
   const [horariosDateRange, setHorariosDateRange] = useState<any>(() => {
