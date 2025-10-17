@@ -20,6 +20,7 @@ interface TableComponentProps {
     { nome?: string; unidade?: string; num?: number }
   >;
   useExternalData?: boolean;
+  onResetColumnsReady?: (resetFn: () => void) => void;
 }
 
 // Larguras padrão das colunas
@@ -103,21 +104,25 @@ export function TableComponent({
   page = 1,
   pageSize = 100,
   useExternalData = false,
+  onResetColumnsReady,
 }: TableComponentProps) {
+  // 1. Refs for DOM elements
   const tableRef = useRef<HTMLDivElement>(null);
-  const [dadosAtual, setDadosAtual] = React.useState<ReportRow[]>(dadosProp);
 
-  // Estado para larguras das colunas com redimensionamento
+  // 2. All useState hooks at the top
+  const [dadosAtual, setDadosAtual] = React.useState<ReportRow[]>(dadosProp);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (typeof parsed === 'object' && parsed !== null) {
+          return parsed;
+        }
       }
     } catch (e) {
       console.warn('Erro ao carregar larguras das colunas:', e);
     }
-    // Retornar larguras padrão
     return {
       dia: DEFAULT_WIDTHS.dia,
       hora: DEFAULT_WIDTHS.hora,
@@ -126,24 +131,24 @@ export function TableComponent({
       numero: DEFAULT_WIDTHS.numero,
     };
   });
-
-  // Estado para controle de redimensionamento
   const [resizing, setResizing] = useState<{
     columnKey: string;
     startX: number;
     startWidth: number;
   } | null>(null);
 
-  // Salvar larguras no localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(columnWidths));
-    } catch (e) {
-      console.warn('Erro ao salvar larguras das colunas:', e);
-    }
-  }, [columnWidths]);
+  // 3. All callbacks together
+  const resetColumnWidths = useCallback(() => {
+    setColumnWidths({
+      dia: DEFAULT_WIDTHS.dia,
+      hora: DEFAULT_WIDTHS.hora,
+      nome: DEFAULT_WIDTHS.nome,
+      codigo: DEFAULT_WIDTHS.codigo,
+      numero: DEFAULT_WIDTHS.numero,
+    });
+    localStorage.removeItem(STORAGE_KEY);
+  }, []);
 
-  // Manipuladores de redimensionamento
   const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
     e.preventDefault();
     setResizing({
@@ -167,7 +172,21 @@ export function TableComponent({
     setResizing(null);
   }, []);
 
-  // Adicionar listeners de mouse
+  // 4. All useEffects together
+  useEffect(() => {
+    if (onResetColumnsReady) {
+      onResetColumnsReady(resetColumnWidths);
+    }
+  }, [onResetColumnsReady, resetColumnWidths]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(columnWidths));
+    } catch (e) {
+      console.warn('Erro ao salvar larguras das colunas:', e);
+    }
+  }, [columnWidths]);
+
   useEffect(() => {
     if (resizing) {
       window.addEventListener('mousemove', handleResizeMove);
@@ -316,34 +335,10 @@ export function TableComponent({
     </div>
   );
 
-  const resetColumnWidths = () => {
-    setColumnWidths({
-      dia: DEFAULT_WIDTHS.dia,
-      hora: DEFAULT_WIDTHS.hora,
-      nome: DEFAULT_WIDTHS.nome,
-      codigo: DEFAULT_WIDTHS.codigo,
-      numero: DEFAULT_WIDTHS.numero,
-    });
-    // Limpar do localStorage também
-    localStorage.removeItem(STORAGE_KEY);
-  };
+  // Note: resetColumnWidths is now defined at the top of the component
 
   return (
     <div ref={tableRef} className="w-full h-full flex flex-col relative">
-      {/* Botão de reset no canto superior direito */}
-      <button
-        onClick={resetColumnWidths}
-        className="absolute top-0 right-2 z-30 px-3 py-1 text-xs bg-gray-300 hover:bg-gray-400 text-gray-700 rounded shadow-md transition-colors flex items-center gap-1"
-        title="Restaurar larguras padrão das colunas"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-          <path d="M21 3v5h-5"/>
-          <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-          <path d="M8 16H3v5"/>
-        </svg>
-        Reset
-      </button>
       <div className="overflow-auto flex-1 thin-red-scrollbar h-[calc(100vh-200px)]">
         <div id="Table" className="min-w-max w-full">
           <div id="TableHeader" className="sticky top-0 z-1 bg-gray-200 border-b border-gray-300">
