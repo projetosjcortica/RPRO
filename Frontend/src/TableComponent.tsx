@@ -94,7 +94,7 @@ const receba = (col: any, idx: number) => {
   return safeString(col);
 };
 
-function TableComponent({
+export function TableComponent({
   dados: dadosProp = [],
   loading: loadingProp,
   error: errorProp,

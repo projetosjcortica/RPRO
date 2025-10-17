@@ -941,7 +941,7 @@ export default function Report() {
       />
     );
   }
-
+  
   // Paginação
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const maxVisiblePages = 10;
@@ -1085,7 +1085,7 @@ export default function Report() {
           {chartsOpen && (
             <div
               className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
-              style={{ zIndex: 5 }}
+              style={{ zIndex: 1}}
             >
               <div className="h-full flex flex-col">
                 <div className="flex items-center justify-between px-4 py-3 border-b ">

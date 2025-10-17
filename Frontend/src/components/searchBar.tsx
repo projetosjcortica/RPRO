@@ -190,7 +190,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           <Button
             variant="outline"
             className={cn(
-              "w-44 justify-start text-left font-normal border border-black",
+              "w-50 justify-start text-left font-normal border border-black",
               !dateRange && "text-gray-400"
             )}
           >
