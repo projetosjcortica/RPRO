@@ -1331,11 +1331,11 @@ export default function Report() {
             {sideListMode === "produtos" ? (
               <Table className="w-full table-fixed">
                 <TableHeader>
-                  <TableRow className="bg-gray-200 border">
-                    <TableHead className="text-center w-1/2 border-r h-8 py-1">
+                  <TableRow className="bg-gray-100 border">
+                    <TableHead className="text-xs font-medium text-center text-gray-700 w-1/2 border-r h-9 px-3">
                       Produtos
                     </TableHead>
-                    <TableHead className="text-center w-1/2 h-8 py-1">
+                    <TableHead className="text-xs font-medium text-center text-gray-700 w-1/2 h-9 px-3">
                       Quantidade
                     </TableHead>
                   </TableRow>
@@ -1347,31 +1347,19 @@ export default function Report() {
                         key={idx}
                         onMouseEnter={() => setHighlightProduto(produto.nome)}
                         onMouseLeave={() => setHighlightProduto(null)}
-                        className="hover:bg-gray-50 cursor-default h-10 border-b"
+                        className="hover:bg-gray-50 cursor-default border-b even:bg-gray-50/50"
                       >
-                        <TableCell className="py-1 px-2 text-right border-r align-middle">
+                        <TableCell className="px-3 text-xs text-gray-700 text-md text-right textborder-r">
                           <div
-                            className="break-words overflow-hidden line-clamp-2 text-xs"
-                            style={{
-                              wordBreak: "break-word",
-                              overflowWrap: "break-word",
-                              maxWidth: "100%",
-                              lineHeight: "1.2",
-                            }}
+                            className="truncate"
                             title={produto.nome}
                           >
                             {produto.nome}
                           </div>
                         </TableCell>
-                        <TableCell className="py-1 px-2 text-right align-middle">
+                        <TableCell className="px-3  text-xs text-gray-700 text-md text-right">
                           <div
-                            className="break-words overflow-hidden line-clamp-2 text-xs"
-                            style={{
-                              wordBreak: "break-word",
-                              overflowWrap: "break-word",
-                              maxWidth: "100%",
-                              lineHeight: "1.2",
-                            }}
+                            className="truncate"
                           >
                             {Number(
                               converterValor(
@@ -1404,11 +1392,11 @@ export default function Report() {
             ) : (
               <Table className="w-full table-fixed">
                 <TableHeader>
-                  <TableRow className="bg-gray-200 border">
-                    <TableHead className="text-center w-1/2 border-r h-8 py-1">
+                  <TableRow className="bg-gray-100 border">
+                    <TableHead className="text-xs font-medium text-center text-gray-700 w-1/2 border-r h-9 px-3">
                       Fórmulas
                     </TableHead>
-                    <TableHead className="text-center w-1/2 h-8 py-1">
+                    <TableHead className="text-xs font-medium text-center text-gray-700 w-1/2 h-9 px-3">
                       Quantidade
                     </TableHead>
                   </TableRow>
@@ -1434,31 +1422,19 @@ export default function Report() {
                       key={idx}
                       onMouseEnter={() => setHighlightFormula(f.nome)}
                       onMouseLeave={() => setHighlightFormula(null)}
-                      className="hover:bg-gray-50 cursor-default h-10 border-b"
+                      className="hover:bg-gray-50 cursor-default border-b even:bg-gray-50/50"
                     >
-                      <TableCell className="py-1 px-2 text-right border-r align-middle">
+                      <TableCell className="px-3 text-md text-gray-700 border-r text-right">
                         <div
-                          className="break-words overflow-hidden line-clamp-2 text-xs"
-                          style={{
-                            wordBreak: "break-word",
-                            overflowWrap: "break-word",
-                            maxWidth: "100%",
-                            lineHeight: "1.2",
-                          }}
+                          className="truncate"
                           title={f.nome}
                         >
                           {f.nome}
                         </div>
                       </TableCell>
-                      <TableCell className="py-1 px-2 text-right align-middle">
+                      <TableCell className="px-3 text-md text-gray-700 text-right">
                         <div
-                          className="break-words overflow-hidden line-clamp-2 text-xs"
-                          style={{
-                            wordBreak: "break-word",
-                            overflowWrap: "break-word",
-                            maxWidth: "100%",
-                            lineHeight: "1.2",
-                          }}
+                          className="truncate"
                         >
                           {f.valor.toLocaleString("pt-BR", {
                             minimumFractionDigits: 3,
