@@ -35,7 +35,7 @@ const Profile: React.FC = () => {
 
   // Renderização condicional só aqui (depois dos hooks)
   if (!user) {
-    return <div className="p-4">Not logged in</div>;
+    return <div className="p-4">Você foi desconectado</div>;
   }
 
   const saveName = async () => {

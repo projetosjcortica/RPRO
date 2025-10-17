@@ -378,7 +378,18 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
             outerRadius={compact ? 80 : 110}
             dataKey="value"
             labelLine={false}
-            onMouseLeave={() => onSliceLeave?.()}
+            onMouseLeave={(e) => {
+              // Only hide tooltip if we're not entering another slice
+              const toElement = e.relatedTarget as HTMLElement;
+              if (!toElement?.classList.contains('recharts-sector')) {
+                onSliceLeave?.();
+                const tooltipEl = document.querySelector('.recharts-tooltip-wrapper');
+                if (tooltipEl) {
+                  (tooltipEl as HTMLElement).style.visibility = 'hidden';
+                }
+              }
+            }}
+            isAnimationActive={false}
           >
             {data.map((d, index) => {
               const isHighlighted = !!highlightName && d.name === highlightName;
@@ -390,7 +401,14 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
                   fillOpacity={dimmed ? 0.35 : 1}
                   stroke={isHighlighted ? '#111827' : '#ffffff'}
                   strokeWidth={isHighlighted ? 2 : 1}
-                  onMouseEnter={() => onSliceHover?.(d.name)}
+                  onMouseEnter={() => {
+                    const tooltipEl = document.querySelector('.recharts-tooltip-wrapper');
+                    if (tooltipEl) {
+                      (tooltipEl as HTMLElement).style.visibility = 'visible';
+                      (tooltipEl as HTMLElement).style.opacity = '1';
+                    }
+                    onSliceHover?.(d.name);
+                  }}
                 />
               );
             })}

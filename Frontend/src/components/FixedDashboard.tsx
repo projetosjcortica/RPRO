@@ -220,14 +220,14 @@ const formatShortDate = (raw?: string | null) => {
     try {
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
         const [y, m, d] = s.split('-').map(Number);
-        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
       }
       if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
         const [d, m, y] = s.split('-').map(Number);
-        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
+        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yy');
       }
       const parsed = new Date(s);
-      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
+      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yy');
       return s;
     } catch (e) {
       return s;
@@ -517,7 +517,7 @@ const formatShortDate = (raw?: string | null) => {
           </div>
         </div>
         {/* Sidebar  */}
-        <div className=" w-130 space-y-6 overflow-hidden shadow-xl h-[calc(100vh-64px)] 3xl:h-[calc(100vh-54px)] rounded-xl">
+        <div className=" w-130 space-y-6 overflow-hidden shadow-sl h-[calc(100vh-64px)] 3xl:h-[calc(100vh-54px)] rounded-xl">
           <Card className="bg-white shadow-md border border-gray-300 rounded-xl overflow-hidden h-[calc(100vh-64px)] 3xl:h-[calc(100vh-54px)] flex flex-col">
             <CardHeader className="border-b px-6 py-4 flex-shrink-0 border-indigo-50">
               <div className="flex items-center justify-between">
@@ -544,9 +544,11 @@ const formatShortDate = (raw?: string | null) => {
                           })} kg
                         </p>
                         <p className="text-center text-sm text-gray-400 font-regular">Batidas:  {""}
-                          {resumo && typeof resumo.batitdasTotais === "number"
+                          {(resumo && typeof resumo.batitdasTotais === "number"
                             ? resumo.batitdasTotais
-                            : "..."}
+                            : "..."
+                            ).toLocaleString("pt-BR", 
+                )}
                         </p>
                       </div>
                       <div className=" w-80 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">

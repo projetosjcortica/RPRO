@@ -1074,10 +1074,7 @@ export default function Report() {
         </div>
 
         {/* Side Info com drawer de gráficos atrás */}
-        <div
-          className="relative w-87 h-[70vh] 3xl:h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
-          style={{ zIndex: 10 }}
-        >
+        <div className="relative w-87 h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
           {chartsOpen && (
             <div
@@ -1263,11 +1260,12 @@ export default function Report() {
                 })}{" "}
                 kg
               </p>
-              <p className="text-center text-sm text-gray-400 font-regular">
-                Batidas: {""}
-                {resumo && typeof resumo.batitdasTotais === "number"
-                  ? resumo.batitdasTotais
-                  : tableSelection.batidas}
+              <p className="text-center text-sm text-gray-400 font-regular">Batidas:  {""}
+                {(resumo && typeof resumo.batidasTotais === "number"
+                  ? resumo.batidasTotais
+                  : tableSelection.batidas
+                ).toLocaleString("pt-BR", 
+                )}
               </p>
             </div>
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
