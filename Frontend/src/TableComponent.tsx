@@ -346,7 +346,7 @@ export function TableComponent({
       </button>
       <div className="overflow-auto flex-1 thin-red-scrollbar h-[calc(100vh-200px)]">
         <div id="Table" className="min-w-max w-full">
-          <div id="TableHeader" className="sticky top-0 z-20 bg-gray-200 border-b border-gray-300">
+          <div id="TableHeader" className="sticky top-0 z-1 bg-gray-200 border-b border-gray-300">
             <div id="TableRow" className="flex">
               {fixedColumns.map((col, idx) => {
                 const columnKey = col.toLowerCase();
