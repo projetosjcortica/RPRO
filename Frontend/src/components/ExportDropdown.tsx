@@ -131,7 +131,7 @@ export function ExportDropdown({
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
         <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto thin-red-scrollbar">
           <DialogHeader>
-            <DialogTitle>Preview do PDF</DialogTitle>
+            <DialogTitle>Pré-visualização do PDF</DialogTitle>
             
           </DialogHeader>
 
@@ -144,8 +144,8 @@ export function ExportDropdown({
               <div className="flex items-center justify-center h-[600px] text-gray-500">
                 <div className="text-center">
                   <FileDown className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Preview do PDF será exibido aqui</p>
-                  <p className="text-sm mt-2">O preview será carregado automaticamente com os dados atuais</p>
+                  <p>Pré-visualização do PDF será exibida aqui</p>
+                  <p className="text-sm mt-2">A pré-visualização será carregada automaticamente com os dados atuais</p>
                 </div>
               </div>
             )}
@@ -186,7 +186,7 @@ export function ExportDropdown({
               <>
                 {/* Editor de novo comentário */}
                 {showCommentEditor && (
-                  <div className="mb-3 border rounded-lg p-3 bg-gray-50">
+                  <div className="mb-3 border max-w-md rounded-lg p-3 bg-gray-50">
                     <Textarea
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}

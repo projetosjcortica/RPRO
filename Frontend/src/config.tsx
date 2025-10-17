@@ -344,7 +344,7 @@ export function ProfileConfig({
           onClick={onSave}
           className="bg-green-600 hover:bg-green-700"
         >
-          Salvar
+          {user ? 'Salvar' : 'OK'}
         </Button>
       </div>
     </div>

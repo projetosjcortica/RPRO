@@ -350,27 +350,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
           ))}
         </View>
 
-        {showComments && comentarios.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Comentários do Relatório</Text>
-            {comentarios.map((c, i) => (
-              <View key={i} style={styles.comentarioContainer}>
-                <Text style={styles.comentarioMeta}>
-                  {c.autor || "Sistema"} • {c.data || new Date().toLocaleDateString("pt-BR")}
-                </Text>
-                <Text style={styles.comentarioTexto}>{c.texto}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {observacoes && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Observações</Text>
-            <Text>{observacoes}</Text>
-          </View>
-        )}
-
         {renderRodape()}
       </Page>
       {/* Página 3 */}
@@ -400,11 +379,37 @@ export const MyDocument: FC<MyDocumentProps> = ({
                     </View>
                   );
                 })}
-                <Text style={[styles.smallNote, { marginTop: 6 }]}>Exibindo {chartSource.length} registros.</Text>
               </View>
             </View>
           )}
         </View>
+        {(() => {
+          console.log('PDF Debug - Comments:', { showComments, comentariosLength: comentarios?.length, comentarios });
+          return null;
+        })()}
+        
+        {showComments && comentarios && comentarios.length > 0 && (
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle}>
+              Comentários do Relatório ({comentarios.length})
+            </Text>
+            {comentarios.map((c, i) => (
+              <View key={i} style={styles.comentarioContainer} wrap={false}>
+                <Text style={styles.comentarioTexto}>{c.texto}</Text>
+                <Text style={styles.comentarioMeta}>
+                  {new Date(c.data || Date.now()).toLocaleDateString("pt-BR")}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {observacoes && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Observações</Text>
+            <Text>{observacoes}</Text>
+          </View>
+        )}
           
         {renderRodape()}
       </Page>
