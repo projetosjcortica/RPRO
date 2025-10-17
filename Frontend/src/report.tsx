@@ -1,10 +1,8 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { format as formatDateFn } from 'date-fns';
-
-
+import { format as formatDateFn } from "date-fns";
 
 import { MyDocument } from "./Pdf";
-import { usePersistentForm } from './config';
+import { usePersistentForm } from "./config";
 
 // import { pdf } from "@react-pdf/renderer";
 import TableComponent from "./TableComponent";
@@ -14,8 +12,8 @@ import { useReportData } from "./hooks/useReportData";
 import { cn } from "./lib/utils";
 import { ExportDropdown } from "./components/ExportDropdown";
 
-import { resolvePhotoUrl } from './lib/photoUtils';
-import useAuth from './hooks/useAuth';
+import { resolvePhotoUrl } from "./lib/photoUtils";
+import useAuth from "./hooks/useAuth";
 
 import {
   ChevronsLeft,
@@ -24,7 +22,7 @@ import {
   Square,
   Loader2,
 } from "lucide-react";
-import { useGlobalConnection } from './hooks/useGlobalConnection';
+import { useGlobalConnection } from "./hooks/useGlobalConnection";
 import {
   Pagination,
   PaginationContent,
@@ -60,7 +58,7 @@ export default function Report() {
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch('http://localhost:3000/api/report/logo');
+        const res = await fetch("http://localhost:3000/api/report/logo");
         if (!res.ok) return;
         const js = await res.json().catch(() => ({}));
         const p = js?.path;
@@ -79,7 +77,7 @@ export default function Report() {
   }, [user]);
 
   // ... restante do código permanece igual até handlePrint ...
-  
+
   const [filtros, setFiltros] = useState<Filtros>({
     dataInicio: "",
     dataFim: "",
@@ -97,14 +95,29 @@ export default function Report() {
   const [chartsOpen, setChartsOpen] = useState<boolean>(false);
   const [highlightProduto, setHighlightProduto] = useState<string | null>(null);
   const [highlightFormula, setHighlightFormula] = useState<string | null>(null);
-  const [sideListMode, setSideListMode] = useState<'produtos' | 'formulas'>('produtos');
+  const [sideListMode, setSideListMode] = useState<"produtos" | "formulas">(
+    "produtos"
+  );
 
   // abre automaticamente ao aplicar filtros/busca
   useEffect(() => {
-    if (filtros && (filtros.dataInicio || filtros.dataFim || filtros.nomeFormula || filtros.codigo || filtros.numero)) {
+    if (
+      filtros &&
+      (filtros.dataInicio ||
+        filtros.dataFim ||
+        filtros.nomeFormula ||
+        filtros.codigo ||
+        filtros.numero)
+    ) {
       setChartsOpen(true);
     }
-  }, [filtros.dataInicio, filtros.dataFim, filtros.nomeFormula, filtros.codigo, filtros.numero]);
+  }, [
+    filtros.dataInicio,
+    filtros.dataFim,
+    filtros.nomeFormula,
+    filtros.codigo,
+    filtros.numero,
+  ]);
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(100);
 
@@ -117,7 +130,7 @@ export default function Report() {
 
   // Comentários state
   const [comentarios, setComentarios] = useState<ComentarioRelatorio[]>([]);
-  
+
   // Estados para controle de exibição no PDF
   const [showPdfComments, setShowPdfComments] = useState<boolean>(true);
   const [showPdfCharts, setShowPdfCharts] = useState<boolean>(true);
@@ -129,10 +142,21 @@ export default function Report() {
     batidas: number;
     horaInicial: string;
     horaFinal: string;
-    formulas: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
-    produtos: { nome: string; qtd: number; colKey?: string; unidade?: string }[];
+    formulas: {
+      numero: number;
+      nome: string;
+      quantidade: number;
+      porcentagem: number;
+      somatoriaTotal: number;
+    }[];
+    produtos: {
+      nome: string;
+      qtd: number;
+      colKey?: string;
+      unidade?: string;
+    }[];
     empresa: string;
-    usuario: string
+    usuario: string;
   }>({
     periodoInicio: undefined,
     periodoFim: undefined,
@@ -143,13 +167,17 @@ export default function Report() {
     produtos: [],
     formulas: [],
     empresa: "...",
-    usuario: "..."
+    usuario: "...",
   });
 
   const [resumo, setResumo] = useState<any | null>(null);
   const [resumoReloadFlag, setResumoReloadFlag] = useState(0);
   const runtime = useRuntimeConfig();
-  const { dados, loading, error, total, refetch } = useReportData(filtros, page, pageSize);
+  const { dados, loading, error, total, refetch } = useReportData(
+    filtros,
+    page,
+    pageSize
+  );
   const { formData: profileConfigData } = usePersistentForm("profile-config");
   const autoRefreshTimer = useRef<number | null>(null);
   const prevCollectorRunning = useRef<boolean>(false);
@@ -161,8 +189,11 @@ export default function Report() {
 
   const fetchCollectorStatus = useCallback(async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/collector/status", { method: "GET" });
-      if (!res.ok) throw new Error("Não foi possível obter o status do coletor.");
+      const res = await fetch("http://localhost:3000/api/collector/status", {
+        method: "GET",
+      });
+      if (!res.ok)
+        throw new Error("Não foi possível obter o status do coletor.");
       const status = await res.json();
       const isRunning = Boolean(status?.running);
       setCollectorRunning(isRunning);
@@ -173,56 +204,72 @@ export default function Report() {
   }, []);
 
   // Side info state
-  const [sideInfo, setSideInfo] = useState<{ granja: string; proprietario: string }>({ 
-    granja: 'Granja', 
-    proprietario: 'Proprietario' 
+  const [sideInfo, setSideInfo] = useState<{
+    granja: string;
+    proprietario: string;
+  }>({
+    granja: "Granja",
+    proprietario: "Proprietario",
   });
-  console.log(sideInfo)
-  // Efeitos para side info
-  useEffect(() => {
-    if (!profileConfigData) return;
-    setSideInfo({
-      granja: profileConfigData.nomeCliente || 'Granja',
-      proprietario: profileConfigData.nomeCliente,
-    });
-  }, [profileConfigData]);
 
+  // Consolidar atualização de sideInfo - evitar múltiplas atualizações
+  useEffect(() => {
+    let newInfo = { granja: 'Granja', proprietario: 'Proprietario' };
+    
+    // 1. Priorizar dados do perfil (mais recentes)
+    if (profileConfigData?.nomeCliente) {
+      newInfo = {
+        granja: profileConfigData.nomeCliente,
+        proprietario: profileConfigData.nomeCliente,
+      };
+    }
+    // 2. Se não houver dados do perfil, usar configs de runtime
+    else if (runtime && !runtime.loading) {
+      const g = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
+      const p = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
+      newInfo = { granja: g, proprietario: p };
+    }
+    
+    setSideInfo(newInfo);
+  }, [profileConfigData, runtime]);
+
+  // Listener para eventos explícitos de atualização de configuração
   useEffect(() => {
     const onCfg = (e: any) => {
       try {
         const name = e?.detail?.nomeCliente;
         if (!name) return;
-        setSideInfo(prev => ({ ...prev, granja: name, proprietario: name }));
+        setSideInfo((prev) => ({ ...prev, granja: name, proprietario: name }));
       } catch (err) {}
     };
-    window.addEventListener('profile-config-updated', onCfg as EventListener);
-    return () => window.removeEventListener('profile-config-updated', onCfg as EventListener);
+    window.addEventListener("profile-config-updated", onCfg as EventListener);
+    return () =>
+      window.removeEventListener(
+        "profile-config-updated",
+        onCfg as EventListener
+      );
   }, []);
 
-  useEffect(() => {
-    if (!runtime || runtime.loading) return;
-    const p = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
-    const g = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
-    setSideInfo({ granja: g, proprietario: p });
-  }, [runtime]);
+  // Memoizar configuração dos gráficos para evitar recriações desnecessárias
+  const chartConfig = useMemo(() => ({ filters: filtros }), [filtros]);
 
   // Fetch resumo sempre que os filtros mudarem
   // Estados para controle de resumo
   const [resumoError, setResumoError] = useState<string | null>(null);
   const [resumoLoading, setResumoLoading] = useState(false);
   const [resumoRetryCount, setResumoRetryCount] = useState(0);
-  
+
   useEffect(() => {
     let mounted = true;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    
+
     const fetchResumo = async () => {
       if (!mounted) return;
-      
+
       try {
         setResumoLoading(true);
         setResumoError(null);
-        
+
         const processador = getProcessador();
         const dateStart = filtros.dataInicio || undefined;
         const dateEnd = filtros.dataFim || undefined;
@@ -230,41 +277,52 @@ export default function Report() {
         const areaId = (filtros as any).areaId || undefined;
 
         console.log(`[resumo] Buscando dados com filtros`, filtros);
-        
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-        
+
         const result = await processador.getResumoWithSignal(
           controller.signal,
           areaId as string | undefined,
           formula as string | undefined,
           dateStart as string | undefined,
           dateEnd as string | undefined,
-          (filtros && filtros.codigo !== undefined && filtros.codigo !== '') ? filtros.codigo : undefined,
-          (filtros && filtros.numero !== undefined && filtros.numero !== '') ? filtros.numero : undefined,
+          filtros && filtros.codigo !== undefined && filtros.codigo !== ""
+            ? filtros.codigo
+            : undefined,
+          filtros && filtros.numero !== undefined && filtros.numero !== ""
+            ? filtros.numero
+            : undefined
         );
-        
+
         clearTimeout(timeoutId);
         if (!mounted) return;
-        
+
         console.log(`[resumo] Dados recebidos:`, result);
         setResumo(result || null);
         setResumoRetryCount(0);
       } catch (err: any) {
         if (!mounted) return;
-        
+
         console.error("[resumo] Erro ao buscar dados:", err);
-        
+
         // Tentar novamente até 3 vezes em caso de erro de rede
-        if (resumoRetryCount < 3 && (err.name === 'AbortError' || err.message?.includes('network') || err.message?.includes('failed'))) {
-          setResumoRetryCount(prev => prev + 1);
-          console.log(`[resumo] Tentando novamente (${resumoRetryCount + 1}/3)...`);
+        if (
+          resumoRetryCount < 3 &&
+          (err.name === "AbortError" ||
+            err.message?.includes("network") ||
+            err.message?.includes("failed"))
+        ) {
+          setResumoRetryCount((prev) => prev + 1);
+          console.log(
+            `[resumo] Tentando novamente (${resumoRetryCount + 1}/3)...`
+          );
           retryTimeout = setTimeout(() => {
             if (mounted) fetchResumo();
           }, 2000); // espera 2 segundos antes de tentar novamente
           return;
         }
-        
+
         setResumoError(err.message || "Erro ao carregar resumo");
       } finally {
         if (mounted) setResumoLoading(false);
@@ -272,9 +330,9 @@ export default function Report() {
     };
 
     fetchResumo();
-    
-    return () => { 
-      mounted = false; 
+
+    return () => {
+      mounted = false;
       if (retryTimeout) clearTimeout(retryTimeout);
     };
   }, [filtros, resumoReloadFlag, resumoRetryCount]);
@@ -292,15 +350,15 @@ export default function Report() {
   // Update table selection from resumo
   useEffect(() => {
     if (resumo && resumo.usosPorProduto) {
-      const formulasFromResumo = Object.entries(resumo.formulasUtilizadas || {}).map(
-        ([nome, data]: [string, any]) => ({
-          numero: data.numero ?? 0,
-          nome,
-          quantidade: data.quantidade ?? 0,
-          porcentagem: data.porcentagem ?? 0,
-          somatoriaTotal: data.somatoriaTotal ?? 0,
-        })
-      );
+      const formulasFromResumo = Object.entries(
+        resumo.formulasUtilizadas || {}
+      ).map(([nome, data]: [string, any]) => ({
+        numero: data.numero ?? 0,
+        nome,
+        quantidade: data.quantidade ?? 0,
+        porcentagem: data.porcentagem ?? 0,
+        somatoriaTotal: data.somatoriaTotal ?? 0,
+      }));
 
       setTableSelection({
         total: resumo.totalPesos || 0,
@@ -311,37 +369,45 @@ export default function Report() {
         horaFinal: resumo.horaFinal || "--:--:--",
         formulas: formulasFromResumo,
         produtos: (() => {
-          const items = Object.entries(resumo.usosPorProduto).map(([key, val]: [string, unknown]) => {
-            const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
-            const nome = produtosInfo[produtoId]?.nome || key;
-            const v = val as Record<string, unknown> | undefined;
-            const rawQtd = v?.['quantidade'];
-            const qtd = Number(rawQtd ?? 0) || 0;
-            const unidade = (v?.['unidade'] as string) || 'kg';
-            const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
-            return { colKey: produtoId, nome, qtd, unidade, idx };
-          });
+          const items = Object.entries(resumo.usosPorProduto).map(
+            ([key, val]: [string, unknown]) => {
+              const produtoId =
+                "col" + (Number(String(key).split("Produto_")[1]) + 5);
+              const nome = produtosInfo[produtoId]?.nome || key;
+              const v = val as Record<string, unknown> | undefined;
+              const rawQtd = v?.["quantidade"];
+              const qtd = Number(rawQtd ?? 0) || 0;
+              const unidade = (v?.["unidade"] as string) || "kg";
+              const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
+              return { colKey: produtoId, nome, qtd, unidade, idx };
+            }
+          );
           items.sort((a, b) => a.idx - b.idx);
-          return items.map(({ colKey, nome, qtd, unidade }) => ({ colKey, nome, qtd, unidade }));
+          return items.map(({ colKey, nome, qtd, unidade }) => ({
+            colKey,
+            nome,
+            qtd,
+            unidade,
+          }));
         })(),
-        empresa:sideInfo.proprietario,
-        usuario:user.username
+        empresa: sideInfo.proprietario,
+        usuario: user.username,
       });
     }
   }, [resumo, produtosInfo, sideInfo.proprietario, user.username]);
 
   // Funções de comentários
   const removerComentario = (index: number) => {
-    setComentarios(prev => prev.filter((_, i) => i !== index));
+    setComentarios((prev) => prev.filter((_, i) => i !== index));
   };
 
   // Funções para o ExportDropdown (com ID)
   const handleAddCommentFromModal = (texto: string) => {
     const comentario: ComentarioRelatorio = {
       texto,
-      data: new Date().toLocaleString('pt-BR'),
+      data: new Date().toLocaleString("pt-BR"),
     };
-    setComentarios(prev => [...prev, comentario]);
+    setComentarios((prev) => [...prev, comentario]);
   };
 
   const handleRemoveCommentFromModal = (id: string) => {
@@ -355,7 +421,7 @@ export default function Report() {
   const comentariosComId = comentarios.map((c, idx) => ({
     id: String(idx),
     texto: c.texto,
-    data: c.data || new Date().toLocaleString('pt-BR'),
+    data: c.data || new Date().toLocaleString("pt-BR"),
   }));
 
   // Funções existentes
@@ -370,15 +436,15 @@ export default function Report() {
     const s = String(raw).trim();
     try {
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-        const [y, m, d] = s.split('-').map(Number);
-        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
+        const [y, m, d] = s.split("-").map(Number);
+        return formatDateFn(new Date(y, m - 1, d), "dd/MM/yyyy");
       }
       if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
-        const [d, m, y] = s.split('-').map(Number);
-        return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
+        const [d, m, y] = s.split("-").map(Number);
+        return formatDateFn(new Date(y, m - 1, d), "dd/MM/yyyy");
       }
       const parsed = new Date(s);
-      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
+      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, "dd/MM/yyyy");
       return s;
     } catch (e) {
       return s;
@@ -391,7 +457,9 @@ export default function Report() {
     setCollectorError(null);
     try {
       if (collectorRunning) {
-        const res = await fetch("http://localhost:3000/api/collector/stop", { method: "GET" });
+        const res = await fetch("http://localhost:3000/api/collector/stop", {
+          method: "GET",
+        });
         if (!res.ok) throw new Error("Falha ao interromper o coletor.");
         await res.json().catch(() => ({}));
         await fetchCollectorStatus();
@@ -401,7 +469,9 @@ export default function Report() {
         // Get current IHM config before starting collector
         let ihmConfig = null;
         try {
-          const configRes = await fetch("http://localhost:3000/api/config/ihm-config");
+          const configRes = await fetch(
+            "http://localhost:3000/api/config/ihm-config"
+          );
           if (configRes.ok) {
             const configData = await configRes.json();
             ihmConfig = configData.value;
@@ -412,9 +482,12 @@ export default function Report() {
 
         // Start collector with current IHM config
         let res;
-        if (ihmConfig && (ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
+        if (
+          ihmConfig &&
+          (ihmConfig.ip || ihmConfig.user || ihmConfig.password)
+        ) {
           // Send config as POST with body
-          startConnecting('Conectando ao coletor...');
+          startConnecting("Conectando ao coletor...");
           res = await fetch("http://localhost:3000/api/collector/start", {
             method: "POST",
             headers: {
@@ -428,7 +501,9 @@ export default function Report() {
           });
         } else {
           // Fallback to GET method
-          res = await fetch("http://localhost:3000/api/collector/start", { method: "GET" });
+          res = await fetch("http://localhost:3000/api/collector/start", {
+            method: "GET",
+          });
         }
 
         if (!res.ok) throw new Error("Falha ao iniciar o coletor.");
@@ -503,7 +578,11 @@ export default function Report() {
     setColLabels((prev) => ({ ...prev, [colKey]: newName }));
     setProdutosInfo((prev) => ({
       ...prev,
-      [colKey]: { ...(prev[colKey] || {}), nome: newName, unidade: unidade || 'kg' },
+      [colKey]: {
+        ...(prev[colKey] || {}),
+        nome: newName,
+        unidade: unidade || "kg",
+      },
     }));
 
     try {
@@ -512,15 +591,19 @@ export default function Report() {
         const colIndex = Number(match[1]);
         const num = colIndex - 5;
         if (!Number.isNaN(num) && num > 0) {
-          fetch('http://localhost:3000/api/db/setupMateriaPrima', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ items: [{ num, produto: newName, medida: unidade === 'g' ? 0 : 1 }] }),
-          }).catch(e => console.error('Failed to persist label', e));
+          fetch("http://localhost:3000/api/db/setupMateriaPrima", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              items: [
+                { num, produto: newName, medida: unidade === "g" ? 0 : 1 },
+              ],
+            }),
+          }).catch((e) => console.error("Failed to persist label", e));
         }
       }
     } catch (e) {
-      console.warn('Could not persist product label change to backend', e);
+      console.warn("Could not persist product label change to backend", e);
     }
   };
 
@@ -530,61 +613,70 @@ export default function Report() {
     const loadFromBackend = async () => {
       try {
         console.log("[Produtos] Carregando produtos do backend...");
-        const res = await fetch('http://localhost:3000/api/materiaprima/labels', {
-          headers: { 'Cache-Control': 'no-cache' },
-          cache: 'no-store'
-        });
+        const res = await fetch(
+          "http://localhost:3000/api/materiaprima/labels",
+          {
+            headers: { "Cache-Control": "no-cache" },
+            cache: "no-store",
+          }
+        );
         if (!res.ok) {
-          console.warn("[Produtos] Erro ao carregar produtos do backend:", res.status);
+          console.warn(
+            "[Produtos] Erro ao carregar produtos do backend:",
+            res.status
+          );
           return;
         }
-        
+
         const data = await res.json();
         if (!mounted) return;
-        
+
         console.log("[Produtos] Dados recebidos:", data);
-        
-        if (!data || typeof data !== 'object') {
+
+        if (!data || typeof data !== "object") {
           console.warn("[Produtos] Dados inválidos recebidos do backend");
           return;
         }
-        
+
         const parsed: Record<string, any> = {};
         Object.entries(data).forEach(([colKey, val]: any) => {
-          const medida = typeof val.medida === 'number' ? val.medida : Number(val.medida || 1);
+          const medida =
+            typeof val.medida === "number"
+              ? val.medida
+              : Number(val.medida || 1);
           const numMatch = colKey.match(/^col(\d+)$/);
           const num = numMatch ? Number(numMatch[1]) - 5 : undefined;
-          parsed[colKey] = { 
-            nome: val.produto || `Produto ${num}`, 
-            unidade: medida === 0 ? 'g' : 'kg', 
-            num 
+          parsed[colKey] = {
+            nome: val.produto || `Produto ${num}`,
+            unidade: medida === 0 ? "g" : "kg",
+            num,
           };
         });
-        
+
         console.log("[Produtos] Dados processados:", parsed);
         setProdutosInfo(parsed);
-        
+
         // Salvar no localStorage para uso offline
-        localStorage.setItem('produtosInfo', JSON.stringify(parsed));
+        localStorage.setItem("produtosInfo", JSON.stringify(parsed));
       } catch (e) {
-        console.warn('[Produtos] Falha ao carregar produtos do backend:', e);
+        console.warn("[Produtos] Falha ao carregar produtos do backend:", e);
         // Em caso de erro, tentar carregar do localStorage
         loadFromLocalStorage();
       }
     };
-    
+
     const loadFromLocalStorage = () => {
       try {
         console.log("[Produtos] Tentando carregar do localStorage...");
-        const raw = localStorage.getItem('produtosInfo');
+        const raw = localStorage.getItem("produtosInfo");
         if (raw) {
           const parsedLocal = JSON.parse(raw);
           const parsedObj: Record<string, any> = {};
           Object.keys(parsedLocal).forEach((colKey) => {
             const val = parsedLocal[colKey];
-            parsedObj[colKey] = { 
-              nome: val?.nome || `Produto`, 
-              unidade: val?.unidade || 'kg' 
+            parsedObj[colKey] = {
+              nome: val?.nome || `Produto`,
+              unidade: val?.unidade || "kg",
             };
           });
           console.log("[Produtos] Carregado do localStorage:", parsedObj);
@@ -594,10 +686,10 @@ export default function Report() {
         console.error("[Produtos] Erro ao carregar do localStorage:", err);
       }
     };
-    
+
     // Tenta carregar do backend primeiro
     loadFromBackend();
-    
+
     const onProdutosUpdated = () => {
       console.log("[Produtos] Evento de atualização de produtos recebido");
       loadFromBackend();
@@ -605,19 +697,25 @@ export default function Report() {
       setFiltros((prev) => ({ ...prev }));
       setPage((p) => Math.max(1, p));
     };
-    
-    window.addEventListener('produtos-updated', onProdutosUpdated as EventListener);
-    return () => { 
-      window.removeEventListener('produtos-updated', onProdutosUpdated as EventListener); 
-      mounted = false; 
+
+    window.addEventListener(
+      "produtos-updated",
+      onProdutosUpdated as EventListener
+    );
+    return () => {
+      window.removeEventListener(
+        "produtos-updated",
+        onProdutosUpdated as EventListener
+      );
+      mounted = false;
     };
   }, []);
 
   const converterValor = (valor: number, colKey?: string): number => {
     if (typeof valor !== "number") return valor;
-    let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
+    let unidade = produtosInfo[colKey || ""]?.unidade || "kg";
     // Backend retorna valores sempre em kg. Se unidade configurada é 'g', dividimos por 1000
-    if (unidade === 'g') return valor / 1000;
+    if (unidade === "g") return valor / 1000;
     return valor;
   };
 
@@ -627,11 +725,24 @@ export default function Report() {
     const formulaSums: Record<string, number> = (() => {
       const out: Record<string, number> = {};
       try {
-        if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
-          for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
-            out[name] = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
+        if (
+          resumo &&
+          resumo.formulasUtilizadas &&
+          Object.keys(resumo.formulasUtilizadas).length > 0
+        ) {
+          for (const [name, data] of Object.entries(
+            resumo.formulasUtilizadas
+          )) {
+            out[name] =
+              Number(
+                (data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0
+              ) || 0;
           }
-        } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+        } else if (
+          tableSelection &&
+          tableSelection.formulas &&
+          tableSelection.formulas.length > 0
+        ) {
           for (const f of tableSelection.formulas) {
             out[f.nome] = Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0;
           }
@@ -643,25 +754,50 @@ export default function Report() {
     const pdfChartData = (() => {
       const out: { name: string; value: number }[] = [];
       try {
-        if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
-          for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
-            const v = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
+        if (
+          resumo &&
+          resumo.formulasUtilizadas &&
+          Object.keys(resumo.formulasUtilizadas).length > 0
+        ) {
+          for (const [name, data] of Object.entries(
+            resumo.formulasUtilizadas
+          )) {
+            const v =
+              Number(
+                (data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0
+              ) || 0;
             out.push({ name, value: v });
           }
-        } else if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
+        } else if (
+          resumo &&
+          resumo.usosPorProduto &&
+          Object.keys(resumo.usosPorProduto).length > 0
+        ) {
           for (const [key, val] of Object.entries(resumo.usosPorProduto)) {
-            const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
+            const produtoId =
+              "col" + (Number(String(key).split("Produto_")[1]) + 5);
             const nome = produtosInfo[produtoId]?.nome || String(key);
             let v = Number((val as any)?.quantidade ?? 0) || 0;
-            const unidade = produtosInfo[produtoId]?.unidade || 'kg';
-            if (unidade === 'g') v = v / 1000;
+            const unidade = produtosInfo[produtoId]?.unidade || "kg";
+            if (unidade === "g") v = v / 1000;
             out.push({ name: nome, value: v });
           }
-        } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+        } else if (
+          tableSelection &&
+          tableSelection.formulas &&
+          tableSelection.formulas.length > 0
+        ) {
           for (const f of tableSelection.formulas) {
-            out.push({ name: f.nome, value: Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0 });
+            out.push({
+              name: f.nome,
+              value: Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0,
+            });
           }
-        } else if (tableSelection && tableSelection.produtos && tableSelection.produtos.length > 0) {
+        } else if (
+          tableSelection &&
+          tableSelection.produtos &&
+          tableSelection.produtos.length > 0
+        ) {
           for (const p of tableSelection.produtos) {
             const v = converterValor(Number(p.qtd) || 0, p.colKey);
             out.push({ name: p.nome, value: Number(v) || 0 });
@@ -685,7 +821,7 @@ export default function Report() {
         formulas={tableSelection.formulas}
         produtos={tableSelection.produtos}
         data={new Date().toLocaleDateString("pt-BR")}
-        empresa={sideInfo.proprietario || 'Relatório RPRO'}
+        empresa={sideInfo.proprietario || "Relatório RPRO"}
         comentarios={comentariosComId}
         chartData={pdfChartData}
         formulaSums={formulaSums}
@@ -696,127 +832,35 @@ export default function Report() {
     );
   };
 
-  
-  // const handlePrint = async () => {
-  //   // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
-  //   const formulaSums: Record<string, number> = (() => {
-  //     const out: Record<string, number> = {};
-  //     try {
-  //       if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
-  //         for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
-  //           out[name] = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
-  //         }
-  //       } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
-  //         for (const f of tableSelection.formulas) {
-  //           out[f.nome] = Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0;
-  //         }
-  //       }
-  //     } catch (e) {}
-  //     return out;
-  //   })();
-
-  //   const pdfChartData = (() => {
-  //     const out: { name: string; value: number }[] = [];
-  //     try {
-  //       if (resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0) {
-  //         for (const [name, data] of Object.entries(resumo.formulasUtilizadas)) {
-  //           const v = Number((data as any)?.somatoriaTotal ?? (data as any)?.quantidade ?? 0) || 0;
-  //           out.push({ name, value: v });
-  //         }
-  //       } else if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
-  //         for (const [key, val] of Object.entries(resumo.usosPorProduto)) {
-  //           const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
-  //           const nome = produtosInfo[produtoId]?.nome || String(key);
-  //           let v = Number((val as any)?.quantidade ?? 0) || 0;
-  //           const unidade = produtosInfo[produtoId]?.unidade || 'kg';
-  //           if (unidade === 'g') v = v / 1000;
-  //           out.push({ name: nome, value: v });
-  //         }
-  //       } else if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
-  //         for (const f of tableSelection.formulas) {
-  //           out.push({ name: f.nome, value: Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0 });
-  //         }
-  //       } else if (tableSelection && tableSelection.produtos && tableSelection.produtos.length > 0) {
-  //         for (const p of tableSelection.produtos) {
-  //           const v = converterValor(Number(p.qtd) || 0, p.colKey);
-  //           out.push({ name: p.nome, value: Number(v) || 0 });
-  //         }
-  //       }
-  //     } catch (e) {
-  //       // ignore
-  //     }
-  //     return out.sort((a, b) => b.value - a.value).slice(0, 50);
-  //   })();
-
-  // // Debug: log chart payload to the console so we can inspect why charts may be empty
-  // console.log('[PDF] chartData:', pdfChartData);
-  // console.log('[PDF] formulaSums:', formulaSums);
-
-  // const blob = await pdf(
-  //     <MyDocument
-  //       logoUrl={logoUrl}
-  //       total={Number(tableSelection.total) || 0}
-  //       batidas={Number(tableSelection.batidas) || 0}
-  //       periodoInicio={tableSelection.periodoInicio}
-  //       periodoFim={tableSelection.periodoFim}
-  //       horaInicial={tableSelection.horaInicial}
-  //       horaFinal={tableSelection.horaFinal}
-  //       formulas={tableSelection.formulas}
-  //       produtos={tableSelection.produtos}
-  //       data={new Date().toLocaleDateString("pt-BR")}
-  //       empresa={sideInfo.proprietario || 'Relatório RPRO'}
-  //       comentarios={comentariosComId}
-  //       chartData={pdfChartData}
-  //       formulaSums={formulaSums}
-  //       usuario={user.username}
-  //       showComments={showPdfComments}
-  //       showCharts={showPdfCharts}
-  //     />
-  //   ).toBlob();
-    
-  //   const blobUrl = URL.createObjectURL(blob);
-  //   const printWindow = window.open("", "_blank", "width=768,height=733"); 
-  //   if (!printWindow) return;
-
-  //   printWindow.document.write(`
-  //     <html>
-  //       <head><title>Print PDF</title></head>
-  //       <body style="margin:0">
-  //         <iframe src="${blobUrl}" style="width:100%;height:1000vh;" frameborder="0"></iframe>
-  //       </body>
-  //     </html>
-  //   `);
-  //   printWindow.document.close();
-
-  //   const iframe = printWindow.document.querySelector("iframe");
-  //   iframe?.addEventListener("load", () => {
-  //     printWindow.focus();
-  //   });
-  // };
-
-  const handleExcelExport = async (filters: { nomeFormula?: string; dataInicio?: string; dataFim?: string }) => {
+  const handleExcelExport = async (filters: {
+    nomeFormula?: string;
+    dataInicio?: string;
+    dataFim?: string;
+  }) => {
     try {
       const backendPort = 3000;
       const base = `http://localhost:${backendPort}`;
       const params = new URLSearchParams();
-      
-      if (filters.dataInicio) params.append('dataInicio', filters.dataInicio);
-      if (filters.dataFim) params.append('dataFim', filters.dataFim);
-      if (filters.nomeFormula) params.append('formula', filters.nomeFormula);
+
+      if (filters.dataInicio) params.append("dataInicio", filters.dataInicio);
+      if (filters.dataFim) params.append("dataFim", filters.dataFim);
+      if (filters.nomeFormula) params.append("formula", filters.nomeFormula);
 
       const url = `${base}/api/relatorio/exportExcel?${params.toString()}`;
 
-      const resp = await fetch(url, { method: 'GET' });
+      const resp = await fetch(url, { method: "GET" });
       if (!resp.ok) {
-        let txt = '';
-        try { txt = await resp.text(); } catch {}
-        console.error('Falha ao exportar Excel:', txt || resp.statusText);
+        let txt = "";
+        try {
+          txt = await resp.text();
+        } catch {}
+        console.error("Falha ao exportar Excel:", txt || resp.statusText);
         return;
       }
 
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
+      const a = document.createElement("a");
       a.href = blobUrl;
       a.download = `relatorio_${Date.now()}.xlsx`;
       document.body.appendChild(a);
@@ -824,24 +868,34 @@ export default function Report() {
       a.remove();
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      console.error('Erro ao exportar Excel:', err);
+      console.error("Erro ao exportar Excel:", err);
     }
   };
 
   const displayProducts = useMemo(() => {
-    if (resumo && resumo.usosPorProduto && Object.keys(resumo.usosPorProduto).length > 0) {
+    if (
+      resumo &&
+      resumo.usosPorProduto &&
+      Object.keys(resumo.usosPorProduto).length > 0
+    ) {
       // Build an array with numeric column index so we can sort it to match the main table
-      const items: { colKey: string; nome: string; qtd: number; idx: number }[] = Object.entries(
-        resumo.usosPorProduto
-      ).map(([key, val]: [string, unknown]) => {
-        const produtoId = "col" + (Number(String(key).split("Produto_")[1]) + 5);
-        const nome = produtosInfo[produtoId]?.nome || String(key);
-        const v = val as Record<string, unknown> | undefined;
-        const rawQtd = v?.['quantidade'];
-        const qtd = Number(rawQtd ?? 0) || 0;
-        const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
-        return { colKey: produtoId, nome, qtd, idx };
-      });
+      const items: {
+        colKey: string;
+        nome: string;
+        qtd: number;
+        idx: number;
+      }[] = Object.entries(resumo.usosPorProduto).map(
+        ([key, val]: [string, unknown]) => {
+          const produtoId =
+            "col" + (Number(String(key).split("Produto_")[1]) + 5);
+          const nome = produtosInfo[produtoId]?.nome || String(key);
+          const v = val as Record<string, unknown> | undefined;
+          const rawQtd = v?.["quantidade"];
+          const qtd = Number(rawQtd ?? 0) || 0;
+          const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
+          return { colKey: produtoId, nome, qtd, idx };
+        }
+      );
 
       // Sort by the numeric part of the column key (col6, col7, ...)
       items.sort((a, b) => a.idx - b.idx);
@@ -927,17 +981,17 @@ export default function Report() {
               ) : (
                 <Play className="h-4 w-4" />
               )}
-              {collectorLoading
-                ? <p className="hidden 3xl:flex">Processando...</p>
-                : collectorRunning
-                ? <p className="hidden 3xl:flex"> Parar coleta</p>
-                : <p className="hidden 3xl:flex">Iniciar coleta</p>
-              }
+              {collectorLoading ? (
+                <p className="hidden 3xl:flex">Processando...</p>
+              ) : collectorRunning ? (
+                <p className="hidden 3xl:flex"> Parar coleta</p>
+              ) : (
+                <p className="hidden 3xl:flex">Iniciar coleta</p>
+              )}
             </Button>
           </div>
         </div>
       </div>
-
 
       <div className="flex flex-row gap-2 justify-start w-full">
         <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-196.5 w-[68px]">
@@ -954,7 +1008,7 @@ export default function Report() {
                     onClick={() => {
                       if (page !== 1) {
                         // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        window.scrollTo({ top: 0, behavior: "smooth" });
                         setPage(Math.max(1, page - 1));
                       }
                     }}
@@ -974,18 +1028,18 @@ export default function Report() {
                         onClick={() => {
                           if (p !== page) {
                             // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                            window.scrollTo({ top: 0, behavior: "smooth" });
                             setPage(p);
                           }
                         }}
                         aria-current={isActive ? "page" : undefined}
-                        disabled={loading && p !== page} 
+                        disabled={loading && p !== page}
                         className={cn(
                           buttonVariants({ variant: "default" }),
                           isActive
                             ? "bg-red-600 text-white"
-                            : loading && p !== page 
-                              ? "bg-gray-200 text-gray-500 cursor-not-allowed" 
+                            : loading && p !== page
+                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
                               : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
                         )}
                       >
@@ -994,13 +1048,16 @@ export default function Report() {
                     </PaginationItem>
                   );
                 })}
-
+                {/* 
+                pau no seu cu
+                se leu seu cu é meu
+                 */}
                 <PaginationItem>
                   <button
                     onClick={() => {
                       if (page !== totalPages) {
                         // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        window.scrollTo({ top: 0, behavior: "smooth" });
                         setPage(Math.min(page + 1, totalPages));
                       }
                     }}
@@ -1017,266 +1074,407 @@ export default function Report() {
         </div>
 
         {/* Side Info com drawer de gráficos atrás */}
-        <div className="relative w-87 h-[70vh] 3xl:h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
+        <div
+          className="relative w-87 h-[70vh] 3xl:h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+          style={{ zIndex: 10 }}
+        >
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
           {chartsOpen && (
-            <div className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
-                 style={{ zIndex: 5 }}>
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3 border-b ">
-                <div className="text-base font-bold text-gray-900">Resumo Visual</div>
-              </div>
-              <div className="p-4 space-y-4 overflow-auto scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {/* Produtos Donut */}
-                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">Produtos</div>
-                    <div className="text-xs text-gray-600 font-medium mt-0.5">
-                      {resumo?.produtosCount ?? (displayProducts?.length || 0)} itens • {(resumo?.totalPesos ?? tableSelection.total).toLocaleString('pt-BR', { maximumFractionDigits: 0 })} kg
+            <div
+              className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
+              style={{ zIndex: 5 }}
+            >
+              <div className="h-full flex flex-col">
+                <div className="flex items-center justify-between px-4 py-3 border-b ">
+                  <div className="text-base font-bold text-gray-900">
+                    Resumo Visual
+                  </div>
+                </div>
+                <div
+                  className="p-4 space-y-4 overflow-auto scrollbar-hide"
+                  style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+                >
+                  {/* Produtos Donut */}
+                  <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                      <div className="text-sm font-bold text-gray-800">
+                        Produtos
+                      </div>
+                      <div className="text-xs text-gray-600 font-medium mt-0.5">
+                        {resumo?.produtosCount ??
+                          (displayProducts?.length || 0)}{" "}
+                        itens •{" "}
+                        {(
+                          resumo?.totalPesos ?? tableSelection.total
+                        ).toLocaleString("pt-BR", {
+                          maximumFractionDigits: 0,
+                        })}{" "}
+                        kg
+                      </div>
+                    </div>
+                    <div className="h-[280px] px-3 py-3 relative">
+                      {resumoLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                        </div>
+                      )}
+
+                      {resumoError && (
+                        <>
+                          {/* Tentar recarregar automaticamente após um pequeno atraso */}
+                          {setTimeout(
+                            () => setResumoRetryCount((prev) => prev + 1),
+                            3000
+                          ) && null}
+                        </>
+                      )}
+
+                      <DonutChartWidget
+                        chartType="produtos"
+                        config={chartConfig}
+                        compact
+                        highlightName={highlightProduto}
+                        onSliceHover={(name) => setHighlightProduto(name)}
+                        onSliceLeave={() => setHighlightProduto(null)}
+                      />
                     </div>
                   </div>
-                  <div className="h-[280px] px-3 py-3 relative">
-                    {resumoLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-                      </div>
-                    )}
-                    
-                    {resumoError && (
-                      <>
-                        {/* Tentar recarregar automaticamente após um pequeno atraso */}
-                        {setTimeout(() => setResumoRetryCount(prev => prev + 1), 3000) && null}
-                      </>
-                    )}
-                    
-                    <DonutChartWidget
-                      chartType="produtos"
-                      config={{ filters: filtros }}
-                      compact
-                      highlightName={highlightProduto}
-                      onSliceHover={(name) => setHighlightProduto(name)}
-                      onSliceLeave={() => setHighlightProduto(null)}
-                    />
-                  </div>
-                </div>
 
-                {/* Fórmulas Donut */}
-                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">Fórmulas</div>
-                    <div className="text-xs text-gray-600 font-medium mt-0.5">
-                      {resumo?.formulasUtilizadas ? Object.keys(resumo.formulasUtilizadas).length : (tableSelection.formulas?.length || 0)} fórmulas • {(resumo?.batitdasTotais ?? tableSelection.batidas).toLocaleString('pt-BR')} batidas
+                  {/* Fórmulas Donut */}
+                  <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                      <div className="text-sm font-bold text-gray-800">
+                        Fórmulas
+                      </div>
+                      <div className="text-xs text-gray-600 font-medium mt-0.5">
+                        {resumo?.formulasUtilizadas
+                          ? Object.keys(resumo.formulasUtilizadas).length
+                          : tableSelection.formulas?.length || 0}{" "}
+                        fórmulas •{" "}
+                        {(
+                          resumo?.batitdasTotais ?? tableSelection.batidas
+                        ).toLocaleString("pt-BR")}{" "}
+                        batidas
+                      </div>
+                    </div>
+                    <div className="h-[280px] px-3 py-3 relative">
+                      {resumoLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                        </div>
+                      )}
+
+                      {resumoError && (
+                        <>
+                          {/* Tentar recarregar automaticamente após um pequeno atraso */}
+                          {setTimeout(
+                            () => setResumoRetryCount((prev) => prev + 1),
+                            3000
+                          ) && null}
+                        </>
+                      )}
+
+                      <DonutChartWidget
+                        chartType="formulas"
+                        config={chartConfig}
+                        compact
+                        highlightName={highlightFormula}
+                        onSliceHover={(name) => setHighlightFormula(name)}
+                        onSliceLeave={() => setHighlightFormula(null)}
+                      />
                     </div>
                   </div>
-                  <div className="h-[280px] px-3 py-3 relative">
-                    {resumoLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-                      </div>
-                    )}
-                    
-                    {resumoError && (
-                      <>
-                        {/* Tentar recarregar automaticamente após um pequeno atraso */}
-                        {setTimeout(() => setResumoRetryCount(prev => prev + 1), 3000) && null}
-                      </>
-                    )}
-                    
-                    <DonutChartWidget
-                      chartType="formulas"
-                      config={{ filters: filtros }}
-                      compact
-                      highlightName={highlightFormula}
-                      onSliceHover={(name) => setHighlightFormula(name)}
-                      onSliceLeave={() => setHighlightFormula(null)}
-                    />
-                  </div>
-                </div>
 
-                {/* Horários BarChart */}
-                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">Horários de Produção</div>
-                    <div className="text-xs text-gray-600 font-medium mt-0.5">Distribuição por hora</div>
-                  </div>
-                  <div className="h-[280px] px-3 py-3 relative">
-                    {resumoLoading && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                  {/* Horários BarChart */}
+                  <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                      <div className="text-sm font-bold text-gray-800">
+                        Horários de Produção
                       </div>
-                    )}
-                    
-                    {resumoError && (
-                      <button 
-                        onClick={() => setResumoRetryCount(prev => prev + 1)}
-                        className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Recarregar
-                      </button>
-                    )}
-                    
-                    <BarChartWidget chartType="horarios" config={{ filters: filtros }} />
+                      <div className="text-xs text-gray-600 font-medium mt-0.5">
+                        Distribuição por hora
+                      </div>
+                    </div>
+                    <div className="h-[280px] px-3 py-3 relative">
+                      {resumoLoading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                        </div>
+                      )}
+
+                      {resumoError && (
+                        <button
+                          onClick={() =>
+                            setResumoRetryCount((prev) => prev + 1)
+                          }
+                          className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 mr-1"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                            />
+                          </svg>
+                          Recarregar
+                        </button>
+                      )}
+
+                      <BarChartWidget
+                        chartType="horarios"
+                        config={chartConfig}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
             </div>
           )}
 
           {/* Botão para abrir/fechar drawer (fica colado à esquerda do sideinfo) */}
           <button
             className="absolute -left-6 top-1/2 -translate-y-1/2 bg-white border border-gray-300 rounded-l px-1.5 py-2 shadow hover:bg-gray-50"
-            onClick={() => setChartsOpen(s => !s)}
-            title={chartsOpen ? 'Ocultar gráficos' : 'Mostrar gráficos'}
+            onClick={() => setChartsOpen((s) => !s)}
+            title={chartsOpen ? "Ocultar gráficos" : "Mostrar gráficos"}
             style={{ zIndex: 7 }}
           >
-            {chartsOpen ? '▶' : '◀'}
+            {chartsOpen ? "▶" : "◀"}
           </button>
 
           {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
           <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
-              <p className="text-center text-lg font-bold">Total:  {""}
+              <p className="text-center text-lg font-bold">
+                Total: {""}
                 {(resumo && typeof resumo.totalPesos === "number"
                   ? resumo.totalPesos
-                  : tableSelection.total 
+                  : tableSelection.total
                 ).toLocaleString("pt-BR", {
                   minimumFractionDigits: 3,
                   maximumFractionDigits: 3,
-                })} kg
+                })}{" "}
+                kg
               </p>
-              <p className="text-center text-sm text-gray-400 font-regular">Batidas:  {""}
+              <p className="text-center text-sm text-gray-400 font-regular">
+                Batidas: {""}
                 {resumo && typeof resumo.batitdasTotais === "number"
                   ? resumo.batitdasTotais
                   : tableSelection.batidas}
               </p>
             </div>
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
-              <p className="text-center font-bold">Período:  {""}</p>
-                <div className="flex flex-row justify-around px-8 gap-4">
-                  <div className="flex flex-col justify-center gap-1">
-                    <p className="text-center font-bold text-lg">
-                      {resumo && resumo.periodoInicio
-                        ? formatShortDate(resumo.periodoInicio)
-                        :  "--/--/--"}
-                    </p>
-                    <p
-                      className="text-center text-sm text-gray-400 font-regular">
-                      {resumo?.firstDayRange?.date && (
-                        <div className="text-sm text-gray-400">{resumo.firstDayRange.firstTime || '—'} <Separator orientation="vertical"/> {resumo.firstDayRange.lastTime || '—'}</div>
-                      )}
-                    </p>
-                </div>
-                
-                  <Separator orientation="vertical"/>
-                
+              <p className="text-center font-bold">Período: {""}</p>
+              <div className="flex flex-row justify-around px-8 gap-4">
                 <div className="flex flex-col justify-center gap-1">
-                    <p className="text-center font-bold text-lg">
-                      {resumo && resumo.periodoFim
-                        ? formatShortDate(resumo.periodoFim)
-                        :  "--/--/--"}
-                    </p>
-                    <p className="text-center text-sm text-gray-400 font-regular">
-                      {resumo?.lastDayRange?.date && (
-                        <div className="text-sm text-gray-400">{resumo.lastDayRange.firstTime || '—'} <Separator orientation="vertical"/> {resumo.lastDayRange.lastTime || '—'}</div>
-                      )}
-                    </p>
+                  <p className="text-center font-bold text-lg">
+                    {resumo && resumo.periodoInicio
+                      ? formatShortDate(resumo.periodoInicio)
+                      : "--/--/--"}
+                  </p>
+                  <p className="text-center text-sm text-gray-400 font-regular">
+                    {resumo?.firstDayRange?.date && (
+                      <div className="text-sm text-gray-400">
+                        {resumo.firstDayRange.firstTime || "—"}{" "}
+                        <Separator orientation="vertical" />{" "}
+                        {resumo.firstDayRange.lastTime || "—"}
+                      </div>
+                    )}
+                  </p>
+                </div>
+
+                <Separator orientation="vertical" />
+
+                <div className="flex flex-col justify-center gap-1">
+                  <p className="text-center font-bold text-lg">
+                    {resumo && resumo.periodoFim
+                      ? formatShortDate(resumo.periodoFim)
+                      : "--/--/--"}
+                  </p>
+                  <p className="text-center text-sm text-gray-400 font-regular">
+                    {resumo?.lastDayRange?.date && (
+                      <div className="text-sm text-gray-400">
+                        {resumo.lastDayRange.firstTime || "—"}{" "}
+                        <Separator orientation="vertical" />{" "}
+                        {resumo.lastDayRange.lastTime || "—"}
+                      </div>
+                    )}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Produtos */}
-            <div className="border border-gray-300 rounded flex-grow overflow-auto thin-red-scrollbar w-full">
-              {/* Toggle entre Produtos e Fórmulas */}
-              <div className="flex gap-2 p-2 border-b sticky top-0 bg-white z-10">
-                <button
-                  className={`text-xs px-2 py-1 rounded border ${sideListMode === 'produtos' ? 'bg-red-600 text-white border-red-600' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
-                  onClick={() => setSideListMode('produtos')}
-                >
-                  Produtos
-                </button>
-                <button
-                  className={`text-xs px-2 py-1 rounded border ${sideListMode === 'formulas' ? 'bg-red-600 text-white border-red-600' : 'bg-gray-100 text-gray-700 border-gray-300'}`}
-                  onClick={() => setSideListMode('formulas')}
-                >
-                  Fórmulas
-                </button>
-              </div>
+          <div className="border border-gray-300 rounded flex-grow overflow-auto thin-red-scrollbar w-full">
+            {/* Toggle entre Produtos e Fórmulas */}
+            <div className="flex gap-2 p-2 border-b sticky top-0 bg-white z-10">
+              <button
+                className={`text-xs px-2 py-1 rounded border ${sideListMode === "produtos" ? "bg-red-600 text-white border-red-600" : "bg-gray-100 text-gray-700 border-gray-300"}`}
+                onClick={() => setSideListMode("produtos")}
+              >
+                Produtos
+              </button>
+              <button
+                className={`text-xs px-2 py-1 rounded border ${sideListMode === "formulas" ? "bg-red-600 text-white border-red-600" : "bg-gray-100 text-gray-700 border-gray-300"}`}
+                onClick={() => setSideListMode("formulas")}
+              >
+                Fórmulas
+              </button>
+            </div>
 
-              {sideListMode === 'produtos' ? (
-                <Table className="h-80 w-full table-fixed">
-                  <TableHeader>
-                    <TableRow className="bg-gray-200 border">
-                      <TableHead className="text-center w-1/2 border-r">Produtos</TableHead>
-                      <TableHead className="text-center w-1/2">Quantidade</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {displayProducts && displayProducts.length > 0 ? (
-                      displayProducts.map((produto, idx) => (
-                        <TableRow key={idx}
-                          onMouseEnter={() => setHighlightProduto(produto.nome)}
-                          onMouseLeave={() => setHighlightProduto(null)}
-                          className="hover:bg-gray-50 cursor-default"
-                        >
-                          <TableCell className="py-1 text-right border-r">
-                            <div 
-                              className="truncate max-w-full" 
-                              title={produto.nome} // Tooltip nativo para mostrar o nome completo
-                            >
-                              {produto.nome}
-                            </div>
-                          </TableCell>
-                          <TableCell className="py-1 text-right">
-                            {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
-                              minimumFractionDigits: 3,
-                              maximumFractionDigits: 3,
-                            })} {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={2} className="text-center text-gray-500 py-4">Nenhum produto selecionado</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              ) : (
-                <Table className="h-100 w-full table-fixed">
-                  <TableHeader>
-                    <TableRow className="bg-gray-200 border">
-                      <TableHead className="text-center w-1/2 border-r">Fórmulas</TableHead>
-                      <TableHead className="text-center w-1/2">Quantidade</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(resumo && resumo.formulasUtilizadas && Object.keys(resumo.formulasUtilizadas).length > 0
-                      ? Object.entries(resumo.formulasUtilizadas).map(([nome, data]: any) => ({ nome, valor: Number(data?.somatoriaTotal ?? data?.quantidade ?? 0) }))
-                      : (tableSelection.formulas || []).map((f) => ({ nome: f.nome, valor: Number(f.somatoriaTotal ?? f.quantidade ?? 0) }))
-                    ).map((f, idx) => (
-                      <TableRow key={idx}
-                        onMouseEnter={() => setHighlightFormula(f.nome)}
-                        onMouseLeave={() => setHighlightFormula(null)}
-                        className="hover:bg-gray-50 cursor-default"
+            {sideListMode === "produtos" ? (
+              <Table className="w-full table-fixed">
+                <TableHeader>
+                  <TableRow className="bg-gray-200 border">
+                    <TableHead className="text-center w-1/2 border-r h-8 py-1">
+                      Produtos
+                    </TableHead>
+                    <TableHead className="text-center w-1/2 h-8 py-1">
+                      Quantidade
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {displayProducts && displayProducts.length > 0 ? (
+                    displayProducts.map((produto, idx) => (
+                      <TableRow
+                        key={idx}
+                        onMouseEnter={() => setHighlightProduto(produto.nome)}
+                        onMouseLeave={() => setHighlightProduto(null)}
+                        className="hover:bg-gray-50 cursor-default h-10 border-b"
                       >
-                        <TableCell className="py-1 text-right border-r">
-                          <div className="truncate max-w-full" title={f.nome}>
-                            {f.nome}
+                        <TableCell className="py-1 px-2 text-right border-r align-middle">
+                          <div
+                            className="break-words overflow-hidden line-clamp-2 text-xs"
+                            style={{
+                              wordBreak: "break-word",
+                              overflowWrap: "break-word",
+                              maxWidth: "100%",
+                              lineHeight: "1.2",
+                            }}
+                            title={produto.nome}
+                          >
+                            {produto.nome}
                           </div>
                         </TableCell>
-                        <TableCell className="py-1 text-right">{f.valor.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</TableCell>
+                        <TableCell className="py-1 px-2 text-right align-middle">
+                          <div
+                            className="break-words overflow-hidden line-clamp-2 text-xs"
+                            style={{
+                              wordBreak: "break-word",
+                              overflowWrap: "break-word",
+                              maxWidth: "100%",
+                              lineHeight: "1.2",
+                            }}
+                          >
+                            {Number(
+                              converterValor(
+                                Number(produto.qtd),
+                                produto.colKey
+                              )
+                            ).toLocaleString("pt-BR", {
+                              minimumFractionDigits: 3,
+                              maximumFractionDigits: 3,
+                            })}{" "}
+                            {(produto.colKey &&
+                              produtosInfo[produto.colKey]?.unidade) ||
+                              "kg"}
+                          </div>
+                        </TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </div>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell
+                        colSpan={2}
+                        className="text-center text-gray-500 py-4"
+                      >
+                        Nenhum produto selecionado
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            ) : (
+              <Table className="w-full table-fixed">
+                <TableHeader>
+                  <TableRow className="bg-gray-200 border">
+                    <TableHead className="text-center w-1/2 border-r h-8 py-1">
+                      Fórmulas
+                    </TableHead>
+                    <TableHead className="text-center w-1/2 h-8 py-1">
+                      Quantidade
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(resumo &&
+                  resumo.formulasUtilizadas &&
+                  Object.keys(resumo.formulasUtilizadas).length > 0
+                    ? Object.entries(resumo.formulasUtilizadas).map(
+                        ([nome, data]: any) => ({
+                          nome,
+                          valor: Number(
+                            data?.somatoriaTotal ?? data?.quantidade ?? 0
+                          ),
+                        })
+                      )
+                    : (tableSelection.formulas || []).map((f) => ({
+                        nome: f.nome,
+                        valor: Number(f.somatoriaTotal ?? f.quantidade ?? 0),
+                      }))
+                  ).map((f, idx) => (
+                    <TableRow
+                      key={idx}
+                      onMouseEnter={() => setHighlightFormula(f.nome)}
+                      onMouseLeave={() => setHighlightFormula(null)}
+                      className="hover:bg-gray-50 cursor-default h-10 border-b"
+                    >
+                      <TableCell className="py-1 px-2 text-right border-r align-middle">
+                        <div
+                          className="break-words overflow-hidden line-clamp-2 text-xs"
+                          style={{
+                            wordBreak: "break-word",
+                            overflowWrap: "break-word",
+                            maxWidth: "100%",
+                            lineHeight: "1.2",
+                          }}
+                          title={f.nome}
+                        >
+                          {f.nome}
+                        </div>
+                      </TableCell>
+                      <TableCell className="py-1 px-2 text-right align-middle">
+                        <div
+                          className="break-words overflow-hidden line-clamp-2 text-xs"
+                          style={{
+                            wordBreak: "break-word",
+                            overflowWrap: "break-word",
+                            maxWidth: "100%",
+                            lineHeight: "1.2",
+                          }}
+                        >
+                          {f.valor.toLocaleString("pt-BR", {
+                            minimumFractionDigits: 3,
+                            maximumFractionDigits: 3,
+                          })}{" "}
+                          kg
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
 
           {/* Impressão e Comentários */}
           <div className="flex flex-col fl text-center gap-3 mt-1">

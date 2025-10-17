@@ -1,6 +1,28 @@
 import { Document, Page, Text, StyleSheet, View, Font, Image } from "@react-pdf/renderer";
 import { DASHBOARD_COLORS as palette } from './lib/colors';
 import type { FC } from "react";
+import { format as formatDateFn } from 'date-fns';
+
+// Função para formatar datas para dd/MM/yyyy
+const formatShortDate = (raw?: string | null): string => {
+  if (!raw) return "-";
+  const s = String(raw).trim();
+  try {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const [y, m, d] = s.split('-').map(Number);
+      return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
+    }
+    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+      const [d, m, y] = s.split('-').map(Number);
+      return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
+    }
+    const parsed = new Date(s);
+    if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
+    return s;
+  } catch (e) {
+    return s;
+  }
+};
 
 Font.register({
   family: "Roboto",
@@ -114,6 +136,7 @@ interface Produto {
   categoria?: string;
 }
 interface ComentarioRelatorio {
+  id?: string;
   texto: string;
   data?: string;
   autor?: string;
@@ -279,13 +302,13 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           <View style={{ marginBottom: 6 }}>
             <Text style={styles.label}>
-              Data inicial: <Text style={styles.value}>{periodoInicio}</Text>
+              Data inicial: <Text style={styles.value}>{formatShortDate(periodoInicio)}</Text>
             </Text>
           </View>
 
           <View style={{ marginBottom: 6 }}>
             <Text style={styles.label}>
-              Data final: <Text style={styles.value}>{periodoFim}</Text>
+              Data final: <Text style={styles.value}>{formatShortDate(periodoFim)}</Text>
             </Text>
           </View>
 

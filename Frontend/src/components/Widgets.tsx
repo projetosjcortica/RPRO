@@ -116,12 +116,12 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
           };
           
           setData(chartData);
+          setStats(body);
+          setRetryCount(0);
         } catch (innerError) {
           console.error(`[useChartData] Erro na requisição fetch: ${innerError}`);
           throw innerError;
         }
-        setStats(body);
-        setRetryCount(0);
       } catch (err: any) {
         if (!isMounted) return;
         
@@ -140,12 +140,28 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         setError(err.message || 'Erro ao carregar dados');
         
         // Se houver dados em cache, usar mesmo vencido em caso de erro
+        const params = new URLSearchParams();
+        if (filters?.nomeFormula && String(filters.nomeFormula).trim()) params.set('nomeFormula', String(filters.nomeFormula));
+        if (filters?.formula && String(filters.formula).trim()) params.set('formula', String(filters.formula));
+        if (filters?.dataInicio && String(filters.dataInicio).trim()) params.set('dataInicio', String(filters.dataInicio));
+        if (filters?.dataFim && String(filters.dataFim).trim()) params.set('dataFim', String(filters.dataFim));
+        if (filters?.codigo && String(filters.codigo).trim()) params.set('codigo', String(filters.codigo));
+        if (filters?.numero && String(filters.numero).trim()) params.set('numero', String(filters.numero));
         const cacheKey = `${chartType}:${params.toString()}`;
+        
         const cachedItem = chartDataCache[cacheKey];
         if (cachedItem) {
           console.log(`[useChartData] Usando cache vencido devido a erro`);
           setData(cachedItem.data);
           setStats(cachedItem.stats);
+          
+          // Definir um tempo mais longo para tentar novamente em segundo plano
+          retryTimeout = setTimeout(() => {
+            if (isMounted) {
+              console.log('[useChartData] Tentando atualização em segundo plano');
+              fetchData();
+            }
+          }, 8000); // Tenta novamente após 8 segundos
         } else {
           setData([]);
           setStats(null);
@@ -188,9 +204,11 @@ const CustomTooltip = ({ active, payload, stats }: any) => {
   const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
 
   return (
-    <div className="bg-white border border-gray-300 rounded-lg shadow-lg p-3 min-w-[200px]">
+    <div className="bg-white border border-gray-300 rounded-lg shadow-lg p-3 min-w-[200px] pointer-events-none">
       <div className="border-b border-gray-200 pb-2 mb-2">
-        <p className="text-xs text-gray-500 font-bold">{data.name}</p>
+        <p className="text-xs text-gray-500 font-bold" title={data.name}>
+          {data.name.length > 30 ? `${data.name.substring(0, 30)}...` : data.name}
+        </p>
       </div>
       <div className="space-y-1">
         <p className="text-sm font-bold text-red-600">
@@ -261,7 +279,9 @@ const CompactDonutTooltip = ({ active, payload, stats }: any) => {
 
   return (
     <div className="bg-gray-900 text-white rounded px-2 py-1 text-xs shadow-lg">
-      <div className="font-semibold truncate max-w-[120px]">{data.name}</div>
+      <div className="font-semibold max-w-[120px]" title={data.name}>
+        {data.name.length > 15 ? `${data.name.substring(0, 15)}...` : data.name}
+      </div>
       <div className="text-[10px]">
         {value.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} {unit} • {percentage}%
       </div>
@@ -272,28 +292,47 @@ const CompactDonutTooltip = ({ active, payload, stats }: any) => {
 // COMPONENTE: DonutChart
 export function DonutChartWidget({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean }) {
   const { data, loading, stats, error, refetch } = useChartData(chartType, config?.filters);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   // Log para depurar a renderização do gráfico
-  console.log(`[DonutChartWidget] Rendering ${chartType}: loading=${loading}, error=${error}, data=`, data);
+  console.log(`[DonutChartWidget] Rendering ${chartType}: loading=${loading}, error=${error}, retry=${retryAttempt}, data=`, data);
+  
+  // Efeito para tentar recarregar automaticamente em caso de erro
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
+    if (error && (!data || data.length === 0) && retryAttempt < 5) {
+      timeoutId = setTimeout(() => {
+        console.log(`[DonutChartWidget] Tentativa automática de recarga #${retryAttempt + 1}`);
+        refetch();
+        setRetryAttempt(prev => prev + 1);
+      }, Math.min(3000 + (retryAttempt * 1000), 10000)); // Backoff progressivo, máximo 10s
+    }
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [error, data, retryAttempt, refetch]);
   
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto mb-3"></div>
+          <div className="text-sm text-gray-500">Carregando dados...</div>
+        </div>
       </div>
     );
   }
   
-  // Em caso de erro, tentar recarregar automaticamente e mostrar mensagem mais sutil
+  // Em caso de erro, mostrar mensagem sutil (retentativas já estão configuradas no useEffect)
   if (error && (!data || data.length === 0)) {
     console.warn(`[DonutChartWidget] Erro ao carregar dados: ${error}`);
-    // Tenta recarregar automaticamente após um pequeno atraso
-    setTimeout(() => refetch(), 3000);
     
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-600 text-sm text-center">
-          Carregando dados...
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-sm text-gray-500">Atualizando dados...</div>
         </div>
       </div>
     );
@@ -303,9 +342,9 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
   if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => !item.value)) {
     console.warn(`[DonutChartWidget] Dados vazios ou inválidos para ${chartType}:`, data);
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-600 text-sm text-center">
-          Nenhum dado disponível para este período
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-center text-gray-500 text-sm">
+          Nenhum dado disponível para exibição
         </div>
       </div>
     );
@@ -356,7 +395,10 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
               );
             })}
           </Pie>
-          <Tooltip content={compact ? <CompactDonutTooltip stats={stats} /> : <CustomTooltip stats={stats} />} />
+          <Tooltip 
+            content={compact ? <CompactDonutTooltip stats={stats} /> : <CustomTooltip stats={stats} />}
+            cursor={{ fill: 'transparent' }}
+          />
         </PieChart>
       </ResponsiveContainer>
     </div>
@@ -366,28 +408,47 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
 // COMPONENTE: BarChart
 export function BarChartWidget({ chartType = "formulas", config }: { chartType?: ChartType; config?: any }) {
   const { data, loading, stats, error, refetch } = useChartData(chartType, config?.filters);
+  const [retryAttempt, setRetryAttempt] = useState(0);
 
   // Log para depurar a renderização do gráfico
-  console.log(`[BarChartWidget] Rendering ${chartType}: loading=${loading}, error=${error}, data=`, data);
+  console.log(`[BarChartWidget] Rendering ${chartType}: loading=${loading}, error=${error}, retry=${retryAttempt}, data=`, data);
+  
+  // Efeito para tentar recarregar automaticamente em caso de erro
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
+    if (error && (!data || data.length === 0) && retryAttempt < 5) {
+      timeoutId = setTimeout(() => {
+        console.log(`[BarChartWidget] Tentativa automática de recarga #${retryAttempt + 1}`);
+        refetch();
+        setRetryAttempt(prev => prev + 1);
+      }, Math.min(3000 + (retryAttempt * 1000), 10000)); // Backoff progressivo, máximo 10s
+    }
+    
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [error, data, retryAttempt, refetch]);
   
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto mb-3"></div>
+          <div className="text-sm text-gray-500">Carregando dados...</div>
+        </div>
       </div>
     );
   }
   
-  // Em caso de erro, tentar recarregar automaticamente e mostrar mensagem mais sutil
+  // Em caso de erro, mostrar mensagem sutil (retentativas já estão configuradas no useEffect)
   if (error && (!data || data.length === 0)) {
     console.warn(`[BarChartWidget] Erro ao carregar dados: ${error}`);
-    // Tenta recarregar automaticamente após um pequeno atraso
-    setTimeout(() => refetch(), 3000);
     
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-600 text-sm text-center">
-          Carregando dados...
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-sm text-gray-500">Atualizando dados...</div>
         </div>
       </div>
     );
@@ -397,8 +458,8 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
   if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => !item.value)) {
     console.warn(`[BarChartWidget] Dados vazios ou inválidos para ${chartType}:`, data);
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-gray-600 text-sm text-center">
+      <div className="h-full w-full flex items-center justify-center">
+        <div className="text-center text-gray-500 text-sm">
           Nenhum dado disponível para este período
         </div>
       </div>

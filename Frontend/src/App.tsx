@@ -40,14 +40,28 @@ const App = () => {
   const runtime = useRuntimeConfig();
   const { formData: profileConfigData } = usePersistentForm("profile-config");
 
+  // Consolidar atualização de sideInfo - evitar múltiplas atualizações
   useEffect(() => {
-    if (!profileConfigData) return;
-    setSideInfo({
-      granja: profileConfigData.nomeCliente || 'Granja',
-      proprietario: profileConfigData.nomeCliente,
-    });
-  }, [profileConfigData]);
-  // Listen to explicit event so other UI pieces (like GeneralConfig) can trigger an immediate update
+    let newInfo = { granja: 'Granja', proprietario: 'Proprietario' };
+    
+    // 1. Priorizar dados do perfil (mais recentes)
+    if (profileConfigData?.nomeCliente) {
+      newInfo = {
+        granja: profileConfigData.nomeCliente,
+        proprietario: profileConfigData.nomeCliente,
+      };
+    }
+    // 2. Se não houver dados do perfil, usar configs de runtime
+    else if (runtime && !runtime.loading) {
+      const g = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
+      const p = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
+      newInfo = { granja: g, proprietario: p };
+    }
+    
+    setSideInfo(newInfo);
+  }, [profileConfigData, runtime]);
+
+  // Listener para eventos explícitos de atualização de configuração
   useEffect(() => {
     const onCfg = (e: any) => {
       try {
@@ -61,13 +75,6 @@ const App = () => {
     window.addEventListener('profile-config-updated', onCfg as EventListener);
     return () => window.removeEventListener('profile-config-updated', onCfg as EventListener);
   }, []);
-  useEffect(() => {
-    // If runtime configs are loaded, prefer those values
-    if (!runtime || runtime.loading) return;
-    const g = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
-    const p = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
-    setSideInfo({ granja: g, proprietario: p });
-  }, [runtime]);
   
   const items=[
     {
@@ -109,7 +116,11 @@ const App = () => {
             <SidebarHeader className="pt-6 ">
                 <div id='avatar' className='flex gap-3'>
                 <Avatar className="h-12 w-12 ml-2 cursor-pointer">
-                  <AvatarImage src={(user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo) || undefined} alt="Profile" />
+                  <AvatarImage 
+                    src={(user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo) || undefined} 
+                    alt="Profile" 
+                    className="object-cover w-full h-full"
+                  />
                   <AvatarFallback><Factory/></AvatarFallback>
                 </Avatar>
                 <div className='flex flex-col font-semibold'>

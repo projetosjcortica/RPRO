@@ -54,14 +54,15 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     return { dataInicio: dateStr, dataFim: dateStr };
   });
 
-  // Inicializar com a semana atual
+  // Inicializar com a semana atual (domingo a sábado)
   const [weeklyDateRange, setWeeklyDateRange] = useState<any>(() => {
     const today = new Date();
     const dayOfWeek = today.getDay();
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - dayOfWeek);
+    // Se for domingo (0), usar o dia atual; caso contrário, voltar até domingo
+    startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 0 : dayOfWeek));
     const endOfWeek = new Date(today);
-    endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
+    endOfWeek.setDate(today.getDate() + (dayOfWeek === 0 ? 6 : 6 - dayOfWeek));
     return { from: startOfWeek, to: endOfWeek };
   });
   
@@ -69,9 +70,9 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     const today = new Date();
     const dayOfWeek = today.getDay();
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - dayOfWeek);
+    startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 0 : dayOfWeek));
     const endOfWeek = new Date(today);
-    endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
+    endOfWeek.setDate(today.getDate() + (dayOfWeek === 0 ? 6 : 6 - dayOfWeek));
     return {
       dataInicio: formatDate(startOfWeek, 'yyyy-MM-dd'),
       dataFim: formatDate(endOfWeek, 'yyyy-MM-dd')
@@ -148,9 +149,10 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     // Calcular início e fim da semana (domingo a sábado)
     const dayOfWeek = date.getDay();
     const startOfWeek = new Date(date);
-    startOfWeek.setDate(date.getDate() - dayOfWeek);
+    // Se for domingo (0), usar o dia atual; caso contrário, voltar até domingo
+    startOfWeek.setDate(date.getDate() - (dayOfWeek === 0 ? 0 : dayOfWeek));
     const endOfWeek = new Date(date);
-    endOfWeek.setDate(date.getDate() + (6 - dayOfWeek));
+    endOfWeek.setDate(date.getDate() + (dayOfWeek === 0 ? 6 : 6 - dayOfWeek));
     
     const weekRange = { from: startOfWeek, to: endOfWeek };
     setWeeklyDateRange(weekRange);
@@ -397,7 +399,7 @@ const formatShortDate = (raw?: string | null) => {
                           <CalendarIcon className="ml-2 h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" align="end" onInteractOutside={applyHorariosFilters}>
+                      <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyHorariosFilters}>
                         <Calendar
                           mode="range"
                           locale={pt}
@@ -457,13 +459,14 @@ const formatShortDate = (raw?: string | null) => {
                           <CalendarIcon className=" h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" align="end">
+                      <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45}>
                         <Calendar
                           mode="single"
                           locale={pt}
                           selected={weeklyDateRange?.from}
                           onSelect={(date) => handleWeeklyDateChange(date)}
                           numberOfMonths={1}
+                          
                           modifiers={{
                             weekRange: (date) => {
                               if (!weeklyDateRange?.from) return false;

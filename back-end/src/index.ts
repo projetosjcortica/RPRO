@@ -521,6 +521,7 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
     });
   }
 });
+// PAU NO SEU CU
 
 // Export database as SQL dump file
 app.get("/api/db/export-sql", async (req, res) => {
@@ -2466,8 +2467,14 @@ app.get("/api/chartdata/formulas", async (req, res) => {
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
-    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
-    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+    if (codigo) {
+      const c = Number(codigo);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :codigo", { codigo: c });
+    }
+    if (numero) {
+      const n = Number(numero);
+      if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
+    }
 
     const rows = await qb.getMany();
 
@@ -2565,8 +2572,14 @@ app.get("/api/chartdata/produtos", async (req, res) => {
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
-    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
-    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+    if (codigo) {
+      const c = Number(codigo);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :codigo", { codigo: c });
+    }
+    if (numero) {
+      const n = Number(numero);
+      if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
+    }
 
     const rows = await qb.getMany();
 
@@ -2660,8 +2673,14 @@ app.get("/api/chartdata/horarios", async (req, res) => {
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
-    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
-    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+    if (codigo) {
+      const c = Number(codigo);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :codigo", { codigo: c });
+    }
+    if (numero) {
+      const n = Number(numero);
+      if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
+    }
 
     const rows = await qb.getMany();
 
@@ -2766,8 +2785,14 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
-    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
-    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+    if (codigo) {
+      const c = Number(codigo);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :codigo", { codigo: c });
+    }
+    if (numero) {
+      const n = Number(numero);
+      if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
+    }
 
     const rows = await qb.getMany();
 
@@ -2901,8 +2926,14 @@ app.get("/api/chartdata/stats", async (req, res) => {
         qb.andWhere("r.Dia < :dataFim", { dataFim: nextDay });
       }
     }
-    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
-    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+    if (codigo) {
+      const c = Number(codigo);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :codigo", { codigo: c });
+    }
+    if (numero) {
+      const n = Number(numero);
+      if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
+    }
 
     const rows = await qb.getMany();
 
@@ -2978,8 +3009,14 @@ app.get("/api/chartdata/semana", async (req, res) => {
 
     if (formula)
       qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
-    if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
-    if (numero) qb.andWhere("r.Numero = :numero", { numero });
+    if (codigo) {
+      const c = Number(codigo);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :codigo", { codigo: c });
+    }
+    if (numero) {
+      const n = Number(numero);
+      if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
+    }
 
     const rows = await qb.getMany();
 
@@ -3094,12 +3131,8 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
 
       if (formula)
         qb.andWhere("r.Nome LIKE :formula", { formula: `%${formula}%` });
-      if (codigo) qb.andWhere("r.Codigo = :codigo", { codigo });
-      if (numero) qb.andWhere("r.Numero = :numero", { numero });
 
       const rows = await qb.getMany();
-
-      // aggregate by day
       const parseDia = (dia?: string): Date | null => {
         if (!dia) return null;
         const s = dia.trim();

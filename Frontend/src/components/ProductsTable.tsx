@@ -68,12 +68,12 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
       <Table className="w-full table-fixed">
         <TableHeader>
           <TableRow className="bg-gray-200 border sticky top-0 z-10">
-            <TableHead className="text-center w-1/2 border-r">
+            <TableHead className="text-center w-1/2 border-r h-8 py-1">
               <div className="truncate max-w-full" title="Produtos">
                 Produtos
               </div>
             </TableHead>
-            <TableHead className="text-center w-1/2">
+            <TableHead className="text-center w-1/2 h-8 py-1">
               <div className="truncate max-w-full" title="Quantidade">
                 Quantidade
               </div>
@@ -87,18 +87,37 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
                 <TableRow key={idx}
                   onMouseEnter={() => onHoverName?.(produto.nome)}
                   onMouseLeave={() => onLeave?.()}
-                  className={`hover:bg-gray-50 cursor-default ${highlightName === produto.nome ? 'bg-red-50' : ''}`}
+                  className={`hover:bg-gray-50 cursor-default h-10 border-b ${highlightName === produto.nome ? 'bg-red-50' : ''}`}
                 >
-                  <TableCell className="py-1 text-right border-r">
-                    <div className="truncate max-w-full" title={produto.nome}>
+                  <TableCell className="py-1 px-2 text-right border-r align-middle">
+                    <div 
+                      className="break-words overflow-hidden line-clamp-2 text-xs"
+                      style={{
+                        wordBreak: "break-word",
+                        overflowWrap: "break-word",
+                        maxWidth: "100%",
+                        lineHeight: "1.2",
+                      }}
+                      title={produto.nome}
+                    >
                       {produto.nome}
                     </div>
                   </TableCell>
-                  <TableCell className="py-1 text-right">
-                    {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
-                      minimumFractionDigits: 3,
-                      maximumFractionDigits: 3,
-                    })} {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
+                  <TableCell className="py-1 px-2 text-right align-middle">
+                    <div 
+                      className="break-words overflow-hidden line-clamp-2 text-xs"
+                      style={{
+                        wordBreak: "break-word",
+                        overflowWrap: "break-word",
+                        maxWidth: "100%",
+                        lineHeight: "1.2",
+                      }}
+                    >
+                      {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
+                        minimumFractionDigits: 3,
+                        maximumFractionDigits: 3,
+                      })} {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
+                    </div>
                   </TableCell>
                 </TableRow>
               );

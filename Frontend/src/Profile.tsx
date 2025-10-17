@@ -163,106 +163,95 @@ const Profile: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-2xl mx-auto bg-white rounded-md ">
-      <div className="flex items-center gap-6">
-        <Avatar className="size-20 bg-gray">
-          {preview ? (
-            <AvatarImage src={preview} alt="avatar" />
-          ) : (
-            <AvatarFallback>
-              {(user.displayName || user.username || "U").charAt(0)}
-            </AvatarFallback>
-          )}
-        </Avatar>
-        <div className="flex-1">
-          <div className="text-lg font-semibold">
-            {user.displayName || user.username}
+    <div className="max-w-md mx-auto bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+          <div className="flex-shrink-0">
+            <Avatar className="size-16 sm:size-20 bg-gray">
+              {preview ? (
+                <AvatarImage src={preview} alt="avatar" className="object-cover w-full h-full" />
+              ) : (
+                <AvatarFallback>
+                  {(user.displayName || user.username || "U").charAt(0)}
+                </AvatarFallback>
+              )}
+            </Avatar>
           </div>
-          <div className="text-sm text-muted-foreground">{user.username}</div>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setFile(null);
-              setPreview(
-                user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
-              );
-            }}
-          >
-            Reverter
-          </Button>
-          <Button variant="destructive" size="sm" onClick={logout}>
-            Logout
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-4">
-        <div>
-          <Label className="mb-1">Nome</Label>
-          <div className="flex flex-row items-center justify-between gap-2">
-            <Input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="border border-black"
-            />  
-            <Button onClick={saveName} size="sm">
-              Salvar nome
+          <div className="flex-1 text-center sm:text-left min-w-0">
+            <div className="text-lg font-semibold truncate">
+              {user.displayName || user.username}
+            </div>
+            <div className="text-sm text-muted-foreground truncate">{user.username}</div>
+          </div>
+          <div className="flex-shrink-0">
+            <Button variant="destructive" size="sm" onClick={logout}>
+              Sair
             </Button>
-            {/* <div className="text-sm text-muted-foreground self-center"> {status}</div> */}
           </div>
         </div>
 
-        <div>
-          {/* <Label className="mb-1">Foto de perfil</Label> */}
-          <div className="flex items-center gap-3">
-            <label
-              htmlFor="profile-upload"
-              className="cursor-pointer flex items-center gap-2 px-3 py-2 shadow-xs border border-black rounded-lg hover:bg-gray-100 transition"
-            >
-              <Plus className="h-4 w-4 text-red-600" />
-              <span className="text-sm text-gray-700 font-medium">
-                Selecionar imagem
-              </span>
-              <input
-                id="profile-upload"
-                type="file"
-                accept="image/*"
-                className="hidden border border-black"  
-                onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-              />
-            </label>
-            <div className="flex gap-2">
-              <Button
-                onClick={async () => {
-                  await uploadPhoto();
-                  await useAsReportLogo();
-                }}
-                variant="secondary"
-                size="sm"
-                disabled={!file}
-                className="bg-gray-300 enabled:bg-destructive/90 enabled:text-white "
-              >
-                Enviar
-              </Button>
-              <Button
-                onClick={() => {
-                  setFile(null);
-                  setPreview(
-                    user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
-                  );
-                }}
-                variant="outline"
-                size="sm"
-              >
-                Cancelar
+        <div className="mt-6 grid grid-cols-1 gap-4">
+          <div>
+            <Label className="mb-2 block text-sm font-medium text-gray-700">Nome</Label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="border border-gray-300"
+                placeholder="Seu nome"
+              />  
+              <Button onClick={saveName} size="sm" className="whitespace-nowrap">
+                Salvar
               </Button>
             </div>
-            {/* <div className="text-sm text-muted-foreground">
-              {file ? file.name : ""}
-            </div> */}
+          </div>
+
+          <div>
+            <Label className="mb-2 block text-sm font-medium text-gray-700">Foto</Label>
+            <div className="space-y-3">
+              <label
+                htmlFor="profile-upload"
+                className="cursor-pointer flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                <Plus className="h-4 w-4 text-red-600 flex-shrink-0" />
+                <span className="text-sm text-gray-700 font-medium">
+                  Selecionar imagem
+                </span>
+                <input
+                  id="profile-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"  
+                  onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {file && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={async () => {
+                      await uploadPhoto();
+                      await useAsReportLogo();
+                    }}
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Enviar
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setFile(null);
+                      setPreview(
+                        user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
+                      );
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
