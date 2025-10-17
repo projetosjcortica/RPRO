@@ -222,11 +222,11 @@ export function ExportDropdown({
                     {comments.map((comment) => (
                       <div
                         key={comment.id}
-                        className="border rounded-lg p-3 bg-white relative group"
+                        className="border rounded-lg p-3 bg-white relative group max-w-[400px]"
                       >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-700">{comment.texto}</p>
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-700 break-words whitespace-pre-wrap overflow-hidden">{comment.texto}</p>
                             <p className="text-xs text-gray-400 mt-1">
                               {comment.data}
                             </p>

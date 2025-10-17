@@ -1,28 +1,6 @@
 import { Document, Page, Text, StyleSheet, View, Font, Image } from "@react-pdf/renderer";
 import { DASHBOARD_COLORS as palette } from './lib/colors';
 import type { FC } from "react";
-import { format as formatDateFn } from 'date-fns';
-
-// Função para formatar datas para dd/MM/yyyy
-const formatShortDate = (raw?: string | null): string => {
-  if (!raw) return "-";
-  const s = String(raw).trim();
-  try {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-      const [y, m, d] = s.split('-').map(Number);
-      return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
-    }
-    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
-      const [d, m, y] = s.split('-').map(Number);
-      return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
-    }
-    const parsed = new Date(s);
-    if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
-    return s;
-  } catch (e) {
-    return s;
-  }
-};
 
 Font.register({
   family: "Roboto",
@@ -109,9 +87,9 @@ const styles = StyleSheet.create({
   },
   tableCol: { width: "70%", borderBottomWidth: 1, borderColor: "#d1d5db", padding: 8 },
   tableColSmall: { width: "30%", borderBottomWidth: 1, borderColor: "#d1d5db", padding: 8, textAlign: "right" },
-  comentarioContainer: { marginBottom: 10, padding: 8, backgroundColor: "#f8f9fa", borderRadius: 4 },
-  comentarioMeta: { fontSize: 10, color: "#666", marginBottom: 4 },
-  comentarioTexto: { fontSize: 11 },
+  comentarioContainer: { marginBottom: 10, padding: 12, backgroundColor: "#f8f9fa", borderRadius: 4, border: '1px solid #e5e7eb' },
+  comentarioMeta: { fontSize: 10, color: "#666666", marginBottom: 6 },
+  comentarioTexto: { fontSize: 11, color: "#333333", lineHeight: 1.4 },
   // Chart styles
   chartSection: { marginBottom: 10 },
   chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
@@ -136,7 +114,6 @@ interface Produto {
   categoria?: string;
 }
 interface ComentarioRelatorio {
-  id?: string;
   texto: string;
   data?: string;
   autor?: string;
@@ -160,7 +137,6 @@ export interface MyDocumentProps {
   formulaSums?: Record<string, number>;
   chartData?: { name: string; value: number }[];
   comentarios?: ComentarioRelatorio[];
-  showComments?: boolean;
   showCharts?: boolean;
 }
 
@@ -182,7 +158,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
   formulaSums = {},
   chartData = [],
   comentarios = [],
-  showComments = true,
   showCharts = true,  
 }) => {
   const dataGeracao = new Date().toLocaleString("pt-BR");
@@ -302,13 +277,13 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           <View style={{ marginBottom: 6 }}>
             <Text style={styles.label}>
-              Data inicial: <Text style={styles.value}>{formatShortDate(periodoInicio)}</Text>
+              Data inicial: <Text style={styles.value}>{periodoInicio}</Text>
             </Text>
           </View>
 
           <View style={{ marginBottom: 6 }}>
             <Text style={styles.label}>
-              Data final: <Text style={styles.value}>{formatShortDate(periodoFim)}</Text>
+              Data final: <Text style={styles.value}>{periodoFim}</Text>
             </Text>
           </View>
 
@@ -376,54 +351,51 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {renderRodape()}
       </Page>
       {/* Página 3 */}
-      {showCharts && (
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
-        {/* pagina para os graficos */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Porcentagens</Text>
-          {chartTop.length === 0 ? (
-            <Text style={styles.smallNote}>Nenhum dado de gráfico disponível.</Text>
-          ) : (
-            <View style={[styles.chartSection, { flexDirection: 'column' }]}>
-              {/* Bars (improved) - show all entries sorted */}
-              <View style={{ marginTop: 8 }}>
-                {chartSource.slice().sort((a, b) => b.value - a.value).map((row, i) => {
-                  const totalAll = chartSource.reduce((s, it) => s + it.value, 0) || 1;
-                  const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
-                  const color = palette[i % palette.length];
-                  return (
-                    <View key={i} style={styles.chartRow}>
-                      <Text style={styles.chartLabel}>{row.name}</Text>
-                      <View style={styles.chartBarContainer}>
-                        <View style={[styles.chartBarFill, { width: `${Math.max(1, Math.round(pct))}%`, backgroundColor: color }]} />
-                      </View>
-                      <Text style={styles.chartValue}>{Number(row.value).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
-                      <Text style={{ fontSize: 9, width: 36, textAlign: 'right', color: '#6b7280' }}>{pct.toFixed(1)}%</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-        </View>
-        {(() => {
-          console.log('PDF Debug - Comments:', { showComments, comentariosLength: comentarios?.length, comentarios });
-          return null;
-        })()}
-        
-        {showComments && comentarios && comentarios.length > 0 && (
-          <View style={styles.section} wrap={false}>
+        {/* Comentários do Relatório */}
+        {comentarios && comentarios.length > 0 && (
+          <View style={styles.section}>
             <Text style={styles.sectionTitle}>
-              Comentários do Relatório ({comentarios.length})
+              Comentários do Relatório
             </Text>
             {comentarios.map((c, i) => (
-              <View key={i} style={styles.comentarioContainer} wrap={false}>
-                <Text style={styles.comentarioTexto}>{c.texto}</Text>
+              <View key={i} style={styles.comentarioContainer}>
                 <Text style={styles.comentarioMeta}>
-                  {new Date(c.data || Date.now()).toLocaleDateString("pt-BR")}
+                  {c.data || new Date().toLocaleDateString("pt-BR")}
                 </Text>
+                <Text style={styles.comentarioTexto}>{c.texto}</Text>
               </View>
             ))}
+          </View>
+        )}
+
+        {/* Gráficos */}
+        {showCharts && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Porcentagens</Text>
+            {chartTop.length === 0 ? (
+              <Text style={styles.smallNote}>Nenhum dado de gráfico disponível.</Text>
+            ) : (
+              <View style={[styles.chartSection, { flexDirection: 'column' }]}>
+                <View style={{ marginTop: 8 }}>
+                  {chartSource.slice().sort((a, b) => b.value - a.value).map((row, i) => {
+                    const totalAll = chartSource.reduce((s, it) => s + it.value, 0) || 1;
+                    const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
+                    const color = palette[i % palette.length];
+                    return (
+                      <View key={i} style={styles.chartRow}>
+                        <Text style={styles.chartLabel}>{row.name}</Text>
+                        <View style={styles.chartBarContainer}>
+                          <View style={[styles.chartBarFill, { width: `${Math.max(1, Math.round(pct))}%`, backgroundColor: color }]} />
+                        </View>
+                        <Text style={styles.chartValue}>{Number(row.value).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
+                        <Text style={{ fontSize: 9, width: 36, textAlign: 'right', color: '#6b7280' }}>{pct.toFixed(1)}%</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -436,7 +408,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
           
         {renderRodape()}
       </Page>
-      )}
     </Document>
   );
 };
