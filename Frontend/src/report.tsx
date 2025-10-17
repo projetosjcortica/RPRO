@@ -966,7 +966,7 @@ export default function Report() {
   );
 
   return (
-    <div className="flex flex-col gap-7 w-full h-full">
+    <div className="flex flex-col gap-1.5 w-full h-full">
       <div className="h-[10dvh] flex flex-row justify-between w-full">
         <div className="flex flex-row items-end gap-1 h-[10dvh]">
           <Button onClick={() => setView("table")}>Relatórios</Button>
@@ -1003,24 +1003,23 @@ export default function Report() {
           </div>
         </div>
       </div>
-
-      <div className="flex flex-row gap-2 justify-start w-full">
-        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-196.5 w-[68px]">
-          <div className="flex w-full h-[568px] 3xl:h-196.5 overflow-hidden shadow-xl rounded flex border border-gray-300">
-            {content}
-          </div>
-
-          {/* Link para resetar colunas (apenas na view table) */}
-          {view === "table" && resetTableColumns && (
-            <div className="flex justify-end mb-1">
-              <button
+      
+      {view === "table" && resetTableColumns && (
+            <div className="flex justify-start">
+              <Button
                 onClick={resetTableColumns}
+                variant="outline"
                 className="text-xs text-gray-500 hover:text-gray-700 hover:underline transition-colors"
               >
                 Resetar colunas
-              </button>
+              </Button>
             </div>
           )}
+      <div className="flex flex-row gap-2 justify-start w-full">
+        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-201 w-[68px]">
+          <div className="flex w-full h-[74vh] 3xl:h-201 overflow-hidden shadow-xl rounded flex border border-gray-300">
+            {content}
+          </div>
 
           {/* Paginação */}
           <div className="flex flex-row items-center justify-end mt-2">

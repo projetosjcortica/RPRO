@@ -1,9 +1,9 @@
 {
-  "name": "rpro",
+  "name": "cortez",
   "private": true,
-  "version": "1.1.0beta",
+  "version": "1.2.0beta",
   "author": "J.Cortiça, Kauã Okuma, Miguel Dias",
-  "description": "Sistema RPRO",
+  "description": "Sistema Cortez",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -110,8 +110,8 @@
     "vite-plugin-electron-renderer": "^0.14.5"
   },
   "build": {
-    "appId": "com.rpro.app",
-    "productName": "RPRO",
+    "appId": "com.Cortez.app",
+    "productName": "Cortez",
     "directories": {
       "output": "release"
     },
@@ -153,8 +153,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "RPRO",
-      "uninstallDisplayName": "RPRO",
+      "shortcutName": "Cortez",
+      "uninstallDisplayName": "Cortez",
       "include": "build/installer.nsh",
       "license": "license.txt"
     },

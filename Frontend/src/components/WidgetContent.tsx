@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Pie, PieChart, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import type { ChartType } from "../home";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -48,17 +48,16 @@ const useChartData = (chartType: ChartType, filters?: any) => {
     const fetchData = async () => {
       if (!isMounted) return;
       
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Construir parâmetros de consulta
         const params = new URLSearchParams();
         if (filters?.formula) params.set('formula', String(filters.formula));
         if (filters?.dataInicio) params.set('dataInicio', String(filters.dataInicio));
         if (filters?.dataFim) params.set('dataFim', String(filters.dataFim));
         if (filters?.codigo) params.set('codigo', String(filters.codigo));
         if (filters?.numero) params.set('numero', String(filters.numero));
+
+      try {
+        setLoading(true);
+        setError(null)
 
         // Criar chave de cache usando tipo de gráfico e parâmetros
         const cacheKey = `${chartType}:${params.toString()}`;
