@@ -214,8 +214,8 @@ export default function Report() {
 
   // Consolidar atualização de sideInfo - evitar múltiplas atualizações
   useEffect(() => {
-    let newInfo = { granja: 'Granja', proprietario: 'Proprietario' };
-    
+    let newInfo = { granja: "Granja", proprietario: "Proprietario" };
+
     // 1. Priorizar dados do perfil (mais recentes)
     if (profileConfigData?.nomeCliente) {
       newInfo = {
@@ -225,11 +225,12 @@ export default function Report() {
     }
     // 2. Se não houver dados do perfil, usar configs de runtime
     else if (runtime && !runtime.loading) {
-      const g = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
-      const p = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
+      const g = runtime.get("granja") || runtime.get("nomeCliente") || "Granja";
+      const p =
+        runtime.get("proprietario") || runtime.get("owner") || "Proprietario";
       newInfo = { granja: g, proprietario: p };
     }
-    
+
     setSideInfo(newInfo);
   }, [profileConfigData, runtime]);
 
@@ -711,11 +712,10 @@ export default function Report() {
     };
   }, []);
 
-  const converterValor = (valor: number, colKey?: string): number => {
+  const converterValor = (valor: number): number => {
     if (typeof valor !== "number") return valor;
-    let unidade = produtosInfo[colKey || ""]?.unidade || "kg";
-    // Backend retorna valores sempre em kg. Se unidade configurada é 'g', dividimos por 1000
-    if (unidade === "g") return valor / 1000;
+    // O backend /api/resumo retorna valores originais (g se medida=0, kg se medida=1)
+    // Já estão no formato correto, apenas retornar
     return valor;
   };
 
@@ -799,7 +799,7 @@ export default function Report() {
           tableSelection.produtos.length > 0
         ) {
           for (const p of tableSelection.produtos) {
-            const v = converterValor(Number(p.qtd) || 0, p.colKey);
+            const v = converterValor(Number(p.qtd) || 0);
             out.push({ name: p.nome, value: Number(v) || 0 });
           }
         }
@@ -883,6 +883,7 @@ export default function Report() {
         colKey: string;
         nome: string;
         qtd: number;
+        unidade: string;
         idx: number;
       }[] = Object.entries(resumo.usosPorProduto).map(
         ([key, val]: [string, unknown]) => {
@@ -892,15 +893,17 @@ export default function Report() {
           const v = val as Record<string, unknown> | undefined;
           const rawQtd = v?.["quantidade"];
           const qtd = Number(rawQtd ?? 0) || 0;
+          // Buscar unidade do resumo ou do produtosInfo
+          const unidade = String(v?.["unidade"] || produtosInfo[produtoId]?.unidade || "kg");
           const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
-          return { colKey: produtoId, nome, qtd, idx };
+          return { colKey: produtoId, nome, qtd, unidade, idx };
         }
       );
 
       // Sort by the numeric part of the column key (col6, col7, ...)
       items.sort((a, b) => a.idx - b.idx);
 
-      return items.map(({ colKey, nome, qtd }) => ({ colKey, nome, qtd }));
+      return items.map(({ colKey, nome, qtd, unidade }) => ({ colKey, nome, qtd, unidade }));
     }
     return tableSelection.produtos.map((p, idx) => {
       const inferredCol = p.colKey || `col${idx + 6}`;
@@ -1074,7 +1077,10 @@ export default function Report() {
         </div>
 
         {/* Side Info com drawer de gráficos atrás */}
-        <div className="relative w-87 h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0" style={{ zIndex: 10  }}>
+        <div
+          className="relative w-87 h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+          style={{ zIndex: 10 }}
+        >
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
           {chartsOpen && (
             <div
@@ -1091,145 +1097,166 @@ export default function Report() {
                   className="p-4 space-y-4 overflow-auto scrollbar-hide"
                   style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
                 >
+                  {/* Mensagem quando não há dados */}
+                  {(resumo?.produtosCount ?? displayProducts?.length ?? 0) === 0 && 
+                   ((resumo?.formulasUtilizadas ? Object.keys(resumo.formulasUtilizadas).length : 0) || (tableSelection.formulas?.length ?? 0)) === 0 &&
+                   !(resumo && (resumo.totalPesos > 0 || resumo.batitdasTotais > 0)) && (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center text-gray-500">
+                        <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <p className="text-sm font-medium">Nenhum dado encontrado</p>
+                        <p className="text-xs mt-1">Ajuste os filtros para ver mais resultados</p>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Produtos Donut */}
-                  <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                    <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                      <div className="text-sm font-bold text-gray-800">
-                        Produtos
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium mt-0.5">
-                        {resumo?.produtosCount ??
-                          (displayProducts?.length || 0)}{" "}
-                        itens •{" "}
-                        {(
-                          resumo?.totalPesos ?? tableSelection.total
-                        ).toLocaleString("pt-BR", {
-                          maximumFractionDigits: 0,
-                        })}{" "}
-                        kg
-                      </div>
-                    </div>
-                    <div className="h-[280px] px-3 py-3 relative">
-                      {resumoLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                  {(resumo?.produtosCount ?? displayProducts?.length ?? 0) > 0 && (
+                    <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                      <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                        <div className="text-sm font-bold text-gray-800">
+                          Produtos
                         </div>
-                      )}
+                        <div className="text-xs text-gray-600 font-medium mt-0.5">
+                          {resumo?.produtosCount ??
+                            (displayProducts?.length || 0)}{" "}
+                          itens •{" "}
+                          {(
+                            resumo?.totalPesos ?? tableSelection.total
+                          ).toLocaleString("pt-BR", {
+                            maximumFractionDigits: 0,
+                          })}{" "}
+                          kg
+                        </div>
+                      </div>
+                      <div className="h-[280px] px-3 py-3 relative">
+                        {resumoLoading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                          </div>
+                        )}
 
-                      {resumoError && (
-                        <>
-                          {/* Tentar recarregar automaticamente após um pequeno atraso */}
-                          {setTimeout(
-                            () => setResumoRetryCount((prev) => prev + 1),
-                            3000
-                          ) && null}
-                        </>
-                      )}
+                        {resumoError && (
+                          <>
+                            {/* Tentar recarregar automaticamente após um pequeno atraso */}
+                            {setTimeout(
+                              () => setResumoRetryCount((prev) => prev + 1),
+                              3000
+                            ) && null}
+                          </>
+                        )}
 
-                      <DonutChartWidget
-                        chartType="produtos"
-                        config={chartConfig}
-                        compact
-                        highlightName={highlightProduto}
-                        onSliceHover={(name) => setHighlightProduto(name)}
-                        onSliceLeave={() => setHighlightProduto(null)}
-                      />
+                        <DonutChartWidget
+                          chartType="produtos"
+                          config={chartConfig}
+                          compact
+                          highlightName={highlightProduto}
+                          onSliceHover={(name) => setHighlightProduto(name)}
+                          onSliceLeave={() => setHighlightProduto(null)}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Fórmulas Donut */}
-                  <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                    <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                      <div className="text-sm font-bold text-gray-800">
-                        Fórmulas
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium mt-0.5">
-                        {resumo?.formulasUtilizadas
-                          ? Object.keys(resumo.formulasUtilizadas).length
-                          : tableSelection.formulas?.length || 0}{" "}
-                        fórmulas •{" "}
-                        {(
-                          resumo?.batitdasTotais ?? tableSelection.batidas
-                        ).toLocaleString("pt-BR")}{" "}
-                        batidas
-                      </div>
-                    </div>
-                    <div className="h-[280px] px-3 py-3 relative">
-                      {resumoLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                  {((resumo?.formulasUtilizadas ? Object.keys(resumo.formulasUtilizadas).length : 0) || (tableSelection.formulas?.length ?? 0)) > 0 && (
+                    <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                      <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                        <div className="text-sm font-bold text-gray-800">
+                          Fórmulas
                         </div>
-                      )}
-
-                      {resumoError && (
-                        <>
-                          {/* Tentar recarregar automaticamente após um pequeno atraso */}
-                          {setTimeout(
-                            () => setResumoRetryCount((prev) => prev + 1),
-                            3000
-                          ) && null}
-                        </>
-                      )}
-
-                      <DonutChartWidget
-                        chartType="formulas"
-                        config={chartConfig}
-                        compact
-                        highlightName={highlightFormula}
-                        onSliceHover={(name) => setHighlightFormula(name)}
-                        onSliceLeave={() => setHighlightFormula(null)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Horários BarChart */}
-                  <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                    <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                      <div className="text-sm font-bold text-gray-800">
-                        Horários de Produção
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium mt-0.5">
-                        Distribuição por hora
-                      </div>
-                    </div>
-                    <div className="h-[280px] px-3 py-3 relative">
-                      {resumoLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                        <div className="text-xs text-gray-600 font-medium mt-0.5">
+                          {resumo?.formulasUtilizadas
+                            ? Object.keys(resumo.formulasUtilizadas).length
+                            : tableSelection.formulas?.length || 0}{" "}
+                          fórmulas •{" "}
+                          {(
+                            resumo?.batitdasTotais ?? tableSelection.batidas
+                          ).toLocaleString("pt-BR")}{" "}
+                          batidas
                         </div>
-                      )}
+                      </div>
+                      <div className="h-[280px] px-3 py-3 relative">
+                        {resumoLoading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                          </div>
+                        )}
 
-                      {resumoError && (
-                        <button
-                          onClick={() =>
-                            setResumoRetryCount((prev) => prev + 1)
-                          }
-                          className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4 mr-1"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                        {resumoError && (
+                          <>
+                            {/* Tentar recarregar automaticamente após um pequeno atraso */}
+                            {setTimeout(
+                              () => setResumoRetryCount((prev) => prev + 1),
+                              3000
+                            ) && null}
+                          </>
+                        )}
+
+                        <DonutChartWidget
+                          chartType="formulas"
+                          config={chartConfig}
+                          compact
+                          highlightName={highlightFormula}
+                          onSliceHover={(name) => setHighlightFormula(name)}
+                          onSliceLeave={() => setHighlightFormula(null)}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Horários BarChart - só renderiza se houver dados */}
+                  {resumo && (resumo.totalPesos > 0 || resumo.batitdasTotais > 0) && (
+                    <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                      <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                        <div className="text-sm font-bold text-gray-800">
+                          Horários de Produção
+                        </div>
+                        <div className="text-xs text-gray-600 font-medium mt-0.5">
+                          Distribuição por hora
+                        </div>
+                      </div>
+                      <div className="h-[280px] px-3 py-3 relative">
+                        {resumoLoading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                          </div>
+                        )}
+
+                        {resumoError && (
+                          <button
+                            onClick={() =>
+                              setResumoRetryCount((prev) => prev + 1)
+                            }
+                            className="absolute top-2 right-2 text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded-md flex items-center z-20"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                            />
-                          </svg>
-                          Recarregar
-                        </button>
-                      )}
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 mr-1"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                              />
+                            </svg>
+                            Recarregar
+                          </button>
+                        )}
 
-                      <BarChartWidget
-                        chartType="horarios"
-                        config={chartConfig}
-                      />
+                        <BarChartWidget
+                          chartType="horarios"
+                          config={chartConfig}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1260,12 +1287,12 @@ export default function Report() {
                 })}{" "}
                 kg
               </p>
-              <p className="text-center text-sm text-gray-400 font-regular">Batidas:  {""}
+              <p className="text-center text-sm text-gray-400 font-regular">
+                Batidas: {""}
                 {(resumo && typeof resumo.batidasTotais === "number"
                   ? resumo.batidasTotais
                   : tableSelection.batidas
-                ).toLocaleString("pt-BR", 
-                )}
+                ).toLocaleString("pt-BR")}
               </p>
             </div>
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
@@ -1373,18 +1400,25 @@ export default function Report() {
                               lineHeight: "1.2",
                             }}
                           >
-                            {Number(
-                              converterValor(
-                                Number(produto.qtd),
-                                produto.colKey
-                              )
-                            ).toLocaleString("pt-BR", {
-                              minimumFractionDigits: 3,
-                              maximumFractionDigits: 3,
-                            })}{" "}
-                            {(produto.colKey &&
-                              produtosInfo[produto.colKey]?.unidade) ||
-                              "kg"}
+                            {(() => {
+                              const unidade = produto.unidade ||
+                                (produto.colKey && produtosInfo[produto.colKey]?.unidade) ||
+                                "kg";
+                              // Se for gramas, dividir por 1000 para exibir em kg
+                              const valorExibicao = unidade === "g" 
+                                ? produto.qtd / 1000 
+                                : produto.qtd;
+                              
+                              return (
+                                <>
+                                  {Number(valorExibicao).toLocaleString("pt-BR", {
+                                    minimumFractionDigits: 3,
+                                    maximumFractionDigits: 3,
+                                  })}{" "}
+                                  kg
+                                </>
+                              );
+                            })()}
                           </div>
                         </TableCell>
                       </TableRow>

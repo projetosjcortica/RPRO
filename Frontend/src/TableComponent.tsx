@@ -24,7 +24,7 @@ interface TableComponentProps {
 
 // Larguras padrão das colunas
 const DEFAULT_WIDTHS = {
-  dia: 80,
+  dia: 90,
   hora: 70,
   nome: 200,
   codigo: 100,

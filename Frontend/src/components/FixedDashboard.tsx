@@ -12,7 +12,7 @@ import { Separator } from "./ui/separator";
 import { format as formatDateFn, format as formatDate } from 'date-fns';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Calendar } from './ui/calendar';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 import { pt } from 'date-fns/locale';
 
@@ -81,6 +81,7 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
 
   const [highlightProduto, setHighlightProduto] = useState<string | null>(null);
   const [highlightFormula, setHighlightFormula] = useState<string | null>(null);
+  const [reloadResumo, setReloadResumo] = useState(0);
 
   console.log(highlightProduto)
 
@@ -182,8 +183,7 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
 
   console.log(loadingResumo)
 
-  // makePeriodText removed (unused)
-
+  // Buscar resumo e atualizar periodicamente
   useEffect(() => {
     let mounted = true;
     const fetchResumo = async () => {
@@ -211,8 +211,17 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     };
 
     fetchResumo();
-    return () => { mounted = false; };
-  }, [filters]);
+    
+    // Atualizar a cada 30 segundos
+    const interval = setInterval(() => {
+      if (mounted) fetchResumo();
+    }, 30000);
+
+    return () => { 
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [filters, reloadResumo]);
  
 const formatShortDate = (raw?: string | null) => {
     if (!raw) return "";
@@ -524,6 +533,15 @@ const formatShortDate = (raw?: string | null) => {
                 <div className="flex items-center">
                   <CardTitle className="text-sm font-semibold">Resumo de Produção</CardTitle>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setReloadResumo(prev => prev + 1)}
+                  disabled={loadingResumo}
+                  className="h-8 w-8 p-0"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loadingResumo ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="flex flex-col flex-grow overflow-hidden">

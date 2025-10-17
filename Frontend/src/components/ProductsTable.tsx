@@ -5,25 +5,7 @@ type ProdDatum = { name: string; value: number; unit?: string };
 
 export default function ProductsTable({ filters, onHoverName, onLeave, highlightName }: { filters?: any; onHoverName?: (name: string) => void; onLeave?: () => void; highlightName?: string | null }) {
   const [data, setData] = useState<ProdDatum[]>([]);
-  // Estado para guardar informações de produtos (unidades, etc)
-  const [produtosInfo, setProdutosInfo] = useState<Record<string, { nome: string; unidade: string }>>({});
   
-  // Buscar informações de produtos
-  useEffect(() => {
-    const fetchProdutosInfo = async () => {
-      try {
-        const res = await fetch('http://localhost:3000/api/materiaprima/labels');
-        if (!res.ok) return;
-        const data = await res.json();
-        setProdutosInfo(data);
-      } catch (e) {
-        console.error('Erro ao buscar info de produtos:', e);
-      }
-    };
-    
-    fetchProdutosInfo();
-  }, []);
-
   const fetchData = async () => {
     try {
       const params = new URLSearchParams();
@@ -44,21 +26,12 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
     void fetchData();
   }, [JSON.stringify(filters)]);
 
-  // Converter valor de acordo com a unidade
-  const converterValor = (valor: number, colKey?: string): number => {
-    if (typeof valor !== "number") return valor;
-    let unidade = produtosInfo[colKey || '']?.unidade || 'kg';
-    // Backend retorna valores sempre em kg. Se unidade configurada é 'g', dividimos por 1000
-    if (unidade === 'g') return valor / 1000;
-    return valor;
-  };
-
   // Formatar dados para exibição igual à página de relatórios
   const displayProducts = data.map((p, idx) => {
     const colKey = `col${idx + 6}`; // Simular colKey como na página de relatórios
     return {
       nome: p.name,
-      qtd: p.value,
+      qtd: p.value, // Backend /api/chartdata/produtos já retorna tudo em kg
       colKey
     };
   });
@@ -113,10 +86,10 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
                         lineHeight: "1.2",
                       }}
                     >
-                      {Number(converterValor(Number(produto.qtd), produto.colKey)).toLocaleString("pt-BR", {
+                      {Number(produto.qtd).toLocaleString("pt-BR", {
                         minimumFractionDigits: 3,
                         maximumFractionDigits: 3,
-                      })} {(produto.colKey && produtosInfo[produto.colKey]?.unidade) || "kg"}
+                      })} kg
                     </div>
                   </TableCell>
                 </TableRow>

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Input } from "./components/ui/input";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
-import { Separator } from "./components/ui/separator";
 
 interface ProductsProps {
   colLabels: { [key: string]: string };
@@ -118,7 +117,9 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   };
 
   const handleUnidadeChange = (colKey: string, unidadeValue: string) => {
-    const novaUnidade = unidadeValue === "1" ? "g" : "kg";
+    // value="0" → gramas (medida=0 no backend)
+    // value="1" → quilos (medida=1 no backend)
+    const novaUnidade = unidadeValue === "0" ? "g" : "kg";
     
     // Atualiza estado
     const updatedUnidades = { ...unidades, [colKey]: novaUnidade };
@@ -179,15 +180,15 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                     <div className="flex items-center justify-center border border-gray-400 rounded-lg px-2 min-w-24">
                       <RadioGroup
                         className="flex flex-row gap-3"
-                        value={unidadeAtual === "g" ? "1" : "2"}
+                        value={unidadeAtual === "g" ? "0" : "1"}
                         onValueChange={(value) => handleUnidadeChange(col, value)}
                       >
                         <div className="flex flex-row items-center">
-                          <RadioGroupItem value="1" id={`${col}-g`} className="border-gray-500" />
+                          <RadioGroupItem value="0" id={`${col}-g`} className="border-gray-500" />
                           <Label htmlFor={`${col}-g`} className="text-sm cursor-pointer ml-1">g</Label>
                         </div>
                         <div className="flex flex-row items-center">
-                          <RadioGroupItem value="2" id={`${col}-kg`} className="border-gray-500" />
+                          <RadioGroupItem value="1" id={`${col}-kg`} className="border-gray-500" />
                           <Label htmlFor={`${col}-kg`} className="text-sm cursor-pointer ml-1">kg</Label>
                         </div>
                       </RadioGroup>

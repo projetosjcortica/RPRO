@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { FilterOptions, ReportRow } from "../components/types";
 
 // Cache para armazenar resultados recentes de consultas
 const reportDataCache: Record<string, { data: ReportRow[], total: number, timestamp: number }> = {};
+const CACHE_DURATION = 600000; // 10 minutos (aumentado)
+const MAX_CACHE_SIZE = 50; // Aumentado para manter mais páginas em cache
+const prefetchQueue = new Set<string>(); // Fila de prefetch para evitar duplicatas
 
 export function useReportData(filtros: FilterOptions, page: number, pageSize: number) {
   const [dados, setDados] = useState<ReportRow[]>([]);
@@ -11,13 +14,36 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
   const [total, setTotal] = useState(0);
   const [reloadFlag, setReloadFlag] = useState(0);
   const [retryCount, setRetryCount] = useState(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const refetch = useCallback(() => {
     setReloadFlag((flag) => flag + 1);
   }, []);
 
+  // Limpar cache antigo
+  const cleanOldCache = useCallback(() => {
+    const now = Date.now();
+    const keys = Object.keys(reportDataCache);
+    
+    // Remover entradas expiradas
+    keys.forEach(key => {
+      if (now - reportDataCache[key].timestamp > CACHE_DURATION) {
+        delete reportDataCache[key];
+      }
+    });
+    
+    // Se ainda estiver muito grande, remover as mais antigas
+    const remainingKeys = Object.keys(reportDataCache);
+    if (remainingKeys.length > MAX_CACHE_SIZE) {
+      remainingKeys
+        .sort((a, b) => reportDataCache[a].timestamp - reportDataCache[b].timestamp)
+        .slice(0, remainingKeys.length - MAX_CACHE_SIZE)
+        .forEach(key => delete reportDataCache[key]);
+    }
+  }, []);
+
   // Prefetch function - carrega dados em segundo plano sem afetar o estado
-  const prefetchData = useCallback(async (prefetchPage: number) => {
+  const prefetchData = useCallback(async (prefetchPage: number, priority: 'high' | 'low' = 'low') => {
     try {
       const params = new URLSearchParams();
       params.set("page", String(prefetchPage || 1));
@@ -32,16 +58,26 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
 
       const cacheKey = `${params.toString()}-${prefetchPage}-${pageSize}`;
       
-      // Se já estiver em cache, não precisa buscar novamente
-      if (reportDataCache[cacheKey]) return;
+      // Evitar prefetch duplicado
+      if (prefetchQueue.has(cacheKey)) return;
       
-      console.log(`[useReportData] Prefetching página ${prefetchPage}`);
+      // Se já estiver em cache e for recente, não precisa buscar novamente
+      const now = Date.now();
+      if (reportDataCache[cacheKey] && (now - reportDataCache[cacheKey].timestamp < CACHE_DURATION)) {
+        return;
+      }
+      
+      prefetchQueue.add(cacheKey);
+      
       const url = `http://localhost:3000/api/relatorio/paginate?${params.toString()}`;
       
       const res = await fetch(url, { 
-        method: "GET", 
+        method: "GET",
+        priority: priority === 'high' ? 'high' : 'low', // Priorizar requisições importantes
         headers: { 'Cache-Control': 'no-cache' }
-      });
+      } as any);
+      
+      prefetchQueue.delete(cacheKey);
       
       if (!res.ok) return;
       
@@ -55,14 +91,23 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
         total: newTotal,
         timestamp: Date.now()
       };
+      
+      cleanOldCache();
     } catch (err) {
+      const cacheKey = `${new URLSearchParams().toString()}-${prefetchPage}-${pageSize}`;
+      prefetchQueue.delete(cacheKey);
       // Ignora erros no prefetch
-      console.log(`[useReportData] Prefetch falhou para página ${prefetchPage}`);
     }
-  }, [filtros, pageSize]);
+  }, [filtros, pageSize, cleanOldCache]);
 
   useEffect(() => {
+    // Cancelar requisição anterior se existir
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
     const controller = new AbortController();
+    abortControllerRef.current = controller;
     const signal = controller.signal;
     let isMounted = true;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -70,44 +115,59 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
     const fetchData = async () => {
       if (!isMounted) return;
       
+      const params = new URLSearchParams();
+      params.set("page", String(page || 1));
+      params.set("pageSize", String(pageSize || 100));
+
+      // Map frontend filtros to backend query params
+      if ((filtros as any).nomeFormula) params.set("formula", String((filtros as any).nomeFormula));
+      if ((filtros as any).dataInicio) params.set("dataInicio", String((filtros as any).dataInicio));
+      if ((filtros as any).dataFim) params.set("dataFim", String((filtros as any).dataFim));
+      if ((filtros as any).codigo) params.set("codigo", String((filtros as any).codigo));
+      if ((filtros as any).numero) params.set("numero", String((filtros as any).numero));
+
+      // Criar chave de cache
+      const cacheKey = `${params.toString()}-${page}-${pageSize}`;
+      
+      // Verificar cache - INSTANTÂNEO sem loading
+      const now = Date.now();
+      const cachedItem = reportDataCache[cacheKey];
+      if (cachedItem && (now - cachedItem.timestamp < CACHE_DURATION)) {
+        // Atualização INSTANTÂNEA - sem loading
+        setDados(cachedItem.data);
+        setTotal(cachedItem.total);
+        setError(null);
+        
+        // Prefetch agressivo em background - páginas próximas imediatamente
+        queueMicrotask(() => {
+          if (page > 1) prefetchData(page - 1, 'high');
+          prefetchData(page + 1, 'high');
+          // Páginas mais distantes com prioridade baixa
+          if (page > 2) prefetchData(page - 2, 'low');
+          prefetchData(page + 2, 'low');
+          if (page > 3) prefetchData(page - 3, 'low');
+          prefetchData(page + 3, 'low');
+        });
+        
+        return;
+      }
+
+      // Só mostra loading se não tiver cache
       setLoading(true);
       setError(null);
 
       try {
-        const params = new URLSearchParams();
-        params.set("page", String(page || 1));
-        params.set("pageSize", String(pageSize || 100));
-
-        // Map frontend filtros to backend query params
-        if ((filtros as any).nomeFormula) params.set("formula", String((filtros as any).nomeFormula));
-        if ((filtros as any).dataInicio) params.set("dataInicio", String((filtros as any).dataInicio));
-        if ((filtros as any).dataFim) params.set("dataFim", String((filtros as any).dataFim));
-        if ((filtros as any).codigo) params.set("codigo", String((filtros as any).codigo));
-        if ((filtros as any).numero) params.set("numero", String((filtros as any).numero));
-
-        // Criar chave de cache
-        const cacheKey = `${params.toString()}-${page}-${pageSize}`;
-        
-        // Verificar cache (válido por 2 minutos)
-        const now = Date.now();
-        const cachedItem = reportDataCache[cacheKey];
-        if (cachedItem && (now - cachedItem.timestamp < 120000)) {
-          console.log(`[useReportData] Usando cache para página ${page}`);
-          setDados(cachedItem.data);
-          setTotal(cachedItem.total);
-          setLoading(false);
-          return;
-        }
-
         const url = `http://localhost:3000/api/relatorio/paginate?${params.toString()}`;
-        console.log(`[useReportData] Fetching page ${page} with filters:`, filtros);
         
-        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 segundos timeout
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
         
         const res = await fetch(url, { 
           method: "GET", 
           signal,
-          headers: { 'Cache-Control': 'no-cache' }
+          headers: { 
+            'Cache-Control': 'no-cache',
+            'Priority': 'high'
+          }
         });
         
         clearTimeout(timeoutId);
@@ -153,12 +213,16 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
         
         setRetryCount(0);
       
-      // Prefetch próximas páginas em segundo plano
-      if (page > 1) {
-        setTimeout(() => prefetchData(page - 1), 300);
-      }
-      setTimeout(() => prefetchData(page + 1), 100);
-      setTimeout(() => prefetchData(page + 2), 500);
+        // Prefetch agressivo de páginas próximas
+        queueMicrotask(() => {
+          if (page > 1) prefetchData(page - 1, 'high');
+          prefetchData(page + 1, 'high');
+          if (page > 2) prefetchData(page - 2, 'low');
+          prefetchData(page + 2, 'low');
+          if (page > 3) prefetchData(page - 3, 'low');
+          prefetchData(page + 3, 'low');
+        });
+        
       } catch (err: any) {
         if (!isMounted) return;
         if (err.name === 'AbortError') return;
@@ -171,7 +235,7 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
           console.log(`[useReportData] Tentando novamente (${retryCount + 1}/3)...`);
           retryTimeout = setTimeout(() => {
             if (isMounted) fetchData();
-          }, 2000); // espera 2 segundos antes de tentar novamente
+          }, 2000);
           return;
         }
         

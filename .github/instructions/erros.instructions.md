@@ -1,15 +1,15 @@
 ---
 applyTo: '**'
 ---
-# erros principais
-<!-- - [x] Arrumar data do relatorio (Formatar para dd/mm/yyyy) -->
-- [x] Nome dos produtos bugando (as vez buga, mas nem sempre tmb KKK)
-- [x] Grafico da tela de relatorio bugando (as vezes eu pesquiso e vem o grafico, as veiz nao slk KKKK)
-- [x]  adicionar um fallback para quando o nome de algo for maior adicionar reticencias com um tooltip com o nome completo  
+# erros principais 
+- [x] Nome dos produtos bugando (Não aparecia certo)
+- [x] Grafico da tela de relatorio bugando (Não puxando por codigo) 
+- [x] Quebrar a linha com palavras grandes
+
 ## modal perfil
 - [x] Traduzir textos
 - [x] Remover botão reverter e colocar tudo dentro do botão cancelar
-- Manter proporção das fotos
+- [x] Manter proporção das fotos
 - [x] Não deixar o componente exceder o tamanho do modal
 
 ## Home 
@@ -17,8 +17,8 @@ applyTo: '**'
 - [x] Domingo tem que ser a esquerda sempre 
 
 ## Relatorios 
-- Paginação está lenta
-- Tabela grid bugado quando faz consulta com menos dados, tabela do side info de produtos e formulas
-- [x] corrigir data do pdf info geral 
-- Comentário não aparecendo 
-- [x]  Alguns grids quebrando quando o nome do produto fica grande (titulo e nome do produto) OBS: Modificado + Feat de Ajuste customizado
+- [x] Paginação está lenta
+- [x] Tabela grid bugado quando faz consulta com menos dados, tabela do side info de produtos e formulas
+- [x] Corrigir data do pdf info geral 
+- [x] Comentário não aparecendo 
+- [x] Alguns gCrids quebrando quando o nome do produto fica grande (titulo e nome do produto) OBS: Modificado + Feat de Ajuste customizado

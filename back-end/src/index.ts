@@ -25,6 +25,7 @@ import {
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import multer from "multer";
 import { configService } from "./services/configService";
 import { setRuntimeConfigs, getRuntimeConfig } from "./core/runtimeConfig";
@@ -234,6 +235,19 @@ async function ensureDatabaseConnection() {
 }
 
 const app = express();
+
+// Compressão gzip para otimizar transferência de dados
+app.use(compression({
+  filter: (req: express.Request, res: express.Response) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  },
+  threshold: 1024, // Comprimir respostas > 1KB
+  level: 6 // Balanço entre velocidade e compressão
+}));
+
 // Allow CORS from any origin during development. Using the default `cors()`
 // handler ensures proper handling of preflight OPTIONS requests.
 app.use(cors());
@@ -822,14 +836,31 @@ const relatorioPaginateCache: Record<string, {
   expiresAt: number;
 }> = {};
 
+const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutos (alinhado com frontend)
+const MAX_CACHE_ENTRIES = 100; // Máximo de entradas no cache
+
 // Função para limpar entradas antigas do cache
 function limparCacheExpirado() {
   const now = Date.now();
-  Object.keys(relatorioPaginateCache).forEach(key => {
+  const keys = Object.keys(relatorioPaginateCache);
+  
+  // Remover entradas expiradas
+  keys.forEach(key => {
     if (relatorioPaginateCache[key].expiresAt < now) {
       delete relatorioPaginateCache[key];
     }
   });
+  
+  // Se ainda exceder o limite, remover as mais antigas
+  const remainingKeys = Object.keys(relatorioPaginateCache);
+  if (remainingKeys.length > MAX_CACHE_ENTRIES) {
+    const sorted = remainingKeys
+      .map(k => ({ key: k, timestamp: relatorioPaginateCache[k].timestamp }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+    
+    const toRemove = sorted.slice(0, remainingKeys.length - MAX_CACHE_ENTRIES);
+    toRemove.forEach(item => delete relatorioPaginateCache[item.key]);
+  }
 }
 
 // Limpar o cache a cada 5 minutos para evitar vazamento de memória
@@ -1024,13 +1055,28 @@ app.get("/api/relatorio/paginate", async (req, res) => {
 
     const totalPages = Math.ceil(total / pageSizeNum);
 
-    return res.json({
+    const responseData = {
       rows: mappedRows,
       total,
       page: pageNum,
       pageSize: pageSizeNum,
       totalPages,
+    };
+
+    // Armazenar no cache
+    relatorioPaginateCache[cacheKey] = {
+      data: responseData,
+      timestamp: now,
+      expiresAt: now + CACHE_DURATION_MS
+    };
+
+    // Headers para otimização de cache do navegador
+    res.set({
+      'Cache-Control': 'private, max-age=600', // 10 minutos no navegador
+      'ETag': `"${cacheKey.substring(0, 32)}"`, // ETag baseado na chave
     });
+
+    return res.json(responseData);
   } catch (e: any) {
     console.error("[relatorio/paginate] Unexpected error:", e);
     return res.status(500).json({ error: e?.message || "internal" });
@@ -2937,22 +2983,46 @@ app.get("/api/chartdata/stats", async (req, res) => {
 
     const rows = await qb.getMany();
 
-    // Calcular estatísticas gerais
-    const totalGeral = rows.reduce((sum, r) => {
-      const v = Number(r.Form1 ?? 0);
-      return sum + (isNaN(v) ? 0 : v);
-    }, 0);
+    // Load materias to normalize totals
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Calcular estatísticas gerais normalizadas para kg
+    let totalGeralKg = 0;
+    for (const r of rows) {
+      let rowTotalKg = 0;
+      for (let i = 1; i <= 40; i++) {
+        const raw =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
+        if (!raw || raw <= 0) continue;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0) {
+          rowTotalKg += raw / 1000; // Converter gramas para kg
+        } else {
+          rowTotalKg += raw;
+        }
+      }
+      totalGeralKg += rowTotalKg;
+    }
 
     const uniqueFormulas = new Set(rows.map((r) => r.Nome)).size;
 
     const uniqueDays = new Set(rows.map((r) => r.Dia).filter(Boolean)).size;
 
     return res.json({
-      totalGeral,
+      totalGeral: totalGeralKg,
       totalRecords: rows.length,
       uniqueFormulas,
       uniqueDays,
-      average: rows.length > 0 ? totalGeral / rows.length : 0,
+      average: rows.length > 0 ? totalGeralKg / rows.length : 0,
       ts: new Date().toISOString(),
     });
   } catch (e) {
@@ -3035,7 +3105,15 @@ app.get("/api/chartdata/semana", async (req, res) => {
       return !isNaN(dt.getTime()) ? dt : null;
     };
 
-    // Agregar por dia da semana
+    // Load materias to normalize per-row totals
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Agregar por dia da semana usando total normalizado por linha (kg)
     const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
     const weekdayTotals = Array(7).fill(0);
     const weekdayCounts = Array(7).fill(0);
@@ -3046,11 +3124,28 @@ app.get("/api/chartdata/semana", async (req, res) => {
       if (!date) continue;
 
       const dayIndex = date.getDay();
-      const v = Number(r.Form1 ?? 0);
+      
+      // Calcular total da linha normalizado para kg
+      let rowTotalKg = 0;
+      for (let i = 1; i <= 40; i++) {
+        const raw =
+          typeof r[`Prod_${i}`] === "number"
+            ? r[`Prod_${i}`]
+            : r[`Prod_${i}`] != null
+            ? Number(r[`Prod_${i}`])
+            : 0;
+        if (!raw || raw <= 0) continue;
+        const mp = materiasByNum[i];
+        if (mp && Number(mp.medida) === 0) {
+          rowTotalKg += raw / 1000; // Converter gramas para kg
+        } else {
+          rowTotalKg += raw;
+        }
+      }
 
-      if (isNaN(v)) continue;
+      if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
 
-      weekdayTotals[dayIndex] += v;
+      weekdayTotals[dayIndex] += rowTotalKg;
       weekdayCounts[dayIndex] += 1;
     }
 
@@ -3147,6 +3242,14 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
         return !isNaN(dt.getTime()) ? dt : null;
       };
 
+      // Load materias to normalize per-row totals
+      const materias = await materiaPrimaService.getAll();
+      const materiasByNum: Record<number, any> = {};
+      for (const m of materias) {
+        const n = typeof m.num === "number" ? m.num : Number(m.num);
+        if (!Number.isNaN(n)) materiasByNum[n] = m;
+      }
+
       const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
       const weekdayTotals = Array(7).fill(0);
       const weekdayCounts = Array(7).fill(0);
@@ -3156,9 +3259,27 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
         const date = parseDia(r.Dia);
         if (!date) continue;
         const dayIndex = date.getDay();
-        const v = Number(r.Form1 ?? 0);
-        if (isNaN(v)) continue;
-        weekdayTotals[dayIndex] += v;
+        
+        // Calcular total da linha normalizado para kg
+        let rowTotalKg = 0;
+        for (let i = 1; i <= 40; i++) {
+          const raw =
+            typeof r[`Prod_${i}`] === "number"
+              ? r[`Prod_${i}`]
+              : r[`Prod_${i}`] != null
+              ? Number(r[`Prod_${i}`])
+              : 0;
+          if (!raw || raw <= 0) continue;
+          const mp = materiasByNum[i];
+          if (mp && Number(mp.medida) === 0) {
+            rowTotalKg += raw / 1000; // Converter gramas para kg
+          } else {
+            rowTotalKg += raw;
+          }
+        }
+        
+        if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
+        weekdayTotals[dayIndex] += rowTotalKg;
         weekdayCounts[dayIndex] += 1;
       }
 
