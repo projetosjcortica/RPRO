@@ -27,7 +27,7 @@ interface FiltrosBarProps {
 export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
   const { filtros, limparFiltros } = useFiltros();
 
-  const [filtrosTemporarios, setFiltrosTemporarios] = useState<Filtros>(filtros);
+  const [  filtrosTemporarios, setFiltrosTemporarios] = useState<Filtros>(filtros);
   const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
   const [codigosOptions, setCodigosOptions] = useState<string[]>([]);
   const [numerosOptions, setNumerosOptions] = useState<string[]>([]);
@@ -190,7 +190,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           <Button
             variant="outline"
             className={cn(
-              "w-50 justify-start text-left font-normal border border-black",
+              "w-50 justify-between text-left font-normal border border-black",
               !dateRange && "text-gray-400"
             )}
           >
@@ -204,7 +204,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 format(dateRange.from, "dd/MM/yyyy")
               )
             ) : (
-              <span>Selecione uma data</span>
+              <span>selecione a data</span>
             )}
             <CalendarIcon className="h-4 w-4" />
           </Button>

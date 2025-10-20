@@ -64,7 +64,7 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
                 >
                   <TableCell className="py-1 px-2 text-right border-r align-middle">
                     <div 
-                      className="break-words overflow-hidden line-clamp-2 text-xs"
+                      className="break-words overflow-hidden line-clamp-2"
                       style={{
                         wordBreak: "break-word",
                         overflowWrap: "break-word",
@@ -78,7 +78,7 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
                   </TableCell>
                   <TableCell className="py-1 px-2 text-right align-middle">
                     <div 
-                      className="break-words overflow-hidden line-clamp-2 text-xs"
+                      className="break-words overflow-hidden line-clamp-2"
                       style={{
                         wordBreak: "break-word",
                         overflowWrap: "break-word",

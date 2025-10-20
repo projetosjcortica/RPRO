@@ -4,10 +4,11 @@ import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Checkbox } from "./components/ui/checkbox";
 import { Button } from "./components/ui/button";
-import { Loader2 } from 'lucide-react';
+import { Loader2, Plus } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
 import { getProcessador } from "./Processador";
+import { resolvePhotoUrl } from "./lib/photoUtils";
 
 import {
   AlertDialog,
@@ -310,7 +311,11 @@ export function ProfileConfig({
 }) {
   // ✅ TODOS OS HOOKS PRIMEIRO, SEM CONDICIONAIS
   const { formData, isLoading, onChange, onSave } = usePersistentForm(configKey);
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(
+    user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
+    );
 
   // ✅ Loading state - SEM return antecipado
   if (isLoading) {
@@ -319,13 +324,122 @@ export function ProfileConfig({
     );
   }
 
+    const onFileChange = (f: File | null) => {
+      setFile(f);
+      if (!f) {
+        setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
+        return;
+      }
+      const url = URL.createObjectURL(f);
+      setPreview(url);
+    };
+     const uploadPhoto = async () => {
+  if (!file) return;
+    try {
+      const fd = new FormData();
+      fd.append("username", user.username);
+      fd.append("photo", file);
+      const res = await fetch("http://localhost:3000/api/auth/photo", {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`upload failed: ${res.status} ${txt}`);
+      }
+      const data = await res.json();
+      // backend returns user without password
+      updateUser(data as any);
+      try {
+        const blobUrl = URL.createObjectURL(file);
+        setPreview(blobUrl);
+      } catch {}
+      setFile(null);
+    } catch (e: any) {
+    }
+  };
+
+   const useAsReportLogo = async () => {
+    try {
+      // Resize image using canvas to max height 200, then upload as multipart
+      const toBlobFromImage = (dataUrl: string) =>
+        new Promise<Blob | null>((resolve) => {
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const ratio = img.width / img.height;
+              const h = Math.min(200, img.height);
+              const w = Math.round(h * ratio);
+              const canvas = document.createElement("canvas");
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext("2d");
+              if (!ctx) return resolve(null);
+              ctx.clearRect(0, 0, w, h);
+              ctx.drawImage(img, 0, 0, w, h);
+              canvas.toBlob((b) => resolve(b), "image/png", 0.9);
+            } catch (err) {
+              resolve(null);
+            }
+          };
+          img.onerror = () => resolve(null);
+          img.src = dataUrl;
+        });
+
+      // Build a dataUrl from available source
+      let sourceDataUrl: string | null = null;
+      if (file) {
+        sourceDataUrl = await new Promise<string | null>((res) => {
+          const r = new FileReader();
+          r.onload = () => res(String(r.result));
+          r.onerror = () => res(null);
+          r.readAsDataURL(file);
+        });
+      } else if (preview && preview.startsWith("blob:")) {
+        try {
+          const r = await fetch(preview);
+          const b = await r.blob();
+          sourceDataUrl = await new Promise<string | null>((res) => {
+            const r2 = new FileReader();
+            r2.onload = () => res(String(r2.result));
+            r2.onerror = () => res(null);
+            r2.readAsDataURL(b);
+          });
+        } catch (err) {
+          sourceDataUrl = null;
+        }
+      }
+
+      if (!sourceDataUrl) {
+        return;
+      }
+
+      const blob = await toBlobFromImage(sourceDataUrl);
+      if (!blob) {
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append("photo", blob, file?.name || "logo.png");
+      const res = await fetch("http://localhost:3000/api/report/logo/upload", {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`logo upload failed: ${res.status} ${txt}`);
+      }
+    } catch (e: any) {
+    }
+  };
+
   // ✅ AGORA SIM O RETURN FINAL
   return (
     <div id="geral" className="flex flex-col gap-4 bg-white">
       <Profile />
       
       {user?.isAdmin && (
-        <div className="mt-4 border border-gray-300 rounded p-3 bg-white">
+        <div className="mt-4 border border-gray-300 flex flex-col gap-4 rounded p-3 bg-white">
           <Label>
             Nome da empresa
             <Input
@@ -335,9 +449,58 @@ export function ProfileConfig({
               className="mt-2 border border-black"
             />
           </Label>
+           <div>
+            <Label className="mb-2 justify-between text-sm font-medium text-gray-700">Selecionar foto
+            <div className="space-y-3">
+              <label
+                htmlFor="profile-upload"
+                className="cursor-pointer flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+              >
+                <Plus className="h-4 w-4 text-red-600 flex-shrink-0" />
+                <span className="text-sm text-gray-700 font-medium">
+                  Selecionar imagem
+                </span>
+                <input
+                  id="profile-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"  
+                  onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {file && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={async () => {
+                      await uploadPhoto();
+                      await useAsReportLogo();
+                    }}
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Enviar
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setFile(null);
+                      setPreview(
+                        user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
+                      );
+                    }}
+                    variant="outline"
+                    size="sm"
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              )}
+            </div>
+            </Label>
+          </div>
+        
         </div>
       )}
-      
+
       <div className="flex gap-2 justify-end mt-6">
         <Button
           id="save"

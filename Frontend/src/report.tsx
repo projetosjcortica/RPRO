@@ -1008,8 +1008,8 @@ export default function Report() {
             <div className="flex justify-start">
               <Button
                 onClick={resetTableColumns}
-                variant="outline"
-                className="text-xs text-gray-500 hover:text-gray-700 hover:underline transition-colors"
+                variant="ghost"
+                className=" text-gray-500 hover:text-gray-700 hover:underline transition-colors"
               >
                 Resetar colunas
               </Button>

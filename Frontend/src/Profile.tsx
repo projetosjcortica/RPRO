@@ -5,18 +5,17 @@ import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
-import { Plus } from "lucide-react";
+// import { Plus } from "lucide-react";
 
 const Profile: React.FC = () => {
   const { user, logout, updateUser } = useAuth();
 
   // Hooks sempre declarados no topo
   const [displayName, setDisplayName] = useState(user?.displayName || "");
-  const [file, setFile] = useState<File | null>(null);
+  // const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(
     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
   );
-  // ...existing code...
 
   useEffect(() => {
     setDisplayName(user?.displayName || "");
@@ -52,115 +51,115 @@ const Profile: React.FC = () => {
     }
   };
 
-  const uploadPhoto = async () => {
-  if (!file) return;
-    try {
-      const fd = new FormData();
-      fd.append("username", user.username);
-      fd.append("photo", file);
-      const res = await fetch("http://localhost:3000/api/auth/photo", {
-        method: "POST",
-        body: fd,
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`upload failed: ${res.status} ${txt}`);
-      }
-      const data = await res.json();
-      // backend returns user without password
-      updateUser(data as any);
-      try {
-        const blobUrl = URL.createObjectURL(file);
-        setPreview(blobUrl);
-      } catch {}
-      setFile(null);
-    } catch (e: any) {
-    }
-  };
+  // const uploadPhoto = async () => {
+  // if (!file) return;
+  //   try {
+  //     const fd = new FormData();
+  //     fd.append("username", user.username);
+  //     fd.append("photo", file);
+  //     const res = await fetch("http://localhost:3000/api/auth/photo", {
+  //       method: "POST",
+  //       body: fd,
+  //     });
+  //     if (!res.ok) {
+  //       const txt = await res.text().catch(() => "");
+  //       throw new Error(`upload failed: ${res.status} ${txt}`);
+  //     }
+  //     const data = await res.json();
+  //     // backend returns user without password
+  //     updateUser(data as any);
+  //     try {
+  //       const blobUrl = URL.createObjectURL(file);
+  //       setPreview(blobUrl);
+  //     } catch {}
+  //     setFile(null);
+  //   } catch (e: any) {
+  //   }
+  // };
 
-  const useAsReportLogo = async () => {
-    try {
-      // Resize image using canvas to max height 200, then upload as multipart
-      const toBlobFromImage = (dataUrl: string) =>
-        new Promise<Blob | null>((resolve) => {
-          const img = new Image();
-          img.onload = () => {
-            try {
-              const ratio = img.width / img.height;
-              const h = Math.min(200, img.height);
-              const w = Math.round(h * ratio);
-              const canvas = document.createElement("canvas");
-              canvas.width = w;
-              canvas.height = h;
-              const ctx = canvas.getContext("2d");
-              if (!ctx) return resolve(null);
-              ctx.clearRect(0, 0, w, h);
-              ctx.drawImage(img, 0, 0, w, h);
-              canvas.toBlob((b) => resolve(b), "image/png", 0.9);
-            } catch (err) {
-              resolve(null);
-            }
-          };
-          img.onerror = () => resolve(null);
-          img.src = dataUrl;
-        });
+  // const useAsReportLogo = async () => {
+  //   try {
+  //     // Resize image using canvas to max height 200, then upload as multipart
+  //     const toBlobFromImage = (dataUrl: string) =>
+  //       new Promise<Blob | null>((resolve) => {
+  //         const img = new Image();
+  //         img.onload = () => {
+  //           try {
+  //             const ratio = img.width / img.height;
+  //             const h = Math.min(200, img.height);
+  //             const w = Math.round(h * ratio);
+  //             const canvas = document.createElement("canvas");
+  //             canvas.width = w;
+  //             canvas.height = h;
+  //             const ctx = canvas.getContext("2d");
+  //             if (!ctx) return resolve(null);
+  //             ctx.clearRect(0, 0, w, h);
+  //             ctx.drawImage(img, 0, 0, w, h);
+  //             canvas.toBlob((b) => resolve(b), "image/png", 0.9);
+  //           } catch (err) {
+  //             resolve(null);
+  //           }
+  //         };
+  //         img.onerror = () => resolve(null);
+  //         img.src = dataUrl;
+  //       });
 
-      // Build a dataUrl from available source
-      let sourceDataUrl: string | null = null;
-      if (file) {
-        sourceDataUrl = await new Promise<string | null>((res) => {
-          const r = new FileReader();
-          r.onload = () => res(String(r.result));
-          r.onerror = () => res(null);
-          r.readAsDataURL(file);
-        });
-      } else if (preview && preview.startsWith("blob:")) {
-        try {
-          const r = await fetch(preview);
-          const b = await r.blob();
-          sourceDataUrl = await new Promise<string | null>((res) => {
-            const r2 = new FileReader();
-            r2.onload = () => res(String(r2.result));
-            r2.onerror = () => res(null);
-            r2.readAsDataURL(b);
-          });
-        } catch (err) {
-          sourceDataUrl = null;
-        }
-      }
+  //     // Build a dataUrl from available source
+  //     let sourceDataUrl: string | null = null;
+  //     if (file) {
+  //       sourceDataUrl = await new Promise<string | null>((res) => {
+  //         const r = new FileReader();
+  //         r.onload = () => res(String(r.result));
+  //         r.onerror = () => res(null);
+  //         r.readAsDataURL(file);
+  //       });
+  //     } else if (preview && preview.startsWith("blob:")) {
+  //       try {
+  //         const r = await fetch(preview);
+  //         const b = await r.blob();
+  //         sourceDataUrl = await new Promise<string | null>((res) => {
+  //           const r2 = new FileReader();
+  //           r2.onload = () => res(String(r2.result));
+  //           r2.onerror = () => res(null);
+  //           r2.readAsDataURL(b);
+  //         });
+  //       } catch (err) {
+  //         sourceDataUrl = null;
+  //       }
+  //     }
 
-      if (!sourceDataUrl) {
-        return;
-      }
+  //     if (!sourceDataUrl) {
+  //       return;
+  //     }
 
-      const blob = await toBlobFromImage(sourceDataUrl);
-      if (!blob) {
-        return;
-      }
+  //     const blob = await toBlobFromImage(sourceDataUrl);
+  //     if (!blob) {
+  //       return;
+  //     }
 
-      const fd = new FormData();
-      fd.append("photo", blob, file?.name || "logo.png");
-      const res = await fetch("http://localhost:3000/api/report/logo/upload", {
-        method: "POST",
-        body: fd,
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        throw new Error(`logo upload failed: ${res.status} ${txt}`);
-      }
-    } catch (e: any) {
-    }
-  };
+  //     const fd = new FormData();
+  //     fd.append("photo", blob, file?.name || "logo.png");
+  //     const res = await fetch("http://localhost:3000/api/report/logo/upload", {
+  //       method: "POST",
+  //       body: fd,
+  //     });
+  //     if (!res.ok) {
+  //       const txt = await res.text().catch(() => "");
+  //       throw new Error(`logo upload failed: ${res.status} ${txt}`);
+  //     }
+  //   } catch (e: any) {
+  //   }
+  // };
 
-  const onFileChange = (f: File | null) => {
-    setFile(f);
-    if (!f) {
-      setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
-      return;
-    }
-    const url = URL.createObjectURL(f);
-    setPreview(url);
-  };
+  // const onFileChange = (f: File | null) => {
+  //   setFile(f);
+  //   if (!f) {
+  //     setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
+  //     return;
+  //   }
+  //   const url = URL.createObjectURL(f);
+  //   setPreview(url);
+  // };
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -206,7 +205,7 @@ const Profile: React.FC = () => {
             </div>
           </div>
 
-          <div>
+          {/* <div>
             <Label className="mb-2 block text-sm font-medium text-gray-700">Foto</Label>
             <div className="space-y-3">
               <label
@@ -252,7 +251,7 @@ const Profile: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
     </div>
