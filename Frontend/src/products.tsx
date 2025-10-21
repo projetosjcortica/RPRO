@@ -65,7 +65,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     setColLabels(labels);
     setUnidades(unidadesObj);
   };
-
+  
   // Atualiza localStorage
   const updateProdutoInfo = (colKey: string, nome: string, unidade: string) => {
     if (typeof window === "undefined") return;
@@ -94,19 +94,16 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   const handleLabelChange = (colKey: string, newName: string, unidade: string = "kg") => {
     setSavingProduct(colKey);
     
-    // Atualiza estados
     const updatedLabels = { ...colLabels, [colKey]: newName };
     setColLabels(updatedLabels);
     
     const updatedUnidades = { ...unidades, [colKey]: unidade };
     setUnidades(updatedUnidades);
     
-    // Atualiza localStorage
     updateProdutoInfo(colKey, newName, unidade);
     
-    // Notifica componente pai
     onLabelChange(colKey, newName, unidade);
-    // Notify other parts of the app that product definitions changed so sideinfo/tables can refresh
+    
     try {
       window.dispatchEvent(new CustomEvent('produtos-updated', { detail: { colKey, nome: newName, unidade } }));
     } catch (e) {
@@ -121,23 +118,18 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     // value="1" → quilos (medida=1 no backend)
     const novaUnidade = unidadeValue === "0" ? "g" : "kg";
     
-    // Atualiza estado
     const updatedUnidades = { ...unidades, [colKey]: novaUnidade };
     setUnidades(updatedUnidades);
     
-    // Atualiza localStorage
     const nomeAtual = colLabels[colKey] || "";
     updateProdutoInfo(colKey, nomeAtual, novaUnidade);
     
-    // Notifica componente pai
-    onLabelChange(colKey, nomeAtual, novaUnidade);
-    // Notify other parts of the app that product definitions changed so sideinfo/tables can refresh
+    onLabelChange(colKey, nomeAtual, novaUnidade); 
     try {
       window.dispatchEvent(new CustomEvent('produtos-updated', { detail: { colKey, nome: nomeAtual, unidade: novaUnidade } }));
     } catch (e) {}
   };
 
-  // Gera colunas editáveis
   const editableColumns = Array.from({ length: END_COL - START_COL + 1 }, (_, i) => `col${i + START_COL}`);
 
   return (

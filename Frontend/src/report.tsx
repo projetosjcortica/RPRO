@@ -42,6 +42,7 @@ import FiltrosBar from "./components/searchBar";
 import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 import { Separator } from "./components/ui/separator";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
+import { RefreshButton } from "./components/RefreshButton";
 
 interface ComentarioRelatorio {
   texto: string;
@@ -56,7 +57,7 @@ export default function Report() {
   useEffect(() => {
     // Try to load stored report logo path from backend config
     let mounted = true;
-    (async () => {
+    const loadLogo = async () => {
       try {
         const res = await fetch("http://localhost:3000/api/report/logo");
         if (!res.ok) return;
@@ -64,16 +65,31 @@ export default function Report() {
         const p = js?.path;
         if (p && mounted) {
           const resolved = resolvePhotoUrl(p);
-          setLogoUrl(resolved || undefined);
+          // append cache-busting timestamp so that updated images are fetched
+          setLogoUrl(resolved ? `${resolved}?t=${Date.now()}` : undefined);
         }
         // If user has a profile photo path and no configured report logo, prefer that
         if (!p && user && (user as any).photoPath && mounted) {
-          setLogoUrl(resolvePhotoUrl((user as any).photoPath) || undefined);
+          const resolved = resolvePhotoUrl((user as any).photoPath);
+          setLogoUrl(resolved ? `${resolved}?t=${Date.now()}` : undefined);
         }
       } catch (e) {
         // ignore
       }
-    })();
+    };
+
+    loadLogo();
+
+    // Listen for photo updates from config page
+    const handlePhotoUpdate = () => {
+      loadLogo();
+    };
+
+    window.addEventListener('report-logo-updated', handlePhotoUpdate);
+    return () => {
+      window.removeEventListener('report-logo-updated', handlePhotoUpdate);
+      mounted = false;
+    };
   }, [user]);
 
   // ... restante do código permanece igual até handlePrint ...
@@ -812,6 +828,103 @@ export default function Report() {
       return out.sort((a, b) => b.value - a.value).slice(0, 50);
     })();
 
+    // Preparar dados dos gráficos de donut para produtos
+    const produtosDonutData = (() => {
+      const out: { name: string; value: number }[] = [];
+      try {
+        if (tableSelection && tableSelection.produtos && tableSelection.produtos.length > 0) {
+          for (const p of tableSelection.produtos) {
+            const v = converterValor(Number(p.qtd) || 0);
+            out.push({ name: p.nome, value: Number(v) || 0 });
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      return out.sort((a, b) => b.value - a.value).slice(0, 10);
+    })();
+
+    // Preparar dados dos gráficos de donut para fórmulas
+    const formulasDonutData = (() => {
+      const out: { name: string; value: number }[] = [];
+      try {
+        if (tableSelection && tableSelection.formulas && tableSelection.formulas.length > 0) {
+          for (const f of tableSelection.formulas) {
+            out.push({
+              name: f.nome,
+              value: Number(f.somatoriaTotal ?? f.quantidade ?? 0) || 0,
+            });
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      return out.sort((a, b) => b.value - a.value).slice(0, 10);
+    })();
+
+    // Preparar dados do gráfico de barras de horários
+    const horariosBarData = (() => {
+      const out: { name: string; value: number }[] = [];
+      try {
+        if (resumo && resumo.distribuicaoPorHora) {
+          // Converter objeto de distribuição por hora em array
+          Object.entries(resumo.distribuicaoPorHora).forEach(([hora, valor]) => {
+            out.push({
+              name: hora,
+              value: Number(valor) || 0,
+            });
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+      // Ordenar por hora (formato HH:mm)
+      return out.sort((a, b) => a.name.localeCompare(b.name));
+    })();
+
+    // Preparar dados do gráfico de produção semanal
+    const semanaBarData = (() => {
+      const out: { name: string; value: number }[] = [];
+      try {
+        if (resumo && resumo.distribuicaoPorSemana) {
+          Object.entries(resumo.distribuicaoPorSemana).forEach(([semana, valor]) => {
+            out.push({
+              name: semana,
+              value: Number(valor) || 0,
+            });
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+      return out.sort((a, b) => a.name.localeCompare(b.name));
+    })();
+
+    // Preparar dados do gráfico de dias da semana
+    const diasSemanaBarData = (() => {
+      const out: { name: string; value: number }[] = [];
+      try {
+        if (resumo && resumo.distribuicaoPorDiaSemana) {
+          const diasOrdem = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+          Object.entries(resumo.distribuicaoPorDiaSemana).forEach(([dia, valor]) => {
+            out.push({
+              name: dia,
+              value: Number(valor) || 0,
+            });
+          });
+          // Ordenar por ordem dos dias da semana
+          out.sort((a, b) => {
+            const indexA = diasOrdem.indexOf(a.name);
+            const indexB = diasOrdem.indexOf(b.name);
+            return indexA - indexB;
+          });
+        }
+      } catch (e) {
+        // ignore
+      }
+      return out;
+    })();
+
     return (
       <MyDocument
         logoUrl={logoUrl}
@@ -830,6 +943,11 @@ export default function Report() {
         formulaSums={formulaSums}
         usuario={user.username}
         showCharts={showPdfCharts}
+        produtosChartData={produtosDonutData}
+        formulasChartData={formulasDonutData}
+        horariosChartData={horariosBarData}
+        semanaChartData={semanaBarData}
+        diasSemanaChartData={diasSemanaBarData}
       />
     );
   };
@@ -975,6 +1093,14 @@ export default function Report() {
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1">
             <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
+            <RefreshButton 
+              onRefresh={() => {
+                refetch();
+                refreshResumo();
+              }}
+              label=""
+              size="default"
+            />
             <Button
               onClick={handleCollectorToggle}
               disabled={collectorLoading}

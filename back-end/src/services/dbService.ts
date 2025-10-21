@@ -121,84 +121,128 @@ export class DBService extends BaseService {
       Dia: normalizeDateString(r.Dia) ?? r.Dia ?? null,
       Hora: r.Hora ?? null,
       Nome: r.Nome ?? r.label ?? null,
-      Form1: r.Form1 ?? r.form1 ?? null,
-      Form2: r.Form2 ?? r.form2 ?? null,
+      Form1: r.Form1 ?? r.form1 ?? 0,
+      Form2: r.Form2 ?? r.form2 ?? 0,
       processedFile,
-      Prod_1: r.Prod_1 ?? r.values?.[0] ?? null,
-      Prod_2: r.Prod_2 ?? r.values?.[1] ?? null,
-      Prod_3: r.Prod_3 ?? r.values?.[2] ?? null,
-      Prod_4: r.Prod_4 ?? r.values?.[3] ?? null,
-      Prod_5: r.Prod_5 ?? r.values?.[4] ?? null,
-      Prod_6: r.Prod_6 ?? r.values?.[5] ?? null,
-      Prod_7: r.Prod_7 ?? r.values?.[6] ?? null,
-      Prod_8: r.Prod_8 ?? r.values?.[7] ?? null,
-      Prod_9: r.Prod_9 ?? r.values?.[8] ?? null,
-      Prod_10: r.Prod_10 ?? r.values?.[9] ?? null,
-      Prod_11: r.Prod_11 ?? r.values?.[10] ?? null,
-      Prod_12: r.Prod_12 ?? r.values?.[11] ?? null,
-      Prod_13: r.Prod_13 ?? r.values?.[12] ?? null,
-      Prod_14: r.Prod_14 ?? r.values?.[13] ?? null,
-      Prod_15: r.Prod_15 ?? r.values?.[14] ?? null,
-      Prod_16: r.Prod_16 ?? r.values?.[15] ?? null,
-      Prod_17: r.Prod_17 ?? r.values?.[16] ?? null,
-      Prod_18: r.Prod_18 ?? r.values?.[17] ?? null,
-      Prod_19: r.Prod_19 ?? r.values?.[18] ?? null,
-      Prod_20: r.Prod_20 ?? r.values?.[19] ?? null,
-      Prod_21: r.Prod_21 ?? r.values?.[20] ?? null,
-      Prod_22: r.Prod_22 ?? r.values?.[21] ?? null,
-      Prod_23: r.Prod_23 ?? r.values?.[22] ?? null,
-      Prod_24: r.Prod_24 ?? r.values?.[23] ?? null,
-      Prod_25: r.Prod_25 ?? r.values?.[24] ?? null,
-      Prod_26: r.Prod_26 ?? r.values?.[25] ?? null,
-      Prod_27: r.Prod_27 ?? r.values?.[26] ?? null,
-      Prod_28: r.Prod_28 ?? r.values?.[27] ?? null,
-      Prod_29: r.Prod_29 ?? r.values?.[28] ?? null,
-      Prod_30: r.Prod_30 ?? r.values?.[29] ?? null,
-      Prod_31: r.Prod_31 ?? r.values?.[30] ?? null,
-      Prod_32: r.Prod_32 ?? r.values?.[31] ?? null,
-      Prod_33: r.Prod_33 ?? r.values?.[32] ?? null,
-      Prod_34: r.Prod_34 ?? r.values?.[33] ?? null,
-      Prod_35: r.Prod_35 ?? r.values?.[34] ?? null,
-      Prod_36: r.Prod_36 ?? r.values?.[35] ?? null,
-      Prod_37: r.Prod_37 ?? r.values?.[36] ?? null,
-      Prod_38: r.Prod_38 ?? r.values?.[37] ?? null,
-      Prod_39: r.Prod_39 ?? r.values?.[38] ?? null,
-      Prod_40: r.Prod_40 ?? r.values?.[39] ?? null,
+      Prod_1: r.Prod_1 ?? r.values?.[0] ?? 0,
+      Prod_2: r.Prod_2 ?? r.values?.[1] ?? 0,
+      Prod_3: r.Prod_3 ?? r.values?.[2] ?? 0,
+      Prod_4: r.Prod_4 ?? r.values?.[3] ?? 0,
+      Prod_5: r.Prod_5 ?? r.values?.[4] ?? 0,
+      Prod_6: r.Prod_6 ?? r.values?.[5] ?? 0,
+      Prod_7: r.Prod_7 ?? r.values?.[6] ?? 0,
+      Prod_8: r.Prod_8 ?? r.values?.[7] ?? 0,
+      Prod_9: r.Prod_9 ?? r.values?.[8] ?? 0,
+      Prod_10: r.Prod_10 ?? r.values?.[9] ?? 0,
+      Prod_11: r.Prod_11 ?? r.values?.[10] ?? 0,
+      Prod_12: r.Prod_12 ?? r.values?.[11] ?? 0,
+      Prod_13: r.Prod_13 ?? r.values?.[12] ?? 0,
+      Prod_14: r.Prod_14 ?? r.values?.[13] ?? 0,
+      Prod_15: r.Prod_15 ?? r.values?.[14] ?? 0,
+      Prod_16: r.Prod_16 ?? r.values?.[15] ?? 0,
+      Prod_17: r.Prod_17 ?? r.values?.[16] ?? 0,
+      Prod_18: r.Prod_18 ?? r.values?.[17] ?? 0,
+      Prod_19: r.Prod_19 ?? r.values?.[18] ?? 0,
+      Prod_20: r.Prod_20 ?? r.values?.[19] ?? 0,
+      Prod_21: r.Prod_21 ?? r.values?.[20] ?? 0,
+      Prod_22: r.Prod_22 ?? r.values?.[21] ?? 0,
+      Prod_23: r.Prod_23 ?? r.values?.[22] ?? 0,
+      Prod_24: r.Prod_24 ?? r.values?.[23] ?? 0,
+      Prod_25: r.Prod_25 ?? r.values?.[24] ?? 0,
+      Prod_26: r.Prod_26 ?? r.values?.[25] ?? 0,
+      Prod_27: r.Prod_27 ?? r.values?.[26] ?? 0,
+      Prod_28: r.Prod_28 ?? r.values?.[27] ?? 0,
+      Prod_29: r.Prod_29 ?? r.values?.[28] ?? 0,
+      Prod_30: r.Prod_30 ?? r.values?.[29] ?? 0,
+      Prod_31: r.Prod_31 ?? r.values?.[30] ?? 0,
+      Prod_32: r.Prod_32 ?? r.values?.[31] ?? 0,
+      Prod_33: r.Prod_33 ?? r.values?.[32] ?? 0,
+      Prod_34: r.Prod_34 ?? r.values?.[33] ?? 0,
+      Prod_35: r.Prod_35 ?? r.values?.[34] ?? 0,
+      Prod_36: r.Prod_36 ?? r.values?.[35] ?? 0,
+      Prod_37: r.Prod_37 ?? r.values?.[36] ?? 0,
+      Prod_38: r.Prod_38 ?? r.values?.[37] ?? 0,
+      Prod_39: r.Prod_39 ?? r.values?.[38] ?? 0,
+      Prod_40: r.Prod_40 ?? r.values?.[39] ?? 0,
     }));
 
-    // Perform upsert-like behavior: for each mapped row, try to find an existing
-    // row by (Dia, Hora, Nome, processedFile). If found, replace/update it;
-    // otherwise insert a new record. Return the number of inserted rows.
+    // ✅ OTIMIZADO: Bulk insert/upsert em lotes para melhor performance
+    const BATCH_SIZE = 100; // Processar 100 linhas por vez
     let inserted = 0;
+    
+    // Primeiro, buscar todos os registros existentes de uma vez
+    const existingRecords = await repo.find({
+      where: { processedFile },
+      select: ['id', 'Dia', 'Hora', 'Nome', 'processedFile']
+    });
+    
+    // Criar um mapa para lookup rápido
+    const existingMap = new Map<string, any>();
+    for (const record of existingRecords) {
+      const key = `${record.Dia}|${record.Hora}|${record.Nome}|${record.processedFile}`;
+      existingMap.set(key, record);
+    }
+    
+    // Separar entre novos e atualizações
+    const toInsert: any[] = [];
+    const toUpdate: any[] = [];
+    
     for (const row of mapped) {
-      try {
-        const existing = await repo.findOne({ where: { Dia: row.Dia, Hora: row.Hora, Nome: row.Nome, processedFile: row.processedFile } });
-        if (existing) {
-          // Update existing record with new values
-          Object.assign(existing, row);
-          await repo.save(existing);
-        } else {
-          try {
-            await repo.save(repo.create(row));
-            inserted++;
-          } catch (errInsert) {
-            // If insert failed due to race condition / unique constraint, attempt to fetch and update
-            console.warn('[DBService] Insert failed, attempting fetch+update (possible race):', String(errInsert));
-            const maybeExisting = await repo.findOne({ where: { Dia: row.Dia, Hora: row.Hora, Nome: row.Nome, processedFile: row.processedFile } });
-            if (maybeExisting) {
-              Object.assign(maybeExisting, row);
-              await repo.save(maybeExisting);
-            } else {
-              // Re-throw if we couldn't resolve
-              throw errInsert;
+      const key = `${row.Dia}|${row.Hora}|${row.Nome}|${row.processedFile}`;
+      const existing = existingMap.get(key);
+      
+      if (existing) {
+        // Atualizar registro existente
+        toUpdate.push({ ...row, id: existing.id });
+      } else {
+        // Novo registro
+        toInsert.push(row);
+      }
+    }
+    
+    // Bulk insert em lotes
+    if (toInsert.length > 0) {
+      for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+        const batch = toInsert.slice(i, i + BATCH_SIZE);
+        try {
+          await repo.insert(batch);
+          inserted += batch.length;
+        } catch (err) {
+          // Se falhar o batch, tentar um por um (fallback)
+          console.warn('[DBService] Bulk insert failed, trying individual inserts:', String(err));
+          for (const row of batch) {
+            try {
+              await repo.save(repo.create(row));
+              inserted++;
+            } catch (errIndividual) {
+              console.error('[DBService] Failed to insert row:', errIndividual);
             }
           }
         }
-      } catch (err) {
-        // Log and continue processing other rows
-        console.error('[DBService] Failed to upsert relatorio row:', err, row);
       }
     }
+    
+    // Bulk update em lotes
+    if (toUpdate.length > 0) {
+      for (let i = 0; i < toUpdate.length; i += BATCH_SIZE) {
+        const batch = toUpdate.slice(i, i + BATCH_SIZE);
+        try {
+          await repo.save(batch);
+        } catch (err) {
+          // Se falhar o batch, tentar um por um (fallback)
+          console.warn('[DBService] Bulk update failed, trying individual updates:', String(err));
+          for (const row of batch) {
+            try {
+              await repo.save(row);
+            } catch (errIndividual) {
+              console.error('[DBService] Failed to update row:', errIndividual);
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(`[DBService] Processed ${mapped.length} rows: ${inserted} inserted, ${toUpdate.length} updated`);
 
     return inserted;
   }

@@ -7,6 +7,7 @@ import { parserService } from '../services/parserService';
 import { setTimeout as wait } from 'timers/promises';
 import { BackupService } from '../services/backupService';
 import { fileProcessorService } from '../services/fileProcessorService';
+import { changeDetectionService } from '../services/changeDetectionService';
 
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
 const TMP_DIR = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
@@ -53,19 +54,29 @@ class Collector {
         console.log(`[Collector] Processando arquivo: ${f.name} -> ${f.localPath}`);
         
         try {
-          const result = await this.fileProcessor.processFile(f.localPath);
+          // 🔍 Detectar mudanças no arquivo
+          const changeInfo = await changeDetectionService.detectChanges(f.localPath);
+          
+          if (changeInfo.hasChanged || changeInfo.changeType === 'new_file') {
+            console.log(`📊 [Collector] Mudança detectada: ${changeInfo.changeType}`);
+            
+            // Se mudou, processar e atualizar cache
+            const result = await this.fileProcessor.processFile(f.localPath);
 
-          await this.backup.backupFile({
-            originalname: f.name,
-            path: f.localPath,
-            mimetype: 'text/csv',
-            size: fs.statSync(f.localPath).size,
-          });
+            await this.backup.backupFile({
+              originalname: f.name,
+              path: f.localPath,
+              mimetype: 'text/csv',
+              size: fs.statSync(f.localPath).size,
+            });
 
-          console.log(`[Collector] Arquivo ${f.name} processado com sucesso:`, {
-            rowsProcessed: result.parsed.rowsCount,
-            fileSize: f.size
-          });
+            console.log(`✅ [Collector] Arquivo ${f.name} processado e cache atualizado:`, {
+              rowsProcessed: result.parsed.rowsCount,
+              fileSize: f.size
+            });
+          } else {
+            console.log(`⏭️  [Collector] Arquivo ${f.name} não foi modificado, pulando processamento`);
+          }
         } catch (fileError) {
           console.error(`[Collector] Erro ao processar arquivo ${f.name}:`, fileError);
         }

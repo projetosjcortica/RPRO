@@ -482,6 +482,63 @@ export class Processador {
     
     return false;
   }
+
+  // ✅ NOVO: Método para upload de arquivo CSV
+  public async uploadCSV(file: File): Promise<{ ok: boolean; meta: any; processed: any }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `${this.baseURL}/api/file/upload`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        // Não definir Content-Type - o browser define automaticamente com boundary para multipart
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[Processador] Upload CSV failed:', error);
+      throw error;
+    }
+  }
+
+  // ✅ NOVO: Método para converter CSV legado
+  public async convertLegacyCSV(file: File): Promise<{ 
+    ok: boolean; 
+    rowsProcessed: number;
+    rowsConverted: number;
+    errors: string[];
+    convertedData: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `${this.baseURL}/api/file/convert`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[Processador] Convert CSV failed:', error);
+      throw error;
+    }
+  }
 } 
 
 // Singleton instance

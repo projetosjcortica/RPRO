@@ -27,6 +27,7 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 const App = () => {  
   const navigate = useNavigate();
   const location = useLocation();
+  
   const { user } = useAuth();
   // If user is not logged in, and they try to navigate to any protected route,
   // redirect them to /login. This runs on location changes.
@@ -231,6 +232,10 @@ const App = () => {
                                   </SidebarMenuSubButton>
                                 </DialogTrigger>
                                 <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Configurações Administrativas</DialogTitle>
+                                    <DialogDescription>Gerenciamento de banco de dados e configurações do sistema</DialogDescription>
+                                  </DialogHeader>
                                   <AdminConfig/>
                                 </DialogContent>
                               </Dialog>
@@ -262,7 +267,7 @@ const App = () => {
             autoClose={3000}
             theme="light"
           />
-      </div>   
+      </div>
     </div>
   );
 };
