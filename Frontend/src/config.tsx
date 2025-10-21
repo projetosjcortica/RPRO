@@ -449,16 +449,16 @@ export function ProfileConfig({
               type="text"
               value={formData.nomeCliente || ""}
               onChange={(e) => onChange("nomeCliente", e.target.value)}
-              className="mt-2 border border-black"
+              className="mt-2 border border-gray-500"
             />
           </Label>
-           <div>
-            <Label className="mb-2 block text-sm font-medium text-gray-700">Foto de perfil / Logo do relatório</Label>
+           <div className="flex flex-row gap-3 items-center justify-between">
+            <Label className="mb-2 text-sm font-medium">Foto de perfil </Label>
 
-            <div className="space-y-3">
+            <div className="flex flex-col gap-2">
               <label
                 htmlFor="profile-upload"
-                className="cursor-pointer flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                className="cursor-pointer flex items-center gap-2 px-3 w-85 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
               >
                 <Plus className="h-4 w-4 text-red-600 flex-shrink-0" />
                 <span className="text-sm text-gray-700 font-medium">
@@ -566,127 +566,6 @@ export function IHMConfig({
           type="password"
           value={formData.password}
           onChange={(e) => onChange("password", e.target.value)}
-          disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
-        />
-      </Label>
-
-      <Label className="font-medium text-gray-700">
-        Upload CSV
-        <div className="flex gap-2 mt-2">
-          <Input
-            type="text"
-            value={formData.localCSV}
-            readOnly
-            disabled
-            className="flex-1 p-3 border rounded-md bg-gray-100"
-          />
-          <Button
-            onClick={async () => {
-              const path = await configService.selectFolder();
-              if (path) onChange("localCSV", path);
-            }}
-            disabled={!isEditing}
-            className="bg-red-600 hover:bg-red-700 whitespace-nowrap"
-          >
-            Selecionar pasta
-          </Button>
-        </div>
-      </Label>
-
-      <div className="flex gap-2 justify-end mt-6">
-        {isEditing ? (
-          <>
-            <Button
-              id="cancel"
-              onClick={onCancel}
-              variant="outline"
-              className="border-gray-300 text-gray-700 hover:bg-gray-100"
-            >
-              Cancelar
-            </Button>
-            <Button
-              id="save"
-              onClick={onSave}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Salvar
-            </Button>
-          </>
-        ) : (
-          <Button
-            id="edit"
-            onClick={onEdit}
-            className="bg-red-600 hover:bg-red-700"
-          >
-            Editar
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ----------------- BANCO DE DADOS ------------------- */
-export function DatabaseConfig({
-  configKey = "db-config",
-}: {
-  configKey?: string;
-}) {
-  // ✅ HOOKS PRIMEIRO
-  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
-    usePersistentForm(configKey);
-
-  // ✅ Loading state DEPOIS dos hooks
-  if (isLoading) {
-    return (
-      <div className="flex justify-center items-center p-8">Loading...</div>
-    );
-  }
-
-  // ✅ RETURN FINAL
-  return (
-    <div id="dbCfg" className="flex flex-col gap-4 bg-white"> 
-
-      <Label className="font-medium text-gray-700">
-        Server
-        <Input
-          type="text"
-          value={formData.serverDB}
-          onChange={(e) => onChange("serverDB", e.target.value)}
-          disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
-        />
-      </Label>
-
-      <Label className="font-medium text-gray-700">
-        DataBase
-        <Input
-          type="text"
-          value={formData.database}
-          onChange={(e) => onChange("database", e.target.value)}
-          disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
-        />
-      </Label>
-
-      <Label className="font-medium text-gray-700">
-        User
-        <Input
-          type="text"
-          value={formData.userDB}
-          onChange={(e) => onChange("userDB", e.target.value)}
-          disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
-        />
-      </Label>
-
-      <Label className="font-medium text-gray-700">
-        Senha
-        <Input
-          type="password"
-          value={formData.passwordDB}
-          onChange={(e) => onChange("passwordDB", e.target.value)}
           disabled={!isEditing}
           className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
