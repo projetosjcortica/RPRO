@@ -226,11 +226,11 @@ export const MyDocument: FC<MyDocumentProps> = ({
     const total = data.reduce((sum, item) => sum + item.value, 0);
     if (total <= 0) return null;
 
-    // Limitar a 8 itens para não ficar muito poluído
-    const displayData = data.slice(0, 8);
+  // Use all items (caller should control how many items are present)
+  const displayData = data;
 
-    // Cores padrão do sistema (DASHBOARD_COLORS)
-    const colors = ["#ff2626ff", "#5e5e5eff", "#d4d4d4ff", "#ffa8a8ff", "#1b1b1bff"];
+  // Use shared palette (print-friendly)
+  const colors = (palette && Array.isArray(palette) && palette.length > 0) ? palette : ['#ff2626ff', '#5e5e5eff', '#d4d4d4ff', '#ffa8a8ff', '#1b1b1bff'];
 
     // Calcular ângulos para cada fatia
     let currentAngle = 0;
@@ -288,15 +288,15 @@ export const MyDocument: FC<MyDocumentProps> = ({
         
         {/* SVG com donut */}
         <View style={{ alignItems: 'center' }}>
-          <Svg width="200" height="200" viewBox="0 0 300 240">
+            <Svg width="200" height="200" viewBox="0 0 300 240">
             {/* Donut central */}
             {slices.map((slice, index) => (
               <Path
                 key={`slice-${index}`}
                 d={generateDonutPath(slice.startAngle, slice.endAngle)}
-                fill={slice.color}
-                stroke="#ffffff"
-                strokeWidth="3"
+                  fill={slice.color}
+                  stroke="#ffffff"
+                  strokeWidth="2"
               />
             ))}
             
@@ -321,34 +321,34 @@ export const MyDocument: FC<MyDocumentProps> = ({
                   x2={labelX}
                   y2={labelY}
                   stroke={slice.color}
-                  strokeWidth="1.5"
+                  strokeWidth="1.2"
                 />
               );
             })}
           </Svg>
           
           {/* Labels fora do SVG */}
-          <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8 }}>
-            {slices.map((slice, index) => (
-              <View key={`label-${index}`} style={{ 
-                flexDirection: 'row', 
-                alignItems: 'center',
-                backgroundColor: slice.color,
-                padding: 4,
-                paddingHorizontal: 8,
-                borderRadius: 3,
-                marginBottom: 4,
-              }}>
-                <Text style={{ fontSize: 8, color: '#ffffff', fontWeight: 'bold', marginRight: 4 }}>
-                  {slice.name.length > 15 ? slice.name.substring(0, 15) + '...' : slice.name}
-                </Text>
-                <Text style={{ fontSize: 7, color: '#ffffff' }}>
-                  {slice.percentage.toFixed(1)}%
-                </Text>
-              </View>
-            ))}
+          <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, width: '85%' }}>
+            {/* Legend: color box + combined label+percentage in single Text to avoid awkward wrapping */}
+              {slices.map((slice, index) => {
+                const cleanName = (slice.name || '').replace(/\s+/g, ' ').trim();
+                const maxLabel = 22; // keep labels short so they fit on one line in most page widths
+                const shortLabel = cleanName.length > maxLabel ? cleanName.substring(0, maxLabel - 3) + '...' : cleanName;
+                // Use non-breaking space between number and percent so '%' doesn't wrap to the next line
+                const pct = `${slice.percentage.toFixed(1)}\u00A0%`;
+                return (
+                  <View key={`label-${index}`} style={{ flexDirection: 'row', alignItems: 'center', width: '45%', marginBottom: 6 }}>
+                    <Text style={{ fontSize: 9, color: '#111827', fontWeight: '600', marginRight: 6 }}>{index + 1}.</Text>
+                    <View style={{ width: 12, height: 12, backgroundColor: slice.color, borderRadius: 3, marginRight: 8, borderWidth: 0.5, borderColor: '#ffffff' }} />
+                    <Text style={{ fontSize: 9, color: '#222222' }}>
+                      {shortLabel} {pct}
+                    </Text>
+                  </View>
+                );
+              })}
           </View>
-        </View>
+        </View> 
+           
       </View>
     );
   };

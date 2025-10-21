@@ -47,7 +47,12 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         // Construir parâmetros de consulta
         const params = new URLSearchParams();
         // Só adiciona parâmetros se não forem vazios ou undefined
-        if (filters?.nomeFormula && String(filters.nomeFormula).trim()) params.set('nomeFormula', String(filters.nomeFormula));
+        // Use both 'nomeFormula' and legacy 'formula' keys so backend endpoints accept either
+        if (filters?.nomeFormula && String(filters.nomeFormula).trim()) {
+          params.set('nomeFormula', String(filters.nomeFormula));
+          // also set 'formula' for backend routes that expect that param
+          params.set('formula', String(filters.nomeFormula));
+        }
         if (filters?.formula && String(filters.formula).trim()) params.set('formula', String(filters.formula));
         if (filters?.dataInicio && String(filters.dataInicio).trim()) params.set('dataInicio', String(filters.dataInicio));
         if (filters?.dataFim && String(filters.dataFim).trim()) params.set('dataFim', String(filters.dataFim));
@@ -141,7 +146,10 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         
         // Se houver dados em cache, usar mesmo vencido em caso de erro
         const params = new URLSearchParams();
-        if (filters?.nomeFormula && String(filters.nomeFormula).trim()) params.set('nomeFormula', String(filters.nomeFormula));
+        if (filters?.nomeFormula && String(filters.nomeFormula).trim()) {
+          params.set('nomeFormula', String(filters.nomeFormula));
+          params.set('formula', String(filters.nomeFormula));
+        }
         if (filters?.formula && String(filters.formula).trim()) params.set('formula', String(filters.formula));
         if (filters?.dataInicio && String(filters.dataInicio).trim()) params.set('dataInicio', String(filters.dataInicio));
         if (filters?.dataFim && String(filters.dataFim).trim()) params.set('dataFim', String(filters.dataFim));
@@ -414,6 +422,21 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
           />
         </PieChart>
       </ResponsiveContainer>
+      {/* Numbered legend under chart for clarity */}
+      {!compact && (
+        <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-700">
+          {data.map((d, i) => {
+            const pct = stats && stats.total ? ((d.value / stats.total) * 100).toFixed(1) : ((d.value / Math.max(1, displayTotal)) * 100).toFixed(1);
+            return (
+              <div key={`legend-${i}`} className="flex items-center gap-2">
+                <div className="font-semibold">{i + 1}.</div>
+                <div className="w-3 h-3 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />
+                <div className="truncate">{d.name} <span className="text-gray-500">{pct}%</span></div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 });

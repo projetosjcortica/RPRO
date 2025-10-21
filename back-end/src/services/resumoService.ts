@@ -214,9 +214,13 @@ export class ResumoService {
                     const label = info ? info.label : `Produto ${i}`;
 
                     if (!usosPorProduto[prodKey]) {
-                        usosPorProduto[prodKey] = { quantidade: 0, label, unidade };
+                        // store normalized kg quantity by default
+                        usosPorProduto[prodKey] = { quantidade: 0, label, unidade: 'kg' } as any;
+                        (usosPorProduto as any)[prodKey].quantidadeKg = 0;
                     }
-                    usosPorProduto[prodKey].quantidade += displayQuantity;
+                    // accumulate normalized kg into both quantidade and quantidadeKg for simplicity
+                    usosPorProduto[prodKey].quantidade += valueForTotalKg;
+                    (usosPorProduto as any)[prodKey].quantidadeKg += valueForTotalKg;
                     totalPesos += valueForTotalKg; // accumulate normalized kg for totals
                     rowTotalKg += valueForTotalKg; // accumulate per-row for formula attribution
                 }

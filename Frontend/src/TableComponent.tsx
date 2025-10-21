@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback, useReducer } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { format as formatDateFn } from "date-fns";
 import { Filtros, ReportRow } from "./components/types";
 import { useReportData } from "./hooks/useReportData";
@@ -19,6 +19,9 @@ interface TableComponentProps {
   produtosInfo?: Record<string, { nome?: string; unidade?: string; num?: number }>;
   useExternalData?: boolean;
   onResetColumnsReady?: (resetFn: () => void) => void;
+  sortBy?: string;
+  sortDir?: 'ASC' | 'DESC';
+  onToggleSort?: (col: string) => void;
 }
 
 const DEFAULT_WIDTHS = {
@@ -110,6 +113,7 @@ export function TableComponent({
   pageSize = 100,
   useExternalData = false,
   onResetColumnsReady,
+  onToggleSort,
 }: TableComponentProps) {
   // ================
   // REFS & STATE
@@ -209,7 +213,13 @@ export function TableComponent({
   // DADOS DA TABELA
   // ================
 
+  console.log('[TableComponent] filtros:', filtros, 'sortBy:', (filtros as any)?.sortBy, 'sortDir:', (filtros as any)?.sortDir);
+
   const { dados: dadosFromHook, loading: loadingFromHook, error: errorFromHook } = useReportData(filtros as any, page, pageSize);
+  // Re-run hook when sort params change
+  useEffect(() => {
+    // noop - useReportData uses filtros.sortBy/sortDir from the filtros object passed by parent
+  }, [ (filtros as any)?.sortBy, (filtros as any)?.sortDir ]);
 
   useEffect(() => {
     if (useExternalData) return;
@@ -231,13 +241,8 @@ export function TableComponent({
     }
   }, [dadosProp, useExternalData, dadosAtual]);
 
-  // Força re-render quando unidades dos produtos mudam
-  const [, forceUpdate] = useReducer((x) => x + 1, 0);
-  useEffect(() => {
-    const handler = () => forceUpdate();
-    window.addEventListener("produtos-updated", handler as EventListener);
-    return () => window.removeEventListener("produtos-updated", handler as EventListener);
-  }, []);
+  // Table will re-render when filtros/dados change. Do not auto-refresh on produtos-updated here.
+  // Product updates are applied by the parent (`report.tsx`) when navigating away or clicking outside.
 
   const produtosInfo = produtosInfoProp || {};
   const dados = useExternalData ? dadosAtual : dadosFromHook;
@@ -256,7 +261,7 @@ export function TableComponent({
   // FORMATAÇÃO
   // ================
 
-  const converterValor = (valor: any, colKey: string): any => {
+  const converterValor = (valor: any, _colKey?: string): any => {
     let n: number;
     if (typeof valor === "number") {
       n = valor;
@@ -268,8 +273,17 @@ export function TableComponent({
       return valor;
     }
 
-    const unidade = produtosInfo[colKey]?.unidade || "kg";
-    return unidade === "g" ? n / 1000 : n;
+    // NOTE: The backend normalizes product quantities to kg based on MateriaPrima.medida.
+    // Do not re-convert here. Treat incoming numeric values as already normalized to kg.
+    // Defensive: if the UI product metadata says this product is stored in grams,
+    // convert to kg for display by dividing by 1000. This handles cases where the
+    // backend did not normalize values or when produtosInfo reflects grams.
+    try {
+      const unidade = produtosInfo[_colKey || ""]?.unidade || "kg";
+      // If product unit is grams, display in grams (kg -> g)
+      if (unidade === "g") return n * 1000;
+    } catch (e) {}
+    return n;
   };
 
   const formatValue = (v: unknown, colKey: string): string => {
@@ -348,7 +362,7 @@ export function TableComponent({
                 const key = col.toLowerCase();
                 const width = columnWidths[key] || DEFAULT_WIDTHS[key as keyof typeof DEFAULT_WIDTHS] || DEFAULT_WIDTHS.dynamic;
 
-                return (
+                  return (
                   <div
                     key={idx}
                     className="relative flex items-center justify-center py-1 px-1 md:py-2 md:px-3 border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
@@ -361,8 +375,16 @@ export function TableComponent({
                     }}
                     title={typeof getColumnHeader(col, idx) === "string" ? getColumnHeader(col, idx) as string : ""}
                   >
-                    <div className="max-w-full break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
-                      {getColumnHeader(col, idx)}
+                    <div className="max-w-full break-words flex items-center justify-center gap-2" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
+                      <div style={{ cursor: 'pointer' }} onClick={() => onToggleSort?.(col)} onDoubleClick={(e) => { e.stopPropagation(); onToggleSort?.(col); }}>
+                        {getColumnHeader(col, idx)}
+                      </div>
+                      {/* Sort arrow */}
+                      { ( (filtros as any)?.sortBy === col ) && (
+                        <div className="text-xs text-gray-600" title={`Ordenado por ${col} (${(filtros as any)?.sortDir || 'DESC'})`}>
+                          {( (filtros as any)?.sortDir === 'ASC' ) ? '↑' : '↓'}
+                        </div>
+                      ) }
                     </div>
                     <div
                       className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-red-500 transition-colors"
@@ -376,6 +398,10 @@ export function TableComponent({
               {dynamicColumns.map((colKey, idx) => {
                 const label = getColumnLabel(colKey);
                 const width = columnWidths[colKey] || DEFAULT_WIDTHS.dynamic;
+                // Map colKey (e.g. col6) to backend field (e.g. Prod_1)
+                const prodNum = parseInt(colKey.replace('col', ''), 10) - 5;
+                const backendField = `Prod_${prodNum}`;
+                const isActiveSortCol = (filtros as any)?.sortBy === backendField;
                 return (
                   <div
                     key={`${colKey}-${idx}`}
@@ -389,9 +415,21 @@ export function TableComponent({
                     }}
                     title={label}
                   >
-                    <span className="max-w-full text-center break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal", display: "block" }}>
-                      {label}
-                    </span>
+                    <div className="flex items-center justify-center gap-2 max-w-full">
+                      <span
+                        className="text-center break-words cursor-pointer"
+                        style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal", display: "block" }}
+                        onClick={() => onToggleSort?.(backendField)}
+                        onDoubleClick={(e) => { e.stopPropagation(); onToggleSort?.(backendField); }}
+                      >
+                        {label}
+                      </span>
+                      {isActiveSortCol && (
+                        <div className="text-xs text-gray-600" title={`Ordenado por ${label} (${(filtros as any)?.sortDir || 'DESC'})`}>
+                          {((filtros as any)?.sortDir === 'ASC') ? '↑' : '↓'}
+                        </div>
+                      )}
+                    </div>
                     <div
                       className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-red-500 transition-colors"
                       onMouseDown={(e) => handleResizeStart(e, colKey)}

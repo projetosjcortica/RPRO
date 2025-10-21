@@ -1101,6 +1101,7 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       qb.andWhere("r.Dia < :dePlus", { dePlus });
     }
 
+    // Allow sorting by Prod_1..Prod_40 (dynamic product columns)
     const allowed = new Set([
       "Dia",
       "Hora",
@@ -1109,9 +1110,18 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       "Form2",
       // "processedFile",
     ]);
+    // Also allow Prod_1 through Prod_40
+    for (let i = 1; i <= 40; i++) {
+      allowed.add(`Prod_${i}`);
+    }
     const sb = allowed.has(sortBy) ? sortBy : "Dia";
     const sd = sortDir === "ASC" ? "ASC" : "DESC";
-    qb.orderBy(`r.${sb}`, sd);
+    // If sorting by Dia (default), add secondary ordering by Hora to guarantee deterministic order
+    if (sb === 'Dia') {
+      qb.orderBy(`r.Dia`, sd).addOrderBy('r.Hora', sd as any);
+    } else {
+      qb.orderBy(`r.${sb}`, sd);
+    }
 
     // Always include products for values mapping
     const offset = (pageNum - 1) * pageSizeNum;
@@ -1173,16 +1183,17 @@ app.get("/api/relatorio/paginate", async (req, res) => {
 
     const totalPages = Math.ceil(total / pageSizeNum);
 
+    // Calcular checksum dos dados para detecção inteligente de mudanças
+    const dataChecksum = await calculateDatabaseChecksum();
+
     const responseData = {
       rows: mappedRows,
       total,
       page: pageNum,
       pageSize: pageSizeNum,
       totalPages,
+      checksum: dataChecksum,
     };
-
-    // Calcular checksum dos dados para detecção inteligente de mudanças
-    const dataChecksum = await calculateDatabaseChecksum();
 
     // Armazenar no cache com checksum
     relatorioPaginateCache[cacheKey] = {
@@ -1720,6 +1731,7 @@ app.post("/api/relatorio/paginate", async (req, res) => {
       qb.andWhere("r.Dia < :dePlus", { dePlus });
     }
 
+    // Allow sorting by Prod_1..Prod_40 (dynamic product columns)
     const allowed = new Set([
       "Dia",
       "Hora",
@@ -1728,9 +1740,17 @@ app.post("/api/relatorio/paginate", async (req, res) => {
       "Form2",
       // "processedFile",
     ]);
+    // Also allow Prod_1 through Prod_40
+    for (let i = 1; i <= 40; i++) {
+      allowed.add(`Prod_${i}`);
+    }
     const sb = allowed.has(sortBy) ? sortBy : "Dia";
     const sd = sortDir === "ASC" ? "ASC" : "DESC";
-    qb.orderBy(`r.${sb}`, sd);
+    if (sb === 'Dia') {
+      qb.orderBy('r.Dia', sd).addOrderBy('r.Hora', sd as any);
+    } else {
+      qb.orderBy(`r.${sb}`, sd);
+    }
 
     // Always include products for values mapping
     const offset = (pageNum - 1) * pageSizeNum;
@@ -1791,16 +1811,17 @@ app.post("/api/relatorio/paginate", async (req, res) => {
 
     const totalPages = Math.ceil(total / pageSizeNum);
 
+    // Calcular checksum dos dados para detecção inteligente de mudanças
+    const dataChecksum = await calculateDatabaseChecksum();
+
     const responseData = {
       rows: mappedRows,
       total,
       page: pageNum,
       pageSize: pageSizeNum,
       totalPages,
+      checksum: dataChecksum,
     };
-
-    // Calcular checksum dos dados para detecção inteligente de mudanças
-    const dataChecksum = await calculateDatabaseChecksum();
 
     // Criar chave de cache baseada nos parâmetros da requisição
     const cacheKeyPost = JSON.stringify({
@@ -1856,6 +1877,17 @@ app.get("/api/cache/paginate/status", async (req, res) => {
   } catch (e: any) {
     console.error("[cache/status] Error:", e);
     return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// Quick endpoint to get current DB checksum for pagination cache
+app.get('/api/cache/paginate/checksum', async (req, res) => {
+  try {
+    const checksum = await calculateDatabaseChecksum();
+    return res.json({ checksum });
+  } catch (e: any) {
+    console.error('[cache/checksum] Error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
 

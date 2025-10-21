@@ -43,6 +43,7 @@ import { useRuntimeConfig } from "./hooks/useRuntimeConfig";
 import { Separator } from "./components/ui/separator";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import { RefreshButton } from "./components/RefreshButton";
+import toastManager from './lib/toastManager';
 
 interface ComentarioRelatorio {
   texto: string;
@@ -139,6 +140,8 @@ export default function Report() {
   ]);
   const [page, setPage] = useState<number>(1);
   const [pageSize] = useState<number>(100);
+  const [sortBy, setSortBy] = useState<string>('Dia');
+  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
 
   // Collector state
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
@@ -192,7 +195,7 @@ export default function Report() {
   const [resumo, setResumo] = useState<any | null>(null);
   const [resumoReloadFlag, setResumoReloadFlag] = useState(0);
   const runtime = useRuntimeConfig();
-  const { dados, loading, error, total, refetch } = useReportData(
+  const { dados, loading, error, total, refetch, clearCache } = useReportData(
     filtros,
     page,
     pageSize
@@ -205,6 +208,27 @@ export default function Report() {
   const refreshResumo = useCallback(() => {
     setResumoReloadFlag((flag) => flag + 1);
   }, []);
+
+  // Toggle sort handler for Table headers
+  const handleToggleSort = useCallback((col: string) => {
+    console.log('[report] handleToggleSort called with col:', col, 'current sortBy:', sortBy);
+    if (sortBy === col) {
+      const newDir = sortDir === 'ASC' ? 'DESC' : 'ASC';
+      console.log('[report] Same column, toggling direction to:', newDir);
+      setSortDir(newDir);
+    } else {
+      console.log('[report] New column, setting sortBy to:', col);
+      setSortBy(col);
+      setSortDir('DESC');
+    }
+    // trigger reload of table data
+    setPage(1);
+  }, [sortBy, sortDir]);
+
+  // Propagate sorting into filtros so useReportData includes sort params
+  useEffect(() => {
+    setFiltros((prev) => ({ ...prev, sortBy, sortDir }));
+  }, [sortBy, sortDir]);
 
   const fetchCollectorStatus = useCallback(async () => {
     try {
@@ -475,6 +499,7 @@ export default function Report() {
     if (collectorLoading) return;
     setCollectorLoading(true);
     setCollectorError(null);
+  try { toastManager.showInfoOnce('collector-toggle', collectorRunning ? 'Parando coleta...' : 'Iniciando coleta...'); } catch(e){}
     try {
       if (collectorRunning) {
         const res = await fetch("http://localhost:3000/api/collector/stop", {
@@ -485,6 +510,7 @@ export default function Report() {
         await fetchCollectorStatus();
         refetch();
         refreshResumo();
+  try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch(e){}
       } else {
         // Get current IHM config before starting collector
         let ihmConfig = null;
@@ -621,6 +647,7 @@ export default function Report() {
             }),
           }).catch((e) => console.error("Failed to persist label", e));
         }
+  try { toastManager.updateSuccess('label-save', 'Rótulo do produto salvo'); } catch(e){}
       }
     } catch (e) {
       console.warn("Could not persist product label change to backend", e);
@@ -710,23 +737,57 @@ export default function Report() {
     // Tenta carregar do backend primeiro
     loadFromBackend();
 
-    const onProdutosUpdated = () => {
-      console.log("[Produtos] Evento de atualização de produtos recebido");
-      loadFromBackend();
-      // Recarrega os dados da tabela também
-      setFiltros((prev) => ({ ...prev }));
-      setPage((p) => Math.max(1, p));
+    // Instead of immediately reloading on `produtos-updated`, mark a pending flag.
+    // The actual reload will occur when the user navigates away from the report view,
+    // or clicks outside the report area, or explicitly requests rebuilding the reports.
+    const onProdutosUpdated = (evt?: Event) => {
+      console.log('[Produtos] Evento de atualização de produtos recebido - marcando pending');
+      try {
+        localStorage.setItem('produtos-pending-update', '1');
+      } catch (e) {}
     };
 
-    window.addEventListener(
-      "produtos-updated",
-      onProdutosUpdated as EventListener
-    );
+    window.addEventListener('produtos-updated', onProdutosUpdated as EventListener);
+
+    // Click outside listener: if user clicks outside the main report container, and there's a pending update, reload produtos
+    const handleClickOutside = (e: MouseEvent) => {
+      try {
+        const pending = localStorage.getItem('produtos-pending-update');
+        if (!pending) return;
+        // Determine if click is outside the report element
+        const reportEl = document.getElementById('ReportRoot');
+        if (!reportEl) return;
+        const target = e.target as Node;
+        if (reportEl.contains(target)) return; // click is inside report, ignore
+        // Clicked outside -> perform actual reload and clear pending
+        console.log('[Produtos] Click fora do report detectado, aplicando atualizacao pendente');
+        loadFromBackend();
+        setFiltros((prev) => ({ ...prev }));
+        setPage((p) => Math.max(1, p));
+        localStorage.removeItem('produtos-pending-update');
+      } catch (err) {
+        console.warn('Erro ao aplicar produtos pendentes:', err);
+      }
+    };
+
+    window.addEventListener('click', handleClickOutside as EventListener);
+
+    // When leaving the report view (unmount), if there's a pending update, apply it
+    const handleBeforeUnload = () => {
+      try {
+        const pending = localStorage.getItem('produtos-pending-update');
+        if (pending) {
+          loadFromBackend();
+          localStorage.removeItem('produtos-pending-update');
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload as EventListener);
+
     return () => {
-      window.removeEventListener(
-        "produtos-updated",
-        onProdutosUpdated as EventListener
-      );
+      window.removeEventListener('produtos-updated', onProdutosUpdated as EventListener);
+      window.removeEventListener('click', handleClickOutside as EventListener);
+      window.removeEventListener('beforeunload', handleBeforeUnload as EventListener);
       mounted = false;
     };
   }, []);
@@ -825,7 +886,7 @@ export default function Report() {
       } catch (e) {
         // ignore
       }
-      return out.sort((a, b) => b.value - a.value).slice(0, 50);
+  return out.sort((a, b) => b.value - a.value);
     })();
 
     // Preparar dados dos gráficos de donut para produtos
@@ -841,7 +902,7 @@ export default function Report() {
       } catch (e) {
         // ignore
       }
-      return out.sort((a, b) => b.value - a.value).slice(0, 10);
+  return out.sort((a, b) => b.value - a.value);
     })();
 
     // Preparar dados dos gráficos de donut para fórmulas
@@ -859,7 +920,7 @@ export default function Report() {
       } catch (e) {
         // ignore
       }
-      return out.sort((a, b) => b.value - a.value).slice(0, 10);
+  return out.sort((a, b) => b.value - a.value);
     })();
 
     // Preparar dados do gráfico de barras de horários
@@ -1056,6 +1117,9 @@ export default function Report() {
         produtosInfo={produtosInfo}
         useExternalData
         onResetColumnsReady={handleResetColumnsReady}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onToggleSort={handleToggleSort}
       />
     );
   } else if (view === "product") {
@@ -1094,8 +1158,32 @@ export default function Report() {
           <div className="flex flex-row items-end gap-1">
             <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
             <RefreshButton 
-              onRefresh={() => {
-                refetch();
+              onRefresh={async () => {
+                try { toastManager.showInfoOnce('manual-refresh', 'Limpando cache e recarregando...'); } catch(e){}
+                // 1. Limpar cache do frontend
+                clearCache();
+                // 2. Invalidar cache do backend: limpar paginate cache (relatorio) e cache geral
+                try {
+                  await fetch('http://localhost:3000/api/cache/paginate/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                  console.log('[Refresh] Cache de paginação do backend limpo');
+                } catch (err) {
+                  console.warn('[Refresh] Erro ao limpar cache de paginação do backend:', err);
+                }
+                try {
+                  await fetch('http://localhost:3000/api/cache/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                  console.log('[Refresh] Cache geral do backend limpo');
+                } catch (err) {
+                  console.warn('[Refresh] Erro ao limpar cache geral do backend:', err);
+                }
+
+                // 3. Forçar refetch (que irá buscar do DB e gerar novo cache)
+                refetch(true);
                 refreshResumo();
               }}
               label=""

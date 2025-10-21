@@ -231,11 +231,7 @@ const App = () => {
                                     <p>ADM</p>
                                   </SidebarMenuSubButton>
                                 </DialogTrigger>
-                                <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>Configurações Administrativas</DialogTitle>
-                                    <DialogDescription>Gerenciamento de banco de dados e configurações do sistema</DialogDescription>
-                                  </DialogHeader>
+                                <DialogContent> 
                                   <AdminConfig/>
                                 </DialogContent>
                               </Dialog>
@@ -256,9 +252,9 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
             <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
+            <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
             <Route path="/report" element={<RequireAuth><Report /></RequireAuth>} />
             {/* <Route path="/custom-reports" element={<RequireAuth><CustomReports /></RequireAuth>} /> */}
-            <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
             {/* <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} /> */}
             <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />
           </Routes>
