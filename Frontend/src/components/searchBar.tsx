@@ -175,7 +175,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       <div className="relative w-50">
         <input
           type="text"
-          placeholder="Filtrar por nome da fórmula"
+          placeholder="Digite o nome da fórmula"
           value={filtrosTemporarios.nomeFormula}
           onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
           onKeyDown={handleKeyDown}
@@ -204,7 +204,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 format(dateRange.from, "dd/MM/yyyy")
               )
             ) : (
-              <span>selecione a data</span>
+              <span>Selecione a data</span>
             )}
             <CalendarIcon className="h-4 w-4" />
           </Button>
@@ -237,14 +237,14 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 : filtrosTemporarios.codigo
               : loadingFiltros
               ? 'Carregando...'
-              : 'Filtrar por códg. do prog'}
-            <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              : 'Selecionar código do prog.'}
+            <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}>
           <Command>
             <CommandInput
-              placeholder="Pesquisar códg. do prog..."
+              placeholder="Selecionar códg. do prog..."
               value={filtrosTemporarios.codigo === '__all' ? '' : filtrosTemporarios.codigo}
               onValueChange={(value) => {
                 if (value === '') {
@@ -319,7 +319,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 : String(filtrosTemporarios.numero).padStart(3, '0')
               : loadingFiltros
               ? 'Carregando...'
-              : 'Filtrar por códg. do cliente'}
+              : 'Selecionar códg. do cliente'}
             <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>

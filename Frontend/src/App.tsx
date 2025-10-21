@@ -192,22 +192,6 @@ const App = () => {
                                 <ProfileConfig/>
                               </DialogContent>
                             </Dialog>
-                            {user?.isAdmin && (
-                              <Dialog>
-                                  <DialogTrigger>
-                                    <SidebarMenuSubButton>
-                                      <p>Banco de dados</p>
-                                    </SidebarMenuSubButton>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>Banco de Dados</DialogTitle>
-                                      <DialogDescription>Configurações do banco de dados</DialogDescription>
-                                    </DialogHeader>
-                                    <DatabaseConfig/>
-                                  </DialogContent>
-                              </Dialog>
-                            )}
                               {user?.isAdmin && (
                             <Dialog>
                               <DialogTrigger>

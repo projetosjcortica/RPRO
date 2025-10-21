@@ -1519,7 +1519,7 @@ export default function Report() {
                         key={idx}
                         onMouseEnter={() => setHighlightProduto(produto.nome)}
                         onMouseLeave={() => setHighlightProduto(null)}
-                        className="hover:bg-gray-50 cursor-default border-b even:bg-gray-50/50"
+                        className="hover:bg-gray-50 cursor-default border-b even:bg-gray-100/100"
                       >
                         <TableCell className="px-3 text-xs text-gray-700 text-md text-right textborder-r">
                           <div
