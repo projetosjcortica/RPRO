@@ -1097,7 +1097,7 @@ export default function Report() {
 
         {/* Side Info com drawer de gráficos atrás */}
         <div
-          className="relative w-87 h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+          className="relative w-87 3xl:h-[76vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
           style={{ zIndex: 10 }}
         >
           {/* Drawer de gráficos compacto, por trás do sideinfo */}

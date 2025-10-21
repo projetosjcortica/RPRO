@@ -798,7 +798,7 @@ export function AdminConfig({
 
       <div id="CfgAdvancedDB" className="my-4">
         <div className="dir flex flex-col gap-5">
-          <div className="flex-col">
+          {/* <div className="flex-col">
             <Label className="font-medium text-gray-700">Local do SQL</Label>
             <div className="flex gap-2 mt-2">
               <Input
@@ -820,9 +820,9 @@ export function AdminConfig({
                 Selecionar arquivo
               </Button>
             </div>
-          </div>
+          </div> */}
 
-          <div className="flex-col">
+          {/* <div className="flex-col">
             <Label className="font-medium text-gray-700">Local do DUMP</Label>
             <div className="flex gap-2 mt-2">
               <Input
@@ -844,9 +844,9 @@ export function AdminConfig({
                 Selecionar arquivo
               </Button>
             </div>
-          </div>
+          </div> */}
 
-          <div className="flex-col">
+          {/* <div className="flex-col">
             <Label className="font-medium text-gray-700">Local do BATCH</Label>
             <div className="flex gap-2 mt-2">
               <Input
@@ -868,7 +868,7 @@ export function AdminConfig({
                 Selecionar arquivo
               </Button>
             </div>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -1149,9 +1149,9 @@ export function AdminConfig({
 
       <div
         id="containerMFC"
-        className="flex flex-col md:flex-row justify-between items-center gap-4 p-4 border rounded-lg bg-gray-50 mt-4"
+        className="flex flex-col md:flex-row justify-center items-center gap-4 p-4 border rounded-lg bg-gray-50 mt-4"
       >
-        <div
+        {/* <div
           id="CsvMethod"
           className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3"
         >
@@ -1197,7 +1197,7 @@ export function AdminConfig({
             />
             Habilitar
           </Label>
-        </div>
+        </div> */}
 
         <div
           id="CsvImport"

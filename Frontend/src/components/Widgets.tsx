@@ -361,7 +361,7 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
           <div className="text-center">
             <div className="text-xs text-gray-500">Total</div>
             <div className="text-lg font-bold text-red-600">
-              {(stats?.total ?? data.reduce((s, d) => s + d.value, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {(stats?.total ?? data.reduce((s, d) => s + d.value, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
             </div>
             <div className="text-xs text-gray-500">{(data[0]?.unit) ?? 'kg'}</div>
           </div>

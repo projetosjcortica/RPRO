@@ -60,7 +60,7 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
                 <TableRow key={idx}
                   onMouseEnter={() => onHoverName?.(produto.nome)}
                   onMouseLeave={() => onLeave?.()}
-                  className={`hover:bg-gray-50 cursor-default h-10 border-b ${highlightName === produto.nome ? 'bg-red-50' : ''}`}
+                  className={`hover:bg-gray-50 cursor-default h-10 border-b even:bg-gray-50/50 ${highlightName === produto.nome ? 'bg-red-50' : ''}`}
                 >
                   <TableCell className="py-1 px-2 text-right border-r align-middle">
                     <div 
