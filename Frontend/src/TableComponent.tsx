@@ -1,10 +1,12 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState, useCallback, useReducer } from "react";
 import { format as formatDateFn } from "date-fns";
 import { Filtros, ReportRow } from "./components/types";
-// This component renders its own table-like markup and does not use the UI table primitives
-// import { getProcessador } from './Processador'
 import { useReportData } from "./hooks/useReportData";
 import { Loader2 } from "lucide-react";
+
+// ================
+// TIPOS E CONSTANTES
+// ================
 
 interface TableComponentProps {
   filtros?: Filtros;
@@ -12,18 +14,13 @@ interface TableComponentProps {
   dados?: any[];
   loading?: boolean;
   error?: string | null;
-  total?: number;
   page?: number;
   pageSize?: number;
-  produtosInfo?: Record<
-    string,
-    { nome?: string; unidade?: string; num?: number }
-  >;
+  produtosInfo?: Record<string, { nome?: string; unidade?: string; num?: number }>;
   useExternalData?: boolean;
   onResetColumnsReady?: (resetFn: () => void) => void;
 }
 
-// Larguras padrão das colunas
 const DEFAULT_WIDTHS = {
   dia: 90,
   hora: 70,
@@ -33,10 +30,14 @@ const DEFAULT_WIDTHS = {
   dynamic: 100,
 };
 
-const STORAGE_KEY = 'rpro-table-column-widths';
+const STORAGE_KEY = "rpro-table-column-widths";
+const FIXED_COLUMNS = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
-// Module-level helpers used by both component and memo comparator
-function shallowEqual(a: any, b: any) {
+// ================
+// FUNÇÕES AUXILIARES
+// ================
+
+function shallowEqual(a: any, b: any): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   const ka = Object.keys(a);
@@ -48,7 +49,7 @@ function shallowEqual(a: any, b: any) {
   return true;
 }
 
-function getLastTimestamp(arr: any[]) {
+function getLastTimestamp(arr: any[]): string {
   if (!Array.isArray(arr) || arr.length === 0) return "";
   for (let i = arr.length - 1; i >= 0; i--) {
     const r = arr[i];
@@ -62,38 +63,42 @@ function getLastTimestamp(arr: any[]) {
 }
 
 const safeString = (value: any): string => {
-  if (value === null || value === undefined) return "";
+  if (value == null) return "";
   if (typeof value === "string") return value;
-  if (typeof value === "number") return value.toString();
-  if (typeof value === "boolean") return value.toString();
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (typeof value === "object") {
-    // Se for um objeto, tenta extrair propriedades úteis
-    if (value.produto && typeof value.produto === "string")
-      return value.produto;
-    if (value.nome && typeof value.nome === "string") return value.nome;
-    if (value.label && typeof value.label === "string") return value.label;
-    // Se não conseguir extrair, retorna string vazia para evitar erro
-    return "";
+    if (typeof value.produto === "string") return value.produto;
+    if (typeof value.nome === "string") return value.nome;
+    if (typeof value.label === "string") return value.label;
   }
-  return String(value);
+  return "";
 };
 
-const receba = (col: any, idx: number) => {
-  if (idx === 3) {
-    return (
-      <div className="text-center">
-        <div>Código do programa</div>
-      </div>
-    );
-  } else if (idx === 4) {
-    return (
-      <div className="text-center">
-        <div>Código do cliente</div>
-      </div>
-    );
-  }
+const getColumnHeader = (col: string, idx: number): React.ReactNode => {
+  if (idx === 3) return <div className="text-center">Código do programa</div>;
+  if (idx === 4) return <div className="text-center">Código do cliente</div>;
   return safeString(col);
 };
+
+const formatDate = (raw: string): string => {
+  try {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+      const [y, m, d] = raw.split("-").map(Number);
+      return formatDateFn(new Date(y, m - 1, d), "dd/MM/yyyy");
+    }
+    if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
+      const [d, m, y] = raw.split("-").map(Number);
+      return formatDateFn(new Date(y, m - 1, d), "dd/MM/yyyy");
+    }
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) return formatDateFn(parsed, "dd/MM/yyyy");
+  } catch {}
+  return raw;
+};
+
+// ================
+// COMPONENTE PRINCIPAL
+// ================
 
 export function TableComponent({
   dados: dadosProp = [],
@@ -106,22 +111,21 @@ export function TableComponent({
   useExternalData = false,
   onResetColumnsReady,
 }: TableComponentProps) {
-  // 1. Refs for DOM elements
+  // ================
+  // REFS & STATE
+  // ================
   const tableRef = useRef<HTMLDivElement>(null);
+  const [dadosAtual, setDadosAtual] = useState<ReportRow[]>(dadosProp);
 
-  // 2. All useState hooks at the top
-  const [dadosAtual, setDadosAtual] = React.useState<ReportRow[]>(dadosProp);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (typeof parsed === 'object' && parsed !== null) {
-          return parsed;
-        }
+        if (parsed && typeof parsed === "object") return parsed;
       }
     } catch (e) {
-      console.warn('Erro ao carregar larguras das colunas:', e);
+      console.warn("Erro ao carregar larguras das colunas:", e);
     }
     return {
       dia: DEFAULT_WIDTHS.dia,
@@ -131,21 +135,26 @@ export function TableComponent({
       numero: DEFAULT_WIDTHS.numero,
     };
   });
+
   const [resizing, setResizing] = useState<{
     columnKey: string;
     startX: number;
     startWidth: number;
   } | null>(null);
 
-  // 3. All callbacks together
+  // ================
+  // CALLBACKS
+  // ================
+
   const resetColumnWidths = useCallback(() => {
-    setColumnWidths({
+    const defaults = {
       dia: DEFAULT_WIDTHS.dia,
       hora: DEFAULT_WIDTHS.hora,
       nome: DEFAULT_WIDTHS.nome,
       codigo: DEFAULT_WIDTHS.codigo,
       numero: DEFAULT_WIDTHS.numero,
-    });
+    };
+    setColumnWidths(defaults);
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
@@ -161,49 +170,46 @@ export function TableComponent({
   const handleResizeMove = useCallback((e: MouseEvent) => {
     if (!resizing) return;
     const diff = e.clientX - resizing.startX;
-    const newWidth = Math.max(50, resizing.startWidth + diff); // Mínimo de 50px
-    setColumnWidths(prev => ({
-      ...prev,
-      [resizing.columnKey]: newWidth,
-    }));
+    const newWidth = Math.max(50, resizing.startWidth + diff);
+    setColumnWidths((prev) => ({ ...prev, [resizing.columnKey]: newWidth }));
   }, [resizing]);
 
   const handleResizeEnd = useCallback(() => {
     setResizing(null);
   }, []);
 
-  // 4. All useEffects together
+  // ================
+  // EFFECTS
+  // ================
+
   useEffect(() => {
-    if (onResetColumnsReady) {
-      onResetColumnsReady(resetColumnWidths);
-    }
+    if (onResetColumnsReady) onResetColumnsReady(resetColumnWidths);
   }, [onResetColumnsReady, resetColumnWidths]);
 
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(columnWidths));
     } catch (e) {
-      console.warn('Erro ao salvar larguras das colunas:', e);
+      console.warn("Erro ao salvar larguras das colunas:", e);
     }
   }, [columnWidths]);
 
   useEffect(() => {
     if (resizing) {
-      window.addEventListener('mousemove', handleResizeMove);
-      window.addEventListener('mouseup', handleResizeEnd);
+      window.addEventListener("mousemove", handleResizeMove);
+      window.addEventListener("mouseup", handleResizeEnd);
       return () => {
-        window.removeEventListener('mousemove', handleResizeMove);
-        window.removeEventListener('mouseup', handleResizeEnd);
+        window.removeEventListener("mousemove", handleResizeMove);
+        window.removeEventListener("mouseup", handleResizeEnd);
       };
     }
   }, [resizing, handleResizeMove, handleResizeEnd]);
 
-  // Hook é chamado sempre no nível superior (top-level), o que está correto.
-  const hookResult = useReportData(filtros as any, page, pageSize);
-  const dadosFromHook = hookResult.dados || [];
-  const loadingFromHook = hookResult.loading;
-  const errorFromHook = hookResult.error;
-  // setDadosAtual(dadosFromHook)
+  // ================
+  // DADOS DA TABELA
+  // ================
+
+  const { dados: dadosFromHook, loading: loadingFromHook, error: errorFromHook } = useReportData(filtros as any, page, pageSize);
 
   useEffect(() => {
     if (useExternalData) return;
@@ -225,48 +231,47 @@ export function TableComponent({
     }
   }, [dadosProp, useExternalData, dadosAtual]);
 
-  // Listen for product updates to force re-render when units change
-  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+  // Força re-render quando unidades dos produtos mudam
+  const [, forceUpdate] = useReducer((x) => x + 1, 0);
   useEffect(() => {
-    const handleProdutosUpdated = () => {
-      // Force component to re-render when product info (units) change
-      forceUpdate();
-    };
-    window.addEventListener('produtos-updated', handleProdutosUpdated as EventListener);
-    return () => {
-      window.removeEventListener('produtos-updated', handleProdutosUpdated as EventListener);
-    };
+    const handler = () => forceUpdate();
+    window.addEventListener("produtos-updated", handler as EventListener);
+    return () => window.removeEventListener("produtos-updated", handler as EventListener);
   }, []);
 
-  // Use produtosInfo passed from parent (backend-provided). Keep as a const alias.
   const produtosInfo = produtosInfoProp || {};
+  const dados = useExternalData ? dadosAtual : dadosFromHook;
 
-  const fixedColumns = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
+  // ================
+  // COLUNAS DINÂMICAS
+  // ================
 
-  // Função para converter valores baseado na unidade definida em produtosInfo.
-  // Backend normaliza valores para kg, mas aqui permitimos apresentar em g ou kg
-  // dependendo do produto. Se unidade === 'g' mostramos valor em gramas (kg * 1000).
-  const converterValor = (valor: any, colKey: string): number | any => {
-    // try to coerce to number
+  const dynamicColumns = React.useMemo(() => {
+    if (!dados?.length) return [];
+    const maxValues = Math.max(...dados.map((row) => row.values?.length || 0));
+    return Array.from({ length: maxValues }, (_, i) => `col${6 + i}`);
+  }, [dados]);
+
+  // ================
+  // FORMATAÇÃO
+  // ================
+
+  const converterValor = (valor: any, colKey: string): any => {
     let n: number;
-    if (typeof valor === "number") n = valor;
-    else if (typeof valor === "string" && valor.trim() !== "") {
+    if (typeof valor === "number") {
+      n = valor;
+    } else if (typeof valor === "string" && valor.trim() !== "") {
       const parsed = Number(valor.replace(/,/g, ""));
-      if (Number.isNaN(parsed)) return valor;
+      if (isNaN(parsed)) return valor;
       n = parsed;
     } else {
       return valor;
     }
 
     const unidade = produtosInfo[colKey]?.unidade || "kg";
-    // Backend retorna valores sempre em kg. Se unidade configurada é 'g', dividimos por 1000
-    if (unidade === "g") {
-      return n / 1000; // mostrar valor em escala de gramas
-    }
-    return n; // padrão kg
+    return unidade === "g" ? n / 1000 : n;
   };
 
-  // Função para formatar valores exibidos na tabela
   const formatValue = (v: unknown, colKey: string): string => {
     if (typeof v === "number") {
       const valorConvertido = converterValor(v, colKey);
@@ -278,147 +283,119 @@ export function TableComponent({
     return safeString(v);
   };
 
-  // Função para obter o label correto da coluna - SEMPRE retorna string
   const getColumnLabel = (colKey: string): string => {
-    if (fixedColumns.includes(colKey)) return colKey;
-    if (colKey.startsWith('col')) {
+    if (FIXED_COLUMNS.includes(colKey)) return colKey;
+    if (colKey.startsWith("col")) {
       const label = produtosInfo[colKey]?.nome;
-      const unidade = produtosInfo[colKey]?.unidade;
       const colNum = parseInt(colKey.replace("col", ""), 10);
-      const base = safeString(label) || `Produto ${colNum - 5}`;
-      return unidade ? `${base}` : base;
+      return safeString(label) || `Produto ${colNum - 5}`;
     }
     return safeString(colKey);
   };
 
-  const dados = useExternalData ? dadosAtual : dadosFromHook;
+  // ================
+  // LOADING / ERRO / VAZIO
+  // ================
 
-  const dynamicColumns = React.useMemo(() => {
-    if (!dados || dados.length === 0) return [];
-    const maxValues = Math.max(...dados.map(row => row.values?.length || 0));
-    const cols = [];
-    for (let i = 6; i < 6 + maxValues; i++) {
-      const colKey = `col${i}`;
-      cols.push(colKey);
-    }
-    return cols;
-  }, [dados]);
-
-  const loading = useExternalData
-    ? Boolean(loadingProp ?? loadingFromHook)
-    : loadingFromHook;
+  const loading = useExternalData ? Boolean(loadingProp ?? loadingFromHook) : loadingFromHook;
   const error = useExternalData ? errorProp ?? null : errorFromHook;
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[50vh] w-full text-center">
-      <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
-      <p className="text-lg font-medium">Carregando dados...</p>
-      <p className="text-sm text-gray-500">Os dados estão sendo processados, por favor aguarde.</p>
-    </div>
-  );
-  if (error) return (
-    <div className="flex flex-col items-center justify-center p-8 space-y-3 h-[50vh] w-full text-center">
-      <div className="text-gray-700 font-semibold text-lg">Erro ao carregar dados</div>
-      <div className="text-sm text-gray-600 max-w-md mx-auto">{error}</div>
-      <button 
-        className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors mx-auto"
-        onClick={() => window.location.reload()}
-      >
-        Tentar novamente
-      </button>
-    </div>
-  );
-  if (!dados || dados.length === 0) return (
-    <div className="flex flex-col items-center justify-center p-8 h-[50vh] w-full text-center">
-      <div className="text-gray-700 font-semibold text-lg">Nenhum dado encontrado</div>
-      <div className="text-sm text-gray-600 mt-1 max-w-md mx-auto">Tente ajustar os filtros para ver mais resultados.</div>
-    </div>
-  );
+  if (loading)
+    return (
+      <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[50vh] w-full text-center">
+        <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
+        <p className="text-lg font-medium">Carregando dados...</p>
+        <p className="text-sm text-gray-500">Os dados estão sendo processados, por favor aguarde.</p>
+      </div>
+    );
 
-  // Note: resetColumnWidths is now defined at the top of the component
+  if (error)
+    return (
+      <div className="flex flex-col items-center justify-center p-8 space-y-3 h-[50vh] w-full text-center">
+        <div className="text-gray-700 font-semibold text-lg">Erro ao carregar dados</div>
+        <div className="text-sm text-gray-600 max-w-md mx-auto">{error}</div>
+        <button
+          className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors mx-auto"
+          onClick={() => window.location.reload()}
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+
+  if (!dados || dados.length === 0)
+    return (
+      <div className="flex flex-col items-center justify-center p-8 h-[50vh] w-full text-center">
+        <div className="text-gray-700 font-semibold text-lg">Nenhum dado encontrado</div>
+        <div className="text-sm text-gray-600 mt-1 max-w-md mx-auto">
+          Tente ajustar os filtros para ver mais resultados.
+        </div>
+      </div>
+    );
+
+  // ================
+  // RENDERIZAÇÃO
+  // ================
 
   return (
     <div ref={tableRef} className="w-full h-full flex flex-col relative">
       <div className="overflow-auto flex-1 thin-red-scrollbar h-[calc(100vh-200px)]">
         <div id="Table" className="min-w-max w-full">
-          <div id="TableHeader" className="sticky top-0 z-1 bg-gray-200 border-b border-gray-300">
+          {/* Cabeçalho */}
+          <div id="TableHeader" className="sticky top-0 z-10 bg-gray-200 border-b border-gray-300">
             <div id="TableRow" className="flex">
-              {fixedColumns.map((col, idx) => {
-                const columnKey = col.toLowerCase();
-                const width = columnWidths[columnKey] || 
-                  (idx === 0 ? DEFAULT_WIDTHS.dia : 
-                   idx === 1 ? DEFAULT_WIDTHS.hora : 
-                   idx === 2 ? DEFAULT_WIDTHS.nome : 
-                   idx === 3 ? DEFAULT_WIDTHS.codigo : 
-                   DEFAULT_WIDTHS.numero);
+              {FIXED_COLUMNS.map((col, idx) => {
+                const key = col.toLowerCase();
+                const width = columnWidths[key] || DEFAULT_WIDTHS[key as keyof typeof DEFAULT_WIDTHS] || DEFAULT_WIDTHS.dynamic;
 
                 return (
                   <div
-                    id="TableHead"
                     key={idx}
                     className="relative flex items-center justify-center py-1 px-1 md:py-2 md:px-3 border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
-                    style={{ 
+                    style={{
                       width: `${width}px`,
                       minWidth: `${width}px`,
-                      whiteSpace: idx === 2 ? 'normal' : 'nowrap',
-                      wordWrap: idx === 2 ? 'break-word' : 'normal',
-                      overflow: 'hidden',
+                      whiteSpace: idx === 2 ? "normal" : "nowrap",
+                      wordWrap: idx === 2 ? "break-word" : "normal",
+                      overflow: "hidden",
                     }}
-                    title={typeof receba(col, idx) === 'string' ? receba(col, idx) as string : ''}
+                    title={typeof getColumnHeader(col, idx) === "string" ? getColumnHeader(col, idx) as string : ""}
                   >
-                    <div 
-                      className="max-w-full break-words"
-                      style={{
-                        wordBreak: 'break-word',
-                        overflowWrap: 'break-word',
-                        whiteSpace: 'normal'
-                      }}
-                    >
-                      {receba(col, idx)}
+                    <div className="max-w-full break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
+                      {getColumnHeader(col, idx)}
                     </div>
-                    {/* Resize handle */}
                     <div
                       className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-red-500 transition-colors"
-                      onMouseDown={(e) => handleResizeStart(e, columnKey)}
-                      style={{ userSelect: 'none' }}
+                      onMouseDown={(e) => handleResizeStart(e, key)}
+                      style={{ userSelect: "none" }}
                     />
                   </div>
                 );
               })}
+
               {dynamicColumns.map((colKey, idx) => {
                 const label = getColumnLabel(colKey);
                 const width = columnWidths[colKey] || DEFAULT_WIDTHS.dynamic;
-                
                 return (
                   <div
-                    id="TableHead"
                     key={`${colKey}-${idx}`}
                     className="relative flex items-center justify-center py-1 px-2 md:py-2 md:px-3 text-center border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
-                    style={{ 
+                    style={{
                       width: `${width}px`,
                       minWidth: `${width}px`,
-                      whiteSpace: 'normal',
-                      wordWrap: 'break-word',
-                      overflow: 'hidden'
+                      whiteSpace: "normal",
+                      wordWrap: "break-word",
+                      overflow: "hidden",
                     }}
                     title={label}
                   >
-                    <span 
-                      className="max-w-full text-center break-words"
-                      style={{
-                        wordBreak: 'break-word',
-                        overflowWrap: 'break-word',
-                        whiteSpace: 'normal',
-                        display: 'block'
-                      }}
-                    >
+                    <span className="max-w-full text-center break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal", display: "block" }}>
                       {label}
                     </span>
-                    {/* Resize handle */}
                     <div
                       className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-red-500 transition-colors"
                       onMouseDown={(e) => handleResizeStart(e, colKey)}
-                      style={{ userSelect: 'none' }}
+                      style={{ userSelect: "none" }}
                     />
                   </div>
                 );
@@ -426,93 +403,36 @@ export function TableComponent({
             </div>
           </div>
 
-          {/* Corpo da tabela — alinhamento por coluna */}
+          {/* Corpo da tabela com linhas alternadas */}
           <div>
             {dados.map((row, rowIdx) => (
-              <div 
-                key={rowIdx} 
-                className="flex hover:bg-gray-50 border-b border-gray-300"
+              <div
+                key={rowIdx}
+                className={`flex border-b border-gray-300 hover:bg-gray-50 ${
+                  rowIdx % 2 === 0 ? "bg-white" : "bg-gray-100"
+                }`}
               >
-                {fixedColumns.map((col, colIdx) => {
-                  const columnKey = col.toLowerCase();
-                  const width = columnWidths[columnKey] || 
-                    (colIdx === 0 ? DEFAULT_WIDTHS.dia : 
-                     colIdx === 1 ? DEFAULT_WIDTHS.hora : 
-                     colIdx === 2 ? DEFAULT_WIDTHS.nome : 
-                     colIdx === 3 ? DEFAULT_WIDTHS.codigo : 
-                     DEFAULT_WIDTHS.numero);
+                {FIXED_COLUMNS.map((col, colIdx) => {
+                  const key = col.toLowerCase();
+                  const width = columnWidths[key] || DEFAULT_WIDTHS[key as keyof typeof DEFAULT_WIDTHS] || DEFAULT_WIDTHS.dynamic;
 
-                  // ✅ Alinhamento dos VALORES no corpo
-                  let justifyContent = 'center'; // padrão
-                  if (colIdx === 2) {
-                    justifyContent = 'flex-start'; // Nome à esquerda
-                  } else if (colIdx >= 3) {
-                    justifyContent = 'flex-end';   // Código, Número, etc. à direita
-                  }
+                  let textAlign = "text-center";
+                  if (colIdx === 2) textAlign = "text-left";
+                  else if (colIdx >= 3) textAlign = "text-right";
+
+                  const cellValue = row[col as keyof ReportRow];
+                  const displayValue = col === "Dia" ? formatDate(safeString(cellValue)) : safeString(cellValue);
 
                   return (
                     <div
                       key={`${rowIdx}-${colIdx}`}
-                      className="flex items-center p-1 md:p-2 max-h-20 cursor-pointer select-none text-xs md:text-sm bg-white border-r border-gray-300 overflow-hidden"
-                      style={{ 
-                        width: `${width}px`, 
-                        minWidth: `${width}px`,
-                        justifyContent,
-                      }}
+                      className={`flex items-center p-1 md:p-2 max-h-20 cursor-pointer select-none text-xs md:text-sm border-r border-gray-300 overflow-hidden ${textAlign}`}
+                      style={{ width: `${width}px`, minWidth: `${width}px` }}
+                      title={displayValue}
                     >
-                      {col === 'Dia' ? (
-                        <div className="truncate w-full" title={(() => {
-                          const raw = safeString(row[col as keyof ReportRow]);
-                          try {
-                            if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-                              const [y, m, d] = raw.split('-').map(Number);
-                              return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
-                            }
-                            if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
-                              const [d, m, y] = raw.split('-').map(Number);
-                              return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
-                            }
-                            const parsed = new Date(raw);
-                            if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
-                            return raw;
-                          } catch (e) {
-                            return raw;
-                          }
-                        })()}>
-                          {(() => {
-                            const raw = safeString(row[col as keyof ReportRow]);
-                            try {
-                              // Garantindo formato dd/MM/yyyy consistente
-                              if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
-                                const [y, m, d] = raw.split('-').map(Number);
-                                return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
-                              }
-                              if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) {
-                                const [d, m, y] = raw.split('-').map(Number);
-                                return formatDateFn(new Date(y, m - 1, d), 'dd/MM/yyyy');
-                              }
-                              // Tenta parse geral como último recurso
-                              const parsed = new Date(raw);
-                              if (!isNaN(parsed.getTime())) return formatDateFn(parsed, 'dd/MM/yyyy');
-                              return raw;
-                            } catch (e) {
-                              return raw;
-                            }
-                          })()}
-                        </div>
-                      ) : (
-                        <div 
-                          className="w-full break-words" 
-                          style={{ 
-                            wordBreak: 'break-word',
-                            overflowWrap: 'break-word',
-                            whiteSpace: 'normal'
-                          }}
-                          title={safeString(row[col as keyof ReportRow])}
-                        >
-                          {safeString(row[col as keyof ReportRow])}
-                        </div>
-                      )}
+                      <div className="w-full break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
+                        {displayValue}
+                      </div>
                     </div>
                   );
                 })}
@@ -521,25 +441,15 @@ export function TableComponent({
                   const rawValue = row.values?.[dynIdx];
                   const width = columnWidths[colKey] || DEFAULT_WIDTHS.dynamic;
                   const formattedValue = formatValue(rawValue, colKey);
-                  
+
                   return (
                     <div
                       key={`${rowIdx}-${colKey}-${dynIdx}`}
-                      className="flex items-center justify-end p-1 md:p-2 cursor-pointer select-none text-right text-xs md:text-sm bg-white border-r border-gray-300 overflow-hidden"
-                      style={{ 
-                        width: `${width}px`, 
-                        minWidth: `${width}px` 
-                      }}
+                      className="flex items-center justify-end p-1 md:p-2 cursor-pointer select-none text-right text-xs md:text-sm border-r border-gray-300 overflow-hidden"
+                      style={{ width: `${width}px`, minWidth: `${width}px` }}
+                      title={formattedValue}
                     >
-                      <div 
-                        className="w-full break-words text-right"
-                        style={{ 
-                          wordBreak: 'break-word',
-                          overflowWrap: 'break-word',
-                          whiteSpace: 'normal'
-                        }}
-                        title={formattedValue}
-                      >
+                      <div className="w-full break-words text-right" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
                         {formattedValue}
                       </div>
                     </div>
@@ -554,6 +464,10 @@ export function TableComponent({
   );
 }
 
+// ================
+// MEMOIZATION
+// ================
+
 export default React.memo(TableComponent, (prevProps, nextProps) => {
   if (prevProps.useExternalData !== nextProps.useExternalData) return false;
   if (!nextProps.useExternalData) return false;
@@ -561,15 +475,13 @@ export default React.memo(TableComponent, (prevProps, nextProps) => {
   if (prevProps.page !== nextProps.page) return false;
   if (prevProps.pageSize !== nextProps.pageSize) return false;
   if (!shallowEqual(prevProps.colLabels, nextProps.colLabels)) return false;
-  if (!shallowEqual(prevProps.produtosInfo, nextProps.produtosInfo))
-    return false;
+  if (!shallowEqual(prevProps.produtosInfo, nextProps.produtosInfo)) return false;
 
   const prevRows = Array.isArray(prevProps.dados) ? prevProps.dados : [];
   const nextRows = Array.isArray(nextProps.dados) ? nextProps.dados : [];
   if (prevRows.length !== nextRows.length) return false;
+
   const prevTs = getLastTimestamp(prevRows);
   const nextTs = getLastTimestamp(nextRows);
-  if (prevTs !== nextTs) return false;
-
-  return true;
+  return prevTs === nextTs;
 });

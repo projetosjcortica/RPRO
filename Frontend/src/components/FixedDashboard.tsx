@@ -369,7 +369,7 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
                 <div className="w-full lg:w-1/2">
                   <div className="text-sm font-semibold text-gray-900 mb-3">Todas as Fórmulas</div>
-                  <div className="3xl:h-60 h-46 overflow-y-auto space-y-2 pr-2 thin-red-scrollbar">
+                  <div className="3xl:h-60 h-46  overflow-y-auto space-y-2 pr-2 thin-red-scrollbar">
                     {loadingFormulasChart ? (
                       <div className="text-sm text-gray-500">Carregando...</div>
                     ) : !formulasChartData || formulasChartData.length === 0 ? (
@@ -380,13 +380,13 @@ const formatShortDate = (raw?: string | null) => {
                         return (
                           <div 
                             key={idx} 
-                            className={`flex items-center justify-between text-sm border-b pb-2 transition-all hover:bg-gray-50`}
+                            className={`flex items-center justify-between text-sm border-b m-0 h-10 even:bg-gray-50/50 transition-all hover:bg-gray-50`}
                             onMouseEnter={() => setHighlightFormula(f.name)}
                             onMouseLeave={() => setHighlightFormula(null)}
                           >
                             <div className="truncate pr-2 text-gray-700">{f.name}</div>
                             <div className={` whitespace-nowrap text-gray-900`}>
-                              {f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'} kg
+                              {f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—'} kg
                             </div>
                           </div>
                         );
