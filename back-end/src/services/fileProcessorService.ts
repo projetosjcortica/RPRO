@@ -71,13 +71,38 @@ export class FileProcessorService extends BaseService {
 
     if (newRows.length > 0) {
       const fileTag = originalName;
-      const mappedRows = newRows.map((r: any) => {
+      
+      // Debug: contar nulls
+      const nullCount = newRows.filter((r: any) => !r.time).length;
+      if (nullCount > 0) {
+        console.warn(`[FileProcessorService] ⚠️ ${nullCount}/${newRows.length} linhas com HORA null`);
+      }
+      
+      const mappedRows = newRows.map((r: any, idx: number) => {
         const sanitizedNome = r.label
           ? r.label.normalize("NFC").replace(/[\x00-\x1F\x7F-\x9F]/g, "")
           : "Desconhecido"; // Default to 'Desconhecido' if Nome is null or empty
+        
+        // Validar e sanitizar hora - se inválida, deixa como null
+        let hora = r.time ?? null;
+        if (hora) {
+          const s = String(hora).trim();
+          // Apenas aceita formato HH:MM ou HH:MM:SS válidos
+          if (!/^([01]\d|2[0-3]):([0-5]\d)(:\d{2})?$/.test(s)) {
+            if (idx < 3) {
+              console.warn(`[FileProcessorService] ❌ Hora INVÁLIDA: "${r.time}" → null | Dia: ${r.date} | Produto: "${sanitizedNome}"`);
+            }
+            hora = null;
+          } else if (idx < 3) {
+            console.log(`[FileProcessorService] ✅ Hora válida: "${hora}" | Dia: ${r.date} | Produto: "${sanitizedNome}"`);
+          }
+        } else if (idx < 3) {
+          console.warn(`[FileProcessorService] ⚠️ Hora vazia/null | Dia: ${r.date} | Produto: "${sanitizedNome}"`);
+        }
+        
         return {
           Dia: r.date ?? null, // Use separate date field
-          Hora: r.time ?? null, // Use separate time field
+          Hora: hora, // Hora validada e sanitizada
           Nome: sanitizedNome, // Use sanitized or default name
           Form1: r.form1 ?? null,
           Form2: r.form2 ?? null,
@@ -126,6 +151,15 @@ export class FileProcessorService extends BaseService {
       });
       try {
         await dbService.insertRelatorioRows(mappedRows, fileTag);
+        console.log(`✅ [FileProcessorService] Sucesso ao inserir ${mappedRows.length} linhas no banco`);
+        
+        // Log de debug - amostra das horas processadas
+        const horasAmostra = mappedRows.slice(0, 5).map(r => ({ Nome: r.Nome, Hora: r.Hora }));
+        console.log(`📋 [FileProcessorService] Amostra de horas processadas:`, horasAmostra);
+        const horasNull = mappedRows.filter(r => r.Hora === null).length;
+        if (horasNull > 0) {
+          console.warn(`⚠️  [FileProcessorService] ${horasNull} registros com Hora=NULL (esperado se hora vazia no CSV)`);
+        }
       } catch (err) {
         console.error('Failed to insert relatorio rows into DB:', err);
         try {
@@ -182,6 +216,7 @@ export class FileProcessorService extends BaseService {
         processedPath: parsed.processedPath,
         rowsCount: newRows.length,
         rows: newRows,
+        isLegacyFormat: (parsed as any).isLegacyFormat || false,
       },
     };
   }

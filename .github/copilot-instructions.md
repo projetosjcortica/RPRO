@@ -1,4 +1,4 @@
-# RPRO – working notes for AI pair programmers
+# Cortez – working notes for AI pair programmers
 
 ## Repo layout
 - `back-end/`: Express + TypeORM service. Everything under `src/services` implements the production data flow (FTP collector → parser → DB).
@@ -40,3 +40,7 @@ SEJA MUITO FORMAL E DIRETO.
 
 EVITE PERGUNTAR ALTERNATIVAS SOBRE QUAL FAZER, OU QUAL A MELHOR OPÇÃO.
 APENAS EXECUTE A FUNÇÃO PEDIDA. DA FORMA MAIS OTIMIZADA POSSÍVEL.
+
+
+nome do projeto
+Cortez -

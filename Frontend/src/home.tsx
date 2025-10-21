@@ -22,20 +22,27 @@ export default function Home() {
   const fetchChartData = async (f: any) => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (f.formula) params.set('formula', String(f.formula));
-      if (f.dataInicio) params.set('dataInicio', String(f.dataInicio));
-      if (f.dataFim) params.set('dataFim', String(f.dataFim));
-      if (f.codigo) params.set('codigo', String(f.codigo));
-      if (f.numero) params.set('numero', String(f.numero));
+      
+      // Usar medição de performance se disponível
+      const loadData = async () => {
+        const params = new URLSearchParams();
+        if (f.formula) params.set('formula', String(f.formula));
+        if (f.dataInicio) params.set('dataInicio', String(f.dataInicio));
+        if (f.dataFim) params.set('dataFim', String(f.dataFim));
+        if (f.codigo) params.set('codigo', String(f.codigo));
+        if (f.numero) params.set('numero', String(f.numero));
 
-      const url = `http://localhost:3000/api/chartdata?${params.toString()}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.json();
-      const rowsResp = Array.isArray(body.rows) ? body.rows as Entry[] : [];
-      setRows(rowsResp);
-      setLoading(false);
+        const url = `http://localhost:3000/api/chartdata?${params.toString()}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        const rowsResp = Array.isArray(body.rows) ? body.rows as Entry[] : [];
+        setRows(rowsResp);
+        setLoading(false);
+        return rowsResp;
+      };
+
+      await loadData();
     } catch (err) {
       console.error('Falha ao carregar chartdata:', err);
       setRows([]);
@@ -68,6 +75,7 @@ export default function Home() {
   return (
     <div className="min-h-screen overflow-auto thin-red-scrollbar">
       <div className="h-full pt-4">
+        
         <FixedDashboard rows={rows} filters={filtros} />
       </div>
     </div>

@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
 
 type ProdDatum = { name: string; value: number; unit?: string };
 
 export default function ProductsTable({ filters, onHoverName, onLeave, highlightName }: { filters?: any; onHoverName?: (name: string) => void; onLeave?: () => void; highlightName?: string | null }) {
   const [data, setData] = useState<ProdDatum[]>([]);
+  const [loading, setLoading] = useState(false);
   
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
+      setLoading(true);
       const params = new URLSearchParams();
       if (filters?.formula) params.set('formula', String(filters.formula));
       if (filters?.dataInicio) params.set('dataInicio', String(filters.dataInicio));
@@ -19,22 +21,43 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
     } catch (e) {
       console.error('ProductsTable fetch error', e);
       setData([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [filters?.formula, filters?.dataInicio, filters?.dataFim]);
 
   useEffect(() => {
     void fetchData();
-  }, [JSON.stringify(filters)]);
+  }, [fetchData]);
 
-  // Formatar dados para exibição igual à página de relatórios
-  const displayProducts = data.map((p, idx) => {
-    const colKey = `col${idx + 6}`; // Simular colKey como na página de relatórios
-    return {
-      nome: p.name,
-      qtd: p.value, // Backend /api/chartdata/produtos já retorna tudo em kg
-      colKey
-    };
-  });
+  // ✅ OTIMIZAÇÃO: Memoizar formatação dos produtos
+  const displayProducts = useMemo(() => {
+    return data.map((p, idx) => {
+      const colKey = `col${idx + 6}`;
+      return {
+        nome: p.name,
+        qtd: p.value,
+        colKey
+      };
+    });
+  }, [data]);
+
+  // ✅ OTIMIZAÇÃO: Callbacks memoizados
+  const handleMouseEnter = useCallback((nome: string) => {
+    onHoverName?.(nome);
+  }, [onHoverName]);
+
+  const handleMouseLeave = useCallback(() => {
+    onLeave?.();
+  }, [onLeave]);
+
+  if (loading) {
+    return (
+      <div className="border rounded w-full h-full flex items-center justify-center">
+        <div className="text-sm text-gray-500">Carregando produtos...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="border rounded w-full h-full overflow-auto thin-red-scrollbar">
@@ -56,6 +79,7 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
         <TableBody>
           {displayProducts && displayProducts.length > 0 ? (
             displayProducts.map((produto, idx) => {
+              const isHighlighted = highlightName === produto.nome;
               return (
                 <TableRow key={idx}
                   onMouseEnter={() => onHoverName?.(produto.nome)}

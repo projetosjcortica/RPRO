@@ -29,6 +29,11 @@ import compression from "compression";
 import multer from "multer";
 import { configService } from "./services/configService";
 import { setRuntimeConfigs, getRuntimeConfig } from "./core/runtimeConfig";
+import { csvConverterService } from "./services/csvConverterService";
+import { changeDetectionService } from "./services/changeDetectionService";
+
+console.log("✅ [Startup] Módulos importados com sucesso");
+console.log("✅ [Startup] fileProcessorService:", fileProcessorService ? "LOADED" : "UNDEFINED");
 
 // Collector
 // Prefer runtime-config values (set via POST /api/config) and fall back to environment variables
@@ -37,6 +42,7 @@ const POLL_INTERVAL = Number(
     process.env.POLL_INTERVAL_MS ??
     "60000"
 );
+
 const TMP_DIR = path.resolve(
   process.cwd(),
   String(
@@ -751,6 +757,7 @@ app.get("/api/file/process", async (req, res) => {
 // Upload CSV and import into DB. Form field: `file` (multipart/form-data)
 const upload = multer({ dest: TMP_DIR });
 app.post("/api/file/upload", upload.single("file"), async (req, res) => {
+  const startTime = Date.now();
   try {
     await ensureDatabaseConnection();
     const f: any = req.file;
@@ -766,31 +773,85 @@ app.post("/api/file/upload", upload.single("file"), async (req, res) => {
         .status(500)
         .json({ error: "uploaded file not found on server" });
 
-    // Backup the uploaded file
-    const meta = await backupSvc.backupFile({
-      originalname: f.originalname || f.filename,
-      path: savedPath,
-      size: f.size,
-    });
-    // Parse
-    const parsed = await parserService.processFile(savedPath);
-    // Insert into DB
-    if (parsed.rows && parsed.rows.length > 0) {
-      await dbService.insertRelatorioRows(
-        parsed.rows as any[],
-        meta.workPath || meta.backupPath || path.basename(savedPath)
-      );
-    }
+    console.log(`[Upload] File received: ${f.originalname} (${f.size} bytes)`);
+
+    // Use fileProcessorService instead of direct parser to get proper conversions
+    const parseStart = Date.now();
+    const result = await fileProcessorService.processFile(savedPath);
+    console.log(`[Upload] Processing completed in ${Date.now() - parseStart}ms (${result.parsed.rowsCount} rows)`);
+
+    const totalTime = Date.now() - startTime;
+    console.log(`[Upload] Total process time: ${totalTime}ms`);
+
     return res.json({
       ok: true,
-      meta,
+      meta: result.meta,
       processed: {
-        rowsCount: parsed.rows.length,
-        processedPath: parsed.processedPath,
+        rowsCount: result.parsed.rowsCount,
+        processedPath: result.parsed.processedPath,
+        isLegacyFormat: result.parsed.isLegacyFormat || false,
       },
+      performance: {
+        totalTimeMs: totalTime,
+        rowsPerSecond: result.parsed.rowsCount > 0 ? Math.round((result.parsed.rowsCount / totalTime) * 1000) : 0
+      }
     });
   } catch (e: any) {
     console.error("[api/file/upload] error:", e);
+    return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// Converter CSV legado para novo formato
+app.post("/api/file/convert", upload.single("file"), async (req, res) => {
+  try {
+    const f: any = req.file;
+    if (!f)
+      return res
+        .status(400)
+        .json({ error: "file is required (field name: file)" });
+
+    const savedPath = f.path || (f.destination ? path.join(f.destination, f.filename) : null);
+    if (!savedPath || !fs.existsSync(savedPath))
+      return res
+        .status(500)
+        .json({ error: "uploaded file not found on server" });
+
+    console.log(`[Convert] File received: ${f.originalname} (${f.size} bytes)`);
+
+    // Converter arquivo
+    const result = await csvConverterService.convertLegacyCSV(savedPath);
+
+    if (!result.success) {
+      return res.status(500).json({
+        error: "Conversão falhou",
+        details: result.errors
+      });
+    }
+
+    // Ler arquivo convertido
+    const convertedContent = fs.readFileSync(result.outputPath, 'utf8');
+
+    // Limpar arquivos temporários
+    try {
+      if (fs.existsSync(savedPath)) fs.unlinkSync(savedPath);
+      if (fs.existsSync(result.outputPath)) fs.unlinkSync(result.outputPath);
+    } catch (cleanupErr) {
+      console.warn("[Convert] Cleanup error:", cleanupErr);
+    }
+
+    console.log(`[Convert] Conversion completed: ${result.rowsConverted} rows, ${result.errors.length} errors`);
+
+    return res.json({
+      ok: true,
+      rowsProcessed: result.rowsProcessed,
+      rowsConverted: result.rowsConverted,
+      errors: result.errors,
+      convertedData: convertedContent
+    });
+
+  } catch (e: any) {
+    console.error("[api/file/convert] error:", e);
     return res.status(500).json({ error: e?.message || "internal" });
   }
 });
@@ -834,10 +895,54 @@ const relatorioPaginateCache: Record<string, {
   data: any;
   timestamp: number;
   expiresAt: number;
+  dataChecksum?: string;
 }> = {};
 
 const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutos (alinhado com frontend)
 const MAX_CACHE_ENTRIES = 100; // Máximo de entradas no cache
+
+// Função para calcular checksum dos dados do banco
+async function calculateDatabaseChecksum(): Promise<string> {
+  try {
+    const repo = AppDataSource.getRepository(Relatorio);
+    const count = await repo.count();
+    
+    // Obter última linha ordenada por ID (sem findOne que requer condições)
+    const lastRow = await repo.createQueryBuilder('r')
+      .orderBy('r.id', 'DESC')
+      .limit(1)
+      .getOne();
+    
+    const crypto = require('crypto');
+    const checksum = crypto
+      .createHash('md5')
+      .update(`${count}-${lastRow?.id || 0}-${lastRow?.Dia || ''}`)
+      .digest('hex');
+    return checksum;
+  } catch (err) {
+    console.error('[Cache] Erro ao calcular checksum:', err);
+    return '';
+  }
+}
+
+// Função para invalidar cache se dados mudaram
+async function invalidateCacheIfDataChanged(): Promise<void> {
+  try {
+    const currentChecksum = await calculateDatabaseChecksum();
+    const keys = Object.keys(relatorioPaginateCache);
+    
+    for (const key of keys) {
+      const cached = relatorioPaginateCache[key];
+      // Se checksum diferente, invalida o cache
+      if (cached.dataChecksum && cached.dataChecksum !== currentChecksum) {
+        console.log('[Cache] 📊 Dados mudaram - invalidando cache');
+        delete relatorioPaginateCache[key];
+      }
+    }
+  } catch (err) {
+    console.error('[Cache] Erro ao verificar mudanças:', err);
+  }
+}
 
 // Função para limpar entradas antigas do cache
 function limparCacheExpirado() {
@@ -869,6 +974,19 @@ setInterval(limparCacheExpirado, 5 * 60 * 1000);
 app.get("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
+    // Verificar conexão do banco
+    if (!AppDataSource.isInitialized) {
+      console.warn('[relatorio/paginate] ⚠️ Database não inicializado, inicializando...');
+      await dbService.init();
+    }
+
+    // Verificar se há mudanças nos dados do banco (com try-catch para não quebrar a paginação)
+    try {
+      await invalidateCacheIfDataChanged();
+    } catch (cacheErr) {
+      console.warn('[relatorio/paginate] ⚠️ Cache invalidation error (ignorando):', cacheErr);
+    }
+
     // Criar chave única de cache baseada nos parâmetros da requisição
     const cacheKey = JSON.stringify({
       page: req.query.page,
@@ -886,7 +1004,7 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     
     // Verificar se temos uma versão em cache válida (expiração de 2 minutos)
     if (cached && cached.expiresAt > now) {
-      console.log('[relatorio/paginate] Servindo a partir do cache');
+      console.log('[relatorio/paginate] ✅ Servindo a partir do cache (hitrate)');
       return res.json(cached.data);
     }
 
@@ -1063,11 +1181,15 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       totalPages,
     };
 
-    // Armazenar no cache
+    // Calcular checksum dos dados para detecção inteligente de mudanças
+    const dataChecksum = await calculateDatabaseChecksum();
+
+    // Armazenar no cache com checksum
     relatorioPaginateCache[cacheKey] = {
       data: responseData,
       timestamp: now,
-      expiresAt: now + CACHE_DURATION_MS
+      expiresAt: now + CACHE_DURATION_MS,
+      dataChecksum
     };
 
     // Headers para otimização de cache do navegador
@@ -1511,6 +1633,9 @@ app.post(
 app.post("/api/relatorio/paginate", async (req, res) => {
   // quero que seja pro GET e POST
   try {
+    // Verificar se há mudanças nos dados do banco
+    await invalidateCacheIfDataChanged();
+
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
     const pageRaw = req.body.page;
     const pageSizeRaw = req.body.pageSize;
@@ -1666,15 +1791,121 @@ app.post("/api/relatorio/paginate", async (req, res) => {
 
     const totalPages = Math.ceil(total / pageSizeNum);
 
-    return res.json({
+    const responseData = {
       rows: mappedRows,
       total,
       page: pageNum,
       pageSize: pageSizeNum,
       totalPages,
+    };
+
+    // Calcular checksum dos dados para detecção inteligente de mudanças
+    const dataChecksum = await calculateDatabaseChecksum();
+
+    // Criar chave de cache baseada nos parâmetros da requisição
+    const cacheKeyPost = JSON.stringify({
+      page: pageNum,
+      pageSize: pageSizeNum,
+      codigo: codigoRaw,
+      numero: numeroRaw,
+      dataInicio: normDataInicioBody,
+      dataFim: normDataFimBody,
+      sortBy,
+      sortDir
     });
+
+    // Armazenar no cache com checksum
+    const now = Date.now();
+    relatorioPaginateCache[cacheKeyPost] = {
+      data: responseData,
+      timestamp: now,
+      expiresAt: now + CACHE_DURATION_MS,
+      dataChecksum
+    };
+
+    return res.json(responseData);
   } catch (e: any) {
     console.error("[relatorio/paginate] Unexpected error:", e);
+    return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// Endpoint para monitorar status do cache de paginação
+app.get("/api/cache/paginate/status", async (req, res) => {
+  try {
+    const cacheEntries = Object.keys(relatorioPaginateCache).map(key => {
+      const cached = relatorioPaginateCache[key];
+      const params = JSON.parse(key);
+      return {
+        params,
+        timestamp: new Date(cached.timestamp).toISOString(),
+        expiresIn: Math.max(0, cached.expiresAt - Date.now()),
+        checksum: cached.dataChecksum,
+        rowsCount: cached.data?.rows?.length || 0,
+        totalRows: cached.data?.total || 0
+      };
+    });
+
+    return res.json({
+      cacheSize: Object.keys(relatorioPaginateCache).length,
+      maxSize: MAX_CACHE_ENTRIES,
+      entries: cacheEntries,
+      usage: `${Object.keys(relatorioPaginateCache).length}/${MAX_CACHE_ENTRIES}`,
+      currentChecksum: await calculateDatabaseChecksum()
+    });
+  } catch (e: any) {
+    console.error("[cache/status] Error:", e);
+    return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// Endpoint para limpar cache de paginação
+app.post("/api/cache/paginate/clear", async (req, res) => {
+  try {
+    const clearedCount = Object.keys(relatorioPaginateCache).length;
+    Object.keys(relatorioPaginateCache).forEach(key => {
+      delete relatorioPaginateCache[key];
+    });
+    
+    console.log(`[cache/clear] 🗑️ Cache limpo: ${clearedCount} entradas removidas`);
+    
+    return res.json({
+      message: "Cache cleared successfully",
+      cleared: clearedCount,
+      remaining: Object.keys(relatorioPaginateCache).length
+    });
+  } catch (e: any) {
+    console.error("[cache/clear] Error:", e);
+    return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// Endpoint para limpar cache de um filtro específico
+app.post("/api/cache/paginate/clear-filter", async (req, res) => {
+  try {
+    const { params } = req.body;
+    if (!params) {
+      return res.status(400).json({ error: "params required" });
+    }
+
+    const cacheKey = JSON.stringify(params);
+    if (relatorioPaginateCache[cacheKey]) {
+      delete relatorioPaginateCache[cacheKey];
+      console.log(`[cache/clear-filter] 🗑️ Cache do filtro removido`);
+      return res.json({
+        message: "Cache entry cleared",
+        removed: true,
+        remaining: Object.keys(relatorioPaginateCache).length
+      });
+    }
+
+    return res.json({
+      message: "Cache entry not found",
+      removed: false,
+      remaining: Object.keys(relatorioPaginateCache).length
+    });
+  } catch (e: any) {
+    console.error("[cache/clear-filter] Error:", e);
     return res.status(500).json({ error: e?.message || "internal" });
   }
 });

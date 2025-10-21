@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { useMemo, useState, useEffect, useCallback } from "react";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { Pie, PieChart, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import type { ChartType } from "../home";
 
@@ -290,23 +290,37 @@ const CompactDonutTooltip = ({ active, payload, stats }: any) => {
 };
 
 // COMPONENTE: DonutChart
-export function DonutChartWidget({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean }) {
+export const DonutChartWidget = React.memo(({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean }) => {
   const { data, loading, stats, error, refetch } = useChartData(chartType, config?.filters);
   const [retryAttempt, setRetryAttempt] = useState(0);
 
-  // Log para depurar a renderização do gráfico
-  console.log(`[DonutChartWidget] Rendering ${chartType}: loading=${loading}, error=${error}, retry=${retryAttempt}, data=`, data);
-  
+  // ✅ OTIMIZAÇÃO: Memoizar cálculos pesados
+  const displayTotal = useMemo(() => {
+    if (!data || !Array.isArray(data)) return 0;
+    return data.reduce((s, d) => s + (d.value || 0), 0);
+  }, [data]);
+
+  // ✅ OTIMIZAÇÃO: Callbacks memoizados
+  const handleMouseLeave = useCallback((e: any) => {
+    const toElement = e.relatedTarget as HTMLElement;
+    if (!toElement?.classList.contains('recharts-sector')) {
+      onSliceLeave?.();
+      const tooltipEl = document.querySelector('.recharts-tooltip-wrapper');
+      if (tooltipEl) {
+        (tooltipEl as HTMLElement).style.visibility = 'hidden';
+      }
+    }
+  }, [onSliceLeave]);
+
   // Efeito para tentar recarregar automaticamente em caso de erro
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     
-    if (error && (!data || data.length === 0) && retryAttempt < 5) {
+    if (error && (!data || data.length === 0) && retryAttempt < 3) {
       timeoutId = setTimeout(() => {
-        console.log(`[DonutChartWidget] Tentativa automática de recarga #${retryAttempt + 1}`);
         refetch();
         setRetryAttempt(prev => prev + 1);
-      }, Math.min(3000 + (retryAttempt * 1000), 10000)); // Backoff progressivo, máximo 10s
+      }, 3000);
     }
     
     return () => {
@@ -325,10 +339,7 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
     );
   }
   
-  // Em caso de erro, mostrar mensagem sutil (retentativas já estão configuradas no useEffect)
   if (error && (!data || data.length === 0)) {
-    console.warn(`[DonutChartWidget] Erro ao carregar dados: ${error}`);
-    
     return (
       <div className="h-full w-full flex items-center justify-center">
         <div className="text-center">
@@ -338,9 +349,7 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
     );
   }
 
-  // Validação adicional para garantir que temos um array válido com dados reais
   if (!data || !Array.isArray(data) || data.length === 0 || data.every(item => !item.value)) {
-    console.warn(`[DonutChartWidget] Dados vazios ou inválidos para ${chartType}:`, data);
     return (
       <div className="h-full w-full flex items-center justify-center">
         <div className="text-center text-gray-500 text-sm">
@@ -352,12 +361,8 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
 
   return (
     <div className="h-full w-full relative">
-      {/* <div className="absolute top-0 left-0 bg-red-600 text-white px-3 py-1 rounded-br-lg text-xs font-semibold z-10 shadow-md">
-        Medida em KG
-      </div> */}
       {!compact && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          {/* center total */}
           <div className="text-center">
             <div className="text-xs text-gray-500">Total</div>
             <div className="text-lg font-bold text-red-600">
@@ -378,17 +383,7 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
             outerRadius={compact ? 80 : 110}
             dataKey="value"
             labelLine={false}
-            onMouseLeave={(e) => {
-              // Only hide tooltip if we're not entering another slice
-              const toElement = e.relatedTarget as HTMLElement;
-              if (!toElement?.classList.contains('recharts-sector')) {
-                onSliceLeave?.();
-                const tooltipEl = document.querySelector('.recharts-tooltip-wrapper');
-                if (tooltipEl) {
-                  (tooltipEl as HTMLElement).style.visibility = 'hidden';
-                }
-              }
-            }}
+            onMouseLeave={handleMouseLeave}
             isAnimationActive={false}
           >
             {data.map((d, index) => {
@@ -421,15 +416,12 @@ export function DonutChartWidget({ chartType = "produtos", config, highlightName
       </ResponsiveContainer>
     </div>
   );
-}
+});
 
 // COMPONENTE: BarChart
-export function BarChartWidget({ chartType = "formulas", config }: { chartType?: ChartType; config?: any }) {
+export const BarChartWidget = React.memo(({ chartType = "formulas", config }: { chartType?: ChartType; config?: any }) => {
   const { data, loading, stats, error, refetch } = useChartData(chartType, config?.filters);
   const [retryAttempt, setRetryAttempt] = useState(0);
-
-  // Log para depurar a renderização do gráfico
-  console.log(`[BarChartWidget] Rendering ${chartType}: loading=${loading}, error=${error}, retry=${retryAttempt}, data=`, data);
   
   // Efeito para tentar recarregar automaticamente em caso de erro
   useEffect(() => {
@@ -520,15 +512,15 @@ export function BarChartWidget({ chartType = "formulas", config }: { chartType?:
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
           <Tooltip content={<CustomTooltip stats={stats} />} />
-          <Bar dataKey="value" fill="#ff2626ff" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="value" fill="#ff2626ff" radius={[4, 4, 0, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
-}
+});
 
 // COMPONENTE: WeeklyChart
-export function WeeklyChartWidget({ rows, weekStart }: { rows: Entry[] | null, weekStart?: Date }) {
+export const WeeklyChartWidget = React.memo(({ rows, weekStart }: { rows: Entry[] | null, weekStart?: Date }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     if (weekStart) return weekStart;
     const now = new Date();
@@ -597,11 +589,11 @@ export function WeeklyChartWidget({ rows, weekStart }: { rows: Entry[] | null, w
             <XAxis dataKey="name" />
             <YAxis />
             <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="value" fill="#ff2626ff" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="value" fill="#ff2626ff" radius={[4, 4, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </div>
     </div>
   );
-}
+});
  

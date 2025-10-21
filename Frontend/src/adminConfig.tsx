@@ -16,6 +16,7 @@ import {
 } from "./components/ui/alert-dialog";
 
 
+
 // Formulário para as configurações de administrador
 export function AdminConfig({ configKey = "admin-config" }: { configKey?: string }) {
   // Estado para armazenar os dados do formulário

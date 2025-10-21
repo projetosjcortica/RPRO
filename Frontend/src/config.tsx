@@ -429,6 +429,9 @@ export function ProfileConfig({
         const txt = await res.text().catch(() => "");
         throw new Error(`logo upload failed: ${res.status} ${txt}`);
       }
+      
+      // Notificar que o logo foi atualizado
+      window.dispatchEvent(new Event('report-logo-updated'));
     } catch (e: any) {
     }
   };
@@ -436,7 +439,7 @@ export function ProfileConfig({
   // ✅ AGORA SIM O RETURN FINAL
   return (
     <div id="geral" className="flex flex-col gap-4 bg-white">
-      <Profile />
+      <Profile externalPreview={preview} file={file} />
       
       {user?.isAdmin && (
         <div className="mt-4 border border-gray-300 flex flex-col gap-4 rounded p-3 bg-white">
@@ -450,7 +453,8 @@ export function ProfileConfig({
             />
           </Label>
            <div>
-            <Label className="mb-2 justify-between text-sm font-medium text-gray-700">Selecionar foto
+            <Label className="mb-2 block text-sm font-medium text-gray-700">Foto de perfil / Logo do relatório</Label>
+
             <div className="space-y-3">
               <label
                 htmlFor="profile-upload"
@@ -458,7 +462,7 @@ export function ProfileConfig({
               >
                 <Plus className="h-4 w-4 text-red-600 flex-shrink-0" />
                 <span className="text-sm text-gray-700 font-medium">
-                  Selecionar imagem
+                  Selecionar nova imagem
                 </span>
                 <input
                   id="profile-upload"
@@ -495,7 +499,6 @@ export function ProfileConfig({
                 </div>
               )}
             </div>
-            </Label>
           </div>
         
         </div>
@@ -1207,10 +1210,83 @@ export function AdminConfig({
           <Button
             disabled={!isEditing}
             className="w-full mt-2 bg-red-600 hover:bg-red-700"
+            onClick={async () => {
+              if (!isEditing) return;
+
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = '.csv';
+              input.onchange = async (e: any) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const toastId = toast.loading(`Processando ${file.name}...`);
+
+                try {
+                  const processador = getProcessador();
+                  const result = await processador.uploadCSV(file);
+
+                  if (result.ok) {
+                    const perf = (result as any).performance;
+                    const isLegacy = (result as any).processed?.isLegacyFormat || false;
+                    
+                    // Log no console para desenvolvedores
+                    if (isLegacy) {
+                      console.log('🔄 [CSV Import] Formato legado detectado e convertido automaticamente');
+                      console.log('📋 [CSV Import] Conversões aplicadas:');
+                      console.log('   • Datas: DD/MM/YY → YYYY-MM-DD');
+                      console.log('   • Horários: HH:MM → HH:MM:SS');
+                      console.log('   • Delimitadores normalizados');
+                    }
+                    
+                    let message = `✅ CSV importado com sucesso!\n\n`;
+                    
+                    if (isLegacy) {
+                      message += `🔄 Formato legado detectado e convertido automaticamente\n\n`;
+                    }
+                    
+                    message += `📄 Arquivo: ${file.name}\n`;
+                    message += `📊 Linhas processadas: ${result.processed.rowsCount || 0}`;
+                    
+                    if (perf?.totalTimeMs) {
+                      const seconds = (perf.totalTimeMs / 1000).toFixed(2);
+                      message += `\n⏱️ Tempo total: ${seconds}s`;
+                      if (perf.rowsPerSecond) {
+                        message += ` (${perf.rowsPerSecond} linhas/s)`;
+                      }
+                    }
+
+                    toast.update(toastId, {
+                      render: message,
+                      type: 'success',
+                      isLoading: false,
+                      autoClose: 5000,
+                    });
+                  } else {
+                    toast.update(toastId, {
+                      render: 'Falha ao importar CSV',
+                      type: 'error',
+                      isLoading: false,
+                      autoClose: 3000,
+                    });
+                  }
+                } catch (err: any) {
+                  console.error('Erro ao importar CSV:', err);
+                  toast.update(toastId, {
+                    render: err.message || 'Erro ao importar CSV',
+                    type: 'error',
+                    isLoading: false,
+                    autoClose: 3000,
+                  });
+                }
+              };
+              input.click();
+            }}
           >
             Importar
           </Button>
         </div>
+ 
       </div>
 
       <div className="flex gap-2 justify-end mt-6">

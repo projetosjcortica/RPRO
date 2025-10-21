@@ -4,33 +4,41 @@ import { resolvePhotoUrl } from "./lib/photoUtils";
 import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
-import { Label } from "./components/ui/label";
-// import { Plus } from "lucide-react";
+import { Label } from "./components/ui/label"; 
 
-const Profile: React.FC = () => {
+interface ProfileProps {
+  externalPreview?: string | null;
+  file?: File | null;
+}
+
+const Profile: React.FC<ProfileProps> = ({ externalPreview, file }) => {
   const { user, logout, updateUser } = useAuth();
 
   // Hooks sempre declarados no topo
   const [displayName, setDisplayName] = useState(user?.displayName || "");
-  // const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(
     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
   );
 
+  // Use external preview if provided, otherwise use internal
+  const effectivePreview = externalPreview !== undefined ? externalPreview : preview;
+
   useEffect(() => {
     setDisplayName(user?.displayName || "");
-    setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
-  }, [user]);
+    if (externalPreview === undefined) {
+      setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
+    }
+  }, [user, externalPreview]);
 
   useEffect(() => {
     return () => {
-      if (preview && preview.startsWith("blob:")) {
+      if (effectivePreview && effectivePreview.startsWith("blob:")) {
         try {
-          URL.revokeObjectURL(preview);
+          URL.revokeObjectURL(effectivePreview);
         } catch {}
       }
     };
-  }, [preview]);
+  }, [effectivePreview]);
 
   // Renderização condicional só aqui (depois dos hooks)
   if (!user) {
@@ -49,138 +57,40 @@ const Profile: React.FC = () => {
       updateUser(data);
     } catch (e: any) {
     }
-  };
-
-  // const uploadPhoto = async () => {
-  // if (!file) return;
-  //   try {
-  //     const fd = new FormData();
-  //     fd.append("username", user.username);
-  //     fd.append("photo", file);
-  //     const res = await fetch("http://localhost:3000/api/auth/photo", {
-  //       method: "POST",
-  //       body: fd,
-  //     });
-  //     if (!res.ok) {
-  //       const txt = await res.text().catch(() => "");
-  //       throw new Error(`upload failed: ${res.status} ${txt}`);
-  //     }
-  //     const data = await res.json();
-  //     // backend returns user without password
-  //     updateUser(data as any);
-  //     try {
-  //       const blobUrl = URL.createObjectURL(file);
-  //       setPreview(blobUrl);
-  //     } catch {}
-  //     setFile(null);
-  //   } catch (e: any) {
-  //   }
-  // };
-
-  // const useAsReportLogo = async () => {
-  //   try {
-  //     // Resize image using canvas to max height 200, then upload as multipart
-  //     const toBlobFromImage = (dataUrl: string) =>
-  //       new Promise<Blob | null>((resolve) => {
-  //         const img = new Image();
-  //         img.onload = () => {
-  //           try {
-  //             const ratio = img.width / img.height;
-  //             const h = Math.min(200, img.height);
-  //             const w = Math.round(h * ratio);
-  //             const canvas = document.createElement("canvas");
-  //             canvas.width = w;
-  //             canvas.height = h;
-  //             const ctx = canvas.getContext("2d");
-  //             if (!ctx) return resolve(null);
-  //             ctx.clearRect(0, 0, w, h);
-  //             ctx.drawImage(img, 0, 0, w, h);
-  //             canvas.toBlob((b) => resolve(b), "image/png", 0.9);
-  //           } catch (err) {
-  //             resolve(null);
-  //           }
-  //         };
-  //         img.onerror = () => resolve(null);
-  //         img.src = dataUrl;
-  //       });
-
-  //     // Build a dataUrl from available source
-  //     let sourceDataUrl: string | null = null;
-  //     if (file) {
-  //       sourceDataUrl = await new Promise<string | null>((res) => {
-  //         const r = new FileReader();
-  //         r.onload = () => res(String(r.result));
-  //         r.onerror = () => res(null);
-  //         r.readAsDataURL(file);
-  //       });
-  //     } else if (preview && preview.startsWith("blob:")) {
-  //       try {
-  //         const r = await fetch(preview);
-  //         const b = await r.blob();
-  //         sourceDataUrl = await new Promise<string | null>((res) => {
-  //           const r2 = new FileReader();
-  //           r2.onload = () => res(String(r2.result));
-  //           r2.onerror = () => res(null);
-  //           r2.readAsDataURL(b);
-  //         });
-  //       } catch (err) {
-  //         sourceDataUrl = null;
-  //       }
-  //     }
-
-  //     if (!sourceDataUrl) {
-  //       return;
-  //     }
-
-  //     const blob = await toBlobFromImage(sourceDataUrl);
-  //     if (!blob) {
-  //       return;
-  //     }
-
-  //     const fd = new FormData();
-  //     fd.append("photo", blob, file?.name || "logo.png");
-  //     const res = await fetch("http://localhost:3000/api/report/logo/upload", {
-  //       method: "POST",
-  //       body: fd,
-  //     });
-  //     if (!res.ok) {
-  //       const txt = await res.text().catch(() => "");
-  //       throw new Error(`logo upload failed: ${res.status} ${txt}`);
-  //     }
-  //   } catch (e: any) {
-  //   }
-  // };
-
-  // const onFileChange = (f: File | null) => {
-  //   setFile(f);
-  //   if (!f) {
-  //     setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
-  //     return;
-  //   }
-  //   const url = URL.createObjectURL(f);
-  //   setPreview(url);
-  // };
+  }; 
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg border border-gray-200 overflow-hidden">
       <div className="p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
-          <div className="flex-shrink-0">
-            <Avatar className="size-16 sm:size-20 bg-gray">
-              {preview ? (
-                <AvatarImage src={preview} alt="avatar" className="object-cover w-full h-full" />
+          <div className="flex-shrink-0 relative">
+            <Avatar className="size-16 sm:size-20 bg-gray-200">
+              {effectivePreview ? (
+                <AvatarImage src={effectivePreview} alt="avatar" className="object-cover w-full h-full" />
               ) : (
                 <AvatarFallback>
                   {(user.displayName || user.username || "U").charAt(0)}
                 </AvatarFallback>
               )}
             </Avatar>
+            {file && (
+              <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1">
+                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            )}
           </div>
           <div className="flex-1 text-center sm:text-left min-w-0">
             <div className="text-lg font-semibold truncate">
               {user.displayName || user.username}
             </div>
             <div className="text-sm text-muted-foreground truncate">{user.username}</div>
+            {file && (
+              <div className="text-xs text-green-600 font-medium mt-1">
+                Nova imagem selecionada
+              </div>
+            )}
           </div>
           <div className="flex-shrink-0">
             <Button variant="destructive" size="sm" onClick={logout}>
@@ -203,55 +113,7 @@ const Profile: React.FC = () => {
                 Salvar
               </Button>
             </div>
-          </div>
-
-          {/* <div>
-            <Label className="mb-2 block text-sm font-medium text-gray-700">Foto</Label>
-            <div className="space-y-3">
-              <label
-                htmlFor="profile-upload"
-                className="cursor-pointer flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                <Plus className="h-4 w-4 text-red-600 flex-shrink-0" />
-                <span className="text-sm text-gray-700 font-medium">
-                  Selecionar imagem
-                </span>
-                <input
-                  id="profile-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"  
-                  onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-                />
-              </label>
-              {file && (
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    onClick={async () => {
-                      await uploadPhoto();
-                      await useAsReportLogo();
-                    }}
-                    size="sm"
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    Enviar
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setFile(null);
-                      setPreview(
-                        user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
-                      );
-                    }}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div> */}
+          </div> 
         </div>
       </div>
     </div>
