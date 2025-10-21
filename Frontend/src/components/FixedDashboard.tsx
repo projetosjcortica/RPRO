@@ -380,7 +380,7 @@ const formatShortDate = (raw?: string | null) => {
                         return (
                           <div 
                             key={idx} 
-                            className={`flex items-center justify-between text-sm border-b m-0 h-10 even:bg-gray-50/50 transition-all hover:bg-gray-50`}
+                            className={`flex items-center justify-between text-sm border-b m-0 h-10 even:bg-gray-50/50 px-2 transition-all hover:bg-gray-50`}
                             onMouseEnter={() => setHighlightFormula(f.name)}
                             onMouseLeave={() => setHighlightFormula(null)}
                           >
