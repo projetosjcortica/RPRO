@@ -574,8 +574,15 @@ export const WeeklyChartWidget = React.memo(({ rows, weekStart }: { rows: Entry[
       
       if (date >= startOfWeek && date <= endOfWeek) {
         const dayIndex = date.getDay();
-        const v = Number(r.values?.[0] ?? r.Form1 ?? 0);
-        totals[dayIndex] += isNaN(v) ? 0 : v;
+        // Somar TODOS os valores da linha (Prod_1 até Prod_40), não apenas o primeiro
+        let rowTotal = 0;
+        if (r.values && Array.isArray(r.values)) {
+          for (let i = 0; i < r.values.length; i++) {
+            const val = Number(r.values[i]);
+            rowTotal += isNaN(val) ? 0 : val;
+          }
+        }
+        totals[dayIndex] += rowTotal;
       }
     }
     
