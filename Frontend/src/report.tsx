@@ -1177,38 +1177,6 @@ export default function Report() {
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1">
             <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
-            <RefreshButton 
-              onRefresh={async () => {
-                try { toastManager.showInfoOnce('manual-refresh', 'Limpando cache e recarregando...'); } catch(e){}
-                // 1. Limpar cache do frontend
-                clearCache();
-                // 2. Invalidar cache do backend: limpar paginate cache (relatorio) e cache geral
-                try {
-                  await fetch('http://localhost:3000/api/cache/paginate/clear', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                  });
-                  console.log('[Refresh] Cache de paginação do backend limpo');
-                } catch (err) {
-                  console.warn('[Refresh] Erro ao limpar cache de paginação do backend:', err);
-                }
-                try {
-                  await fetch('http://localhost:3000/api/cache/clear', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                  });
-                  console.log('[Refresh] Cache geral do backend limpo');
-                } catch (err) {
-                  console.warn('[Refresh] Erro ao limpar cache geral do backend:', err);
-                }
-
-                // 3. Forçar refetch (que irá buscar do DB e gerar novo cache)
-                refetch(true);
-                refreshResumo();
-              }}
-              label=""
-              size="default"
-            />
             <Button
               onClick={handleCollectorToggle}
               disabled={collectorLoading}
@@ -1527,6 +1495,38 @@ export default function Report() {
 
           {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
+          <RefreshButton 
+              onRefresh={async () => {
+                try { toastManager.showInfoOnce('manual-refresh', 'Limpando cache e recarregando...'); } catch(e){}
+                // 1. Limpar cache do frontend
+                clearCache();
+                // 2. Invalidar cache do backend: limpar paginate cache (relatorio) e cache geral
+                try {
+                  await fetch('http://localhost:3000/api/cache/paginate/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                  console.log('[Refresh] Cache de paginação do backend limpo');
+                } catch (err) {
+                  console.warn('[Refresh] Erro ao limpar cache de paginação do backend:', err);
+                }
+                try {
+                  await fetch('http://localhost:3000/api/cache/clear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                  console.log('[Refresh] Cache geral do backend limpo');
+                } catch (err) {
+                  console.warn('[Refresh] Erro ao limpar cache geral do backend:', err);
+                }
+
+                // 3. Forçar refetch (que irá buscar do DB e gerar novo cache)
+                refetch(true);
+                refreshResumo();
+              }}
+              label=""
+              size="default"
+            />
           <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
               <p className="text-center text-lg font-bold">

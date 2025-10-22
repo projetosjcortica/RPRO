@@ -220,7 +220,7 @@ const CustomTooltip = ({ active, payload, stats }: any) => {
       </div>
       <div className="space-y-1">
         <p className="text-sm font-bold text-red-600">
-          {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {unit}
+          {value.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {unit}
         </p>
         {count > 0 && (
           <p className="text-xs text-gray-500">Registros: {count}</p>
@@ -254,7 +254,7 @@ const CustomTooltip = ({ active, payload, stats }: any) => {
 //       <div className="font-bold text-sm mb-1 border-b border-gray-700 pb-1">{data.name}</div>
 //       <div className="space-y-0.5">
 //         <div className="text-sm font-semibold text-red-400">
-//           {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
+//           {value.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg
 //         </div>
 //         {count > 0 && (
 //           <div className="text-xs text-gray-300">
@@ -422,21 +422,6 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
           />
         </PieChart>
       </ResponsiveContainer>
-      {/* Numbered legend under chart for clarity */}
-      {!compact && (
-        <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-gray-700">
-          {data.map((d, i) => {
-            const pct = stats && stats.total ? ((d.value / stats.total) * 100).toFixed(1) : ((d.value / Math.max(1, displayTotal)) * 100).toFixed(1);
-            return (
-              <div key={`legend-${i}`} className="flex items-center gap-2">
-                <div className="font-semibold">{i + 1}.</div>
-                <div className="w-3 h-3 rounded-sm" style={{ background: COLORS[i % COLORS.length] }} />
-                <div className="truncate">{d.name} <span className="text-gray-500">{pct}%</span></div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 });

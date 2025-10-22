@@ -224,7 +224,7 @@ const CustomTooltip = ({ active, payload, label, stats }: any) => {
         
         <div className="pl-5 space-y-1">
           <p className="text-sm font-bold text-red-600">
-            {entry.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
+            {entry.value.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg
           </p>
           
           {dataPoint.count && (
@@ -453,7 +453,7 @@ export default function WidgetContent({ type, rows, chartType = "produtos", onCh
           <>
             <div className="text-xs text-gray-600 mb-1">Total Geral</div>
             <div className="text-2xl font-bold text-gray-900">
-              {total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} kg
+              {total.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg
             </div>
             <div className="text-sm text-gray-500 mt-1">{recordCount} registros</div>
             {statsData?.uniqueDays && (
