@@ -113,21 +113,42 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     setSavingProduct(null);
   };
 
-  const handleUnidadeChange = (colKey: string, unidadeValue: string) => {
+  const handleUnidadeChange = async (colKey: string, unidadeValue: string) => {
     // value="0" → gramas (medida=0 no backend)
     // value="1" → quilos (medida=1 no backend)
     const novaUnidade = unidadeValue === "0" ? "g" : "kg";
-    
+
     const updatedUnidades = { ...unidades, [colKey]: novaUnidade };
     setUnidades(updatedUnidades);
-    
+
     const nomeAtual = colLabels[colKey] || "";
     updateProdutoInfo(colKey, nomeAtual, novaUnidade);
-    
-    onLabelChange(colKey, nomeAtual, novaUnidade); 
+
+    // Persist immediately to backend
     try {
-      window.dispatchEvent(new CustomEvent('produtos-updated', { detail: { colKey, nome: nomeAtual, unidade: novaUnidade } }));
+      const match = colKey.match(/^col(\d+)$/);
+      if (match) {
+        const colIndex = Number(match[1]);
+        const num = colIndex - 5;
+        if (!Number.isNaN(num) && num > 0) {
+          await fetch("http://localhost:3000/api/db/setupMateriaPrima", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ items: [{ num, produto: nomeAtual, medida: novaUnidade === 'g' ? 0 : 1 }] }),
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to persist unidade change', e);
+    }
+
+    // Notify listeners with detail so parent can decide to reload immediately
+    try {
+      window.dispatchEvent(new CustomEvent('produtos-updated', { detail: { colKey, nome: nomeAtual, unidade: novaUnidade, immediate: true } }));
     } catch (e) {}
+
+    // Call callback so UI labels update as before
+    onLabelChange(colKey, nomeAtual, novaUnidade);
   };
 
   const editableColumns = Array.from({ length: END_COL - START_COL + 1 }, (_, i) => `col${i + START_COL}`);

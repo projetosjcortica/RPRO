@@ -44,6 +44,10 @@ export class Processador {
     console.log(`[Processador] Making request to ${url} with method ${method}`, data);
 
     const headers: Record<string, string> = { 'Accept': 'application/json' };
+    // Ensure summary/resumo endpoints are never cached by browsers or intermediate proxies
+    if (/\/api\/resumo$/.test(url) || /\/api\/resumo\?/.test(url)) {
+      headers['Cache-Control'] = 'no-cache';
+    }
     const config: RequestInit = { method, headers };
 
     // GET → colocar parâmetros na URL
@@ -250,7 +254,7 @@ export class Processador {
 
     console.log(`[Processador] Making request to ${url} with method ${method} (with signal)`, data);
 
-    const headers: Record<string, string> = { 'Accept': 'application/json', 'Cache-Control': 'no-cache' };
+  const headers: Record<string, string> = { 'Accept': 'application/json', 'Cache-Control': 'no-cache' };
     const config: RequestInit = { method, headers, signal };
 
     // GET → colocar parâmetros na URL

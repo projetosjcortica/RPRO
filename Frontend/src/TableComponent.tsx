@@ -30,7 +30,7 @@ const DEFAULT_WIDTHS = {
   nome: 200,
   codigo: 100,
   numero: 100,
-  dynamic: 100,
+  dynamic: 110,
 };
 
 const STORAGE_KEY = "rpro-table-column-widths";
@@ -224,22 +224,16 @@ export function TableComponent({
   useEffect(() => {
     if (useExternalData) return;
     const newDados = Array.isArray(dadosFromHook) ? dadosFromHook : [];
-    const lastNew = getLastTimestamp(newDados);
-    const lastCurrent = getLastTimestamp(dadosAtual);
-    if (newDados.length !== dadosAtual.length || lastNew !== lastCurrent) {
-      setDadosAtual(newDados);
-    }
-  }, [dadosFromHook, useExternalData, dadosAtual]);
+    // Atualização instantânea: sempre aplicar novos dados imediatamente
+    setDadosAtual(newDados);
+  }, [dadosFromHook, useExternalData]);
 
   useEffect(() => {
     if (!useExternalData) return;
     const newDados = Array.isArray(dadosProp) ? dadosProp : [];
-    const lastNew = getLastTimestamp(newDados);
-    const lastCurrent = getLastTimestamp(dadosAtual);
-    if (newDados.length !== dadosAtual.length || lastNew !== lastCurrent) {
-      setDadosAtual(newDados);
-    }
-  }, [dadosProp, useExternalData, dadosAtual]);
+    // Atualização instantânea: sempre aplicar novos dados imediatamente
+    setDadosAtual(newDados);
+  }, [dadosProp, useExternalData]);
 
   // Table will re-render when filtros/dados change. Do not auto-refresh on produtos-updated here.
   // Product updates are applied by the parent (`report.tsx`) when navigating away or clicking outside.
@@ -262,33 +256,33 @@ export function TableComponent({
   // ================
 
   const converterValor = (valor: any, _colKey?: string): any => {
+    // Backend agora envia valores já formatados como string com 3 casas decimais
+    // Se vier string, usar direto; se vier number (legado), formatar
+    if (typeof valor === "string" && valor.trim() !== "") {
+      return valor; // Já formatado pelo backend (ex: "0.800", "1.234")
+    }
+    
     let n: number;
     if (typeof valor === "number") {
       n = valor;
-    } else if (typeof valor === "string" && valor.trim() !== "") {
-      const parsed = Number(valor.replace(/,/g, ""));
-      if (isNaN(parsed)) return valor;
-      n = parsed;
     } else {
       return valor;
     }
 
-    // NOTE: The backend normalizes product quantities to kg based on MateriaPrima.medida.
-    // Do not re-convert here. Treat incoming numeric values as already normalized to kg.
-    // Defensive: if the UI product metadata says this product is stored in grams,
-    // convert to kg for display by dividing by 1000. This handles cases where the
-    // backend did not normalize values or when produtosInfo reflects grams.
-    try {
-      const unidade = produtosInfo[_colKey || ""]?.unidade || "kg";
-      // If product unit is grams, display in grams (kg -> g)
-      if (unidade === "g") return n / 1000;
-    } catch (e) {}
+    // Fallback: se ainda for número, formatar localmente
     return n;
   };
 
   const formatValue = (v: unknown, colKey: string): string => {
+    // Se valor já vier como string formatada do backend, usar direto
+    if (typeof v === "string" && v.trim() !== "") {
+      return v;
+    }
+    
+    // Fallback: formatar se vier como número
     if (typeof v === "number") {
       const valorConvertido = converterValor(v, colKey);
+      if (typeof valorConvertido === "string") return valorConvertido;
       return valorConvertido.toLocaleString("pt-BR", {
         minimumFractionDigits: 3,
         maximumFractionDigits: 3,
@@ -362,7 +356,14 @@ export function TableComponent({
                 const key = col.toLowerCase();
                 const width = columnWidths[key] || DEFAULT_WIDTHS[key as keyof typeof DEFAULT_WIDTHS] || DEFAULT_WIDTHS.dynamic;
 
-                  return (
+                // Map user-facing column labels to backend sortable fields
+                let backendField = col;
+                if (col === 'Codigo') backendField = 'Form1';
+                if (col === 'Numero') backendField = 'Form2';
+
+                const isActive = ((filtros as any)?.sortBy === backendField);
+
+                return (
                   <div
                     key={idx}
                     className="relative flex items-center justify-center py-1 px-1 md:py-2 md:px-3 border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
@@ -376,13 +377,13 @@ export function TableComponent({
                     title={typeof getColumnHeader(col, idx) === "string" ? getColumnHeader(col, idx) as string : ""}
                   >
                     <div className="max-w-full break-words flex items-center justify-center gap-2" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
-                      <div style={{ cursor: 'pointer' }} onClick={() => onToggleSort?.(col)} onDoubleClick={(e) => { e.stopPropagation(); onToggleSort?.(col); }}>
+                      <div style={{ cursor: 'pointer' }} onClick={() => onToggleSort?.(backendField)} onDoubleClick={(e) => { e.stopPropagation(); onToggleSort?.(backendField); }}>
                         {getColumnHeader(col, idx)}
                       </div>
                       {/* Sort arrow */}
-                      { ( (filtros as any)?.sortBy === col ) && (
+                      { isActive && (
                         <div className="text-xs text-gray-600" title={`Ordenado por ${col} (${(filtros as any)?.sortDir || 'DESC'})`}>
-                          {( (filtros as any)?.sortDir === 'ASC' ) ? '↑' : '↓'}
+                          {( (filtros as any)?.sortDir === 'ASC' ) ? '\u2191' : '\u2193'}
                         </div>
                       ) }
                     </div>
