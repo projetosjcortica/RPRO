@@ -227,6 +227,7 @@ const App = () => {
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
+              <img src="./logoCmono.png" alt=""/>
           </SidebarFooter>
         </Sidebar>
       </SidebarProvider>

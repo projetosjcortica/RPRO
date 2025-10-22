@@ -33,7 +33,7 @@ export function RefreshButton({
       disabled={isRefreshing}
       size={size}
       variant="outline"
-      className={`${className} ${isRefreshing ? 'pointer-events-none' : ''} z-10 w-9 absolute top-1 right-1`}
+      className={`${className} ${isRefreshing ? 'pointer-events-none' : ''}`}
       title="Atualizar dados (ou pressione Ctrl+Shift+R no modo dev)"
     >
       <RefreshCw 

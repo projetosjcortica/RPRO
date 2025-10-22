@@ -173,7 +173,7 @@ export default function Report() {
     }[];
     produtos: {
       nome: string;
-      qtd: number | string;
+      qtd: number;
       colKey?: string;
       unidade?: string;
     }[];
@@ -195,7 +195,7 @@ export default function Report() {
   const [resumo, setResumo] = useState<any | null>(null);
   const [resumoReloadFlag, setResumoReloadFlag] = useState(0);
   const runtime = useRuntimeConfig();
-  const { dados, loading, error, total, refetch } = useReportData(
+  const { dados, loading, error, total, refetch} = useReportData(
     filtros,
     page,
     pageSize
@@ -209,22 +209,29 @@ export default function Report() {
     setResumoReloadFlag((flag) => flag + 1);
   }, []);
 
-  // Toggle sort handler for Table headers - SEMPRE PERMITE INVERTER
+  // Toggle sort handler for Table headers - OTIMIZADO
   const handleToggleSort = useCallback((col: string) => {
-    console.log('[report] handleToggleSort called with col:', col, 'current sortBy:', sortBy, 'sortDir:', sortDir);
+    console.log('[report] handleToggleSort called with col:', col, 'current sortBy:', sortBy);
     
-    // Sistema de ordenação simples: sempre permite inverter
-    // Se clicar na coluna ativa: inverte a direção (DESC <-> ASC)
-    // Se clicar em outra coluna: ordena DESC
+    // Sistema de ordenação em 3 estados:
+    // Estado 1: Ordena DESC (primeira vez)
+    // Estado 2: Ordena ASC (segunda vez)
+    // Estado 3: Remove ordenação/volta ao padrão (terceira vez)
     
     if (sortBy === col) {
-      // Mesma coluna: inverte a direção
-      const newDir = sortDir === 'DESC' ? 'ASC' : 'DESC';
-      console.log('[report] Same column, toggling direction from:', sortDir, 'to:', newDir);
-      setSortDir(newDir);
+      if (sortDir === 'DESC') {
+        // Segundo clique: muda para ASC
+        console.log('[report] Same column, toggling direction to: ASC');
+        setSortDir('ASC');
+      } else {
+        // Terceiro clique: remove ordenação
+        console.log('[report] Same column, resetting sort to default (Dia DESC)');
+        setSortBy('Dia');
+        setSortDir('DESC');
+      }
     } else {
-      // Coluna diferente: ordena DESC
-      console.log('[report] New column, setting sortBy to:', col, 'sortDir: DESC');
+      // Primeira vez nesta coluna: ordena DESC
+      console.log('[report] New column, setting sortBy to:', col);
       setSortBy(col);
       setSortDir('DESC');
     }
@@ -427,13 +434,8 @@ export default function Report() {
                 "col" + (Number(String(key).split("Produto_")[1]) + 5);
               const nome = produtosInfo[produtoId]?.nome || key;
               const v = val as Record<string, unknown> | undefined;
-              
-              // Backend agora envia quantidadeFormatada (string com 3 casas decimais)
-              const qtdFormatada = v?.["quantidadeFormatada"] as string | undefined;
               const rawQtd = v?.["quantidade"];
-              
-              // Usar valor formatado se disponível, senão fallback para número
-              const qtd = qtdFormatada || (Number(rawQtd ?? 0) || 0);
+              const qtd = Number(rawQtd ?? 0) || 0;
               const unidade = (v?.["unidade"] as string) || "kg";
               const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
               return { colKey: produtoId, nome, qtd, unidade, idx };
@@ -633,14 +635,10 @@ export default function Report() {
     prevCollectorRunning.current = collectorRunning;
   }, [collectorRunning, refetch, refreshResumo]);
 
-  // Recarregar dados ao mudar de aba (instantâneo)
+  // Recarregar resumo ao mudar de aba
   useEffect(() => {
-    if (view === 'table') {
-      // Ao voltar para tabela, forçar refetch imediato
-      refetch();
-      refreshResumo();
-    }
-  }, [view, refetch, refreshResumo]);
+    refreshResumo();
+  }, [view, refreshResumo]);
 
   const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
     setColLabels((prev) => ({ ...prev, [colKey]: newName }));
@@ -759,31 +757,14 @@ export default function Report() {
     // Tenta carregar do backend primeiro
     loadFromBackend();
 
-    // Handle produtos-updated events. If the event detail contains `immediate:true`,
-    // reload from backend immediately and refresh report data. Otherwise, keep
-    // the previous pending behavior for manual/legacy updates.
-    const onProdutosUpdated = (e: any) => {
+    // Instead of immediately reloading on `produtos-updated`, mark a pending flag.
+    // The actual reload will occur when the user navigates away from the report view,
+    // or clicks outside the report area, or explicitly requests rebuilding the reports.
+    const onProdutosUpdated = (evt?: Event) => {
+      console.log('[Produtos] Evento de atualização de produtos recebido - marcando pending');
       try {
-        const detail = e?.detail || {};
-        if (detail && detail.immediate) {
-          console.log('[Produtos] Immediate update requested, reloading produtos from backend');
-          loadFromBackend();
-          // Force refetch sem cache
-          try { refetch(); } catch (err) {}
-          refreshResumo();
-          // Also clear any pending flag
-          try { localStorage.removeItem('produtos-pending-update'); } catch (err) {}
-          return;
-        }
-
-        // Fallback: mark pending (legacy behavior)
-        console.log('[Produtos] Evento de atualização de produtos recebido - marcando pending');
-        try {
-          localStorage.setItem('produtos-pending-update', '1');
-        } catch (e) {}
-      } catch (err) {
-        console.warn('Error handling produtos-updated', err);
-      }
+        localStorage.setItem('produtos-pending-update', '1');
+      } catch (e) {}
     };
 
     window.addEventListener('produtos-updated', onProdutosUpdated as EventListener);
@@ -1399,7 +1380,7 @@ export default function Report() {
                       </div>
                     </div>
                   )}
-
+                  
                   {/* Fórmulas Donut */}
                   {((resumo?.formulasUtilizadas ? Object.keys(resumo.formulasUtilizadas).length : 0) || (tableSelection.formulas?.length ?? 0)) > 0 && (
                     <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
@@ -1514,39 +1495,17 @@ export default function Report() {
 
           {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
-          <RefreshButton 
+          <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
+             <RefreshButton 
               onRefresh={async () => {
-                try { toastManager.showInfoOnce('manual-refresh', 'Limpando cache e recarregando...'); } catch(e){}
-                // 1. Limpar cache do frontend
-                clearCache();
-                // 2. Invalidar cache do backend: limpar paginate cache (relatorio) e cache geral
-                try {
-                  await fetch('http://localhost:3000/api/cache/paginate/clear', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                  });
-                  console.log('[Refresh] Cache de paginação do backend limpo');
-                } catch (err) {
-                  console.warn('[Refresh] Erro ao limpar cache de paginação do backend:', err);
-                }
-                try {
-                  await fetch('http://localhost:3000/api/cache/clear', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                  });
-                  console.log('[Refresh] Cache geral do backend limpo');
-                } catch (err) {
-                  console.warn('[Refresh] Erro ao limpar cache geral do backend:', err);
-                }
-
-                // 3. Forçar refetch (que irá buscar do DB e gerar novo cache)
-                refetch(true);
+                try { toastManager.showInfoOnce('manual-refresh', 'Recarregando dados frescos...'); } catch(e){}
+                // Sem cache - sempre busca dados frescos do backend
+                try { refetch(); } catch (err) {}
                 refreshResumo();
               }}
               label=""
               size="default"
             />
-          <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
               <p className="text-center text-lg font-bold">
                 Total: {""}
@@ -1661,15 +1620,17 @@ export default function Report() {
                             className="truncate"
                           >
                             {(() => {
-                              // Backend já envia valor formatado ou normalizado
-                              // Se vier string formatada, usar direto; se vier número, formatar
-                              if (typeof produto.qtd === 'string') {
-                                return <>{produto.qtd} kg</>;
-                              }
+                              const unidade = produto.unidade ||
+                                (produto.colKey && produtosInfo[produto.colKey]?.unidade) ||
+                                "kg";
+                              // Se for gramas, multiplicar por 1000 para exibir em kg
+                              const valorExibicao = unidade === "g" 
+                                ? produto.qtd * 1000 
+                                : produto.qtd;
                               
                               return (
                                 <>
-                                  {Number(produto.qtd).toLocaleString("pt-BR", {
+                                  {Number(valorExibicao).toLocaleString("pt-BR", {
                                     minimumFractionDigits: 3,
                                     maximumFractionDigits: 3,
                                   })}{" "}
