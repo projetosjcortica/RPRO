@@ -22,7 +22,10 @@ type ChartDatum = {
 
 import { DASHBOARD_COLORS as COLORS } from "../lib/colors";
 
-// Cache para armazenar os resultados de consultas anteriores
+// Intentionally do NOT cache chart data in memory to ensure charts always show
+// the most up-to-date production numbers. The paginate endpoint still uses
+// server-side cache for performance; charts must bypass caches.
+// (We keep a small fallback to use in case of network error below.)
 const chartDataCache: Record<string, { data: ChartDatum[], stats: any, timestamp: number }> = {};
 
 // Hook para buscar dados do backend
@@ -62,16 +65,8 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         // Criar chave de cache usando tipo de gráfico e parâmetros
         const cacheKey = `${chartType}:${params.toString()}`;
         
-        // Verificar cache (válido por 1 minuto)
-        const now = Date.now();
-        const cachedItem = chartDataCache[cacheKey];
-        if (cachedItem && (now - cachedItem.timestamp < 60000)) {
-          console.log(`[useChartData] Usando cache para ${chartType}`);
-          setData(cachedItem.data);
-          setStats(cachedItem.stats);
-          setLoading(false);
-          return;
-        }
+        // Do NOT use in-memory cache for charts by default. Always fetch fresh.
+  const now = Date.now();
         
         const url = `http://localhost:3000/api/chartdata/${chartType}?${params.toString()}`;
         console.log(`[useChartData] Fetching ${chartType} with filters:`, filters);
@@ -113,13 +108,14 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
             console.warn(`[useChartData] Array vazio de chartData para ${chartType}`);
           }
           
-          // Atualizar cache
+          // Store a fallback snapshot (not used for actual display) in case of subsequent network errors
           chartDataCache[cacheKey] = {
             data: chartData,
             stats: body,
-            timestamp: now
+            timestamp: now,
           };
-          
+
+          // Always set fresh data from server
           setData(chartData);
           setStats(body);
           setRetryCount(0);
@@ -159,7 +155,7 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         
         const cachedItem = chartDataCache[cacheKey];
         if (cachedItem) {
-          console.log(`[useChartData] Usando cache vencido devido a erro`);
+          console.log(`[useChartData] Usando cache de fallback devido a erro`);
           setData(cachedItem.data);
           setStats(cachedItem.stats);
           

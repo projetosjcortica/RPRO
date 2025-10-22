@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
 
 interface Produto {
   nome: string;
-  qtd: number;
+  qtd: number | string;
   categoria?: string;
 }
 interface ComentarioRelatorio {
@@ -128,7 +128,7 @@ export interface MyDocumentProps {
   horaInicial?: string;
   horaFinal?: string;
   formulas?: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
-  produtos: { nome: string; qtd: number; unidade?: string; categoria?: string }[];
+  produtos: { nome: string; qtd: number | string; unidade?: string; categoria?: string }[];
   data?: string;
   empresa?: string;
   usuario?: string;
@@ -636,39 +636,39 @@ export const MyDocument: FC<MyDocumentProps> = ({
         )}
 
         {/* Gráficos de Donut - Produtos */}
-        {showCharts && produtosChartData && produtosChartData.length > 0 && (
+        {/* {showCharts && produtosChartData && produtosChartData.length > 0 && (
           <View style={styles.section}>
             {renderDonutChart(produtosChartData, 'Distribuição de Produtos')}
           </View>
-        )}
+        )} */}
 
         {/* Gráficos de Donut - Fórmulas */}
-        {showCharts && formulasChartData && formulasChartData.length > 0 && (
+        {/* {showCharts && formulasChartData && formulasChartData.length > 0 && (
           <View style={styles.section}>
             {renderDonutChart(formulasChartData, 'Distribuição de Fórmulas')}
           </View>
-        )}
+        )} */}
 
         {/* Gráfico de Barras - Horários */}
-        {showCharts && horariosChartData && horariosChartData.length > 0 && (
+        {/* {showCharts && horariosChartData && horariosChartData.length > 0 && (
           <View style={styles.section}>
             {renderBarChart(horariosChartData, 'Horários de Produção')}
           </View>
-        )}
+        )} */}
 
         {/* Gráfico de Barras - Produção Semanal */}
-        {showCharts && semanaChartData && semanaChartData.length > 0 && (
+        {/* {showCharts && semanaChartData && semanaChartData.length > 0 && (
           <View style={styles.section}>
             {renderVerticalBarChart(semanaChartData, 'Produção Semanal')}
           </View>
-        )}
+        )} */}
 
         {/* Gráfico de Barras - Dias da Semana */}
-        {showCharts && diasSemanaChartData && diasSemanaChartData.length > 0 && (
+        {/* {showCharts && diasSemanaChartData && diasSemanaChartData.length > 0 && (
           <View style={styles.section}>
             {renderVerticalBarChart(diasSemanaChartData, 'Distribuição por Dia da Semana')}
           </View>
-        )}
+        )} */}
 
         {/* Gráficos */}
         {showCharts && (

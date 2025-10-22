@@ -16,14 +16,14 @@ export class UnidadesService extends BaseService {
     // Se as unidades forem iguais, não precisa converter
     if (de === para) return valor;
     
-    // Converter de g para kg (multiplica por 1000)
+    // Converter de g para kg (divide por 1000)
     if (de === 0 && para === 1) {
-      return valor * 1000;
-    }
-    
-    // Converter de kg para g (divide por 1000)
-    if (de === 1 && para === 0) {
       return valor / 1000;
+    }
+
+    // Converter de kg para g (multiplica por 1000)
+    if (de === 1 && para === 0) {
+      return valor * 1000;
     }
     
     // Se chegou aqui, algo está errado
@@ -49,7 +49,8 @@ export class UnidadesService extends BaseService {
         const unidade = unidades[coluna];
         
         if (unidade === 0) {
-          resultado[coluna] = valor * 1000;
+          // unidade 0 = grams, normalize to kg by dividing
+          resultado[coluna] = valor / 1000;
         } else {
           resultado[coluna] = valor;
         }

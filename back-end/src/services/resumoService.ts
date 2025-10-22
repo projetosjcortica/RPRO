@@ -214,13 +214,27 @@ export class ResumoService {
                     const label = info ? info.label : `Produto ${i}`;
 
                     if (!usosPorProduto[prodKey]) {
-                        // store normalized kg quantity by default
-                        usosPorProduto[prodKey] = { quantidade: 0, label, unidade: 'kg' } as any;
-                        (usosPorProduto as any)[prodKey].quantidadeKg = 0;
+                        // Inicializar com valor formatado (string) e unidade
+                        usosPorProduto[prodKey] = { 
+                            quantidade: 0, 
+                            quantidadeFormatada: '0.000',
+                            label, 
+                            unidade 
+                        } as any;
                     }
-                    // accumulate normalized kg into both quantidade and quantidadeKg for simplicity
+                    // Acumular valor real (kg) para totais internos
                     usosPorProduto[prodKey].quantidade += valueForTotalKg;
-                    (usosPorProduto as any)[prodKey].quantidadeKg += valueForTotalKg;
+                    
+                    // Formatar valor com 3 casas decimais baseado na unidade original
+                    if (info && info.materia && info.materia.medida === 0) {
+                        // Gramas: converter para kg e formatar (ex: 800g -> "0.800")
+                        const kgValue = (usosPorProduto[prodKey].quantidade);
+                        (usosPorProduto[prodKey] as any).quantidadeFormatada = kgValue.toFixed(3);
+                    } else {
+                        // Kg: manter valor e formatar (ex: 1.234kg -> "1.234")
+                        (usosPorProduto[prodKey] as any).quantidadeFormatada = usosPorProduto[prodKey].quantidade.toFixed(3);
+                    }
+                    
                     totalPesos += valueForTotalKg; // accumulate normalized kg for totals
                     rowTotalKg += valueForTotalKg; // accumulate per-row for formula attribution
                 }

@@ -25,15 +25,7 @@ export function useUnidades() {
     try {
       // Se as unidades forem iguais, não precisa converter
       if (de === para) return valor;
-      
-      // Implementação local de conversão
-      if (de === 0 && para === 1) {
-        // g para kg (multiplica por 1000)
-        return valor * 1000;
-      } else if (de === 1 && para === 0) {
-        // kg para g (divide por 1000)
-        return valor / 1000;
-      }
+     return valor;
       
       throw new Error(`Conversão inválida: de ${de} para ${para}`);
     } catch (err: any) {

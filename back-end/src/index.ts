@@ -5,7 +5,6 @@ import { AppDataSource, dbService } from "./services/dbService";
 import { backupSvc } from "./services/backupService";
 import { parserService } from "./services/parserService";
 import { fileProcessorService } from "./services/fileProcessorService";
-import { cacheService } from "./services/CacheService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
 import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
@@ -410,7 +409,6 @@ app.post("/api/db/clear", async (req, res) => {
 app.post("/api/database/clean", async (req, res) => {
   try {
     await dbService.clearAll();
-    await cacheService.clearAll();
     return res.json({ ok: true });
   } catch (e: any) {
     console.error("[api/database/clean] error", e);
@@ -576,27 +574,23 @@ app.get("/api/db/export-sql", async (req, res) => {
   }
 });
 
-// Clear cache DB used by cacheService
+// Clear cache DB used by cacheService (deprecated - no longer needed)
 app.post("/api/cache/clear", async (req, res) => {
   try {
-    await cacheService.init();
-    await cacheService.clearAll();
-    return res.json({ ok: true });
+    return res.json({ ok: true, message: 'Cache system removed - no-op endpoint' });
   } catch (e: any) {
     console.error("[api/cache/clear] error", e);
     return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
-// Unified clear all: DB + cache + backups
+// Unified clear all: DB + backups
 app.post("/api/clear/all", async (req, res) => {
   try {
     await dbService.init();
-    await cacheService.init();
     await backupSvc.listBackups();
     // perform clears
     await dbService.clearAll();
-    await cacheService.clearAll();
     try {
       await backupSvc.clearAllBackups();
     } catch (e) {
@@ -613,7 +607,6 @@ app.post("/api/clear/all", async (req, res) => {
 app.post("/api/clear/production", async (req, res) => {
   try {
     await dbService.init();
-    await cacheService.init();
 
     // Clear production tables (keep User; MateriaPrima will be reset below)
     const relatorioRepo = AppDataSource.getRepository(Relatorio);
@@ -697,21 +690,7 @@ app.post("/api/clear/production", async (req, res) => {
     //   }
     // }
 
-    // Clear cache (both database records and SQLite file)
-    await cacheService.clearAll();
-
-    // Force delete the physical cache SQLite file. Use CacheService.deleteFile() which
-    // closes the datasource and unlinks the file; ignore errors (log only) as requested.
-    try {
-      const deleted = await cacheService.deleteFile();
-      if (deleted) {
-        console.log('[api/clear/production] Cache SQLite file deleted via cacheService.deleteFile()');
-      } else {
-        console.log('[api/clear/production] No cache SQLite file found to delete');
-      }
-    } catch (e) {
-      console.warn('[api/clear/production] force-delete cache file failed (ignored):', String(e));
-    }
+    // Cache system removed - no cleanup needed
 
     // Clear backups (optional)
     try {
@@ -894,122 +873,12 @@ app.get("/api/ihm/fetchLatest", async (req, res) => {
   }
 });
 
-// Cache para relatórios paginados - melhora performance significativamente
-const relatorioPaginateCache: Record<string, {
-  data: any;
-  timestamp: number;
-  expiresAt: number;
-  dataChecksum?: string;
-}> = {};
-
-const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 minutos (alinhado com frontend)
-const MAX_CACHE_ENTRIES = 100; // Máximo de entradas no cache
-
-// Função para calcular checksum dos dados do banco
-async function calculateDatabaseChecksum(): Promise<string> {
-  try {
-    const repo = AppDataSource.getRepository(Relatorio);
-    const count = await repo.count();
-    
-    // Obter última linha ordenada por ID (sem findOne que requer condições)
-    const lastRow = await repo.createQueryBuilder('r')
-      .orderBy('r.id', 'DESC')
-      .limit(1)
-      .getOne();
-    
-    const crypto = require('crypto');
-    const checksum = crypto
-      .createHash('md5')
-      .update(`${count}-${lastRow?.id || 0}-${lastRow?.Dia || ''}`)
-      .digest('hex');
-    return checksum;
-  } catch (err) {
-    console.error('[Cache] Erro ao calcular checksum:', err);
-    return '';
-  }
-}
-
-// Função para invalidar cache se dados mudaram
-async function invalidateCacheIfDataChanged(): Promise<void> {
-  try {
-    const currentChecksum = await calculateDatabaseChecksum();
-    const keys = Object.keys(relatorioPaginateCache);
-    
-    for (const key of keys) {
-      const cached = relatorioPaginateCache[key];
-      // Se checksum diferente, invalida o cache
-      if (cached.dataChecksum && cached.dataChecksum !== currentChecksum) {
-        console.log('[Cache] 📊 Dados mudaram - invalidando cache');
-        delete relatorioPaginateCache[key];
-      }
-    }
-  } catch (err) {
-    console.error('[Cache] Erro ao verificar mudanças:', err);
-  }
-}
-
-// Função para limpar entradas antigas do cache
-function limparCacheExpirado() {
-  const now = Date.now();
-  const keys = Object.keys(relatorioPaginateCache);
-  
-  // Remover entradas expiradas
-  keys.forEach(key => {
-    if (relatorioPaginateCache[key].expiresAt < now) {
-      delete relatorioPaginateCache[key];
-    }
-  });
-  
-  // Se ainda exceder o limite, remover as mais antigas
-  const remainingKeys = Object.keys(relatorioPaginateCache);
-  if (remainingKeys.length > MAX_CACHE_ENTRIES) {
-    const sorted = remainingKeys
-      .map(k => ({ key: k, timestamp: relatorioPaginateCache[k].timestamp }))
-      .sort((a, b) => a.timestamp - b.timestamp);
-    
-    const toRemove = sorted.slice(0, remainingKeys.length - MAX_CACHE_ENTRIES);
-    toRemove.forEach(item => delete relatorioPaginateCache[item.key]);
-  }
-}
-
-// Limpar o cache a cada 5 minutos para evitar vazamento de memória
-setInterval(limparCacheExpirado, 5 * 60 * 1000);
-
 app.get("/api/relatorio/paginate", async (req, res) => {
-  // quero que seja pro GET e POST
   try {
     // Verificar conexão do banco
     if (!AppDataSource.isInitialized) {
       console.warn('[relatorio/paginate] ⚠️ Database não inicializado, inicializando...');
       await dbService.init();
-    }
-
-    // Verificar se há mudanças nos dados do banco (com try-catch para não quebrar a paginação)
-    try {
-      await invalidateCacheIfDataChanged();
-    } catch (cacheErr) {
-      console.warn('[relatorio/paginate] ⚠️ Cache invalidation error (ignorando):', cacheErr);
-    }
-
-    // Criar chave única de cache baseada nos parâmetros da requisição
-    const cacheKey = JSON.stringify({
-      page: req.query.page,
-      pageSize: req.query.pageSize,
-      formula: req.query.formula,
-      dataInicio: req.query.dataInicio,
-      dataFim: req.query.dataFim,
-      codigo: req.query.codigo,
-      numero: req.query.numero,
-      all: req.query.all
-    });
-    
-    const now = Date.now();
-    const cached = relatorioPaginateCache[cacheKey];
-    
-    // Verificar se temos uma versão em cache válida (expiração de 2 minutos)
-    if (cached && cached.expiresAt > now) {
-      console.log('[relatorio/paginate] ✅ Servindo a partir do cache (hitrate)');
-      return res.json(cached.data);
     }
 
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
@@ -1158,7 +1027,10 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     }
 
     const mappedRows = rows.map((row: any) => {
-      const values: number[] = [];
+      const values: string[] = [];
+      const valuesRaw: number[] = [];
+      const unidades: string[] = [];
+      
       for (let i = 1; i <= 40; i++) {
         const prodValue = row[`Prod_${i}`];
         let v =
@@ -1168,11 +1040,27 @@ app.get("/api/relatorio/paginate", async (req, res) => {
             ? Number(prodValue)
             : 0;
         const materia = materiasByNum[i];
-        // If materia exists and medida===0 (grams), normalize to kg by multiplying 1000
-        if (materia && Number(materia.medida) === 0 && v) {
-          v = v * 1000;
+        
+        // valuesRaw: SEMPRE valor original do banco de dados (sem conversão)
+        valuesRaw.push(v);
+        
+        // Determinar unidade e formatar valor com 3 casas decimais
+        let unidade = 'kg';
+        let valorFormatado = '0.000';
+        
+        if (materia && Number(materia.medida) === 0) {
+          // Produto em gramas: converter para kg e formatar
+          unidade = 'g';
+          const valorKg = v / 1000;
+          valorFormatado = valorKg.toFixed(3);
+        } else {
+          // Produto em kg: formatar direto
+          unidade = 'kg';
+          valorFormatado = v.toFixed(3);
         }
-        values.push(v);
+        
+        values.push(valorFormatado);
+        unidades.push(unidade);
       }
 
       return {
@@ -1182,13 +1070,12 @@ app.get("/api/relatorio/paginate", async (req, res) => {
         Codigo: row.Form1 ?? 0,
         Numero: row.Form2 ?? 0,
         values,
+        valuesRaw,
+        unidades,
       };
     });
 
     const totalPages = Math.ceil(total / pageSizeNum);
-
-    // Calcular checksum dos dados para detecção inteligente de mudanças
-    const dataChecksum = await calculateDatabaseChecksum();
 
     const responseData = {
       rows: mappedRows,
@@ -1196,21 +1083,11 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       page: pageNum,
       pageSize: pageSizeNum,
       totalPages,
-      checksum: dataChecksum,
     };
 
-    // Armazenar no cache com checksum
-    relatorioPaginateCache[cacheKey] = {
-      data: responseData,
-      timestamp: now,
-      expiresAt: now + CACHE_DURATION_MS,
-      dataChecksum
-    };
-
-    // Headers para otimização de cache do navegador
+    // Headers para otimização de navegador (sem cache de servidor)
     res.set({
-      'Cache-Control': 'private, max-age=600', // 10 minutos no navegador
-      'ETag': `"${cacheKey.substring(0, 32)}"`, // ETag baseado na chave
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
     });
 
     return res.json(responseData);
@@ -1451,7 +1328,8 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
             ? Number(r[`Prod_${i}`])
             : 0;
         const mp = materiasByNum[i];
-        if (mp && Number(mp.medida) === 0 && v) v = v * 1000;
+        // If product is stored in grams, keep raw for export but mark that it was grams (do not multiply)
+        // The frontend and consumers should interpret units via materiaPrimaService
         rowArr.push(v);
       }
       ws.addRow(rowArr);
@@ -1645,306 +1523,7 @@ app.post(
   }
 );
 
-app.post("/api/relatorio/paginate", async (req, res) => {
-  // quero que seja pro GET e POST
-  try {
-    // Verificar se há mudanças nos dados do banco
-    await invalidateCacheIfDataChanged();
 
-    // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
-    const pageRaw = req.body.page;
-    const pageSizeRaw = req.body.pageSize;
-    const returnAll =
-      req.body &&
-      (req.body.all === true ||
-        String(req.body.all || "").toLowerCase() === "true");
-    const pageNum = ((): number => {
-      const n = Number(pageRaw);
-      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
-    })();
-    const pageSizeNum = ((): number => {
-      const n = Number(pageSizeRaw);
-      return Number.isFinite(n) && n > 0 ? Math.floor(n) : 100;
-    })();
-
-    // Separate filters: `codigo` (Form1 generated by IHM) and `numero` (Form2 provided by user)
-    const codigoRaw = req.body.codigo ?? null;
-    const numeroRaw = req.body.numero ?? null;
-    const dataInicio = req.body.dataInicio ?? null;
-    const dataFim = req.body.dataFim ?? null;
-    const normDataInicioBody = normalizeDateParam(dataInicio) || null;
-    const normDataFimBody = normalizeDateParam(dataFim) || null;
-    const sortBy = String(req.body.sortBy || "Dia");
-    const sortDir = String(req.body.sortDir || "DESC");
-    const includeProducts =
-      String(req.body.includeProducts || "true") === "true"; // Default to true for values
-
-    try {
-      await dbService.init();
-    } catch (dbError: any) {
-      console.error(
-        "[relatorio/paginate] Database initialization failed:",
-        dbError
-      );
-      return res.status(500).json({
-        error: "Database connection failed",
-        details: dbError?.message,
-      });
-    }
-
-    const repo = AppDataSource.getRepository(Relatorio);
-    const qb = repo.createQueryBuilder("r");
-
-    // Apply separate numeric filters when provided
-    if (codigoRaw != null && codigoRaw !== "") {
-      const c = Number(codigoRaw);
-      if (!Number.isNaN(c)) {
-        qb.andWhere("r.Form1 = :c", { c });
-      } else {
-        // if codigo is not numeric, ignore it (Form1 is numeric generated by IHM)
-      }
-    }
-
-    if (numeroRaw != null && numeroRaw !== "") {
-      const num = Number(numeroRaw);
-      if (!Number.isNaN(num)) {
-        qb.andWhere("r.Form2 = :num", { num });
-      } else {
-        // if numero is not numeric, ignore it
-      }
-    }
-    if (normDataInicioBody)
-      qb.andWhere("r.Dia >= :ds", { ds: normDataInicioBody });
-    if (normDataFimBody) {
-      const parts = normDataFimBody.split("-");
-      let dePlus = normDataFimBody;
-      try {
-        const dt = new Date(
-          Number(parts[0]),
-          Number(parts[1]) - 1,
-          Number(parts[2])
-        );
-        dt.setDate(dt.getDate() + 1);
-        const y = dt.getFullYear();
-        const m = String(dt.getMonth() + 1).padStart(2, "0");
-        const d = String(dt.getDate()).padStart(2, "0");
-        dePlus = `${y}-${m}-${d}`;
-      } catch (e) {
-        dePlus = normDataFimBody;
-      }
-      qb.andWhere("r.Dia < :dePlus", { dePlus });
-    }
-
-    // Allow sorting by Prod_1..Prod_40 (dynamic product columns)
-    const allowed = new Set([
-      "Dia",
-      "Hora",
-      "Nome",
-      "Form1",
-      "Form2",
-      // "processedFile",
-    ]);
-    // Also allow Prod_1 through Prod_40
-    for (let i = 1; i <= 40; i++) {
-      allowed.add(`Prod_${i}`);
-    }
-    const sb = allowed.has(sortBy) ? sortBy : "Dia";
-    const sd = sortDir === "ASC" ? "ASC" : "DESC";
-    if (sb === 'Dia') {
-      qb.orderBy('r.Dia', sd).addOrderBy('r.Hora', sd as any);
-    } else {
-      qb.orderBy(`r.${sb}`, sd);
-    }
-
-    // Always include products for values mapping
-    const offset = (pageNum - 1) * pageSizeNum;
-    const take = pageSizeNum;
-
-    let rows: any[] = [];
-    let total = 0;
-
-    try {
-      if (returnAll) {
-        rows = await qb.getMany();
-        total = rows.length;
-      } else {
-        [rows, total] = await qb.skip(offset).take(take).getManyAndCount();
-      }
-    } catch (queryError: any) {
-      console.error("[relatorio/paginate] Query execution failed:", queryError);
-      return res
-        .status(500)
-        .json({ error: "Database query failed", details: queryError?.message });
-    }
-
-    // Map rows to include values array from Prod_1 to Prod_40
-    // Normalize product values according to MateriaPrima.measure (grams->kg)
-    const materiasPost = await materiaPrimaService.getAll();
-    const materiasByNumPost: Record<number, any> = {};
-    for (const m of materiasPost) {
-      const n = typeof m.num === "number" ? m.num : Number(m.num);
-      if (!Number.isNaN(n)) materiasByNumPost[n] = m;
-    }
-
-    const mappedRows = rows.map((row: any) => {
-      const values: number[] = [];
-      for (let i = 1; i <= 40; i++) {
-        const prodValue = row[`Prod_${i}`];
-        let v =
-          typeof prodValue === "number"
-            ? prodValue
-            : prodValue != null
-            ? Number(prodValue)
-            : 0;
-        const materia = materiasByNumPost[i];
-        if (materia && Number(materia.medida) === 0 && v) {
-          v = v * 1000;
-        }
-        values.push(v);
-      }
-
-      return {
-        Dia: row.Dia || "",
-        Hora: row.Hora || "",
-        Nome: row.Nome || "",
-        Codigo: row.Form1 ?? 0,
-        Numero: row.Form2 ?? 0,
-        values,
-      };
-    });
-
-    const totalPages = Math.ceil(total / pageSizeNum);
-
-    // Calcular checksum dos dados para detecção inteligente de mudanças
-    const dataChecksum = await calculateDatabaseChecksum();
-
-    const responseData = {
-      rows: mappedRows,
-      total,
-      page: pageNum,
-      pageSize: pageSizeNum,
-      totalPages,
-      checksum: dataChecksum,
-    };
-
-    // Criar chave de cache baseada nos parâmetros da requisição
-    const cacheKeyPost = JSON.stringify({
-      page: pageNum,
-      pageSize: pageSizeNum,
-      codigo: codigoRaw,
-      numero: numeroRaw,
-      dataInicio: normDataInicioBody,
-      dataFim: normDataFimBody,
-      sortBy,
-      sortDir
-    });
-
-    // Armazenar no cache com checksum
-    const now = Date.now();
-    relatorioPaginateCache[cacheKeyPost] = {
-      data: responseData,
-      timestamp: now,
-      expiresAt: now + CACHE_DURATION_MS,
-      dataChecksum
-    };
-
-    return res.json(responseData);
-  } catch (e: any) {
-    console.error("[relatorio/paginate] Unexpected error:", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
-
-// Endpoint para monitorar status do cache de paginação
-app.get("/api/cache/paginate/status", async (req, res) => {
-  try {
-    const cacheEntries = Object.keys(relatorioPaginateCache).map(key => {
-      const cached = relatorioPaginateCache[key];
-      const params = JSON.parse(key);
-      return {
-        params,
-        timestamp: new Date(cached.timestamp).toISOString(),
-        expiresIn: Math.max(0, cached.expiresAt - Date.now()),
-        checksum: cached.dataChecksum,
-        rowsCount: cached.data?.rows?.length || 0,
-        totalRows: cached.data?.total || 0
-      };
-    });
-
-    return res.json({
-      cacheSize: Object.keys(relatorioPaginateCache).length,
-      maxSize: MAX_CACHE_ENTRIES,
-      entries: cacheEntries,
-      usage: `${Object.keys(relatorioPaginateCache).length}/${MAX_CACHE_ENTRIES}`,
-      currentChecksum: await calculateDatabaseChecksum()
-    });
-  } catch (e: any) {
-    console.error("[cache/status] Error:", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
-
-// Quick endpoint to get current DB checksum for pagination cache
-app.get('/api/cache/paginate/checksum', async (req, res) => {
-  try {
-    const checksum = await calculateDatabaseChecksum();
-    return res.json({ checksum });
-  } catch (e: any) {
-    console.error('[cache/checksum] Error:', e);
-    return res.status(500).json({ error: e?.message || 'internal' });
-  }
-});
-
-// Endpoint para limpar cache de paginação
-app.post("/api/cache/paginate/clear", async (req, res) => {
-  try {
-    const clearedCount = Object.keys(relatorioPaginateCache).length;
-    Object.keys(relatorioPaginateCache).forEach(key => {
-      delete relatorioPaginateCache[key];
-    });
-    
-    console.log(`[cache/clear] 🗑️ Cache limpo: ${clearedCount} entradas removidas`);
-    
-    return res.json({
-      message: "Cache cleared successfully",
-      cleared: clearedCount,
-      remaining: Object.keys(relatorioPaginateCache).length
-    });
-  } catch (e: any) {
-    console.error("[cache/clear] Error:", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
-
-// Endpoint para limpar cache de um filtro específico
-app.post("/api/cache/paginate/clear-filter", async (req, res) => {
-  try {
-    const { params } = req.body;
-    if (!params) {
-      return res.status(400).json({ error: "params required" });
-    }
-
-    const cacheKey = JSON.stringify(params);
-    if (relatorioPaginateCache[cacheKey]) {
-      delete relatorioPaginateCache[cacheKey];
-      console.log(`[cache/clear-filter] 🗑️ Cache do filtro removido`);
-      return res.json({
-        message: "Cache entry cleared",
-        removed: true,
-        remaining: Object.keys(relatorioPaginateCache).length
-      });
-    }
-
-    return res.json({
-      message: "Cache entry not found",
-      removed: false,
-      remaining: Object.keys(relatorioPaginateCache).length
-    });
-  } catch (e: any) {
-    console.error("[cache/clear-filter] Error:", e);
-    return res.status(500).json({ error: e?.message || "internal" });
-  }
-});
 
 app.get("/api/db/listBatches", async (req, res) => {
   try {
@@ -2820,7 +2399,7 @@ app.get("/api/chartdata/formulas", async (req, res) => {
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
           // stored in grams -> convert to kg
-          rowTotalKg += raw * 1000;
+          rowTotalKg += raw / 1000;
         } else {
           rowTotalKg += raw;
         }
@@ -2932,7 +2511,8 @@ app.get("/api/chartdata/produtos", async (req, res) => {
     const chartData = Object.entries(productSums)
       .map(([name, value]) => {
         const unit = productUnits[name] || "kg";
-        const valueKg = unit === "g" ? value * 1000 : value;
+        // Normalize to kg: if stored in grams, divide by 1000
+        const valueKg = unit === "g" ? value / 1000 : value;
         return {
           name,
           value: valueKg,
@@ -3026,7 +2606,8 @@ app.get("/api/chartdata/horarios", async (req, res) => {
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw * 1000;
+          // stored in grams -> convert to kg
+          rowTotalKg += raw / 1000;
         } else {
           rowTotalKg += raw;
         }
@@ -3165,7 +2746,8 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw * 1000;
+          // stored in grams -> convert to kg
+          rowTotalKg += raw / 1000;
         } else {
           rowTotalKg += raw;
         }
@@ -3385,26 +2967,34 @@ app.get("/api/chartdata/semana", async (req, res) => {
     const weekdayTotals = Array(7).fill(0);
     const weekdayCounts = Array(7).fill(0);
 
+    // Also build a per-date total map (YYYY-MM-DD) so callers can get totals for specific dates
+    const perDateTotals: Record<string, number> = {};
+
     for (const r of rows) {
       if (!r.Dia) continue;
       const date = parseDia(r.Dia);
       if (!date) continue;
 
       const dayIndex = date.getDay();
-      
-      // Calcular total da linha normalizado para kg
+
+      // Calcular total da linha normalizado para kg somando TODOS os produtos
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
-        const raw =
-          typeof r[`Prod_${i}`] === "number"
-            ? r[`Prod_${i}`]
-            : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
+        // Prefer explicit Prod_N field, fallback to values array when present
+        let raw = 0;
+        const prodKey = `Prod_${i}`;
+        if (Object.prototype.hasOwnProperty.call(r, prodKey) && r[prodKey] != null) {
+          raw = typeof r[prodKey] === 'number' ? r[prodKey] : Number(r[prodKey]);
+        } else if (Array.isArray((r as any).values) && (r as any).values[i - 1] != null) {
+          raw = Number((r as any).values[i - 1]);
+        }
+
         if (!raw || raw <= 0) continue;
+
         const mp = materiasByNum[i];
+        // If medida === 0 it means original value is in grams → convert to kg by dividing by 1000
         if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw * 1000; // Converter gramas para kg
+          rowTotalKg += raw / 1000;
         } else {
           rowTotalKg += raw;
         }
@@ -3414,6 +3004,10 @@ app.get("/api/chartdata/semana", async (req, res) => {
 
       weekdayTotals[dayIndex] += rowTotalKg;
       weekdayCounts[dayIndex] += 1;
+
+      // accumulate per-date total (use ISO date yyyy-mm-dd)
+      const isoDay = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      perDateTotals[isoDay] = (perDateTotals[isoDay] || 0) + rowTotalKg;
     }
 
     const chartData = weekdays.map((name, idx) => ({
@@ -3430,8 +3024,14 @@ app.get("/api/chartdata/semana", async (req, res) => {
       chartData[0]
     );
 
+    // Build per-date chart array sorted by date
+    const chartDataByDate = Object.keys(perDateTotals)
+      .sort()
+      .map((d) => ({ date: d, value: perDateTotals[d] }));
+
     return res.json({
       chartData,
+      chartDataByDate,
       weekStart: startStr,
       weekEnd: endStr,
       total: weekTotal,
