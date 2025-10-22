@@ -606,7 +606,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
             <View key={idx} style={{ marginBottom: 10 }}>
               {renderTable(produtosPorCategoria[cat], (p) => ({
                 col1: p.nome,
-                col2: ((p.unidade === "kg" ? p.qtd : p.qtd / 1000).toLocaleString("pt-BR", {
+                col2: ((p.unidade === "kg" ? p.qtd : p.qtd * 1000).toLocaleString("pt-BR", {
                   minimumFractionDigits: 3,
                 })+" kg"),
               }))}

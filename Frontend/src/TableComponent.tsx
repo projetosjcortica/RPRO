@@ -281,7 +281,7 @@ export function TableComponent({
     try {
       const unidade = produtosInfo[_colKey || ""]?.unidade || "kg";
       // If product unit is grams, display in grams (kg -> g)
-      if (unidade === "g") return n * 1000;
+      if (unidade === "g") return n / 1000;
     } catch (e) {}
     return n;
   };

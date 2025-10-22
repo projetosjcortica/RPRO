@@ -16,14 +16,14 @@ export class UnidadesService extends BaseService {
     // Se as unidades forem iguais, não precisa converter
     if (de === para) return valor;
     
-    // Converter de g para kg (divide por 1000)
+    // Converter de g para kg (multiplica por 1000)
     if (de === 0 && para === 1) {
-      return valor / 1000;
+      return valor * 1000;
     }
     
-    // Converter de kg para g (multiplica por 1000)
+    // Converter de kg para g (divide por 1000)
     if (de === 1 && para === 0) {
-      return valor * 1000;
+      return valor / 1000;
     }
     
     // Se chegou aqui, algo está errado
@@ -38,7 +38,7 @@ export class UnidadesService extends BaseService {
    * @returns Objeto com valores normalizados em kg
    * @example valores = { col6: 500, col7: 2 }, 
    * unidades = { col6: 0, col7: 1 } 
-   * => { col6: 0.5, col7: 2 }
+   * => { col6: 500000, col7: 2 }
    */
   normalizarParaKg(valores: Record<string, number>, unidades: Record<string, number>): Record<string, number> {
     const resultado: Record<string, number> = {};
@@ -49,7 +49,7 @@ export class UnidadesService extends BaseService {
         const unidade = unidades[coluna];
         
         if (unidade === 0) {
-          resultado[coluna] = valor / 1000;
+          resultado[coluna] = valor * 1000;
         } else {
           resultado[coluna] = valor;
         }

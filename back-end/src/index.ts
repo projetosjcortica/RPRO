@@ -31,6 +31,7 @@ import { configService } from "./services/configService";
 import { setRuntimeConfigs, getRuntimeConfig } from "./core/runtimeConfig";
 import { csvConverterService } from "./services/csvConverterService";
 import { changeDetectionService } from "./services/changeDetectionService";
+import { statsLogger, statsMiddleware } from "./services/statsLogger";
 
 console.log("✅ [Startup] Módulos importados com sucesso");
 console.log("✅ [Startup] fileProcessorService:", fileProcessorService ? "LOADED" : "UNDEFINED");
@@ -303,6 +304,9 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: "20mb" }));
 // Also accept large urlencoded bodies if any clients send form-encoded data
 app.use(express.urlencoded({ extended: true, limit: "20mb" }));
+
+// Statistics logging middleware
+app.use(statsMiddleware);
 
 // Helper: normalize incoming date strings to ISO `yyyy-MM-dd` used in DB
 function normalizeDateParam(d: any): string | null {
@@ -1164,9 +1168,9 @@ app.get("/api/relatorio/paginate", async (req, res) => {
             ? Number(prodValue)
             : 0;
         const materia = materiasByNum[i];
-        // If materia exists and medida===0 (grams), normalize to kg by dividing 1000
+        // If materia exists and medida===0 (grams), normalize to kg by multiplying 1000
         if (materia && Number(materia.medida) === 0 && v) {
-          v = v / 1000;
+          v = v * 1000;
         }
         values.push(v);
       }
@@ -1447,7 +1451,7 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
             ? Number(r[`Prod_${i}`])
             : 0;
         const mp = materiasByNum[i];
-        if (mp && Number(mp.medida) === 0 && v) v = v / 1000;
+        if (mp && Number(mp.medida) === 0 && v) v = v * 1000;
         rowArr.push(v);
       }
       ws.addRow(rowArr);
@@ -1794,7 +1798,7 @@ app.post("/api/relatorio/paginate", async (req, res) => {
             : 0;
         const materia = materiasByNumPost[i];
         if (materia && Number(materia.medida) === 0 && v) {
-          v = v / 1000;
+          v = v * 1000;
         }
         values.push(v);
       }
@@ -2816,7 +2820,7 @@ app.get("/api/chartdata/formulas", async (req, res) => {
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
           // stored in grams -> convert to kg
-          rowTotalKg += raw / 1000;
+          rowTotalKg += raw * 1000;
         } else {
           rowTotalKg += raw;
         }
@@ -2928,7 +2932,7 @@ app.get("/api/chartdata/produtos", async (req, res) => {
     const chartData = Object.entries(productSums)
       .map(([name, value]) => {
         const unit = productUnits[name] || "kg";
-        const valueKg = unit === "g" ? value / 1000 : value;
+        const valueKg = unit === "g" ? value * 1000 : value;
         return {
           name,
           value: valueKg,
@@ -3022,7 +3026,7 @@ app.get("/api/chartdata/horarios", async (req, res) => {
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw / 1000;
+          rowTotalKg += raw * 1000;
         } else {
           rowTotalKg += raw;
         }
@@ -3161,7 +3165,7 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw / 1000;
+          rowTotalKg += raw * 1000;
         } else {
           rowTotalKg += raw;
         }
@@ -3268,7 +3272,7 @@ app.get("/api/chartdata/stats", async (req, res) => {
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw / 1000; // Converter gramas para kg
+          rowTotalKg += raw * 1000; // Converter gramas para kg
         } else {
           rowTotalKg += raw;
         }
@@ -3400,7 +3404,7 @@ app.get("/api/chartdata/semana", async (req, res) => {
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw / 1000; // Converter gramas para kg
+          rowTotalKg += raw * 1000; // Converter gramas para kg
         } else {
           rowTotalKg += raw;
         }
@@ -3535,7 +3539,7 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
           if (!raw || raw <= 0) continue;
           const mp = materiasByNum[i];
           if (mp && Number(mp.medida) === 0) {
-            rowTotalKg += raw / 1000; // Converter gramas para kg
+            rowTotalKg += raw * 1000; // Converter gramas para kg
           } else {
             rowTotalKg += raw;
           }
@@ -3576,6 +3580,70 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
     return res.status(500).json({ error: "internal" });
   }
 });
+
+// ==================== ENDPOINTS DE ESTATÍSTICAS ====================
+
+// GET /api/stats - Obter estatísticas de uso
+app.get('/api/stats', async (req, res) => {
+  try {
+    const { startDate, endDate, endpoint, limit } = req.query;
+    
+    const options: any = {};
+    if (startDate) options.startDate = new Date(String(startDate));
+    if (endDate) options.endDate = new Date(String(endDate));
+    if (endpoint) options.endpoint = String(endpoint);
+    if (limit) options.limit = Number(limit);
+    
+    const entries = statsLogger.readStats(options);
+    const metrics = statsLogger.getMetrics(entries);
+    
+    return res.json({
+      entries,
+      metrics,
+      period: {
+        start: options.startDate?.toISOString() || null,
+        end: options.endDate?.toISOString() || null
+      }
+    });
+  } catch (e: any) {
+    console.error('[api/stats] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// GET /api/stats/metrics - Obter apenas métricas agregadas
+app.get('/api/stats/metrics', async (req, res) => {
+  try {
+    const { startDate, endDate, endpoint } = req.query;
+    
+    const options: any = {};
+    if (startDate) options.startDate = new Date(String(startDate));
+    if (endDate) options.endDate = new Date(String(endDate));
+    if (endpoint) options.endpoint = String(endpoint);
+    
+    const entries = statsLogger.readStats(options);
+    const metrics = statsLogger.getMetrics(entries);
+    
+    return res.json(metrics);
+  } catch (e: any) {
+    console.error('[api/stats/metrics] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// POST /api/stats/cleanup - Limpar logs antigos
+app.post('/api/stats/cleanup', async (req, res) => {
+  try {
+    const { daysToKeep = 30 } = req.body;
+    statsLogger.cleanup(Number(daysToKeep));
+    return res.json({ ok: true, message: 'Logs antigos removidos' });
+  } catch (e: any) {
+    console.error('[api/stats/cleanup] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// ==================== FIM DOS ENDPOINTS ====================
 
 // Start HTTP server (prefer runtime-config 'http_port' then env vars)
 const HTTP_PORT = Number(

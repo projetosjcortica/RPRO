@@ -209,19 +209,34 @@ export default function Report() {
     setResumoReloadFlag((flag) => flag + 1);
   }, []);
 
-  // Toggle sort handler for Table headers
+  // Toggle sort handler for Table headers - OTIMIZADO
   const handleToggleSort = useCallback((col: string) => {
     console.log('[report] handleToggleSort called with col:', col, 'current sortBy:', sortBy);
+    
+    // Sistema de ordenação em 3 estados:
+    // Estado 1: Ordena DESC (primeira vez)
+    // Estado 2: Ordena ASC (segunda vez)
+    // Estado 3: Remove ordenação/volta ao padrão (terceira vez)
+    
     if (sortBy === col) {
-      const newDir = sortDir === 'ASC' ? 'DESC' : 'ASC';
-      console.log('[report] Same column, toggling direction to:', newDir);
-      setSortDir(newDir);
+      if (sortDir === 'DESC') {
+        // Segundo clique: muda para ASC
+        console.log('[report] Same column, toggling direction to: ASC');
+        setSortDir('ASC');
+      } else {
+        // Terceiro clique: remove ordenação
+        console.log('[report] Same column, resetting sort to default (Dia DESC)');
+        setSortBy('Dia');
+        setSortDir('DESC');
+      }
     } else {
+      // Primeira vez nesta coluna: ordena DESC
       console.log('[report] New column, setting sortBy to:', col);
       setSortBy(col);
       setSortDir('DESC');
     }
-    // trigger reload of table data
+    
+    // Sempre volta para primeira página ao mudar ordenação
     setPage(1);
   }, [sortBy, sortDir]);
 
@@ -620,6 +635,11 @@ export default function Report() {
     prevCollectorRunning.current = collectorRunning;
   }, [collectorRunning, refetch, refreshResumo]);
 
+  // Recarregar resumo ao mudar de aba
+  useEffect(() => {
+    refreshResumo();
+  }, [view, refreshResumo]);
+
   const onLabelChange = (colKey: string, newName: string, unidade?: string) => {
     setColLabels((prev) => ({ ...prev, [colKey]: newName }));
     setProdutosInfo((prev) => ({
@@ -859,7 +879,7 @@ export default function Report() {
             const nome = produtosInfo[produtoId]?.nome || String(key);
             let v = Number((val as any)?.quantidade ?? 0) || 0;
             const unidade = produtosInfo[produtoId]?.unidade || "kg";
-            if (unidade === "g") v = v / 1000;
+            if (unidade === "g") v = v * 1000;
             out.push({ name: nome, value: v });
           }
         } else if (
@@ -1625,9 +1645,9 @@ export default function Report() {
                               const unidade = produto.unidade ||
                                 (produto.colKey && produtosInfo[produto.colKey]?.unidade) ||
                                 "kg";
-                              // Se for gramas, dividir por 1000 para exibir em kg
+                              // Se for gramas, multiplicar por 1000 para exibir em kg
                               const valorExibicao = unidade === "g" 
-                                ? produto.qtd / 1000 
+                                ? produto.qtd * 1000 
                                 : produto.qtd;
                               
                               return (

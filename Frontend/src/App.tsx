@@ -246,6 +246,7 @@ const App = () => {
             position="bottom-right"
             autoClose={3000}
             theme="light"
+            limit={3}
           />
       </div>
     </div>
