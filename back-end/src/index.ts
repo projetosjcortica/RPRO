@@ -1041,7 +1041,10 @@ app.get("/api/relatorio/paginate", async (req, res) => {
             : 0;
         const materia = materiasByNum[i];
         
-        // valuesRaw: SEMPRE valor original do banco de dados (sem conversão)
+        // Garantir que não há valores negativos (dados corrompidos)
+        if (v < 0) v = 0;
+        
+        // valuesRaw: SEMPRE valor original do banco de dados (sem conversão, sem negativos)
         valuesRaw.push(v);
         
         // Determinar unidade e formatar valor com 3 casas decimais
@@ -2389,20 +2392,33 @@ app.get("/api/chartdata/formulas", async (req, res) => {
       // compute row total normalized to kg
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
-        const raw =
+        let raw =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
             ? Number(r[`Prod_${i}`])
             : 0;
-        if (!raw || raw <= 0) continue;
+        
+        // Garantir que não há valores negativos
+        if (raw < 0) raw = 0;
+        
+        if (!raw || raw === 0) continue;
+        
         const mp = materiasByNum[i];
-        if (mp && Number(mp.medida) === 0) {
-          // stored in grams -> convert to kg
-          rowTotalKg += raw / 1000;
-        } else {
-          rowTotalKg += raw;
+        let valueKg = raw;
+        
+        if (mp) {
+          const medida = typeof mp.medida === 'number' ? mp.medida : Number(mp.medida || 1);
+          if (medida === 0) {
+            // stored in grams -> convert to kg
+            valueKg = raw / 1000;
+          } else {
+            // já em kg
+            valueKg = raw;
+          }
         }
+        
+        rowTotalKg += valueKg;
       }
 
       if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
@@ -2489,33 +2505,47 @@ app.get("/api/chartdata/produtos", async (req, res) => {
 
     for (const r of rows) {
       for (let i = 1; i <= 40; i++) {
-        const v =
+        let v =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
             ? Number(r[`Prod_${i}`])
             : 0;
 
+        // Garantir que não há valores negativos
+        if (v < 0) v = 0;
+        
         if (v <= 0) continue;
 
         const mp = materiasByNum[i];
         const productKey = mp?.produto || `Produto ${i}`;
-        const unidade = mp && Number(mp.medida) === 0 ? "g" : "kg";
+        
+        // Calcular valor em kg considerando a unidade de armazenagem
+        let valueKg = v;
+        if (mp) {
+          const medida = typeof mp.medida === 'number' ? mp.medida : Number(mp.medida || 1);
+          if (medida === 0) {
+            // stored in grams -> convert to kg
+            valueKg = v / 1000;
+          } else {
+            // já em kg
+            valueKg = v;
+          }
+        }
+        
+        const unidade = "kg";
 
-        productSums[productKey] = (productSums[productKey] || 0) + v;
+        productSums[productKey] = (productSums[productKey] || 0) + valueKg;
         productUnits[productKey] = unidade;
       }
     }
 
-    // Normalize product sums to KG for coherent charting
+    // Chart data já normalizado em kg
     const chartData = Object.entries(productSums)
       .map(([name, value]) => {
-        const unit = productUnits[name] || "kg";
-        // Normalize to kg: if stored in grams, divide by 1000
-        const valueKg = unit === "g" ? value / 1000 : value;
         return {
           name,
-          value: valueKg,
+          value,
           unit: "kg",
         };
       })
@@ -2938,8 +2968,6 @@ app.get("/api/chartdata/semana", async (req, res) => {
     }
 
     const rows = await qb.getMany();
-
-    // Helper para parsear datas
     const parseDia = (dia?: string): Date | null => {
       if (!dia) return null;
       const s = dia.trim();
@@ -2976,37 +3004,53 @@ app.get("/api/chartdata/semana", async (req, res) => {
       if (!date) continue;
 
       const dayIndex = date.getDay();
+      const isoDay = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 
       // Calcular total da linha normalizado para kg somando TODOS os produtos
       let rowTotalKg = 0;
+      
       for (let i = 1; i <= 40; i++) {
-        // Prefer explicit Prod_N field, fallback to values array when present
+        // Sempre lê do Prod_N no banco
         let raw = 0;
         const prodKey = `Prod_${i}`;
         if (Object.prototype.hasOwnProperty.call(r, prodKey) && r[prodKey] != null) {
           raw = typeof r[prodKey] === 'number' ? r[prodKey] : Number(r[prodKey]);
-        } else if (Array.isArray((r as any).values) && (r as any).values[i - 1] != null) {
-          raw = Number((r as any).values[i - 1]);
         }
 
-        if (!raw || raw <= 0) continue;
+        // Garantir que não há valores negativos
+        if (raw < 0) raw = 0;
+        
+        // Pular zeros
+        if (!raw || raw === 0) continue;
 
         const mp = materiasByNum[i];
-        // If medida === 0 it means original value is in grams → convert to kg by dividing by 1000
-        if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw / 1000;
+        // Conversão baseada no tipo de unidade do produto
+        let valueKg = raw;
+        
+        if (mp) {
+          const medida = typeof mp.medida === 'number' ? mp.medida : Number(mp.medida || 1);
+          if (medida === 0) {
+            // Armazenado em gramas no banco -> converter para kg
+            valueKg = raw / 1000;
+          } else {
+            // Já em kg
+            valueKg = raw;
+          }
         } else {
-          rowTotalKg += raw;
+          // Se não achar metadata, assume kg (segurança)
+          valueKg = raw;
         }
+        
+        rowTotalKg += valueKg;
       }
 
+      // Só contar a linha se tiver alguma produção válida
       if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
 
       weekdayTotals[dayIndex] += rowTotalKg;
       weekdayCounts[dayIndex] += 1;
 
       // accumulate per-date total (use ISO date yyyy-mm-dd)
-      const isoDay = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
       perDateTotals[isoDay] = (perDateTotals[isoDay] || 0) + rowTotalKg;
     }
 
