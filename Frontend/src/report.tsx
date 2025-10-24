@@ -1627,7 +1627,7 @@ export default function Report() {
                                 "kg";
                               // Se for gramas, multiplicar por 1000 para exibir em kg
                               const valorExibicao = unidade === "g" 
-                                ? produto.qtd * 1000 
+                                ? produto.qtd 
                                 : produto.qtd;
                               
                               return (

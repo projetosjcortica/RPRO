@@ -31,6 +31,7 @@ import { setRuntimeConfigs, getRuntimeConfig } from "./core/runtimeConfig";
 import { csvConverterService } from "./services/csvConverterService";
 import { changeDetectionService } from "./services/changeDetectionService";
 import { statsLogger, statsMiddleware } from "./services/statsLogger";
+import { cacheService } from "./services/CacheService";
 
 console.log("✅ [Startup] Módulos importados com sucesso");
 console.log("✅ [Startup] fileProcessorService:", fileProcessorService ? "LOADED" : "UNDEFINED");
@@ -577,6 +578,8 @@ app.get("/api/db/export-sql", async (req, res) => {
 // Clear cache DB used by cacheService (deprecated - no longer needed)
 app.post("/api/cache/clear", async (req, res) => {
   try {
+    await cacheService.init();
+    await cacheService.clearAll();
     return res.json({ ok: true, message: 'Cache system removed - no-op endpoint' });
   } catch (e: any) {
     console.error("[api/cache/clear] error", e);
@@ -588,9 +591,11 @@ app.post("/api/cache/clear", async (req, res) => {
 app.post("/api/clear/all", async (req, res) => {
   try {
     await dbService.init();
+    await cacheService.init();
     await backupSvc.listBackups();
     // perform clears
     await dbService.clearAll();
+    await cacheService.clearAll();
     try {
       await backupSvc.clearAllBackups();
     } catch (e) {
@@ -690,8 +695,19 @@ app.post("/api/clear/production", async (req, res) => {
     //   }
     // }
 
-    // Cache system removed - no cleanup needed
+    await cacheService.clearAll();
 
+    // Cache system removed - no cleanup needed
+    try {
+      const deleted = await cacheService.deleteFile();
+      if (deleted) {
+        console.log('[api/clear/production] Cache SQLite file deleted via cacheService.deleteFile()');
+      } else {
+        console.log('[api/clear/production] No cache SQLite file found to delete');
+      }
+    } catch (e) {
+      console.warn('[api/clear/production] force-delete cache file failed (ignored):', String(e));
+    }
     // Clear backups (optional)
     try {
       await backupSvc.clearAllBackups();

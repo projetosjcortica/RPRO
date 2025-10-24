@@ -228,8 +228,8 @@ const App = () => {
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
-              <div className="flex justify-start">
-                <img src={monoLogo} alt="Logo" className="w-25 ml-4 opacity-70" />
+              <div className="flex justify-center">
+                <img src={monoLogo} alt="Logo" className="w-25 opacity-80" />
               </div>
           </SidebarFooter>
         </Sidebar>
