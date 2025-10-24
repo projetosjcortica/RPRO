@@ -4,7 +4,7 @@ import Home from './home';
 import Login from './Login';
 import useAuth from './hooks/useAuth';
 // import Profile from './Profile';
-import { ProfileConfig, IHMConfig, DatabaseConfig, AdminConfig, usePersistentForm } from './config';
+import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './config';
 import Report from './report';
 // import CustomReports from './CustomReports';
 import Estoque from './estoque';
@@ -23,6 +23,7 @@ import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, Dialog
 // import { useMediaQuery } from './hooks/use-mobile';
 import logo from './public/logo.png'
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
+import monoLogo from './public/logoCmono.png'
 
 const App = () => {  
   const navigate = useNavigate();
@@ -227,7 +228,9 @@ const App = () => {
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
-              <img src="./logoCmono.png" alt=""/>
+              <div className="flex justify-start">
+                <img src={monoLogo} alt="Logo" className="w-25 ml-4 opacity-70" />
+              </div>
           </SidebarFooter>
         </Sidebar>
       </SidebarProvider>

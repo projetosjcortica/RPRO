@@ -1,4 +1,5 @@
-import { Document, Page, Text, StyleSheet, View, Font, Image, Svg, Path, Rect, Line } from "@react-pdf/renderer";
+// import { Document, Page, Text, StyleSheet, View, Font, Image, Svg, Path, Rect, Line } from "@react-pdf/renderer";
+import { Document, Page, Text, StyleSheet, View, Font, Image} from "@react-pdf/renderer";
 import { DASHBOARD_COLORS as palette } from './lib/colors';
 import type { FC } from "react";
 
@@ -164,11 +165,11 @@ export const MyDocument: FC<MyDocumentProps> = ({
   chartData = [],
   comentarios = [],
   showCharts = true,
-  produtosChartData = [],
-  formulasChartData = [],
-  horariosChartData = [],
-  semanaChartData = [],
-  diasSemanaChartData = [],
+  // produtosChartData = [],
+  // formulasChartData = [],
+  // horariosChartData = [],
+  // semanaChartData = [],
+  // diasSemanaChartData = [],
 }) => {
   const dataGeracao = new Date().toLocaleString("pt-BR");
 
@@ -220,260 +221,260 @@ export const MyDocument: FC<MyDocumentProps> = ({
   );
 
   // Função para renderizar gráficos de donut SVG com labels em caixas ao redor
-  const renderDonutChart = (data: { name: string; value: number }[], title: string) => {
-    if (!data || data.length === 0) return null;
+  // const renderDonutChart = (data: { name: string; value: number }[], title: string) => {
+  //   if (!data || data.length === 0) return null;
 
-    const total = data.reduce((sum, item) => sum + item.value, 0);
-    if (total <= 0) return null;
+  //   const total = data.reduce((sum, item) => sum + item.value, 0);
+  //   if (total <= 0) return null;
 
-  // Use all items (caller should control how many items are present)
-  const displayData = data;
+  // // Use all items (caller should control how many items are present)
+  // const displayData = data;
 
-  // Use shared palette (print-friendly)
-  const colors = (palette && Array.isArray(palette) && palette.length > 0) ? palette : ['#ff2626ff', '#5e5e5eff', '#d4d4d4ff', '#ffa8a8ff', '#1b1b1bff'];
+  // // Use shared palette (print-friendly)
+  // const colors = (palette && Array.isArray(palette) && palette.length > 0) ? palette : ['#ff2626ff', '#5e5e5eff', '#d4d4d4ff', '#ffa8a8ff', '#1b1b1bff'];
 
-    // Calcular ângulos para cada fatia
-    let currentAngle = 0;
-    const slices = displayData.map((item, index) => {
-      const percentage = (item.value / total) * 100;
-      const angle = (item.value / total) * 360;
-      const midAngle = currentAngle + angle / 2;
-      const slice = {
-        ...item,
-        percentage,
-        startAngle: currentAngle,
-        endAngle: currentAngle + angle,
-        midAngle,
-        color: colors[index % colors.length],
-      };
-      currentAngle += angle;
-      return slice;
-    });
+  //   // Calcular ângulos para cada fatia
+  //   let currentAngle = 0;
+  //   const slices = displayData.map((item, index) => {
+  //     const percentage = (item.value / total) * 100;
+  //     const angle = (item.value / total) * 360;
+  //     const midAngle = currentAngle + angle / 2;
+  //     const slice = {
+  //       ...item,
+  //       percentage,
+  //       startAngle: currentAngle,
+  //       endAngle: currentAngle + angle,
+  //       midAngle,
+  //       color: colors[index % colors.length],
+  //     };
+  //     currentAngle += angle;
+  //     return slice;
+  //   });
 
-    // Gerar paths SVG para donut
-    const generateDonutPath = (startAngle: number, endAngle: number) => {
-      const radius = 55;
-      const innerRadius = 38;
-      const cx = 150;
-      const cy = 120;
+  //   // Gerar paths SVG para donut
+  //   const generateDonutPath = (startAngle: number, endAngle: number) => {
+  //     const radius = 55;
+  //     const innerRadius = 38;
+  //     const cx = 150;
+  //     const cy = 120;
 
-      const startRad = (startAngle - 90) * (Math.PI / 180);
-      const endRad = (endAngle - 90) * (Math.PI / 180);
+  //     const startRad = (startAngle - 90) * (Math.PI / 180);
+  //     const endRad = (endAngle - 90) * (Math.PI / 180);
 
-      const x1 = cx + radius * Math.cos(startRad);
-      const y1 = cy + radius * Math.sin(startRad);
-      const x2 = cx + radius * Math.cos(endRad);
-      const y2 = cy + radius * Math.sin(endRad);
-      const x3 = cx + innerRadius * Math.cos(endRad);
-      const y3 = cy + innerRadius * Math.sin(endRad);
-      const x4 = cx + innerRadius * Math.cos(startRad);
-      const y4 = cy + innerRadius * Math.sin(startRad);
+  //     const x1 = cx + radius * Math.cos(startRad);
+  //     const y1 = cy + radius * Math.sin(startRad);
+  //     const x2 = cx + radius * Math.cos(endRad);
+  //     const y2 = cy + radius * Math.sin(endRad);
+  //     const x3 = cx + innerRadius * Math.cos(endRad);
+  //     const y3 = cy + innerRadius * Math.sin(endRad);
+  //     const x4 = cx + innerRadius * Math.cos(startRad);
+  //     const y4 = cy + innerRadius * Math.sin(startRad);
 
-      const largeArc = endAngle - startAngle > 180 ? 1 : 0;
+  //     const largeArc = endAngle - startAngle > 180 ? 1 : 0;
 
-      return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`;
-    };
+  //     return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`;
+  //   };
 
-    return (
-      <View style={{ marginBottom: 20 }}>
-        <Text style={{
-          fontSize: 14,
-          fontWeight: 'bold',
-          backgroundColor: '#dadadaff',
-          padding: 6,
-          borderRadius: 4,
-          marginBottom: 12,
-          color: '#af1e1eff',
-        }}>{title}</Text>
+  //   return (
+  //     <View style={{ marginBottom: 20 }}>
+  //       <Text style={{
+  //         fontSize: 14,
+  //         fontWeight: 'bold',
+  //         backgroundColor: '#dadadaff',
+  //         padding: 6,
+  //         borderRadius: 4,
+  //         marginBottom: 12,
+  //         color: '#af1e1eff',
+  //       }}>{title}</Text>
         
-        {/* SVG com donut */}
-        <View style={{ alignItems: 'center' }}>
-            <Svg width="200" height="200" viewBox="0 0 300 240">
-            {/* Donut central */}
-            {slices.map((slice, index) => (
-              <Path
-                key={`slice-${index}`}
-                d={generateDonutPath(slice.startAngle, slice.endAngle)}
-                  fill={slice.color}
-                  stroke="#ffffff"
-                  strokeWidth="2"
-              />
-            ))}
+  //       {/* SVG com donut */}
+  //       <View style={{ alignItems: 'center' }}>
+  //           <Svg width="200" height="200" viewBox="0 0 300 240">
+  //           {/* Donut central */}
+  //           {slices.map((slice, index) => (
+  //             <Path
+  //               key={`slice-${index}`}
+  //               d={generateDonutPath(slice.startAngle, slice.endAngle)}
+  //                 fill={slice.color}
+  //                 stroke="#ffffff"
+  //                 strokeWidth="2"
+  //             />
+  //           ))}
             
-            {/* Linhas conectoras */}
-            {slices.map((slice, index) => {
-              const midAngleRad = (slice.midAngle - 90) * (Math.PI / 180);
-              const lineStartRadius = 60;
-              const labelDistance = index % 2 === 0 ? 105 : 85;
-              const centerX = 150;
-              const centerY = 120;
+  //           {/* Linhas conectoras */}
+  //           {slices.map((slice, index) => {
+  //             const midAngleRad = (slice.midAngle - 90) * (Math.PI / 180);
+  //             const lineStartRadius = 60;
+  //             const labelDistance = index % 2 === 0 ? 105 : 85;
+  //             const centerX = 150;
+  //             const centerY = 120;
               
-              const lineStartX = centerX + lineStartRadius * Math.cos(midAngleRad);
-              const lineStartY = centerY + lineStartRadius * Math.sin(midAngleRad);
-              const labelX = centerX + labelDistance * Math.cos(midAngleRad);
-              const labelY = centerY + labelDistance * Math.sin(midAngleRad);
+  //             const lineStartX = centerX + lineStartRadius * Math.cos(midAngleRad);
+  //             const lineStartY = centerY + lineStartRadius * Math.sin(midAngleRad);
+  //             const labelX = centerX + labelDistance * Math.cos(midAngleRad);
+  //             const labelY = centerY + labelDistance * Math.sin(midAngleRad);
               
-              return (
-                <Line
-                  key={`line-${index}`}
-                  x1={lineStartX}
-                  y1={lineStartY}
-                  x2={labelX}
-                  y2={labelY}
-                  stroke={slice.color}
-                  strokeWidth="1.2"
-                />
-              );
-            })}
-          </Svg>
+  //             return (
+  //               <Line
+  //                 key={`line-${index}`}
+  //                 x1={lineStartX}
+  //                 y1={lineStartY}
+  //                 x2={labelX}
+  //                 y2={labelY}
+  //                 stroke={slice.color}
+  //                 strokeWidth="1.2"
+  //               />
+  //             );
+  //           })}
+  //         </Svg>
           
-          {/* Labels fora do SVG */}
-          <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, width: '85%' }}>
-            {/* Legend: color box + combined label+percentage in single Text to avoid awkward wrapping */}
-              {slices.map((slice, index) => {
-                const cleanName = (slice.name || '').replace(/\s+/g, ' ').trim();
-                const maxLabel = 22; // keep labels short so they fit on one line in most page widths
-                const shortLabel = cleanName.length > maxLabel ? cleanName.substring(0, maxLabel - 3) + '...' : cleanName;
-                // Use non-breaking space between number and percent so '%' doesn't wrap to the next line
-                const pct = `${slice.percentage.toFixed(1)}\u00A0%`;
-                return (
-                  <View key={`label-${index}`} style={{ flexDirection: 'row', alignItems: 'center', width: '45%', marginBottom: 6 }}>
-                    <Text style={{ fontSize: 9, color: '#111827', fontWeight: '600', marginRight: 6 }}>{index + 1}.</Text>
-                    <View style={{ width: 12, height: 12, backgroundColor: slice.color, borderRadius: 3, marginRight: 8, borderWidth: 0.5, borderColor: '#ffffff' }} />
-                    <Text style={{ fontSize: 9, color: '#222222' }}>
-                      {shortLabel} {pct}
-                    </Text>
-                  </View>
-                );
-              })}
-          </View>
-        </View> 
+  //         {/* Labels fora do SVG */}
+  //         <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, width: '85%' }}>
+  //           {/* Legend: color box + combined label+percentage in single Text to avoid awkward wrapping */}
+  //             {slices.map((slice, index) => {
+  //               const cleanName = (slice.name || '').replace(/\s+/g, ' ').trim();
+  //               const maxLabel = 22; // keep labels short so they fit on one line in most page widths
+  //               const shortLabel = cleanName.length > maxLabel ? cleanName.substring(0, maxLabel - 3) + '...' : cleanName;
+  //               // Use non-breaking space between number and percent so '%' doesn't wrap to the next line
+  //               const pct = `${slice.percentage.toFixed(1)}\u00A0%`;
+  //               return (
+  //                 <View key={`label-${index}`} style={{ flexDirection: 'row', alignItems: 'center', width: '45%', marginBottom: 6 }}>
+  //                   <Text style={{ fontSize: 9, color: '#111827', fontWeight: '600', marginRight: 6 }}>{index + 1}.</Text>
+  //                   <View style={{ width: 12, height: 12, backgroundColor: slice.color, borderRadius: 3, marginRight: 8, borderWidth: 0.5, borderColor: '#ffffff' }} />
+  //                   <Text style={{ fontSize: 9, color: '#222222' }}>
+  //                     {shortLabel} {pct}
+  //                   </Text>
+  //                 </View>
+  //               );
+  //             })}
+  //         </View>
+  //       </View> 
            
-      </View>
-    );
-  };
+  //     </View>
+  //   );
+  // };
 
   // Função para renderizar gráfico de barras horizontais (horários)
-  const renderBarChart = (data: { name: string; value: number }[], title: string) => {
-    if (!data || data.length === 0) return null;
+  // const renderBarChart = (data: { name: string; value: number }[], title: string) => {
+  //   if (!data || data.length === 0) return null;
 
-    const maxValue = Math.max(...data.map(d => d.value), 1);
+  //   const maxValue = Math.max(...data.map(d => d.value), 1);
 
-    return (
-      <View style={{ marginBottom: 16 }}>
-        <Text style={{
-          fontSize: 14,
-          fontWeight: 'bold',
-          backgroundColor: '#dadadaff',
-          padding: 6,
-          borderRadius: 4,
-          marginBottom: 10,
-          color: '#af1e1eff',
-        }}>{title}</Text>
-        <View style={{ flexDirection: 'column', gap: 4 }}>
-          {data.map((item, index) => {
-            const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
-            const color = "#ff2626ff"; // Vermelho padrão
+  //   return (
+  //     <View style={{ marginBottom: 16 }}>
+  //       <Text style={{
+  //         fontSize: 14,
+  //         fontWeight: 'bold',
+  //         backgroundColor: '#dadadaff',
+  //         padding: 6,
+  //         borderRadius: 4,
+  //         marginBottom: 10,
+  //         color: '#af1e1eff',
+  //       }}>{title}</Text>
+  //       <View style={{ flexDirection: 'column', gap: 4 }}>
+  //         {data.map((item, index) => {
+  //           const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
+  //           const color = "#ff2626ff"; // Vermelho padrão
             
-            return (
-              <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                <Text style={{ fontSize: 8, width: 50, color: '#374151', fontWeight: 'bold' }}>
-                  {item.name}
-                </Text>
-                <View style={{ 
-                  flex: 1, 
-                  height: 16, 
-                  backgroundColor: '#e5e7eb', 
-                  borderRadius: 3,
-                  overflow: 'hidden',
-                  marginHorizontal: 6
-                }}>
-                  <View style={{ 
-                    width: `${Math.max(2, percentage)}%`, 
-                    height: 16, 
-                    backgroundColor: color,
-                    borderRadius: 3
-                  }} />
-                </View>
-                <Text style={{ fontSize: 8, width: 60, textAlign: 'right', color: '#374151' }}>
-                  {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-    );
-  };
+  //           return (
+  //             <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+  //               <Text style={{ fontSize: 8, width: 50, color: '#374151', fontWeight: 'bold' }}>
+  //                 {item.name}
+  //               </Text>
+  //               <View style={{ 
+  //                 flex: 1, 
+  //                 height: 16, 
+  //                 backgroundColor: '#e5e7eb', 
+  //                 borderRadius: 3,
+  //                 overflow: 'hidden',
+  //                 marginHorizontal: 6
+  //               }}>
+  //                 <View style={{ 
+  //                   width: `${Math.max(2, percentage)}%`, 
+  //                   height: 16, 
+  //                   backgroundColor: color,
+  //                   borderRadius: 3
+  //                 }} />
+  //               </View>
+  //               <Text style={{ fontSize: 8, width: 60, textAlign: 'right', color: '#374151' }}>
+  //                 {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
+  //               </Text>
+  //             </View>
+  //           );
+  //         })}
+  //       </View>
+  //     </View>
+  //   );
+  // };
 
   // Função para renderizar gráfico de barras verticais (semanal/diário)
-  const renderVerticalBarChart = (data: { name: string; value: number }[], title: string) => {
-    if (!data || data.length === 0) return null;
+  // const renderVerticalBarChart = (data: { name: string; value: number }[], title: string) => {
+  //   if (!data || data.length === 0) return null;
 
-    const maxValue = Math.max(...data.map(d => d.value), 1);
-    const chartHeight = 120;
-    const barWidth = 25;
-    const spacing = 10;
-    const totalWidth = data.length * (barWidth + spacing);
+  //   const maxValue = Math.max(...data.map(d => d.value), 1);
+  //   const chartHeight = 120;
+  //   const barWidth = 25;
+  //   const spacing = 10;
+  //   const totalWidth = data.length * (barWidth + spacing);
 
-    return (
-      <View style={{ marginBottom: 16 }}>
-        <Text style={{
-          fontSize: 14,
-          fontWeight: 'bold',
-          backgroundColor: '#dadadaff',
-          padding: 6,
-          borderRadius: 4,
-          marginBottom: 10,
-          color: '#af1e1eff',
-        }}>{title}</Text>
+  //   return (
+  //     <View style={{ marginBottom: 16 }}>
+  //       <Text style={{
+  //         fontSize: 14,
+  //         fontWeight: 'bold',
+  //         backgroundColor: '#dadadaff',
+  //         padding: 6,
+  //         borderRadius: 4,
+  //         marginBottom: 10,
+  //         color: '#af1e1eff',
+  //       }}>{title}</Text>
         
-        <View style={{ alignItems: 'center' }}>
-          <Svg width={totalWidth} height={chartHeight + 30} viewBox={`0 0 ${totalWidth} ${chartHeight + 30}`}>
-            {/* Barras */}
-            {data.map((item, index) => {
-              const barHeight = maxValue > 0 ? (item.value / maxValue) * chartHeight : 0;
-              const x = index * (barWidth + spacing);
-              const y = chartHeight - barHeight;
+  //       <View style={{ alignItems: 'center' }}>
+  //         <Svg width={totalWidth} height={chartHeight + 30} viewBox={`0 0 ${totalWidth} ${chartHeight + 30}`}>
+  //           {/* Barras */}
+  //           {data.map((item, index) => {
+  //             const barHeight = maxValue > 0 ? (item.value / maxValue) * chartHeight : 0;
+  //             const x = index * (barWidth + spacing);
+  //             const y = chartHeight - barHeight;
               
-              return (
-                <Rect
-                  key={index}
-                  x={x}
-                  y={y}
-                  width={barWidth}
-                  height={barHeight}
-                  fill="#ff2626ff"
-                />
-              );
-            })}
-          </Svg>
+  //             return (
+  //               <Rect
+  //                 key={index}
+  //                 x={x}
+  //                 y={y}
+  //                 width={barWidth}
+  //                 height={barHeight}
+  //                 fill="#ff2626ff"
+  //               />
+  //             );
+  //           })}
+  //         </Svg>
           
-          {/* Labels */}
-          <View style={{ flexDirection: 'row', marginTop: 5, width: totalWidth }}>
-            {data.map((item, index) => {
-              const x = index * (barWidth + spacing);
-              return (
-                <View key={index} style={{ 
-                  position: 'absolute', 
-                  left: x, 
-                  width: barWidth, 
-                  alignItems: 'center' 
-                }}>
-                  <Text style={{ fontSize: 7, color: '#374151', fontWeight: 'bold' }}>
-                    {item.name}
-                  </Text>
-                  <Text style={{ fontSize: 6, color: '#6b7280' }}>
-                    {item.value.toFixed(0)} kg
-                  </Text>
-                </View>
-              );
-            })}
-          </View>
-        </View>
-      </View>
-    );
-  };
+  //         {/* Labels */}
+  //         <View style={{ flexDirection: 'row', marginTop: 5, width: totalWidth }}>
+  //           {data.map((item, index) => {
+  //             const x = index * (barWidth + spacing);
+  //             return (
+  //               <View key={index} style={{ 
+  //                 position: 'absolute', 
+  //                 left: x, 
+  //                 width: barWidth, 
+  //                 alignItems: 'center' 
+  //               }}>
+  //                 <Text style={{ fontSize: 7, color: '#374151', fontWeight: 'bold' }}>
+  //                   {item.name}
+  //                 </Text>
+  //                 <Text style={{ fontSize: 6, color: '#6b7280' }}>
+  //                   {item.value.toFixed(0)} kg
+  //                 </Text>
+  //               </View>
+  //             );
+  //           })}
+  //         </View>
+  //       </View>
+  //     </View>
+  //   );
+  // };
 
   const renderTable = (
     rows: any[],

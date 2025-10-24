@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
-import { Checkbox } from "./components/ui/checkbox";
 import { Button } from "./components/ui/button";
 import { Loader2, Plus } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
@@ -611,7 +610,7 @@ export function AdminConfig({
   configKey?: string;
 }) {
   // ✅ HOOKS PRIMEIRO
-  const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
+  const { isEditing, isLoading, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
   // Export state and handler (inline form instead of prompt)
   const [exportOpen, setExportOpen] = useState(false);

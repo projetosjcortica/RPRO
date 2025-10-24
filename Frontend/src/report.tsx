@@ -760,7 +760,7 @@ export default function Report() {
     // Instead of immediately reloading on `produtos-updated`, mark a pending flag.
     // The actual reload will occur when the user navigates away from the report view,
     // or clicks outside the report area, or explicitly requests rebuilding the reports.
-    const onProdutosUpdated = (evt?: Event) => {
+    const onProdutosUpdated = () => {
       console.log('[Produtos] Evento de atualização de produtos recebido - marcando pending');
       try {
         localStorage.setItem('produtos-pending-update', '1');
@@ -1218,7 +1218,7 @@ export default function Report() {
             </div>
           )}
       <div className="flex flex-row gap-2 justify-start w-full">
-        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-201 w-[68px]">
+        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-206 w-[68px]">
           <div className="flex w-full h-[74vh] 3xl:h-201 overflow-hidden shadow-xl rounded flex border border-gray-300">
             {content}
           </div>
@@ -1496,7 +1496,9 @@ export default function Report() {
           {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
           <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
-             <RefreshButton 
+            <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
+              <div className="flex justify-end p-0 m-0">
+                <RefreshButton 
               onRefresh={async () => {
                 try { toastManager.showInfoOnce('manual-refresh', 'Recarregando dados frescos...'); } catch(e){}
                 // Sem cache - sempre busca dados frescos do backend
@@ -1506,7 +1508,7 @@ export default function Report() {
               label=""
               size="default"
             />
-            <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
+              </div>
               <p className="text-center text-lg font-bold">
                 Total: {""}
                 {(resumo && typeof resumo.totalPesos === "number"

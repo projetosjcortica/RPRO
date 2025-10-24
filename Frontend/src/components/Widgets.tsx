@@ -303,6 +303,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
     if (!data || !Array.isArray(data)) return 0;
     return data.reduce((s, d) => s + (d.value || 0), 0);
   }, [data]);
+    console.log(displayTotal);
 
   // ✅ OTIMIZAÇÃO: Callbacks memoizados
   const handleMouseLeave = useCallback((e: any) => {

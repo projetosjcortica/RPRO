@@ -46,10 +46,12 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
   const handleMouseEnter = useCallback((nome: string) => {
     onHoverName?.(nome);
   }, [onHoverName]);
+  console.log(handleMouseEnter);
 
   const handleMouseLeave = useCallback(() => {
     onLeave?.();
   }, [onLeave]);
+  console.log(handleMouseLeave);
 
   if (loading) {
     return (
@@ -80,6 +82,7 @@ export default function ProductsTable({ filters, onHoverName, onLeave, highlight
           {displayProducts && displayProducts.length > 0 ? (
             displayProducts.map((produto, idx) => {
               const isHighlighted = highlightName === produto.nome;
+              console.log(isHighlighted);
               return (
                 <TableRow key={idx}
                   onMouseEnter={() => onHoverName?.(produto.nome)}
