@@ -1,6 +1,7 @@
 import "reflect-metadata";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { AppDataSource, dbService } from "./services/dbService";
 import { backupSvc } from "./services/backupService";
 import { parserService } from "./services/parserService";
@@ -1542,15 +1543,19 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
 
 // --- Simple auth endpoints: register, login, upload photo
 // Stores plain-text passwords (per user request). First registered user becomes admin.
-const userUpload = multer({ dest: path.resolve(process.cwd(), "user_photos") });
-if (!fs.existsSync(path.resolve(process.cwd(), "user_photos")))
-  fs.mkdirSync(path.resolve(process.cwd(), "user_photos"), { recursive: true });
+// Determine a writable directory for user photos that works both in dev and in
+// packaged/dist builds. Allow overriding via USER_PHOTOS_DIR env var.
+const isDev = process.env.NODE_ENV !== "production";
+const photosBase = process.env.USER_PHOTOS_DIR
+  || (isDev ? path.resolve(process.cwd(), "user_photos") : path.resolve(process.env.APPDATA || os.homedir(), "Cortez", "user_photos"));
 
-// Serve uploaded profile photos
-app.use(
-  "/user_photos",
-  express.static(path.resolve(process.cwd(), "user_photos"))
-);
+// Ensure folder exists and is writable
+if (!fs.existsSync(photosBase)) fs.mkdirSync(photosBase, { recursive: true });
+
+const userUpload = multer({ dest: photosBase });
+
+// Serve uploaded profile photos from the chosen folder
+app.use("/user_photos", express.static(photosBase));
 
 app.post("/api/auth/register", async (req, res) => {
   try {

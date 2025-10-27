@@ -16,10 +16,12 @@ export function resolvePhotoUrl(raw?: string | null) {
   // If already a relative URL starting with /, prefix with backend origin (assume backend runs on port 3000)
   if (raw.startsWith('/')) {
     try {
-      const host = window.location.hostname || 'localhost';
-      const proto = window.location.protocol || 'http:';
-      const backendPort = 3000;
-      return `${proto}//${host}:${backendPort}${raw}`;
+      // Prefer explicit backend port exposed by main (Electron) or app setup
+      const backendPort = (window as any).backendPort || 3000;
+      const backendHost = (window as any).backendHost || 'localhost';
+      // In many environments (Electron) window.location may be file://, so use http explicitly
+      const proto = 'http:';
+      return `${proto}//${backendHost}:${backendPort}${raw}`;
     } catch (e) {
       return raw;
     }
