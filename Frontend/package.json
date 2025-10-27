@@ -2,7 +2,7 @@
   "name": "cortez",
   "private": true,
   "version": "1.2.0beta",
-  "author": "J.Cortiça, Kauã Okuma, Miguel Dias",
+  "author": "J.Cortica, Kaua Okuma, Miguel Dias",
   "description": "Sistema Cortez",
   "type": "module",
   "main": "dist-electron/main.js",

@@ -1734,6 +1734,17 @@ app.post("/api/admin/set-default-photo", async (req, res) => {
   }
 });
 
+// Admin utility: trigger TypeORM schema synchronization (creates missing tables/columns)
+app.post('/api/admin/sync-schema', async (req, res) => {
+  try {
+    await dbService.synchronizeSchema();
+    return res.json({ success: true });
+  } catch (e: any) {
+    console.error('[admin/sync-schema] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
 
 
 app.get("/api/db/listBatches", async (req, res) => {

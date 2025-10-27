@@ -19,6 +19,38 @@ export class DBService extends BaseService {
     this.ds = {} as DataSource;
     this.useMysql = process.env.USE_SQLITE !== 'true';
   }
+  private async createDatabaseIfNotExists(host: string, port: number, user: string, pass: string, dbName: string) {
+    // Create a temporary connection without specifying a database
+    const tempDs = new DataSource({
+      type: 'mysql',
+      host,
+      port,
+      username: user,
+      password: pass,
+      synchronize: false,
+      logging: false,
+    });
+
+    try {
+      await tempDs.initialize();
+      
+      // Check if database exists
+      const dbExists = await tempDs.query(
+        `SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${dbName}'`
+      );
+
+      if (dbExists.length === 0) {
+        console.info(`[DBService] Creating database '${dbName}'...`);
+        await tempDs.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
+        console.info(`[DBService] Database '${dbName}' created successfully`);
+      }
+    } finally {
+      if (tempDs.isInitialized) {
+        await tempDs.destroy();
+      }
+    }
+  }
+
   async init() {
     // If ds already initialized, skip
     // @ts-ignore
@@ -34,6 +66,10 @@ export class DBService extends BaseService {
 
     try {
       if (this.useMysql) {
+        // First ensure database exists
+        await this.createDatabaseIfNotExists(finalHost, finalPort, finalUser, finalPass, finalDb);
+
+        // Now connect to the specific database and sync schema
         this.ds = new DataSource({
           type: 'mysql',
           host: finalHost,
@@ -41,8 +77,8 @@ export class DBService extends BaseService {
           username: finalUser,
           password: finalPass,
           database: finalDb,
-          synchronize: true,
-          logging: false,
+          synchronize: true, // This will create/update tables automatically
+          logging: ['error', 'schema'], // Log only errors and schema changes
           entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User],
         });
       } else {
@@ -61,30 +97,40 @@ export class DBService extends BaseService {
       await this.ds.initialize();
       return;
     } catch (err) {
-      console.warn('[DBService] DataSource initialization failed:', String(err));
+      console.error('[DBService] MySQL initialization failed:', err);
+      console.info('[DBService] Connection details:', {
+        host: finalHost,
+        port: finalPort,
+        user: finalUser,
+        database: finalDb
+      });
+
       if (this.useMysql) {
+        console.info('[DBService] Attempting fallback to SQLite...');
         try {
           const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
           const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
           this.sqlitePath = absPath;
           const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
+          
+          console.info(`[DBService] Initializing SQLite at ${absPath} (sync: ${shouldSync})`);
           this.ds = new DataSource({
             type: 'sqlite',
             database: absPath,
             synchronize: true,
-            logging: false,
+            logging: ['error', 'schema'],
             entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User],
           });
           await this.ds.initialize();
           this.useMysql = false;
-          console.info('[DBService] Fell back to SQLite at', absPath);
+          console.info('[DBService] Successfully switched to SQLite');
           return;
         } catch (err2) {
-          console.error('[DBService] SQLite fallback initialization failed:', err2);
-          throw err2;
+          console.error('[DBService] SQLite fallback also failed:', err2);
+          throw new Error(`Database initialization failed - MySQL error: ${err}\nSQLite error: ${err2}`);
         }
       }
-      throw err;
+      throw new Error(`MySQL initialization failed: ${err}`);
     }
   }
   async insertRelatorioRows(rows: any[], processedFile: string) {
@@ -245,6 +291,28 @@ export class DBService extends BaseService {
     console.log(`[DBService] Processed ${mapped.length} rows: ${inserted} inserted, ${toUpdate.length} updated`);
 
     return inserted;
+  }
+
+  /**
+   * Ensure the database schema is synchronized with the current entities.
+   * This calls TypeORM synchronize() which will create missing tables/columns
+   * without dropping existing data. Useful to fix installations where columns
+   * are missing or out-of-sync.
+   */
+  async synchronizeSchema() {
+    await this.init();
+    // @ts-ignore
+    if (this.ds && (this.ds as any).isInitialized) {
+      try {
+        await this.ds.synchronize();
+        console.info('[DBService] Schema synchronization complete');
+      } catch (e) {
+        console.error('[DBService] Schema synchronization failed:', e);
+        throw e;
+      }
+    } else {
+      throw new Error('DataSource not initialized');
+    }
   }
   async getLastRelatorioTimestamp(processedFile?: string) {
     await this.init();

@@ -1,13 +1,44 @@
 ; build/installer.nsh - Custom NSIS installer script
 !macro customInstall
-  ; Add custom installation logic here if needed
+  ; Set registry view for 64-bit
   ${If} ${RunningX64}
     SetRegView 64
   ${EndIf}
   
-  ; Example: Add registry entries or custom actions
+  ; Add registry entries
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}" "DisplayIcon" "$INSTDIR\resources\app.asar\assets\icon.ico"
   
+  ; Initialize database if MySQL is installed
+  StrCpy $0 "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+  IfFileExists $0 mysql_exists no_mysql
+  
+  mysql_exists:
+    ; Create temporary batch file to execute SQL script
+    FileOpen $9 "$TEMP\init_db.bat" w
+    FileWrite $9 '@echo off$\r$\n'
+    FileWrite $9 'echo Initializing Cortez database...$\r$\n'
+    FileWrite $9 '"$0" -u root -proot < "$INSTDIR\resources\init_db.sql"$\r$\n'
+    FileWrite $9 'if %ERRORLEVEL% EQU 0 ($\r$\n'
+    FileWrite $9 '  echo Database initialization successful$\r$\n'
+    FileWrite $9 ') else ($\r$\n'
+    FileWrite $9 '  echo Error initializing database$\r$\n'
+    FileWrite $9 '  pause$\r$\n'
+    FileWrite $9 ')$\r$\n'
+    FileClose $9
+    
+    ; Copy SQL script to installation directory
+    SetOutPath "$INSTDIR\resources"
+    File "build\init_db.sql"
+    
+    ; Execute batch file
+    ExecWait '"$TEMP\init_db.bat"'
+    Delete "$TEMP\init_db.bat"
+    Goto done_mysql
+    
+  no_mysql:
+    MessageBox MB_OK|MB_ICONINFORMATION "MySQL não encontrado. O banco de dados será inicializado automaticamente na primeira execução do programa."
+    
+  done_mysql:
   ${If} ${RunningX64}
     SetRegView 32
   ${EndIf}
