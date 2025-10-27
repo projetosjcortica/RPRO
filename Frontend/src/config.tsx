@@ -352,15 +352,21 @@ export function ProfileConfig({
       // If current user is admin, also set this uploaded photo as default for all users
       try {
         if (user?.isAdmin && (data as any)?.photoPath) {
-          await fetch("http://localhost:3000/api/admin/set-default-photo", {
+          const defaultRes = await fetch("http://localhost:3000/api/admin/set-default-photo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ path: (data as any).photoPath }),
           });
+          if (defaultRes.ok) {
+            toast.success("Foto atualizada para todos os usuários");
+            // Trigger an event so other components know to refresh
+            window.dispatchEvent(new Event('user-photos-updated'));
+          }
         }
       } catch (err) {
         // non-fatal: do not block UI if setting default fails
         console.warn('[profile] failed to set default photo for all users', err);
+        toast.error("Erro ao atualizar foto para todos os usuários");
       }
       try {
         const blobUrl = URL.createObjectURL(file);

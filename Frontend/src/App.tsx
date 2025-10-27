@@ -29,7 +29,7 @@ const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   // If user is not logged in, and they try to navigate to any protected route,
   // redirect them to /login. This runs on location changes.
   useEffect(() => {
@@ -74,9 +74,22 @@ const App = () => {
         // ignore
       }
     };
+
+    const onPhotoUpdate = () => {
+      // Force a re-render by updating the user object
+      if (user) {
+        const { ...updatedUser } = user;
+        updateUser(updatedUser);
+      }
+    };
+
     window.addEventListener('profile-config-updated', onCfg as EventListener);
-    return () => window.removeEventListener('profile-config-updated', onCfg as EventListener);
-  }, []);
+    window.addEventListener('user-photos-updated', onPhotoUpdate);
+    return () => {
+      window.removeEventListener('profile-config-updated', onCfg as EventListener);
+      window.removeEventListener('user-photos-updated', onPhotoUpdate);
+    };
+  }, [user, updateUser]);
   
   const items=[
     {
