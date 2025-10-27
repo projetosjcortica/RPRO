@@ -578,8 +578,6 @@ app.get("/api/db/export-sql", async (req, res) => {
 // Clear cache DB used by cacheService (deprecated - no longer needed)
 app.post("/api/cache/clear", async (req, res) => {
   try {
-    await cacheService.init();
-    await cacheService.clearAll();
     return res.json({ ok: true, message: 'Cache system removed - no-op endpoint' });
   } catch (e: any) {
     console.error("[api/cache/clear] error", e);
@@ -591,11 +589,9 @@ app.post("/api/cache/clear", async (req, res) => {
 app.post("/api/clear/all", async (req, res) => {
   try {
     await dbService.init();
-    await cacheService.init();
     await backupSvc.listBackups();
     // perform clears
     await dbService.clearAll();
-    await cacheService.clearAll();
     try {
       await backupSvc.clearAllBackups();
     } catch (e) {
@@ -695,19 +691,18 @@ app.post("/api/clear/production", async (req, res) => {
     //   }
     // }
 
-    await cacheService.clearAll();
-
-    // Cache system removed - no cleanup needed
+    // Clear collector cache (file tracking)
     try {
-      const deleted = await cacheService.deleteFile();
-      if (deleted) {
-        console.log('[api/clear/production] Cache SQLite file deleted via cacheService.deleteFile()');
-      } else {
-        console.log('[api/clear/production] No cache SQLite file found to delete');
+      // Clear CacheService database (collector file metadata)
+      if (cacheService) {
+        await cacheService.init();
+        await cacheService.clearAll();
+        console.log('[api/clear/production] collector cache cleared');
       }
     } catch (e) {
-      console.warn('[api/clear/production] force-delete cache file failed (ignored):', String(e));
+      console.warn("[api/clear/production] clearing collector cache failed", e);
     }
+
     // Clear backups (optional)
     try {
       await backupSvc.clearAllBackups();
@@ -718,7 +713,7 @@ app.post("/api/clear/production", async (req, res) => {
     return res.json({
       ok: true,
       message:
-        "Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, cache SQLite cleared.",
+        "Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, collector cache cleared.",
     });
   } catch (e: any) {
     console.error("[api/clear/production] error", e);
@@ -729,7 +724,7 @@ app.post("/api/clear/production", async (req, res) => {
 app.get("/api/backup/list", async (req, res) => {
   try {
     await ensureDatabaseConnection();
-    const data = await backupSvc.listBackups();
+    const data = await backupSvc.listBackups(); 
     return res.json(data);
   } catch (e) {
     console.error(e);
@@ -1112,6 +1107,179 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     return res.json(responseData);
   } catch (e: any) {
     console.error("[relatorio/paginate] Unexpected error:", e);
+    return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// PDF DATA: Retorna dados TOTALMENTE processados, calculados e formatados para PDF
+app.get("/api/relatorio/pdf-data", async (req, res) => {
+  try {
+    await dbService.init();
+
+    // Mesmos filtros do paginate
+    const codigoRaw = req.query.codigo ?? null;
+    const numeroRaw = req.query.numero ?? null;
+    const formulaRaw = req.query.formula ?? null;
+    const dataInicio = req.query.dataInicio ?? null;
+    const dataFim = req.query.dataFim ?? null;
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
+    const sortBy = String(req.query.sortBy || "Dia");
+    const sortDir = String(req.query.sortDir || "DESC");
+
+    const repo = AppDataSource.getRepository(Relatorio);
+    const qb = repo.createQueryBuilder("r");
+
+    // Aplicar filtros
+    if (codigoRaw != null && String(codigoRaw) !== "") {
+      const c = Number(codigoRaw);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :c", { c });
+    }
+    if (numeroRaw != null && String(numeroRaw) !== "") {
+      const num = Number(numeroRaw);
+      if (!Number.isNaN(num)) qb.andWhere("r.Form2 = :num", { num });
+    }
+    if (formulaRaw != null && String(formulaRaw) !== "") {
+      const fNum = Number(String(formulaRaw));
+      if (!Number.isNaN(fNum)) qb.andWhere("r.Form1 = :fNum", { fNum });
+      else {
+        const fStr = String(formulaRaw).toLowerCase();
+        qb.andWhere("LOWER(r.Nome) LIKE :fStr", { fStr: `%${fStr}%` });
+      }
+    }
+    if (normDataInicio) qb.andWhere("r.Dia >= :ds", { ds: normDataInicio });
+    if (normDataFim) {
+      const parts = normDataFim.split("-");
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFim;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
+
+    // Sort
+    const allowed = new Set(["Dia", "Hora", "Nome", "Form1", "Form2"]);
+    for (let i = 1; i <= 40; i++) allowed.add(`Prod_${i}`);
+    const sb = allowed.has(sortBy) ? sortBy : "Dia";
+    const sd = sortDir === "ASC" ? "ASC" : "DESC";
+    if (sb === 'Dia') {
+      qb.orderBy(`r.Dia`, sd).addOrderBy('r.Hora', sd as any);
+    } else {
+      qb.orderBy(`r.${sb}`, sd);
+    }
+
+    const rows = await qb.getMany();
+
+    // Carregar matérias primas
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // PROCESSAR DADOS PARA PDF: Calcular totais, formatar valores, gráficos
+    const produtos: Array<{ nome: string; qtd: number; unidade: string; valorFormatado: string }> = [];
+    
+    // Mapa: produto index -> total acumulado
+    const produtoTotals: Record<number, number> = {};
+    
+    for (const row of rows) {
+      for (let i = 1; i <= 40; i++) {
+        const val = row[`Prod_${i}`];
+        let v = typeof val === "number" ? val : (val != null ? Number(val) : 0);
+        if (v < 0) v = 0;
+        
+        if (!produtoTotals[i]) produtoTotals[i] = 0;
+        produtoTotals[i] += v;
+      }
+    }
+
+    // Gerar array de produtos com totais calculados e formatados
+    for (let i = 1; i <= 40; i++) {
+      const total = produtoTotals[i] || 0;
+      if (total === 0) continue; // Skip produtos sem uso
+      
+      const materia = materiasByNum[i];
+      const nome = materia?.produto || `Produto ${i}`;
+      
+      let unidade = 'kg';
+      let valorKg = total;
+      let valorFormatado = '';
+      
+      if (materia && Number(materia.medida) === 0) {
+        // Gramas: converter para kg
+        unidade = 'g';
+        valorKg = total / 1000;
+      }
+      
+      valorFormatado = `${valorKg.toLocaleString('pt-BR', { 
+        minimumFractionDigits: 3, 
+        maximumFractionDigits: 3 
+      })} kg`;
+      
+      produtos.push({
+        nome,
+        qtd: valorKg, // SEMPRE em kg
+        unidade,
+        valorFormatado
+      });
+    }
+
+    // Ordenar por quantidade (maior -> menor)
+    produtos.sort((a, b) => b.qtd - a.qtd);
+
+    // GRÁFICOS: Top 5 produtos
+    const chartTop5 = produtos.slice(0, 5).map(p => ({
+      nome: p.nome,
+      valor: p.qtd, // Já em kg
+      valorFormatado: p.valorFormatado,
+      percentual: 0 // Será calculado no frontend se necessário, ou aqui:
+    }));
+
+    // Calcular percentuais
+    const totalGeral = produtos.reduce((sum, p) => sum + p.qtd, 0);
+    if (totalGeral > 0) {
+      chartTop5.forEach(item => {
+        item.percentual = (item.valor / totalGeral) * 100;
+      });
+    }
+
+    // Dados de resumo
+    const primeiroRow = rows[0];
+    const ultimoRow = rows[rows.length - 1];
+    
+    const resumo = {
+      totalRegistros: rows.length,
+      dataInicio: primeiroRow?.Dia || '',
+      dataFim: ultimoRow?.Dia || '',
+      nomeFormula: primeiroRow?.Nome || '',
+      codigoPrograma: primeiroRow?.Form1 || 0,
+      codigoCliente: primeiroRow?.Form2 || 0,
+    };
+
+    // Retornar tudo processado
+    res.json({
+      produtos, // Array com { nome, qtd (em kg), unidade, valorFormatado }
+      chartTop5, // Top 5 para gráfico
+      resumo,
+      materiaPrima: materias.map(m => ({
+        num: m.num,
+        produto: m.produto,
+        medida: m.medida,
+        unidade: Number(m.medida) === 0 ? 'g' : 'kg'
+      }))
+    });
+
+  } catch (e: any) {
+    console.error("[relatorio/pdf-data] Error:", e);
     return res.status(500).json({ error: e?.message || "internal" });
   }
 });
@@ -1541,6 +1709,25 @@ app.post(
     }
   }
 );
+
+// Admin helper: set a default profile photo path for all users
+app.post("/api/admin/set-default-photo", async (req, res) => {
+  try {
+    const { path: photoPath } = req.body || {};
+    if (!photoPath) return res.status(400).json({ error: "path is required" });
+
+    await ensureDatabaseConnection();
+    const repo = AppDataSource.getRepository(User);
+
+    // Bulk update all users to use the provided photoPath
+    await repo.createQueryBuilder().update(User).set({ photoPath: String(photoPath) }).execute();
+
+    return res.json({ success: true, path: photoPath });
+  } catch (e: any) {
+    console.error("[admin/set-default-photo] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
 
 
 

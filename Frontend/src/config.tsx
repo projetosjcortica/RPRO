@@ -349,6 +349,19 @@ export function ProfileConfig({
       const data = await res.json();
       // backend returns user without password
       updateUser(data as any);
+      // If current user is admin, also set this uploaded photo as default for all users
+      try {
+        if (user?.isAdmin && (data as any)?.photoPath) {
+          await fetch("http://localhost:3000/api/admin/set-default-photo", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ path: (data as any).photoPath }),
+          });
+        }
+      } catch (err) {
+        // non-fatal: do not block UI if setting default fails
+        console.warn('[profile] failed to set default photo for all users', err);
+      }
       try {
         const blobUrl = URL.createObjectURL(file);
         setPreview(blobUrl);
