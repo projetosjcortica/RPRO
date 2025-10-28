@@ -667,7 +667,7 @@ export default function Report() {
             }),
           }).catch((e) => console.error("Failed to persist label", e));
         }
-  try { toastManager.updateSuccess('label-save', 'Rótulo do produto salvo'); } catch(e){}
+  try { toastManager.updateSuccess('label-save', 'Salvando rótulo do produto'); } catch(e){}
       }
     } catch (e) {
       console.warn("Could not persist product label change to backend", e);

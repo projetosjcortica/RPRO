@@ -1,5 +1,5 @@
 -- Initialize Database script for Cortez
--- MySQL initialization script
+-- MySQL initialization script for syncing with TypeORM entities
 
 -- Create database if not exists
 CREATE DATABASE IF NOT EXISTS cadastro;
@@ -79,52 +79,6 @@ CREATE TABLE IF NOT EXISTS `relatorio` (
   processedFile TEXT
 );
 
-CREATE TABLE IF NOT EXISTS `batch` (
-  `id` varchar(36) NOT NULL,
-  `filename` varchar(255) NOT NULL,
-  `processedAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS `estoque` (
-  `id` varchar(36) NOT NULL,
-  `produto` varchar(255) NOT NULL,
-  `quantidade` decimal(10,2) NOT NULL DEFAULT '0.00',
-  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS `movimentacao_estoque` (
-  `id` varchar(36) NOT NULL,
-  `produto` varchar(255) NOT NULL,
-  `tipo` varchar(50) NOT NULL,
-  `quantidade` decimal(10,2) NOT NULL,
-  `data` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS `cache_file` (
-  `id` varchar(36) NOT NULL,
-  `filename` varchar(255) NOT NULL,
-  `processedAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `filename` (`filename`)
-) ENGINE=InnoDB;
-
-CREATE TABLE IF NOT EXISTS `setting` (
-  `id` varchar(36) NOT NULL,
-  `key` varchar(255) NOT NULL,
-  `value` text,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `key` (`key`)
-) ENGINE=InnoDB;
-
--- Add default settings
-INSERT IGNORE INTO `setting` (`id`, `key`, `value`) VALUES
-  ('1', 'app_version', '1.2.0-beta'),
-  ('2', 'first_run', 'true'),
-  ('3', 'theme', 'light');
-
 -- Add default admin user if no users exist
 INSERT IGNORE INTO `user` (`username`, `password`, `isAdmin`, `displayName`) 
 VALUES ('admin', 'admin', 1, 'Administrador');
@@ -138,7 +92,7 @@ CREATE TABLE IF NOT EXISTS `batch` (
   `fileName` varchar(255) NOT NULL,
   `fileTimestamp` datetime NULL,
   `rowCount` int NOT NULL DEFAULT 0,
-  `meta` text NULL,
+  `meta` json NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB;
 
@@ -207,10 +161,6 @@ CREATE TABLE IF NOT EXISTS `setting` (
   `value` text NULL,
   PRIMARY KEY (`key`)
 ) ENGINE=InnoDB;
-
--- Insert default admin user if not exists
-INSERT IGNORE INTO `user` (`username`, `password`, `isAdmin`, `displayName`) 
-VALUES ('admin', 'admin', 1, 'Administrador');
 
 -- Insert some default settings
 INSERT IGNORE INTO `setting` (`key`, `value`) 
