@@ -1,31 +1,12 @@
 -- Initialize Database script for Cortez
--- This script will create all necessary tables and initial data
+-- MySQL initialization script
 
 -- Create database if not exists
 CREATE DATABASE IF NOT EXISTS cadastro;
 USE cadastro;
 
--- Safety check: if any of our tables exist, stop execution
--- This prevents overwriting existing data
-DELIMITER //
-CREATE PROCEDURE check_tables_exist()
-BEGIN
-    DECLARE table_exists INT DEFAULT 0;
-    
-    SELECT COUNT(*) INTO table_exists
-    FROM information_schema.tables 
-    WHERE table_schema = 'cadastro'
-    AND table_name IN ('user', 'materia_prima', 'relatorio', 'row', 'batch', 'estoque', 'movimentacao_estoque', 'cache_file', 'setting');
-    
-    IF table_exists > 0 THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Database tables already exist. Skipping initialization.';
-    END IF;
-END //
-DELIMITER ;
-
-CALL check_tables_exist();
-DROP PROCEDURE check_tables_exist;
+-- Disable foreign key checks during setup
+SET FOREIGN_KEY_CHECKS = 0;
 
 -- Create tables
 CREATE TABLE IF NOT EXISTS `user` (
@@ -55,49 +36,101 @@ CREATE TABLE IF NOT EXISTS `relatorio` (
   `Nome` varchar(30) NULL,
   `Form1` int NOT NULL DEFAULT 0,
   `Form2` int NOT NULL DEFAULT 0,
-  `Prod_1` int NOT NULL DEFAULT 0,
-  `Prod_2` int NOT NULL DEFAULT 0,
-  `Prod_3` int NOT NULL DEFAULT 0,
-  `Prod_4` int NOT NULL DEFAULT 0,
-  `Prod_5` int NOT NULL DEFAULT 0,
-  `Prod_6` int NOT NULL DEFAULT 0,
-  `Prod_7` int NOT NULL DEFAULT 0,
-  `Prod_8` int NOT NULL DEFAULT 0,
-  `Prod_9` int NOT NULL DEFAULT 0,
-  `Prod_10` int NOT NULL DEFAULT 0,
-  `Prod_11` int NOT NULL DEFAULT 0,
-  `Prod_12` int NOT NULL DEFAULT 0,
-  `Prod_13` int NOT NULL DEFAULT 0,
-  `Prod_14` int NOT NULL DEFAULT 0,
-  `Prod_15` int NOT NULL DEFAULT 0,
-  `Prod_16` int NOT NULL DEFAULT 0,
-  `Prod_17` int NOT NULL DEFAULT 0,
-  `Prod_18` int NOT NULL DEFAULT 0,
-  `Prod_19` int NOT NULL DEFAULT 0,
-  `Prod_20` int NOT NULL DEFAULT 0,
-  `Prod_21` int NOT NULL DEFAULT 0,
-  `Prod_22` int NOT NULL DEFAULT 0,
-  `Prod_23` int NOT NULL DEFAULT 0,
-  `Prod_24` int NOT NULL DEFAULT 0,
-  `Prod_25` int NOT NULL DEFAULT 0,
-  `Prod_26` int NOT NULL DEFAULT 0,
-  `Prod_27` int NOT NULL DEFAULT 0,
-  `Prod_28` int NOT NULL DEFAULT 0,
-  `Prod_29` int NOT NULL DEFAULT 0,
-  `Prod_30` int NOT NULL DEFAULT 0,
-  `Prod_31` int NOT NULL DEFAULT 0,
-  `Prod_32` int NOT NULL DEFAULT 0,
-  `Prod_33` int NOT NULL DEFAULT 0,
-  `Prod_34` int NOT NULL DEFAULT 0,
-  `Prod_35` int NOT NULL DEFAULT 0,
-  `Prod_36` int NOT NULL DEFAULT 0,
-  `Prod_37` int NOT NULL DEFAULT 0,
-  `Prod_38` int NOT NULL DEFAULT 0,
-  `Prod_39` int NOT NULL DEFAULT 0,
-  `Prod_40` int NOT NULL DEFAULT 0,
-  `processedFile` varchar(255) NULL,
+  Prod_1 INTEGER NOT NULL DEFAULT 0,
+  Prod_2 INTEGER NOT NULL DEFAULT 0,
+  Prod_3 INTEGER NOT NULL DEFAULT 0,
+  Prod_4 INTEGER NOT NULL DEFAULT 0,
+  Prod_5 INTEGER NOT NULL DEFAULT 0,
+  Prod_6 INTEGER NOT NULL DEFAULT 0,
+  Prod_7 INTEGER NOT NULL DEFAULT 0,
+  Prod_8 INTEGER NOT NULL DEFAULT 0,
+  Prod_9 INTEGER NOT NULL DEFAULT 0,
+  Prod_10 INTEGER NOT NULL DEFAULT 0,
+  Prod_11 INTEGER NOT NULL DEFAULT 0,
+  Prod_12 INTEGER NOT NULL DEFAULT 0,
+  Prod_13 INTEGER NOT NULL DEFAULT 0,
+  Prod_14 INTEGER NOT NULL DEFAULT 0,
+  Prod_15 INTEGER NOT NULL DEFAULT 0,
+  Prod_16 INTEGER NOT NULL DEFAULT 0,
+  Prod_17 INTEGER NOT NULL DEFAULT 0,
+  Prod_18 INTEGER NOT NULL DEFAULT 0,
+  Prod_19 INTEGER NOT NULL DEFAULT 0,
+  Prod_20 INTEGER NOT NULL DEFAULT 0,
+  Prod_21 INTEGER NOT NULL DEFAULT 0,
+  Prod_22 INTEGER NOT NULL DEFAULT 0,
+  Prod_23 INTEGER NOT NULL DEFAULT 0,
+  Prod_24 INTEGER NOT NULL DEFAULT 0,
+  Prod_25 INTEGER NOT NULL DEFAULT 0,
+  Prod_26 INTEGER NOT NULL DEFAULT 0,
+  Prod_27 INTEGER NOT NULL DEFAULT 0,
+  Prod_28 INTEGER NOT NULL DEFAULT 0,
+  Prod_29 INTEGER NOT NULL DEFAULT 0,
+  Prod_30 INTEGER NOT NULL DEFAULT 0,
+  Prod_31 INTEGER NOT NULL DEFAULT 0,
+  Prod_32 INTEGER NOT NULL DEFAULT 0,
+  Prod_33 INTEGER NOT NULL DEFAULT 0,
+  Prod_34 INTEGER NOT NULL DEFAULT 0,
+  Prod_35 INTEGER NOT NULL DEFAULT 0,
+  Prod_36 INTEGER NOT NULL DEFAULT 0,
+  Prod_37 INTEGER NOT NULL DEFAULT 0,
+  Prod_38 INTEGER NOT NULL DEFAULT 0,
+  Prod_39 INTEGER NOT NULL DEFAULT 0,
+  Prod_40 INTEGER NOT NULL DEFAULT 0,
+  processedFile TEXT
+);
+
+CREATE TABLE IF NOT EXISTS `batch` (
+  `id` varchar(36) NOT NULL,
+  `filename` varchar(255) NOT NULL,
+  `processedAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `estoque` (
+  `id` varchar(36) NOT NULL,
+  `produto` varchar(255) NOT NULL,
+  `quantidade` decimal(10,2) NOT NULL DEFAULT '0.00',
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `movimentacao_estoque` (
+  `id` varchar(36) NOT NULL,
+  `produto` varchar(255) NOT NULL,
+  `tipo` varchar(50) NOT NULL,
+  `quantidade` decimal(10,2) NOT NULL,
+  `data` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `cache_file` (
+  `id` varchar(36) NOT NULL,
+  `filename` varchar(255) NOT NULL,
+  `processedAt` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `filename` (`filename`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `setting` (
+  `id` varchar(36) NOT NULL,
+  `key` varchar(255) NOT NULL,
+  `value` text,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `key` (`key`)
+) ENGINE=InnoDB;
+
+-- Add default settings
+INSERT IGNORE INTO `setting` (`id`, `key`, `value`) VALUES
+  ('1', 'app_version', '1.2.0-beta'),
+  ('2', 'first_run', 'true'),
+  ('3', 'theme', 'light');
+
+-- Add default admin user if no users exist
+INSERT IGNORE INTO `user` (`username`, `password`, `isAdmin`, `displayName`) 
+VALUES ('admin', 'admin', 1, 'Administrador');
+
+-- Re-enable foreign key checks
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE IF NOT EXISTS `batch` (
   `id` varchar(36) NOT NULL,

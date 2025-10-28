@@ -26,11 +26,13 @@
     FileWrite $9 ')$\r$\n'
     FileClose $9
     
-    ; Copy SQL script to installation directory
+    ; Copy SQL script to installation directory if it exists
     SetOutPath "$INSTDIR\resources"
-    File "build\init_db.sql"
+    ClearErrors
+    File /nonfatal "${BUILD_RESOURCES_DIR}\init_db.sql"
     
-    ; Execute batch file
+    ; Execute batch file only if SQL file exists and was copied successfully
+    IfErrors +3
     ExecWait '"$TEMP\init_db.bat"'
     Delete "$TEMP\init_db.bat"
     Goto done_mysql

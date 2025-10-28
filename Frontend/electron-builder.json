@@ -1,0 +1,32 @@
+{
+  "appId": "com.Cortez.app",
+  "productName": "Cortez",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "build/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "build",
+      "to": "build",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": ["nsis"],
+    "icon": "public/icon.ico"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": true,
+    "allowToChangeInstallationDirectory": true,
+    "deleteAppDataOnUninstall": true,
+    "include": "build/installer.nsh",
+    "warningsAsErrors": false
+  }
+}
