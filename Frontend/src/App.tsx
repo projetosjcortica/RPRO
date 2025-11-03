@@ -3,84 +3,84 @@ import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import Home from './home';
 import Login from './Login';
 import useAuth from './hooks/useAuth';
-// import Profile from './Profile';
 import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './config';
 import Report from './report';
-// import CustomReports from './CustomReports';
 import Estoque from './estoque';
 import Amendoim from './amendoim';
-import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel,} from "./components/ui/sidebar";
+import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel} from "./components/ui/sidebar";
 import { HomeIcon, Settings, Sheet } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { resolvePhotoUrl } from './lib/photoUtils';
 import { ToastContainer } from 'react-toastify';
-import './index.css'
+import './index.css';
 import { Factory } from 'lucide-react';
 import { Separator } from '@radix-ui/react-separator';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './components/ui/collapsible';
-import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from './components/ui/dialog';
-// Tooltips removidos - usando title nativo agora
-// import { Button } from './components/ui/button';
-// import { useMediaQuery } from './hooks/use-mobile';
-import logo from './public/logo.png'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from './components/ui/collapsible';
+import {
+  Dialog,
+  DialogContent,
+  DialogTrigger,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from './components/ui/dialog';
+import logo from './public/logo.png';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
-import monoLogo from './public/logoCmono.png'
+import monoLogo from './public/logoCmono.png';
 
-const App = () => {  
+const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
   const { user, updateUser } = useAuth();
-  // If user is not logged in, and they try to navigate to any protected route,
-  // redirect them to /login. This runs on location changes.
+
+  // Redireciona para login se não autenticado
   useEffect(() => {
     const publicPaths = ['/login'];
     if (!user && !publicPaths.includes(location.pathname)) {
       navigate('/login');
     }
   }, [location.pathname, user, navigate]);
-  const [sideInfo, setSideInfo] = useState({ granja: 'Granja', proprietario: 'Proprietario' });
-  const runtime = useRuntimeConfig();
-  const { formData: profileConfigData } = usePersistentForm("profile-config");
 
-  // Consolidar atualização de sideInfo - evitar múltiplas atualizações
+  const [sideInfo, setSideInfo] = useState({
+    granja: 'Granja',
+    proprietario: 'Proprietario',
+  });
+
+  const runtime = useRuntimeConfig();
+  const { formData: profileConfigData } = usePersistentForm('profile-config');
+
+  // Atualiza sideInfo com base em perfil ou runtime
   useEffect(() => {
     let newInfo = { granja: 'Granja', proprietario: 'Proprietario' };
-    
-    // 1. Priorizar dados do perfil (mais recentes)
     if (profileConfigData?.nomeCliente) {
       newInfo = {
         granja: profileConfigData.nomeCliente,
         proprietario: profileConfigData.nomeCliente,
       };
-    }
-    // 2. Se não houver dados do perfil, usar configs de runtime
-    else if (runtime && !runtime.loading) {
+    } else if (runtime && !runtime.loading) {
       const g = runtime.get('granja') || runtime.get('nomeCliente') || 'Granja';
       const p = runtime.get('proprietario') || runtime.get('owner') || 'Proprietario';
       newInfo = { granja: g, proprietario: p };
     }
-    
     setSideInfo(newInfo);
   }, [profileConfigData, runtime]);
 
-  // Listener para eventos explícitos de atualização de configuração
+  // Escuta eventos globais
   useEffect(() => {
     const onCfg = (e: any) => {
-      try {
-        const name = e?.detail?.nomeCliente;
-        if (!name) return;
-        setSideInfo(prev => ({ ...prev, granja: name, proprietario: name }));
-      } catch (err) {
-        // ignore
+      const name = e?.detail?.nomeCliente;
+      if (name) {
+        setSideInfo((prev) => ({ ...prev, granja: name, proprietario: name }));
       }
     };
 
     const onPhotoUpdate = () => {
-      // Force a re-render by updating the user object
       if (user) {
-        const { ...updatedUser } = user;
-        updateUser(updatedUser);
+        updateUser({ ...user });
       }
     };
 
@@ -127,52 +127,73 @@ const App = () => {
     }
   ]
 
-  
+  const items = [
+    { title: 'Início', icon: HomeIcon, path: '/' },
+    { title: 'Relatórios', icon: Sheet, path: '/report' },
+  ];
+
+  const itemsFooter = [{ title: 'Configurações', icon: Settings }];
+
   return (
-    <div id='app' className='flex flex-row w-screen h-dvh overflow-hidden'>
-      {/* Provide simple auth guard: if not logged in, show Login route */}
-      <div id='sidebar' className='h-full'>
+    <div id="app" className="flex w-screen h-dvh overflow-hidden">
+      <div id="sidebar" className="h-full">
         <SidebarProvider>
-          <Sidebar className="bg-sidebar-red-600 shadow-xl h-full">
-            <SidebarHeader className="pt-6 ">
-                <div id='avatar' className='flex gap-3'>
+          {/* ✅ Adicionado "group" para permitir group-data-[state=collapsed] */}
+          <Sidebar
+            collapsible="icon"
+            variant="inset"
+            className="group bg-sidebar-red-600 shadow-2xl h-full px-0"
+          >
+            <div className='flex justify-end transform translate-y-8 translate-x-4.5'>
+              <SidebarTrigger className='absolute' />
+            </div>
+            <SidebarHeader className="pt-6 px-0">
+              <div className="flex items-center gap-3">
                 <Avatar className="h-12 w-12 ml-2 cursor-pointer">
-                  <AvatarImage 
-                    src={(user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo) || undefined} 
-                    alt="Profile" 
+                  <AvatarImage
+                    src={user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo}
+                    alt="Profile"
                     className="object-cover w-full h-full"
                   />
-                  <AvatarFallback><Factory/></AvatarFallback>
+                  <AvatarFallback>
+                    <Factory />
+                  </AvatarFallback>
                 </Avatar>
-                <div className='flex flex-col font-semibold'>
-                  <h2 className="truncate max-w-[175px]" title={sideInfo.proprietario}>
+
+                {/* ✅ Esconde quando o sidebar está colapsado */}
+                <div className="flex flex-col font-semibold leading-tight group-data-[state=collapsed]:hidden">
+                  <span className="truncate max-w-[175px]" title={sideInfo.proprietario}>
                     {sideInfo.proprietario}
-                  </h2>
-                  
-                  <p className='text-sm truncate max-w-[175px]' title={user?.displayName || sideInfo.granja}>
+                  </span>
+                  <span
+                    className="text-sm truncate max-w-[175px]"
+                    title={user?.displayName || sideInfo.granja}
+                  >
                     {user?.displayName || sideInfo.granja}
-                  </p>
+                  </span>
                 </div>
               </div>
             </SidebarHeader>
-          <SidebarContent>
-             <SidebarGroup>
-              <SidebarGroupLabel>Menu</SidebarGroupLabel>
-              <Separator/>
-                <SidebarGroupContent>
+
+            <SidebarContent>
+              <SidebarGroup>
+                <SidebarGroupLabel>Menu</SidebarGroupLabel>
+                <Separator />
+                <SidebarGroupContent className="pl-2.5">
                   <SidebarMenu>
                     {items.map((item) => (
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
                           onClick={() => {
-                            // If not authenticated, force redirect to login immediately
                             if (!user) return navigate('/login');
                             navigate(item.path);
                           }}
-                          className={`flex items-center gap-2 transition-colors 
-                            ${location.pathname === item.path || (item.path === '/' && location.pathname === '/home')
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground inset-shadow-sm" 
-                              : "hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground"}`}
+                          className={`flex items-center gap-2 transition-colors ${
+                            location.pathname === item.path ||
+                            (item.path === '/' && location.pathname === '/home')
+                              ? 'bg-sidebar-accent text-sidebar-accent-foreground inset-shadow-sm'
+                              : 'hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
+                          }`}
                         >
                           <item.icon />
                           <span>{item.title}</span>
@@ -182,77 +203,80 @@ const App = () => {
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
-          </SidebarContent>
-          <SidebarFooter>
-            <SidebarGroup>
+            </SidebarContent>
+
+            <SidebarFooter className="p-0">
+              <SidebarGroup>
                 <SidebarGroupLabel>Outros</SidebarGroupLabel>
-                <SidebarGroupContent>
+                <SidebarGroupContent className="pl-2.5">
                   <SidebarMenu>
                     <Collapsible>
-                      {itemsFooter.map((itemsFooter) => (
-                      <SidebarMenuItem key={itemsFooter.title}>
-                        <CollapsibleTrigger className='w-full'>
-                          <SidebarMenuButton>
-                          <itemsFooter.icon />
-                          <span>{itemsFooter.title}</span>
-                        </SidebarMenuButton>
-                        </CollapsibleTrigger>
-                          <CollapsibleContent className="text-popover-foreground flex flex-col outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2">
+                      {itemsFooter.map((item) => (
+                        <SidebarMenuItem key={item.title}>
+                          <CollapsibleTrigger className="w-full">
+                            <SidebarMenuButton>
+                              <item.icon />
+                              <span>{item.title}</span>
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="text-popover-foreground flex flex-col outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
                             <Dialog>
-                              <DialogTrigger>
-                                <SidebarMenuSubButton>
-                                  <p>Perfil</p>
-                                </SidebarMenuSubButton>
+                              <DialogTrigger asChild>
+                                <SidebarMenuSubButton>Perfil</SidebarMenuSubButton>
                               </DialogTrigger>
                               <DialogContent>
                                 <DialogHeader>
                                   <DialogTitle>Configurações de Perfil</DialogTitle>
-                                  <DialogDescription>Edite as opções do perfil do usuário.</DialogDescription>
+                                  <DialogDescription>
+                                    Edite as opções do perfil do usuário.
+                                  </DialogDescription>
                                 </DialogHeader>
-                                <ProfileConfig/>
+                                <ProfileConfig />
                               </DialogContent>
                             </Dialog>
-                              {user?.isAdmin && (
-                            <Dialog>
-                              <DialogTrigger>
-                                <SidebarMenuSubButton>
-                                  <p>IHM</p>
-                                </SidebarMenuSubButton>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>IHM</DialogTitle>
-                                  <DialogDescription>Configurações da IHM</DialogDescription>
-                                </DialogHeader>
-                                <IHMConfig/>
-                              </DialogContent>
-                            </Dialog>
-                            )}
+
                             {user?.isAdmin && (
-                              <Dialog>
-                                <DialogTrigger>
-                                  <SidebarMenuSubButton>
-                                    <p>ADM</p>
-                                  </SidebarMenuSubButton>
-                                </DialogTrigger>
-                                <DialogContent> 
-                                  <AdminConfig/>
-                                </DialogContent>
-                              </Dialog>
+                              <>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <SidebarMenuSubButton>IHM</SidebarMenuSubButton>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>IHM</DialogTitle>
+                                      <DialogDescription>
+                                        Configurações da IHM
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <IHMConfig />
+                                  </DialogContent>
+                                </Dialog>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <SidebarMenuSubButton>ADM</SidebarMenuSubButton>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <AdminConfig />
+                                  </DialogContent>
+                                </Dialog>
+                              </>
                             )}
                           </CollapsibleContent>
-                      </SidebarMenuItem>
-                    ))}
+                        </SidebarMenuItem>
+                      ))}
                     </Collapsible>
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
-              <div className="flex justify-center">
-                <img src={monoLogo} alt="Logo" className="w-25 opacity-80" />
+
+              {/* ✅ Logo também desaparece quando colapsado */}
+              <div className="flex justify-center group-data-[state=collapsed]:hidden mt-2">
+                <img src={monoLogo} alt="Logo" className="w-20 opacity-80 px-1" />
               </div>
-          </SidebarFooter>
-        </Sidebar>
-      </SidebarProvider>
+
+            </SidebarFooter>
+          </Sidebar>
+        </SidebarProvider>
       </div>
       <div id='main-content' className='flex flex-1 flex-col overflow-hidden w-full h-full py-2 px-2 md:px-4'>
           <Routes>
@@ -276,16 +300,17 @@ const App = () => {
     </div>
   );
 };
-export default App
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
   if (!user) {
-    navigate("/login");
-    return <div />;
+    navigate('/login');
+    return null;
   }
 
   return children;
 }
+
+export default App;
