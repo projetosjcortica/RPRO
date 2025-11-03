@@ -120,6 +120,12 @@ interface ComentarioRelatorio {
   autor?: string;
 }
 
+export interface PdfCustomization {
+  fontSize: 'small' | 'medium' | 'large';
+  sortOrder: 'alphabetic' | 'silo' | 'most-used';
+  formulaSortOrder?: 'alphabetic' | 'code' | 'most-used';
+}
+
 export interface MyDocumentProps {
   logoUrl?: string;
   total?: number;
@@ -128,7 +134,7 @@ export interface MyDocumentProps {
   periodoFim?: string;
   horaInicial?: string;
   horaFinal?: string;
-  formulas?: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number }[];
+  formulas?: { numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number; batidas?: number; codigo?: string }[];
   produtos: { nome: string; qtd: number | string; unidade?: string; categoria?: string }[];
   data?: string;
   empresa?: string;
@@ -144,6 +150,9 @@ export interface MyDocumentProps {
   horariosChartData?: { name: string; value: number }[];
   semanaChartData?: { name: string; value: number }[];
   diasSemanaChartData?: { name: string; value: number }[];
+  pdfCustomization?: PdfCustomization;
+  codigoCliente?: string | number;
+  codigoPrograma?: string | number;
 }
 
 export const MyDocument: FC<MyDocumentProps> = ({
@@ -165,6 +174,9 @@ export const MyDocument: FC<MyDocumentProps> = ({
   chartData = [],
   comentarios = [],
   showCharts = true,
+  pdfCustomization = { fontSize: 'medium', sortOrder: 'alphabetic', formulaSortOrder: 'alphabetic' },
+  codigoCliente,
+  codigoPrograma,
   // produtosChartData = [],
   // formulasChartData = [],
   // horariosChartData = [],
@@ -172,6 +184,35 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // diasSemanaChartData = [],
 }) => {
   const dataGeracao = new Date().toLocaleString("pt-BR");
+  
+  // Calcular tamanhos de fonte baseados na customização
+  const fontSizes = {
+    small: { base: 10, title: 20, section: 14, table: 8 },
+    medium: { base: 12, title: 24, section: 16, table: 10 },
+    large: { base: 14, title: 28, section: 18, table: 12 },
+  };
+  
+  const currentFontSizes = fontSizes[pdfCustomization.fontSize];
+
+  // Aplicar ordenação nas fórmulas
+  const formulasOrdenadas = (() => {
+    const formsCopy = [...formulas];
+    const sortOrder = pdfCustomization.formulaSortOrder || 'alphabetic';
+    
+    if (sortOrder === 'alphabetic') {
+      return formsCopy.sort((a, b) => a.nome.localeCompare(b.nome));
+    } else if (sortOrder === 'code') {
+      return formsCopy.sort((a, b) => {
+        const codeA = a.codigo || a.numero?.toString() || '';
+        const codeB = b.codigo || b.numero?.toString() || '';
+        return codeA.localeCompare(codeB);
+      });
+    } else if (sortOrder === 'most-used') {
+      return formsCopy.sort((a, b) => b.somatoriaTotal - a.somatoriaTotal);
+    }
+    
+    return formsCopy;
+  })();
 
   const produtosPorCategoria: Record<string, Produto[]> = {};
   produtos.forEach((p) => {
@@ -200,7 +241,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
           position: "absolute",
           bottom: 20,
           left: 30,
-          fontSize: 10,
+          fontSize: currentFontSizes.base - 2,
           color: "#bbbbbbff",
         }}
       >
@@ -212,7 +253,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
           position: "absolute",
           bottom: 20,
           right: 30,
-          fontSize: 10,
+          fontSize: currentFontSizes.base - 2,
           color: "#bbbbbbff",
         }}
         render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
@@ -482,8 +523,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
   ) => (
     <View style={styles.table}>
       <View style={styles.tableRow}>
-        <Text style={styles.tableColHeader}>Nome</Text>
-        <Text style={styles.tableColHeaderSmall}>Total</Text>
+        <Text style={[styles.tableColHeader, { fontSize: currentFontSizes.table }]}>Nome</Text>
+        <Text style={[styles.tableColHeaderSmall, { fontSize: currentFontSizes.table }]}>Total</Text>
       </View>
       {rows.map((row, i) => {
         const { col1, col2 } = keyMapper(row);
@@ -492,11 +533,38 @@ export const MyDocument: FC<MyDocumentProps> = ({
             key={i}
             style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
           >
-            <Text style={styles.tableCol}>{col1}</Text>
-            <Text style={styles.tableColSmall}>{col2}</Text>
+            <Text style={[styles.tableCol, { fontSize: currentFontSizes.table }]}>{col1}</Text>
+            <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{col2}</Text>
           </View>
         );
       })}
+    </View>
+  );
+  
+  // Tabela especial para fórmulas com batidas e códigos
+  const renderFormulaTable = (
+    formulas: Array<{ numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number; batidas?: number; codigo?: string }>
+  ) => (
+    <View style={styles.table}>
+      <View style={styles.tableRow}>
+        <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Cód</Text>
+        <Text style={[{ width: "50%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
+        <Text style={[{ width: "15%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Batidas</Text>
+        <Text style={[{ width: "25%", borderBottomWidth: 1, borderRightWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Total</Text>
+      </View>
+      {formulas.map((f, i) => (
+        <View
+          key={i}
+          style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
+        >
+          <Text style={[{ width: "10%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6 }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
+          <Text style={[{ width: "50%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6 }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
+          <Text style={[{ width: "15%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6, textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
+          <Text style={[{ width: "25%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6, textAlign: "right" }, { fontSize: currentFontSizes.table }]}>
+            {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
+          </Text>
+        </View>
+      ))}
     </View>
   );
  
@@ -515,8 +583,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
           )}
           <View style={styles.titleContainer}>
             <View style={styles.titleWrapper}>
-              <Text style={styles.title}>{empresa}</Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.title, { fontSize: currentFontSizes.title }]}>{empresa}</Text>
+              <Text style={[styles.subtitle, { fontSize: currentFontSizes.base + 2 }]}>
                 Relatório de Produção - {data}
               </Text>
             </View>
@@ -525,59 +593,70 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
         {/* Informações gerais */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informações Gerais</Text>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Informações Gerais</Text>
 
           <View style={{ marginBottom: 6 }}>
-            <Text style={styles.label}>
+            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
               Total:{" "}
-              <Text style={styles.value}>
+              <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>
                 {total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
               </Text>
             </Text>
           </View>
 
           <View style={{ marginBottom: 6 }}>
-            <Text style={styles.label}>
-              Batidas: <Text style={styles.value}>{batidas}</Text>
+            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+              Batidas: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{batidas}</Text>
+            </Text>
+          </View>
+
+          {codigoCliente && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+                Cód. Cliente: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{codigoCliente}</Text>
+              </Text>
+            </View>
+          )}
+
+          {codigoPrograma && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+                Cód. Programa: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{codigoPrograma}</Text>
+              </Text>
+            </View>
+          )}
+
+          <View style={{ marginBottom: 6 }}>
+            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+              Data inicial: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoInicio}</Text>
             </Text>
           </View>
 
           <View style={{ marginBottom: 6 }}>
-            <Text style={styles.label}>
-              Data inicial: <Text style={styles.value}>{periodoInicio}</Text>
+            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+              Data final: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoFim}</Text>
             </Text>
           </View>
 
           <View style={{ marginBottom: 6 }}>
-            <Text style={styles.label}>
-              Data final: <Text style={styles.value}>{periodoFim}</Text>
+            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+              Hora inicial: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{horaInicial}</Text>
             </Text>
           </View>
 
           <View style={{ marginBottom: 6 }}>
-            <Text style={styles.label}>
-              Hora inicial: <Text style={styles.value}>{horaInicial}</Text>
-            </Text>
-          </View>
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={styles.label}>
-              Hora final: <Text style={styles.value}>{horaFinal}</Text>
+            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+              Hora final: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{horaFinal}</Text>
             </Text>
           </View>
         </View>
         
 
         {/* Fórmulas */}
-        {formulas.length > 0 && (
+        {formulasOrdenadas.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Resumo por Fórmula</Text>
-            {renderTable(formulas, (f) => ({
-              col1: f.nome,
-              col2: (f.somatoriaTotal.toLocaleString("pt-BR", {
-                minimumFractionDigits: 3,
-              })+" kg"),
-            }))}
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Resumo por Fórmula</Text>
+            {renderFormulaTable(formulasOrdenadas)}
           </View>
         )}
 {/* 
@@ -601,7 +680,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
       {/* Página 2 */}
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Produtos</Text>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Produtos</Text>
           
           {categorias.map((cat, idx) => ( 
             <View key={idx} style={{ marginBottom: 10 }}>

@@ -22,6 +22,10 @@ export class Processador {
   private eventHandlers: Map<string, (payload: any) => void> = new Map();
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'connected';
   private baseURL: string;
+  
+  // OTIMIZAÇÃO: Cache de requisições em memória (TTL de 5s)
+  private requestCache: Map<string, { data: any; timestamp: number }> = new Map();
+  private cacheTTL: number = 5000; // 5 segundos
 
   constructor(port: number) {
     this.port = port || 3000;
@@ -41,14 +45,31 @@ export class Processador {
       url = `${this.baseURL}${normalizedEndpoint}`;
     }
 
-    console.log(`[Processador] Making request to ${url} with method ${method}`, data);
+    // OTIMIZAÇÃO: Verificar cache para requisições GET
+    if (method === 'GET' && !data) {
+      const cached = this.requestCache.get(url);
+      if (cached && (Date.now() - cached.timestamp) < this.cacheTTL) {
+        console.log(`[Processador] 💾 Cache hit para ${url}`);
+        return cached.data;
+      }
+    }
 
-    const headers: Record<string, string> = { 'Accept': 'application/json' };
+    console.log(`[Processador] 🌐 Request para ${url} (${method})`);
+
+    const headers: Record<string, string> = { 
+      'Accept': 'application/json',
+      'Connection': 'keep-alive', // Reutilizar conexões
+    };
+    
     // Ensure summary/resumo endpoints are never cached by browsers or intermediate proxies
     if (/\/api\/resumo$/.test(url) || /\/api\/resumo\?/.test(url)) {
       headers['Cache-Control'] = 'no-cache';
     }
-    const config: RequestInit = { method, headers };
+    const config: RequestInit = { 
+      method, 
+      headers,
+      keepalive: true // Manter conexão ativa
+    };
 
     // GET → colocar parâmetros na URL
     if (method === 'GET' && data) {
@@ -66,7 +87,14 @@ export class Processador {
     try {
       const response = await fetch(url, config);
       if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      return await response.json();
+      const result = await response.json();
+      
+      // OTIMIZAÇÃO: Salvar no cache se for GET
+      if (method === 'GET') {
+        this.requestCache.set(url, { data: result, timestamp: Date.now() });
+      }
+      
+      return result;
     } catch (error) {
       console.error(`[Processador] Request failed to ${url}:`, error);
       throw error;

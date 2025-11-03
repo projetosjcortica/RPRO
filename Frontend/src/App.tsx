@@ -8,6 +8,7 @@ import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './conf
 import Report from './report';
 // import CustomReports from './CustomReports';
 import Estoque from './estoque';
+import Amendoim from './amendoim';
 import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel,} from "./components/ui/sidebar";
 import { HomeIcon, Settings, Sheet } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
@@ -101,6 +102,11 @@ const App = () => {
       title:"Relatórios",
       icon:Sheet,
       path: '/report'
+    },
+    {
+      title:"Amendoim",
+      icon:Sheet,
+      path: '/amendoim'
     },
     // {
     //   title:"Relatórios Personalizados",
@@ -255,6 +261,7 @@ const App = () => {
             <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
             <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
             <Route path="/report" element={<RequireAuth><Report /></RequireAuth>} />
+            <Route path="/amendoim" element={<RequireAuth><Amendoim /></RequireAuth>} />
             {/* <Route path="/custom-reports" element={<RequireAuth><CustomReports /></RequireAuth>} /> */}
             {/* <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} /> */}
             <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />

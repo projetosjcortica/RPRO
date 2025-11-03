@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileDown, FileSpreadsheet, MessageSquare, BarChart3, X, Plus } from "lucide-react";
+import { FileDown, FileSpreadsheet, MessageSquare, BarChart3, X, Plus, Settings } from "lucide-react";
 import { PDFViewer } from "@react-pdf/renderer";
 import {
   DropdownMenu,
@@ -25,11 +25,18 @@ import { CalendarIcon } from 'lucide-react';
 import { format as formatDate } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 
 interface Comment {
   id: string;
   texto: string;
   data: string;
+}
+
+export interface PdfCustomization {
+  fontSize: 'small' | 'medium' | 'large';
+  sortOrder: 'alphabetic' | 'silo' | 'most-used';
+  formulaSortOrder?: 'alphabetic' | 'code' | 'most-used';
 }
 
 interface ExportDropdownProps {
@@ -42,6 +49,8 @@ interface ExportDropdownProps {
   comments?: Comment[];
   onAddComment?: (comment: string) => void;
   onRemoveComment?: (id: string) => void;
+  pdfCustomization?: PdfCustomization;
+  onPdfCustomizationChange?: (customization: PdfCustomization) => void;
 }
 
 export function ExportDropdown({
@@ -54,9 +63,12 @@ export function ExportDropdown({
   comments = [],
   onAddComment,
   onRemoveComment,
+  pdfCustomization = { fontSize: 'medium', sortOrder: 'alphabetic' },
+  onPdfCustomizationChange,
 }: ExportDropdownProps) {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [excelModalOpen, setExcelModalOpen] = useState(false);
+  const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
   
   // Filtros Excel
   const [nomeFormula, setNomeFormula] = useState("");
@@ -69,6 +81,11 @@ export function ExportDropdown({
   const [showCommentEditor, setShowCommentEditor] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [showCommentsSection, setShowCommentsSection] = useState(true);
+  
+  // Customização PDF (local state)
+  const [localFontSize, setLocalFontSize] = useState(pdfCustomization.fontSize);
+  const [localSortOrder, setLocalSortOrder] = useState(pdfCustomization.sortOrder);
+  const [localFormulaSortOrder, setLocalFormulaSortOrder] = useState(pdfCustomization.formulaSortOrder || 'alphabetic');
 
   const handlePdfClick = () => {
     setPdfModalOpen(true);
@@ -131,8 +148,18 @@ export function ExportDropdown({
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
         <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto thin-red-scrollbar">
           <DialogHeader>
-            <DialogTitle>Pré-visualização do PDF</DialogTitle>
-            
+            <div className="flex items-center justify-between">
+              <DialogTitle>Pré-visualização do PDF</DialogTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPdfSettingsOpen(true)}
+                className="gap-2"
+              >
+                <Settings className="h-4 w-4" />
+                Customizar Relatório
+              </Button>
+            </div>
           </DialogHeader>
 
           <div className="my-4 border rounded-lg overflow-hidden bg-gray-50 min-h-[600px] thin-red-scrollbar">
@@ -347,6 +374,95 @@ export function ExportDropdown({
             <Button onClick={handleExcelExport} className="gap-2">
               <FileSpreadsheet className="h-4 w-4" />
               Exportar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Customização do PDF */}
+      <Dialog open={pdfSettingsOpen} onOpenChange={setPdfSettingsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Customizar Relatório PDF</DialogTitle>
+            <DialogDescription>
+              Ajuste as opções de visualização do relatório
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-6 py-4">
+            {/* Tamanho da Fonte */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Tamanho da Fonte</Label>
+              <RadioGroup value={localFontSize} onValueChange={(v) => setLocalFontSize(v as 'small' | 'medium' | 'large')}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="small" id="font-small" />
+                  <Label htmlFor="font-small" className="cursor-pointer font-normal">Pequena</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="medium" id="font-medium" />
+                  <Label htmlFor="font-medium" className="cursor-pointer font-normal">Média (Padrão)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="large" id="font-large" />
+                  <Label htmlFor="font-large" className="cursor-pointer font-normal">Grande</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Ordenação da Tabela de Produtos */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Ordenar Tabela de Produtos por</Label>
+              <RadioGroup value={localSortOrder} onValueChange={(v) => setLocalSortOrder(v as 'alphabetic' | 'silo' | 'most-used')}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="alphabetic" id="sort-alpha" />
+                  <Label htmlFor="sort-alpha" className="cursor-pointer font-normal">Ordem Alfabética</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="silo" id="sort-silo" />
+                  <Label htmlFor="sort-silo" className="cursor-pointer font-normal">Silos (Prod_1...40)</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="most-used" id="sort-usage" />
+                  <Label htmlFor="sort-usage" className="cursor-pointer font-normal">Mais Usados</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Ordenação da Tabela de Fórmulas */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Ordenar Tabela de Fórmulas por</Label>
+              <RadioGroup value={localFormulaSortOrder} onValueChange={(v) => setLocalFormulaSortOrder(v as 'alphabetic' | 'code' | 'most-used')}>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="alphabetic" id="formula-sort-alpha" />
+                  <Label htmlFor="formula-sort-alpha" className="cursor-pointer font-normal">Ordem Alfabética</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="code" id="formula-sort-code" />
+                  <Label htmlFor="formula-sort-code" className="cursor-pointer font-normal">Código</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="most-used" id="formula-sort-usage" />
+                  <Label htmlFor="formula-sort-usage" className="cursor-pointer font-normal">Mais Usadas</Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPdfSettingsOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => {
+              if (onPdfCustomizationChange) {
+                onPdfCustomizationChange({
+                  fontSize: localFontSize,
+                  sortOrder: localSortOrder,
+                  formulaSortOrder: localFormulaSortOrder,
+                });
+              }
+              setPdfSettingsOpen(false);
+            }}>
+              Aplicar
             </Button>
           </DialogFooter>
         </DialogContent>

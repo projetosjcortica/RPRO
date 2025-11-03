@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
-import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User } from '../entities/index';
+import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim } from '../entities/index';
 import { getRuntimeConfig } from '../core/runtimeConfig';
 
 export class DBService extends BaseService {
@@ -79,7 +79,7 @@ export class DBService extends BaseService {
           database: finalDb,
           synchronize: true, // This will create/update tables automatically
           logging: ['error', 'schema'], // Log only errors and schema changes
-          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User],
+          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim],
         });
       } else {
         const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
@@ -91,7 +91,7 @@ export class DBService extends BaseService {
           database: absPath,
           synchronize: shouldSync,
           logging: false,
-          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User],
+          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim],
         });
       }
       await this.ds.initialize();
@@ -119,7 +119,7 @@ export class DBService extends BaseService {
             database: absPath,
             synchronize: true,
             logging: ['error', 'schema'],
-            entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User],
+            entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim],
           });
           await this.ds.initialize();
           this.useMysql = false;

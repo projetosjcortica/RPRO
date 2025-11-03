@@ -37,6 +37,44 @@ import { cacheService } from "./services/CacheService";
 console.log("✅ [Startup] Módulos importados com sucesso");
 console.log("✅ [Startup] fileProcessorService:", fileProcessorService ? "LOADED" : "UNDEFINED");
 
+// ========== CACHE DE MATÉRIAS-PRIMAS ==========
+// Cache global para evitar consultas repetidas ao banco
+let materiaPrimaCache: Record<number, any> | null = null;
+let materiaPrimaCacheTime: number = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+async function getMateriaPrimaCache(): Promise<Record<number, any>> {
+  const now = Date.now();
+  
+  // Retornar cache se ainda válido
+  if (materiaPrimaCache && (now - materiaPrimaCacheTime) < CACHE_TTL_MS) {
+    return materiaPrimaCache;
+  }
+  
+  // Buscar do banco e atualizar cache
+  const materias = await materiaPrimaService.getAll();
+  const cache: Record<number, any> = {};
+  
+  for (const m of materias) {
+    const n = typeof m.num === "number" ? m.num : Number(m.num);
+    if (!Number.isNaN(n)) {
+      cache[n] = m;
+    }
+  }
+  
+  materiaPrimaCache = cache;
+  materiaPrimaCacheTime = now;
+  
+  return cache;
+}
+
+// Invalidar cache quando matérias-primas forem atualizadas
+export function invalidateMateriaPrimaCache() {
+  materiaPrimaCache = null;
+  materiaPrimaCacheTime = 0;
+  console.log('[Cache] Matéria-prima cache invalidated');
+}
+
 // Collector
 // Prefer runtime-config values (set via POST /api/config) and fall back to environment variables
 const POLL_INTERVAL = Number(
@@ -886,6 +924,7 @@ app.get("/api/ihm/fetchLatest", async (req, res) => {
 });
 
 app.get("/api/relatorio/paginate", async (req, res) => {
+  const startTime = Date.now();
   try {
     // Verificar conexão do banco
     if (!AppDataSource.isInitialized) {
@@ -1031,17 +1070,14 @@ app.get("/api/relatorio/paginate", async (req, res) => {
 
     // Map rows to include values array from Prod_1 to Prod_40
     // Normalize product values according to MateriaPrima.measure (grams->kg)
-    const materias = await materiaPrimaService.getAll();
-    const materiasByNum: Record<number, any> = {};
-    for (const m of materias) {
-      const n = typeof m.num === "number" ? m.num : Number(m.num);
-      if (!Number.isNaN(n)) materiasByNum[n] = m;
-    }
+    // OTIMIZAÇÃO: Usar cache em vez de consultar banco a cada request
+    const materiasByNum = await getMateriaPrimaCache();
 
+    // OTIMIZAÇÃO: Pré-alocar arrays com tamanho fixo
     const mappedRows = rows.map((row: any) => {
-      const values: string[] = [];
-      const valuesRaw: number[] = [];
-      const unidades: string[] = [];
+      const values: string[] = new Array(40);
+      const valuesRaw: number[] = new Array(40);
+      const unidades: string[] = new Array(40);
       
       for (let i = 1; i <= 40; i++) {
         const prodValue = row[`Prod_${i}`];
@@ -1057,25 +1093,20 @@ app.get("/api/relatorio/paginate", async (req, res) => {
         if (v < 0) v = 0;
         
         // valuesRaw: SEMPRE valor original do banco de dados (sem conversão, sem negativos)
-        valuesRaw.push(v);
+        const idx = i - 1;
+        valuesRaw[idx] = v;
         
         // Determinar unidade e formatar valor com 3 casas decimais
-        let unidade = 'kg';
-        let valorFormatado = '0.000';
-        
+        // OTIMIZAÇÃO: Usar acesso direto ao índice em vez de push
         if (materia && Number(materia.medida) === 0) {
           // Produto em gramas: converter para kg e formatar
-          unidade = 'g';
-          const valorKg = v / 1000;
-          valorFormatado = valorKg.toFixed(3);
+          unidades[idx] = 'g';
+          values[idx] = (v / 1000).toFixed(3);
         } else {
           // Produto em kg: formatar direto
-          unidade = 'kg';
-          valorFormatado = v.toFixed(3);
+          unidades[idx] = 'kg';
+          values[idx] = v.toFixed(3);
         }
-        
-        values.push(valorFormatado);
-        unidades.push(unidade);
       }
 
       return {
@@ -1099,6 +1130,9 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       pageSize: pageSizeNum,
       totalPages,
     };
+
+    const duration = Date.now() - startTime;
+    console.log(`[relatorio/paginate] ✅ Query completed in ${duration}ms (${rows.length} rows)`);
 
     // Headers para otimização de navegador (sem cache de servidor)
     res.set({
@@ -1797,6 +1831,8 @@ app.post("/api/db/setupMateriaPrima", async (req, res) => {
 
     try {
       const saved = await materiaPrimaService.saveMany(processedItems);
+      // Invalidar cache após atualização
+      invalidateMateriaPrimaCache();
       return res.json(saved);
     } catch (err: any) {
       console.error("[setupMateriaPrima] saveMany error", err?.message || err);
@@ -3503,6 +3539,176 @@ app.post('/api/stats/cleanup', async (req, res) => {
   } catch (e: any) {
     console.error('[api/stats/cleanup] error', e);
     return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// ==================== ENDPOINTS AMENDOIM ====================
+
+import { AmendoimService } from "./services/AmendoimService";
+import { Amendoim } from "./entities/Amendoim";
+
+// POST /api/amendoim/upload - Upload e processamento de CSV de amendoim
+const amendoimUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+});
+
+app.post('/api/amendoim/upload', amendoimUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo enviado' });
+    }
+
+    const csvContent = req.file.buffer.toString('utf-8');
+    const resultado = await AmendoimService.processarCSV(csvContent);
+
+    return res.json({
+      ok: true,
+      ...resultado,
+      mensagem: `${resultado.salvos} registros salvos de ${resultado.processados} processados`,
+    });
+  } catch (e: any) {
+    console.error('[api/amendoim/upload] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao processar CSV' });
+  }
+});
+
+// GET /api/amendoim/registros - Buscar registros com paginação e filtros
+app.get('/api/amendoim/registros', async (req, res) => {
+  try {
+    const page = Number(req.query.page) || 1;
+    const pageSize = Number(req.query.pageSize) || 100;
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+    const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const nomeProduto = req.query.nomeProduto ? String(req.query.nomeProduto) : undefined;
+
+    const resultado = await AmendoimService.buscarRegistros({
+      page,
+      pageSize,
+      dataInicio,
+      dataFim,
+      codigoProduto,
+      nomeProduto,
+    });
+
+    return res.json(resultado);
+  } catch (e: any) {
+    console.error('[api/amendoim/registros] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao buscar registros' });
+  }
+});
+
+// GET /api/amendoim/estatisticas - Obter estatísticas dos registros
+app.get('/api/amendoim/estatisticas', async (req, res) => {
+  try {
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+
+    const estatisticas = await AmendoimService.obterEstatisticas({
+      dataInicio,
+      dataFim,
+    });
+
+    return res.json(estatisticas);
+  } catch (e: any) {
+    console.error('[api/amendoim/estatisticas] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter estatísticas' });
+  }
+});
+
+// GET /api/amendoim/filtrosDisponiveis - Obter filtros disponíveis
+app.get('/api/amendoim/filtrosDisponiveis', async (req, res) => {
+  try {
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+
+    const repository = AppDataSource.getRepository(Amendoim);
+    const qb = repository.createQueryBuilder('a');
+
+    if (dataInicio) {
+      qb.andWhere('a.dia >= :dataInicio', { dataInicio });
+    }
+    if (dataFim) {
+      qb.andWhere('a.dia <= :dataFim', { dataFim });
+    }
+
+    // Buscar códigos únicos de produtos
+    const codigosProduto = await qb
+      .select('DISTINCT a.codigoProduto', 'codigo')
+      .orderBy('a.codigoProduto', 'ASC')
+      .getRawMany();
+
+    return res.json({
+      codigosProduto: codigosProduto.map(c => c.codigo).filter(Boolean)
+    });
+  } catch (e: any) {
+    console.error('[api/amendoim/filtrosDisponiveis] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter filtros disponíveis' });
+  }
+});
+
+// GET /api/amendoim/chartdata/produtos - Dados para gráfico de produtos
+app.get('/api/amendoim/chartdata/produtos', async (req, res) => {
+  try {
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+    const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+
+    const chartData = await AmendoimService.getChartDataProdutos({
+      dataInicio,
+      dataFim,
+      codigoProduto,
+      limit,
+    });
+
+    return res.json(chartData);
+  } catch (e: any) {
+    console.error('[api/amendoim/chartdata/produtos] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
+  }
+});
+
+// GET /api/amendoim/chartdata/caixas - Dados para gráfico de caixas
+app.get('/api/amendoim/chartdata/caixas', async (req, res) => {
+  try {
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+    const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const limit = req.query.limit ? Number(req.query.limit) : 20;
+
+    const chartData = await AmendoimService.getChartDataCaixas({
+      dataInicio,
+      dataFim,
+      codigoProduto,
+      limit,
+    });
+
+    return res.json(chartData);
+  } catch (e: any) {
+    console.error('[api/amendoim/chartdata/caixas] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
+  }
+});
+
+// GET /api/amendoim/chartdata/horarios - Dados para gráfico de horários
+app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
+  try {
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+    const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+
+    const chartData = await AmendoimService.getChartDataHorarios({
+      dataInicio,
+      dataFim,
+      codigoProduto,
+    });
+
+    return res.json(chartData);
+  } catch (e: any) {
+    console.error('[api/amendoim/chartdata/horarios] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
   }
 });
 

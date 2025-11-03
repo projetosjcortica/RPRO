@@ -113,6 +113,8 @@ export function TableComponent({
   pageSize = 100,
   useExternalData = false,
   onResetColumnsReady,
+  sortBy: sortByProp,
+  sortDir: sortDirProp,
   onToggleSort,
 }: TableComponentProps) {
   // ================
@@ -213,13 +215,19 @@ export function TableComponent({
   // DADOS DA TABELA
   // ================
 
-  console.log('[TableComponent] filtros:', filtros, 'sortBy:', (filtros as any)?.sortBy, 'sortDir:', (filtros as any)?.sortDir);
-
-  const { dados: dadosFromHook, loading: loadingFromHook, error: errorFromHook } = useReportData(filtros as any, page, pageSize);
-  // Re-run hook when sort params change
-  useEffect(() => {
-    // noop - useReportData uses filtros.sortBy/sortDir from the filtros object passed by parent
-  }, [ (filtros as any)?.sortBy, (filtros as any)?.sortDir ]);
+  // Quando useExternalData é true, não usar o hook interno
+  const shouldFetchData = !useExternalData;
+  const internalSortBy = sortByProp || 'Dia';
+  const internalSortDir = sortDirProp || 'DESC';
+  
+  const { dados: dadosFromHook, loading: loadingFromHook, error: errorFromHook } = useReportData(
+    filtros as any, 
+    page || 1, 
+    pageSize || 100,
+    internalSortBy,
+    internalSortDir,
+    shouldFetchData
+  );
 
   useEffect(() => {
     if (useExternalData) return;

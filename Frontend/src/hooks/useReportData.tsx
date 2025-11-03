@@ -1,26 +1,67 @@
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { FilterOptions, ReportRow } from "../components/types";
 
-export function useReportData(filtros: FilterOptions, page: number, pageSize: number) {
-  // Accept optional sorting via filtros.sortBy and filtros.sortDir
-  const sortBy = (filtros as any)?.sortBy || 'Dia';
-  const sortDir = (filtros as any)?.sortDir || 'DESC';
+export function useReportData(
+  filtros: FilterOptions, 
+  page: number, 
+  pageSize: number,
+  sortBy: string,
+  sortDir: 'ASC' | 'DESC',
+  allowFetch: boolean = true
+) {
   
   const [dados, setDados] = useState<ReportRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
   const [reloadFlag, setReloadFlag] = useState(0);
-  const [retryCount, setRetryCount] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastFetchParamsRef = useRef<string>('');
+  
+  // OTIMIZAÇÃO: Memoizar parametros para evitar fetches duplicados
+  const fetchParams = useMemo(() => ({
+    nomeFormula: (filtros as any).nomeFormula || '',
+    dataInicio: (filtros as any).dataInicio || '',
+    dataFim: (filtros as any).dataFim || '',
+    codigo: (filtros as any).codigo || '',
+    numero: (filtros as any).numero || '',
+    page,
+    pageSize,
+    sortBy,
+    sortDir,
+  }), [
+    (filtros as any).nomeFormula,
+    (filtros as any).dataInicio,
+    (filtros as any).dataFim,
+    (filtros as any).codigo,
+    (filtros as any).numero,
+    page,
+    pageSize,
+    sortBy,
+    sortDir
+  ]);
 
   const refetch = useCallback(() => {
-    // Always fetch fresh data - no cache
     setReloadFlag((flag) => flag + 1);
   }, []);
 
   useEffect(() => {
-    // Cancel previous request if exists
+    // Não buscar se não permitido
+    if (!allowFetch) {
+      return;
+    }
+
+    // Criar chave única dos parâmetros atuais
+    const currentParams = JSON.stringify(fetchParams);
+    
+    // Se parâmetros não mudaram, não fazer nova busca
+    if (currentParams === lastFetchParamsRef.current) {
+      return;
+    }
+    
+    lastFetchParamsRef.current = currentParams;
+
+    // Cancelar requisição anterior
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -29,7 +70,6 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
     abortControllerRef.current = controller;
     const signal = controller.signal;
     let isMounted = true;
-    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const fetchData = async () => {
       if (!isMounted) return;
@@ -80,8 +120,10 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
           signal,
           headers: { 
             'Cache-Control': 'no-cache',
-            'Priority': 'high'
-          }
+            'Connection': 'keep-alive', // Reutilizar conexão
+            'Accept': 'application/json',
+          },
+          keepalive: true // Manter conexão ativa
         });
         
         clearTimeout(timeoutId);
@@ -96,24 +138,12 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
 
         setDados(newRows);
         setTotal(newTotal);
-        setRetryCount(0);
         
       } catch (err: any) {
         if (!isMounted) return;
         if (err.name === 'AbortError') return;
         
-        console.error("[useReportData] Erro ao buscar dados:", err);
-        
-        // Tentar novamente até 3 vezes em caso de erro de rede
-        if (retryCount < 3 && (err.name === 'AbortError' || err.message.includes('network') || err.message.includes('failed'))) {
-          setRetryCount(prev => prev + 1);
-          console.log(`[useReportData] Tentando novamente (${retryCount + 1}/3)...`);
-          retryTimeout = setTimeout(() => {
-            if (isMounted) fetchData();
-          }, 2000);
-          return;
-        }
-        
+        console.error("[useReportData] ❌ Erro:", err.message);
         setError(err.message || "Erro ao buscar dados");
         setDados([]);
         setTotal(0);
@@ -122,16 +152,16 @@ export function useReportData(filtros: FilterOptions, page: number, pageSize: nu
       }
     };
 
+    // OTIMIZAÇÃO: Executar imediatamente (sem debounce)
     fetchData();
 
     return () => {
       isMounted = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
     };
-  }, [filtros, page, pageSize, sortBy, sortDir, reloadFlag, retryCount]);
+  }, [fetchParams, reloadFlag, allowFetch]);
 
   return { dados, loading, error, total, refetch };
 }

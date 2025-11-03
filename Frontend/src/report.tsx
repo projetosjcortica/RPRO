@@ -44,6 +44,7 @@ import { Separator } from "./components/ui/separator";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import { RefreshButton } from "./components/RefreshButton";
 import toastManager from './lib/toastManager';
+import { getDefaultReportDateRange } from "./lib/reportDefaults";
 
 interface ComentarioRelatorio {
   texto: string;
@@ -53,6 +54,11 @@ interface ComentarioRelatorio {
 export default function Report() {
   const { user } = useAuth();
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
+  
+  // OTIMIZAÇÃO: Log de performance para monitorar inicialização
+  const mountTimeRef = useRef(Date.now());
+  
+  // REMOVIDO: Prefetch estava bloqueando renderização (5-11s delay)
 
   // Obter logo do usuário
   useEffect(() => {
@@ -95,12 +101,16 @@ export default function Report() {
 
   // ... restante do código permanece igual até handlePrint ...
 
-  const [filtros, setFiltros] = useState<Filtros>({
-    dataInicio: "",
-    dataFim: "",
-    nomeFormula: "",
-    codigo: "",
-    numero: "",
+  const [filtros, setFiltros] = useState<Filtros>(() => {
+    // Carrega a tela já filtrando o último dia (apenas hoje) para evitar a consulta pesada de todo o histórico
+    const { dataInicio, dataFim } = getDefaultReportDateRange();
+    return {
+      dataInicio,
+      dataFim,
+      nomeFormula: "",
+      codigo: "",
+      numero: "",
+    };
   });
 
   const [colLabels, setColLabels] = useState<{ [key: string]: string }>({});
@@ -156,6 +166,17 @@ export default function Report() {
   // Estados para controle de exibição no PDF
   const [showPdfComments, setShowPdfComments] = useState<boolean>(true);
   const [showPdfCharts, setShowPdfCharts] = useState<boolean>(true);
+  
+  // Estado para customização do PDF
+  const [pdfCustomization, setPdfCustomization] = useState<{
+    fontSize: 'small' | 'medium' | 'large';
+    sortOrder: 'alphabetic' | 'silo' | 'most-used';
+    formulaSortOrder?: 'alphabetic' | 'code' | 'most-used';
+  }>({
+    fontSize: 'medium',
+    sortOrder: 'alphabetic',
+    formulaSortOrder: 'alphabetic',
+  });
 
   const [tableSelection, setTableSelection] = useState<{
     periodoInicio: string | undefined;
@@ -170,6 +191,8 @@ export default function Report() {
       quantidade: number;
       porcentagem: number;
       somatoriaTotal: number;
+      batidas?: number;
+      codigo?: string;
     }[];
     produtos: {
       nome: string;
@@ -195,10 +218,17 @@ export default function Report() {
   const [resumo, setResumo] = useState<any | null>(null);
   const [resumoReloadFlag, setResumoReloadFlag] = useState(0);
   const runtime = useRuntimeConfig();
+  
+  // OTIMIZAÇÃO: Buscar dados imediatamente (paralelo com produtos)
+  const [allowDataFetch] = useState(true); // Sempre true para busca paralela
+  
   const { dados, loading, error, total, refetch} = useReportData(
     filtros,
     page,
-    pageSize
+    pageSize,
+    sortBy,
+    sortDir,
+    allowDataFetch // Sempre true
   );
   const { formData: profileConfigData } = usePersistentForm("profile-config");
   const autoRefreshTimer = useRef<number | null>(null);
@@ -238,11 +268,6 @@ export default function Report() {
     
     // Sempre volta para primeira página ao mudar ordenação
     setPage(1);
-  }, [sortBy, sortDir]);
-
-  // Propagate sorting into filtros so useReportData includes sort params
-  useEffect(() => {
-    setFiltros((prev) => ({ ...prev, sortBy, sortDir }));
   }, [sortBy, sortDir]);
 
   const fetchCollectorStatus = useCallback(async () => {
@@ -319,6 +344,7 @@ export default function Report() {
   const [resumoRetryCount, setResumoRetryCount] = useState(0);
 
   useEffect(() => {
+    // OTIMIZAÇÃO: Buscar resumo em paralelo (não esperar produtos)
     let mounted = true;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -326,6 +352,7 @@ export default function Report() {
       if (!mounted) return;
 
       try {
+        const startTime = Date.now();
         setResumoLoading(true);
         setResumoError(null);
 
@@ -337,11 +364,8 @@ export default function Report() {
 
         console.log(`[resumo] Buscando dados com filtros`, filtros);
 
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
-
-        const result = await processador.getResumoWithSignal(
-          controller.signal,
+        // OTIMIZAÇÃO: Remover AbortController que causava cancelamentos em cascata
+        const result = await processador.getResumo(
           areaId as string | undefined,
           formula as string | undefined,
           dateStart as string | undefined,
@@ -354,31 +378,26 @@ export default function Report() {
             : undefined
         );
 
-        clearTimeout(timeoutId);
         if (!mounted) return;
 
-        console.log(`[resumo] Dados recebidos:`, result);
+        console.log(`[resumo] ✅ Dados recebidos em`, Date.now() - startTime, 'ms');
         setResumo(result || null);
         setResumoRetryCount(0);
       } catch (err: any) {
         if (!mounted) return;
 
-        console.error("[resumo] Erro ao buscar dados:", err);
+        console.error("[resumo] ❌ Erro ao buscar dados:", err);
 
-        // Tentar novamente até 3 vezes em caso de erro de rede
+        // Tentar novamente apenas 1 vez para falhas de rede reais
         if (
-          resumoRetryCount < 3 &&
-          (err.name === "AbortError" ||
-            err.message?.includes("network") ||
-            err.message?.includes("failed"))
+          resumoRetryCount < 1 &&
+          (err.message?.includes("network") || err.message?.includes("fetch"))
         ) {
           setResumoRetryCount((prev) => prev + 1);
-          console.log(
-            `[resumo] Tentando novamente (${resumoRetryCount + 1}/3)...`
-          );
+          console.log(`[resumo] 🔄 Tentando novamente (${resumoRetryCount + 1}/1)...`);
           retryTimeout = setTimeout(() => {
             if (mounted) fetchResumo();
-          }, 2000); // espera 2 segundos antes de tentar novamente
+          }, 1000);
           return;
         }
 
@@ -417,6 +436,8 @@ export default function Report() {
         quantidade: data.quantidade ?? 0,
         porcentagem: data.porcentagem ?? 0,
         somatoriaTotal: data.somatoriaTotal ?? 0,
+        batidas: data.batidas ?? data.quantidade ?? 0,
+        codigo: data.codigo || data.numero?.toString() || '',
       }));
 
       setTableSelection({
@@ -677,19 +698,17 @@ export default function Report() {
   // Load produtosInfo
   useEffect(() => {
     let mounted = true;
+
     const loadFromBackend = async () => {
       try {
-        console.log("[Produtos] Carregando produtos do backend...");
+        const startTime = Date.now();
         const res = await fetch(
-          "http://localhost:3000/api/materiaprima/labels",
-          {
-            headers: { "Cache-Control": "no-cache" },
-            cache: "no-store",
-          }
+          "http://localhost:3000/api/materiaprima/labels"
         );
+        
         if (!res.ok) {
           console.warn(
-            "[Produtos] Erro ao carregar produtos do backend:",
+            "[Produtos] ❌ Erro ao carregar:",
             res.status
           );
           return;
@@ -698,10 +717,8 @@ export default function Report() {
         const data = await res.json();
         if (!mounted) return;
 
-        console.log("[Produtos] Dados recebidos:", data);
-
         if (!data || typeof data !== "object") {
-          console.warn("[Produtos] Dados inválidos recebidos do backend");
+          console.warn("[Produtos] ⚠️ Dados inválidos");
           return;
         }
 
@@ -720,41 +737,15 @@ export default function Report() {
           };
         });
 
-        console.log("[Produtos] Dados processados:", parsed);
+        const elapsed = Date.now() - startTime;
+        console.log(`[Produtos] ✅ ${Object.keys(parsed).length} produtos em ${elapsed}ms`);
         setProdutosInfo(parsed);
-
-        // Salvar no localStorage para uso offline
-        localStorage.setItem("produtosInfo", JSON.stringify(parsed));
       } catch (e) {
-        console.warn("[Produtos] Falha ao carregar produtos do backend:", e);
-        // Em caso de erro, tentar carregar do localStorage
-        loadFromLocalStorage();
+        console.warn("[Produtos] ❌ Falha ao carregar:", e);
       }
     };
 
-    const loadFromLocalStorage = () => {
-      try {
-        console.log("[Produtos] Tentando carregar do localStorage...");
-        const raw = localStorage.getItem("produtosInfo");
-        if (raw) {
-          const parsedLocal = JSON.parse(raw);
-          const parsedObj: Record<string, any> = {};
-          Object.keys(parsedLocal).forEach((colKey) => {
-            const val = parsedLocal[colKey];
-            parsedObj[colKey] = {
-              nome: val?.nome || `Produto`,
-              unidade: val?.unidade || "kg",
-            };
-          });
-          console.log("[Produtos] Carregado do localStorage:", parsedObj);
-          setProdutosInfo(parsedObj);
-        }
-      } catch (err) {
-        console.error("[Produtos] Erro ao carregar do localStorage:", err);
-      }
-    };
-
-    // Tenta carregar do backend primeiro
+    // OTIMIZAÇÃO: Buscar diretamente do backend (sem localStorage)
     loadFromBackend();
 
     // Instead of immediately reloading on `produtos-updated`, mark a pending flag.
@@ -811,6 +802,14 @@ export default function Report() {
       mounted = false;
     };
   }, []);
+
+  // OTIMIZAÇÃO: Log de performance (produtos carregam em paralelo agora)
+  useEffect(() => {
+    if (Object.keys(produtosInfo).length > 0) {
+      const elapsed = Date.now() - mountTimeRef.current;
+      console.log(`[Report] ✅ Produtos carregados em ${elapsed}ms (paralelo)`);
+    }
+  }, [produtosInfo]);
 
   const converterValor = (valor: number): number => {
     if (typeof valor !== "number") return valor;
@@ -1006,6 +1005,34 @@ export default function Report() {
       return out;
     })();
 
+    // Aplicar ordenação aos produtos baseada em pdfCustomization.sortOrder
+    const produtosOrdenados = (() => {
+      const prods = [...tableSelection.produtos];
+      
+      if (pdfCustomization.sortOrder === 'alphabetic') {
+        return prods.sort((a, b) => a.nome.localeCompare(b.nome));
+      } else if (pdfCustomization.sortOrder === 'silo') {
+        // Ordenar por colKey (col6 = silo 1, col7 = silo 2, etc)
+        return prods.sort((a, b) => {
+          const getNumFromKey = (key?: string) => {
+            if (!key) return 999;
+            const match = key.match(/col(\d+)/);
+            return match ? parseInt(match[1]) : 999;
+          };
+          return getNumFromKey(a.colKey) - getNumFromKey(b.colKey);
+        });
+      } else if (pdfCustomization.sortOrder === 'most-used') {
+        // Ordenar por quantidade (decrescente)
+        return prods.sort((a, b) => {
+          const qtdA = typeof a.qtd === 'number' ? a.qtd : parseFloat(String(a.qtd)) || 0;
+          const qtdB = typeof b.qtd === 'number' ? b.qtd : parseFloat(String(b.qtd)) || 0;
+          return qtdB - qtdA;
+        });
+      }
+      
+      return prods;
+    })();
+
     return (
       <MyDocument
         logoUrl={logoUrl}
@@ -1016,7 +1043,7 @@ export default function Report() {
         horaInicial={tableSelection.horaInicial}
         horaFinal={tableSelection.horaFinal}
         formulas={tableSelection.formulas}
-        produtos={tableSelection.produtos}
+        produtos={produtosOrdenados}
         data={new Date().toLocaleDateString("pt-BR")}
         empresa={sideInfo.proprietario || "Relatório RPRO"}
         comentarios={comentariosComId}
@@ -1024,11 +1051,14 @@ export default function Report() {
         formulaSums={formulaSums}
         usuario={user.username}
         showCharts={showPdfCharts}
+        codigoCliente={filtros.codigo || resumo?.codigoCliente}
+        codigoPrograma={filtros.numero || resumo?.codigoPrograma}
         produtosChartData={produtosDonutData}
         formulasChartData={formulasDonutData}
         horariosChartData={horariosBarData}
         semanaChartData={semanaBarData}
         diasSemanaChartData={diasSemanaBarData}
+        pdfCustomization={pdfCustomization}
       />
     );
   };
@@ -1124,13 +1154,17 @@ export default function Report() {
 
   // Renderização condicional do conteúdo
   let content;
+  
+  // OTIMIZAÇÃO: Mostrar loading se produtos ainda não foram carregados
+  const isInitializing = !allowDataFetch && Object.keys(produtosInfo).length === 0;
+  
   if (view === "table") {
     content = (
       <TableComponent
         filtros={filtros}
         colLabels={colLabels}
         dados={dados}
-        loading={loading}
+        loading={loading || isInitializing}
         error={error}
         page={page}
         pageSize={pageSize}
@@ -1731,6 +1765,8 @@ export default function Report() {
                 comments={comentariosComId}
                 onAddComment={handleAddCommentFromModal}
                 onRemoveComment={handleRemoveCommentFromModal}
+                pdfCustomization={pdfCustomization}
+                onPdfCustomizationChange={setPdfCustomization}
               />
             </div>
           </div>

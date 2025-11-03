@@ -195,14 +195,14 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
 };
 
 // Tooltip customizado
-const CustomTooltip = ({ active, payload, stats }: any) => {
+const CustomTooltip = ({ active, payload, stats, unit: customUnit }: any) => {
   if (!active || !payload || !payload.length) return null;
 
   const data = payload[0].payload;
   const value = data.value || 0;
   const count = data.count || stats?.totalRecords || 0;
   const average = data.average || 0;
-  const unit = data.unit || 'kg';
+  const unit = customUnit || data.unit || 'kg';
   
   const total = stats?.total || payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
   const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
@@ -294,8 +294,42 @@ const CompactDonutTooltip = ({ active, payload, stats }: any) => {
 };
 
 // COMPONENTE: DonutChart
-export const DonutChartWidget = React.memo(({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean }) => {
-  const { data, loading, stats, error, refetch } = useChartData(chartType, config?.filters);
+export const DonutChartWidget = React.memo(({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false, title, fetchUrl, unit }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean; title?: string; fetchUrl?: string; unit?: string }) => {
+  // Se fetchUrl for fornecido, usar fetch direto; caso contrário, usar useChartData
+  const [directData, setDirectData] = useState<ChartDatum[]>([]);
+  const [directLoading, setDirectLoading] = useState(false);
+  const [directStats, setDirectStats] = useState<any>(null);
+  const [directError, setDirectError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!fetchUrl) return;
+    
+    const fetchData = async () => {
+      setDirectLoading(true);
+      setDirectError(null);
+      try {
+        const res = await fetch(fetchUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        setDirectData(body.chartData || []);
+        setDirectStats(body);
+      } catch (err: any) {
+        setDirectError(err.message);
+      } finally {
+        setDirectLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [fetchUrl]);
+
+  const hookResult = useChartData(chartType, config?.filters);
+  
+  const data = fetchUrl ? directData : hookResult.data;
+  const loading = fetchUrl ? directLoading : hookResult.loading;
+  const stats = fetchUrl ? directStats : hookResult.stats;
+  const error = fetchUrl ? directError : hookResult.error;
+  const refetch = hookResult.refetch;
   const [retryAttempt, setRetryAttempt] = useState(0);
 
   // ✅ OTIMIZAÇÃO: Memoizar cálculos pesados
@@ -364,8 +398,18 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
     );
   }
 
+  const displayTitle = title || "Gráfico";
+  const displayUnit = unit || data[0]?.unit || 'kg';
+
   return (
     <div className="h-full w-full relative">
+      {/* Título do gráfico */}
+      {title && (
+        <div className="text-sm font-semibold text-gray-700 mb-2">
+          {displayTitle}
+        </div>
+      )}
+      
       {!compact && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
@@ -373,7 +417,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
             <div className="text-lg font-bold text-red-600">
               {(stats?.total ?? data.reduce((s, d) => s + d.value, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
             </div>
-            <div className="text-xs text-gray-500">{(data[0]?.unit) ?? 'kg'}</div>
+            <div className="text-xs text-gray-500">{displayUnit}</div>
           </div>
         </div>
       )}
@@ -424,8 +468,42 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
 });
 
 // COMPONENTE: BarChart
-export const BarChartWidget = React.memo(({ chartType = "formulas", config }: { chartType?: ChartType; config?: any }) => {
-  const { data, loading, stats, error, refetch } = useChartData(chartType, config?.filters);
+export const BarChartWidget = React.memo(({ chartType = "formulas", config, title, fetchUrl, unit }: { chartType?: ChartType; config?: any; title?: string; fetchUrl?: string; unit?: string }) => {
+  // Se fetchUrl for fornecido, usar fetch direto; caso contrário, usar useChartData
+  const [directData, setDirectData] = useState<ChartDatum[]>([]);
+  const [directLoading, setDirectLoading] = useState(false);
+  const [directStats, setDirectStats] = useState<any>(null);
+  const [directError, setDirectError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!fetchUrl) return;
+    
+    const fetchData = async () => {
+      setDirectLoading(true);
+      setDirectError(null);
+      try {
+        const res = await fetch(fetchUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        setDirectData(body.chartData || []);
+        setDirectStats(body);
+      } catch (err: any) {
+        setDirectError(err.message);
+      } finally {
+        setDirectLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [fetchUrl]);
+
+  const hookResult = useChartData(chartType, config?.filters);
+  
+  const data = fetchUrl ? directData : hookResult.data;
+  const loading = fetchUrl ? directLoading : hookResult.loading;
+  const stats = fetchUrl ? directStats : hookResult.stats;
+  const error = fetchUrl ? directError : hookResult.error;
+  const refetch = hookResult.refetch;
   const [retryAttempt, setRetryAttempt] = useState(0);
   
   // Efeito para tentar recarregar automaticamente em caso de erro
@@ -507,16 +585,19 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config }: { 
   const isHorarios = chartType === "horarios";
   console.log(isHorarios);
 
+  const displayTitle = title || "Produção (kg)";
+  const displayUnit = unit || "kg";
+
   return (
     <div className="h-full w-full relative">
       <div className="text-gray-700 font-semibold z-10">
-        Produção (kg)
+        {displayTitle}
       </div>
       <ResponsiveContainer  width="100%" height="87%">
         <BarChart data={data} layout="horizontal" margin={{ left: 20, top: 35 }}>
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
-          <Tooltip content={<CustomTooltip stats={stats} />} />
+          <Tooltip content={<CustomTooltip stats={stats} unit={displayUnit} />} />
           <Bar dataKey="value" fill="#ff2626ff" radius={[4, 4, 0, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
