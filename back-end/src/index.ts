@@ -1596,7 +1596,7 @@ app.post("/api/auth/register", async (req, res) => {
     await ensureDatabaseConnection();
     const { username, password, displayName } = req.body;
     if (!username || !password)
-      return res.status(400).json({ error: "username and password required" });
+      return res.status(400).json({ error: "usuário e senha requeridos" });
     const repo = AppDataSource.getRepository(User);
     const existing = await repo.findOne({ where: { username } });
     if (existing) return res.status(409).json({ error: "username taken" });
@@ -1624,7 +1624,7 @@ app.post("/api/auth/login", async (req, res) => {
     await ensureDatabaseConnection();
     const { username, password } = req.body;
     if (!username || !password)
-      return res.status(400).json({ error: "username and password required" });
+      return res.status(400).json({ error: "usuário e senha requeridos" });
     const repo = AppDataSource.getRepository(User);
     const user = await repo.findOne({ where: { username } });
     if (!user) return res.status(401).json({ error: "invalid" });

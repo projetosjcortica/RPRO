@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from './hooks/useAuth';
+import { RadioGroup, RadioGroupItem } from './components/ui/radio-group';
 
 const Login: React.FC = () => {
   const { login, register } = useAuth();
@@ -40,10 +41,23 @@ const Login: React.FC = () => {
             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full border px-2 py-1 rounded" />
           </div>
           {isRegister && (
-            <div>
-              <label className="block text-sm font-medium">Nome</label>
-              <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full border px-2 py-1 rounded" />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-medium">Nome</label>
+                <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full border px-2 py-1 rounded" />
+              </div>
+              <div className='flex flex-col gap-2'>
+                <label className="block text-sm font-medium">Fabrica de: </label>
+                  <RadioGroup>
+                      <label className='flex items-center gap-2'>
+                      <RadioGroupItem value="racao"/> 
+                      Ração</label>
+                      <label className='flex items-center gap-2'>
+                      <RadioGroupItem value="amendoim"/>  
+                      Amendoim</label>
+                  </RadioGroup>
+              </div>
+            </>
           )}
           {error && <div className="text-red-600">{error}</div>}
           <div className="flex items-center justify-between">
