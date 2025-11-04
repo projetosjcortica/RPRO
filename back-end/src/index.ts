@@ -21,6 +21,7 @@ import {
   MovimentacaoEstoque,
   Estoque,
   Row,
+  Amendoim,
 } from "./entities";
 import { postJson, ProcessPayload } from "./core/utils";
 import express from "express";
@@ -655,6 +656,7 @@ app.post("/api/clear/production", async (req, res) => {
     const estoqueRepo = AppDataSource.getRepository(Estoque);
     const movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
     const materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
+    const amendoimRepo = AppDataSource.getRepository(Amendoim);
 
     // Clear child tables first to avoid FK constraint issues when possible.
     // We'll attempt normal TypeORM clears in a safe order and fallback to a MySQL-specific
@@ -666,6 +668,7 @@ app.post("/api/clear/production", async (req, res) => {
       await rowRepo.clear(); // references batch
       await batchRepo.clear(); // references relatorio
       await relatorioRepo.clear();
+      await amendoimRepo.clear(); // clear amendoim table
       // await materiaPrimaRepo.clear(); // now safe to clear (estoque already cleared)
     };
 
@@ -680,7 +683,7 @@ app.post("/api/clear/production", async (req, res) => {
         try {
           await manager.query('SET FOREIGN_KEY_CHECKS=0');
           // Truncate or delete in order: deepest child tables first
-          const tables = ['movimentacao_estoque', 'estoque', 'row', 'batch', 'relatorio'];
+          const tables = ['movimentacao_estoque', 'estoque', 'row', 'batch', 'relatorio', 'amendoim'];
           for (const t of tables) {
             try {
               await manager.query(`TRUNCATE TABLE \`${t}\``);
@@ -752,7 +755,7 @@ app.post("/api/clear/production", async (req, res) => {
     return res.json({
       ok: true,
       message:
-        "Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, collector cache cleared.",
+        "Production data cleared successfully. Users preserved, MateriaPrima reset to defaults, collector cache cleared. Amendoim data cleared.",
     });
   } catch (e: any) {
     console.error("[api/clear/production] error", e);
@@ -3546,7 +3549,6 @@ app.post('/api/stats/cleanup', async (req, res) => {
 // ==================== ENDPOINTS AMENDOIM ====================
 
 import { AmendoimService } from "./services/AmendoimService";
-import { Amendoim } from "./entities/Amendoim";
 
 // POST /api/amendoim/upload - Upload e processamento de CSV de amendoim
 const amendoimUpload = multer({
@@ -3560,13 +3562,17 @@ app.post('/api/amendoim/upload', amendoimUpload.single('file'), async (req, res)
       return res.status(400).json({ error: 'Nenhum arquivo enviado' });
     }
 
+    // Obter tipo do body (entrada ou saida)
+    const tipo = (req.body.tipo === 'saida') ? 'saida' : 'entrada';
+
     const csvContent = req.file.buffer.toString('utf-8');
-    const resultado = await AmendoimService.processarCSV(csvContent);
+    const resultado = await AmendoimService.processarCSV(csvContent, tipo);
 
     return res.json({
       ok: true,
       ...resultado,
-      mensagem: `${resultado.salvos} registros salvos de ${resultado.processados} processados`,
+      tipo,
+      mensagem: `${resultado.salvos} registros de ${tipo} salvos de ${resultado.processados} processados`,
     });
   } catch (e: any) {
     console.error('[api/amendoim/upload] error', e);
@@ -3583,6 +3589,7 @@ app.get('/api/amendoim/registros', async (req, res) => {
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
     const nomeProduto = req.query.nomeProduto ? String(req.query.nomeProduto) : undefined;
+    const tipo = req.query.tipo === 'saida' ? 'saida' : req.query.tipo === 'entrada' ? 'entrada' : undefined;
 
     const resultado = await AmendoimService.buscarRegistros({
       page,
@@ -3591,6 +3598,7 @@ app.get('/api/amendoim/registros', async (req, res) => {
       dataFim,
       codigoProduto,
       nomeProduto,
+      tipo,
     });
 
     return res.json(resultado);
@@ -3605,10 +3613,12 @@ app.get('/api/amendoim/estatisticas', async (req, res) => {
   try {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+    const tipo = req.query.tipo === 'saida' ? 'saida' : req.query.tipo === 'entrada' ? 'entrada' : undefined;
 
     const estatisticas = await AmendoimService.obterEstatisticas({
       dataInicio,
       dataFim,
+      tipo,
     });
 
     return res.json(estatisticas);
@@ -3655,12 +3665,14 @@ app.get('/api/amendoim/chartdata/produtos', async (req, res) => {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const tipo = req.query.tipo === 'saida' ? 'saida' : req.query.tipo === 'entrada' ? 'entrada' : undefined;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
 
     const chartData = await AmendoimService.getChartDataProdutos({
       dataInicio,
       dataFim,
       codigoProduto,
+      tipo,
       limit,
     });
 
@@ -3677,12 +3689,14 @@ app.get('/api/amendoim/chartdata/caixas', async (req, res) => {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const tipo = req.query.tipo === 'saida' ? 'saida' : req.query.tipo === 'entrada' ? 'entrada' : undefined;
     const limit = req.query.limit ? Number(req.query.limit) : 20;
 
     const chartData = await AmendoimService.getChartDataCaixas({
       dataInicio,
       dataFim,
       codigoProduto,
+      tipo,
       limit,
     });
 
@@ -3699,11 +3713,13 @@ app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const tipo = req.query.tipo === 'saida' ? 'saida' : req.query.tipo === 'entrada' ? 'entrada' : undefined;
 
     const chartData = await AmendoimService.getChartDataHorarios({
       dataInicio,
       dataFim,
       codigoProduto,
+      tipo,
     });
 
     return res.json(chartData);
@@ -3713,10 +3729,54 @@ app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
   }
 });
 
+// ==================== CONFIGURAÇÃO AMENDOIM ====================
+import { AmendoimConfigService } from './services/AmendoimConfigService';
+
+// GET /api/amendoim/config - Obter configuração atual
+app.get('/api/amendoim/config', async (req, res) => {
+  try {
+    const config = AmendoimConfigService.getConfig();
+    return res.json(config);
+  } catch (e: any) {
+    console.error('[api/amendoim/config] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter configuração' });
+  }
+});
+
+// POST /api/amendoim/config - Atualizar configuração
+app.post('/api/amendoim/config', async (req, res) => {
+  try {
+    // Normalizar configuração (substituir placeholders de data pelo mês atual)
+    const configNormalizada = AmendoimConfigService.normalizarConfig(req.body);
+    await AmendoimConfigService.setConfig(configNormalizada);
+    const config = AmendoimConfigService.getConfig();
+    return res.json({ success: true, config });
+  } catch (e: any) {
+    console.error('[api/amendoim/config] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao atualizar configuração' });
+  }
+});
+
+// GET /api/amendoim/metricas/rendimento - Calcular métricas de rendimento (entrada vs saída)
+app.get('/api/amendoim/metricas/rendimento', async (req, res) => {
+  try {
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+
+    const metricas = await AmendoimService.calcularMetricasRendimento({
+      dataInicio,
+      dataFim,
+    });
+
+    return res.json(metricas);
+  } catch (e: any) {
+    console.error('[api/amendoim/metricas/rendimento] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao calcular métricas' });
+  }
+});
+
 // ==================== COLETOR AMENDOIM ====================
 import { AmendoimCollectorService } from './services/AmendoimCollectorService';
-
-
 
 // POST /api/amendoim/collector/start - Inicia o coletor automático
 app.post('/api/amendoim/collector/start', async (req, res) => {
