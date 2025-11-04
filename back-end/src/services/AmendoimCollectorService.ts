@@ -5,6 +5,7 @@ import { AmendoimService } from './AmendoimService';
 import { backupSvc } from './backupService';
 import { IHMService } from './IHMService';
 import { getRuntimeConfig } from '../core/runtimeConfig';
+import { AmendoimConfigService } from './AmendoimConfigService';
 
 interface ChangeDetectionRecord {
   filePath: string;
@@ -40,6 +41,24 @@ export class AmendoimCollectorService {
       );
     }
     return this.ihmService;
+  }
+
+  /**
+   * Baixar arquivo específico do IHM via findAndDownloadNewFiles
+   * Como o IHMService não tem método direto, usamos findAndDownloadNewFiles
+   * e filtramos pelo nome desejado
+   */
+  private static async downloadSpecificFile(
+    fileName: string,
+    localDir: string
+  ): Promise<{ name: string; localPath: string; size: number } | null> {
+    const ihmService = this.getIHMService();
+    
+    // Baixar todos os arquivos novos e filtrar pelo nome
+    const downloaded = await ihmService.findAndDownloadNewFiles(localDir);
+    const targetFile = downloaded.find(f => f.name === fileName);
+    
+    return targetFile || null;
   }
 
   /**
@@ -189,6 +208,7 @@ export class AmendoimCollectorService {
 
   /**
    * Executa uma coleta única
+   * Coleta arquivos de entrada e saída conforme configuração
    */
   static async collectOnce(): Promise<{
     success: boolean;
@@ -206,77 +226,126 @@ export class AmendoimCollectorService {
     };
 
     try {
+      const config = AmendoimConfigService.getConfig();
       const ihmService = this.getIHMService();
       
-      // Usar o IHMService para buscar e baixar arquivos novos
-      const downloaded = await ihmService.findAndDownloadNewFiles(this.TMP_DIR);
-      
-      // Filtrar apenas arquivos de amendoim
-      const amendoimFiles = downloaded.filter(f => 
-        f.name.toLowerCase().includes('amendoim')
-      );
+      console.log('[AmendoimCollector] Configuração:', {
+        arquivoEntrada: config.arquivoEntrada,
+        arquivoSaida: config.arquivoSaida,
+        caminhoRemoto: config.caminhoRemoto,
+        duasIHMs: config.duasIHMs,
+      });
 
-      if (amendoimFiles.length === 0) {
-        console.log('[AmendoimCollector] Nenhum arquivo novo de amendoim encontrado');
-        return result;
-      }
+      // Obter lista de arquivos para coletar
+      const arquivosParaColetar = AmendoimConfigService.getArquivosParaColetar();
 
-      console.log(`[AmendoimCollector] ${amendoimFiles.length} arquivo(s) de amendoim encontrado(s)`);
-
-      // Processar cada arquivo
-      for (const file of amendoimFiles) {
+      // Executar downloads e processamento em paralelo para reduzir tempo e isolar falhas por arquivo
+      const tasks = arquivosParaColetar.map(async (arquivoInfo) => {
+        const localFile = path.join(this.TMP_DIR, `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`);
+        const cacheKey = `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`;
         try {
-          console.log(`[AmendoimCollector] Processando arquivo: ${file.name}`);
+          console.log(`[AmendoimCollector] (parallel) Buscando arquivo ${arquivoInfo.tipo}: ${arquivoInfo.arquivo}`);
 
-          // Ler conteúdo do arquivo baixado
-          const csvContent = fs.readFileSync(file.localPath, 'utf-8');
+          // TODO: Se duasIHMs = true e tipo = 'saida', usar ihm2
+          // Por enquanto, usar sempre a mesma IHM
+
+          // Tentar baixar via IHM usando findAndDownloadNewFiles
+          let downloadedFile = await this.downloadSpecificFile(arquivoInfo.arquivo, this.TMP_DIR);
+
+          if (!downloadedFile) {
+            // Tentativa de fallback local (útil para desenvolvimento/offline):
+            const candidates = [
+              path.join(this.TMP_DIR, arquivoInfo.arquivo),
+              path.join(this.TMP_DIR, `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`),
+              path.join(process.cwd(), 'backups', arquivoInfo.arquivo),
+              path.join(process.cwd(), 'backups', `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`),
+            ];
+
+            let fallbackPath: string | null = null;
+            for (const c of candidates) {
+              if (fs.existsSync(c)) {
+                fallbackPath = c;
+                break;
+              }
+            }
+
+            if (fallbackPath) {
+              console.log(`[AmendoimCollector] Usando fallback local para ${arquivoInfo.tipo}: ${fallbackPath}`);
+              // Garantir que o arquivo local final existe com o nome esperado
+              if (fallbackPath !== localFile) {
+                fs.copyFileSync(fallbackPath, localFile);
+              }
+              downloadedFile = { name: arquivoInfo.arquivo, localPath: localFile, size: fs.statSync(localFile).size };
+            } else {
+              const msg = `Arquivo ${arquivoInfo.tipo} não encontrado no IHM e sem fallback local: ${arquivoInfo.arquivo}`;
+              console.warn(`[AmendoimCollector] ${msg}`);
+              return { filesProcessed: 0, recordsSaved: 0, errors: [msg] };
+            }
+          }
+
+          // Copiar para nome específico com prefixo de tipo (se necessário)
+          if (downloadedFile.localPath !== localFile) {
+            fs.copyFileSync(downloadedFile.localPath, localFile);
+          }
+
+          // Ler conteúdo
+          const csvContent = fs.readFileSync(localFile, 'utf-8');
+          const fileSize = Buffer.byteLength(csvContent, 'utf-8');
 
           // 🔍 Detectar mudanças no arquivo
-          const changeInfo = await this.detectChanges(file.name, csvContent, csvContent.length);
+          const changeInfo = await this.detectChanges(cacheKey, csvContent, fileSize);
 
           if (changeInfo.hasChanged || changeInfo.changeType === 'new_file') {
-            console.log(`📊 [AmendoimCollector] Mudança detectada: ${changeInfo.changeType}`);
+            console.log(`📊 [AmendoimCollector] Mudança detectada (${arquivoInfo.tipo}): ${changeInfo.changeType}`);
 
             // Fazer backup do arquivo
             try {
               await backupSvc.backupFile({
-                originalname: file.name,
-                path: file.localPath,
-                size: file.size,
+                originalname: cacheKey,
+                path: localFile,
+                size: fileSize,
               });
-              console.log(`[AmendoimCollector] Backup criado: ${file.name}`);
+              console.log(`[AmendoimCollector] Backup criado: ${cacheKey}`);
             } catch (backupErr) {
               console.warn(`[AmendoimCollector] Erro ao criar backup: ${backupErr}`);
             }
 
-            // Processar CSV
-            const processResult = await AmendoimService.processarCSV(csvContent);
+            // Processar CSV com o tipo correto (entrada ou saida)
+            const processResult = await AmendoimService.processarCSV(csvContent, arquivoInfo.tipo);
 
-            result.filesProcessed++;
-            result.recordsSaved += processResult.salvos;
+            const errors: string[] = [];
+            if (processResult.erros && processResult.erros.length > 0) {
+              errors.push(`${cacheKey}: ${processResult.erros.length} erros de validação`);
+            }
 
-            console.log(`✅ [AmendoimCollector] Arquivo ${file.name} processado e cache atualizado:`, {
-              rowsProcessed: processResult.processados,
-              rowsSaved: processResult.salvos,
-              fileSize: file.size
+            console.log(`✅ [AmendoimCollector] Arquivo ${arquivoInfo.tipo} processado:`, {
+              arquivo: arquivoInfo.arquivo,
+              tipo: arquivoInfo.tipo,
+              processados: processResult.processados,
+              salvos: processResult.salvos,
+              fileSize,
             });
 
-            if (processResult.erros.length > 0) {
-              result.errors.push(
-                `${file.name}: ${processResult.erros.length} erros de validação`
-              );
-            }
-          } else {
-            console.log(`⏭️  [AmendoimCollector] Arquivo ${file.name} não foi modificado, pulando processamento`);
+            return { filesProcessed: 1, recordsSaved: processResult.salvos || 0, errors };
           }
-        } catch (fileErr: any) {
-          console.error(`[AmendoimCollector] Erro ao processar ${file.name}:`, fileErr);
-          result.errors.push(`${file.name}: ${fileErr.message}`);
-          result.success = false;
+
+          console.log(`⏭️  [AmendoimCollector] Arquivo ${arquivoInfo.tipo} (${arquivoInfo.arquivo}) não foi modificado`);
+          return { filesProcessed: 0, recordsSaved: 0, errors: [] };
+        } catch (err: any) {
+          console.error(`[AmendoimCollector] Erro ao processar ${arquivoInfo.tipo}:`, err?.message || err);
+          return { filesProcessed: 0, recordsSaved: 0, errors: [`${arquivoInfo.tipo}: ${err?.message || err}`] };
         }
+      });
+
+      // Aguardar todas as tasks (em paralelo) e agregar resultados
+      const settled = await Promise.all(tasks);
+      for (const r of settled) {
+        result.filesProcessed += r.filesProcessed;
+        result.recordsSaved += r.recordsSaved;
+        if (r.errors && r.errors.length > 0) result.errors.push(...r.errors);
       }
 
-      console.log('[AmendoimCollector] Ciclo de coleta concluído com sucesso.');
+      console.log('[AmendoimCollector] Ciclo de coleta concluído.');
     } catch (err: any) {
       console.error('[AmendoimCollector] Erro na coleta:', err);
       result.errors.push(`Erro: ${err.message}`);

@@ -1,21 +1,25 @@
 import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
-import { Loader2, Upload } from "lucide-react";
+import { Loader2, Upload, Play, Square, Scale, Settings } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
+import AmendoimConfig from "./components/AmendoimConfig";
 import toastManager from "./lib/toastManager";
 import { format as formatDateFn } from "date-fns";
+import { cn } from "./lib/utils";
+import { useCallback } from "react";
+import { useGlobalConnection } from "./hooks/useGlobalConnection";
 import { Separator } from "./components/ui/separator";
 
 interface AmendoimRecord {
   id: number;
+  tipo: "entrada" | "saida";
   dia: string;
   hora: string;
   codigoProduto: string;
   codigoCaixa: string;
   nomeProduto: string;
   peso: number;
-  numeroBalanca: string;
   createdAt: string;
 }
 
@@ -23,7 +27,15 @@ interface Estatisticas {
   totalRegistros: number;
   pesoTotal: number;
   produtosUnicos: number;
-  balancasUtilizadas: number;
+  caixasUtilizadas: number;
+}
+
+interface MetricasRendimento {
+  pesoEntrada: number;
+  pesoSaida: number;
+  rendimentoPercentual: number;
+  perda: number;
+  perdaPercentual: number;
 }
 
 interface FiltrosAmendoim {
@@ -31,6 +43,7 @@ interface FiltrosAmendoim {
   dataFim?: string;
   codigoProduto?: string;
   nomeProduto?: string;
+  tipo?: "entrada" | "saida";
 }
 
 export default function Amendoim() {
@@ -39,16 +52,29 @@ export default function Amendoim() {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [estatisticas, setEstatisticas] = useState<Estatisticas | null>(null);
+  const [metricasRendimento, setMetricasRendimento] = useState<MetricasRendimento | null>(null);
   
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const pageSize = 50;
+
+  // View atual: 'entrada', 'saida' ou 'comparativo'
+  const [viewMode, setViewMode] = useState<"entrada" | "saida" | "comparativo">("entrada");
+  
+  // Tipo para upload
+  const [uploadTipo, setUploadTipo] = useState<"entrada" | "saida">("entrada");
 
   // Filtros ativos
   const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>({});
   
   // Drawer de gráficos
   const [chartsOpen, setChartsOpen] = useState(false);
+  // Modal de configuração
+  const [configModalOpen, setConfigModalOpen] = useState(false);
+  // Collector
+  const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
+  const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
+  const { startConnecting, stopConnecting } = useGlobalConnection();
 
   // Função para formatar datas
   const formatDate = (raw: string): string => {
@@ -94,6 +120,11 @@ export default function Amendoim() {
       if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
       if (filtrosAtivos.codigoProduto) params.set('codigoProduto', filtrosAtivos.codigoProduto);
       if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
+      
+      // Adicionar tipo se não estiver no modo comparativo
+      if (viewMode !== 'comparativo') {
+        params.set('tipo', viewMode);
+      }
 
       const res = await fetch(`http://localhost:3000/api/amendoim/registros?${params}`);
       
@@ -118,6 +149,11 @@ export default function Amendoim() {
       const params = new URLSearchParams();
       if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
       if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
+      
+      // Adicionar tipo se não estiver no modo comparativo
+      if (viewMode !== 'comparativo') {
+        params.set('tipo', viewMode);
+      }
 
       const res = await fetch(`http://localhost:3000/api/amendoim/estatisticas?${params}`);
       if (res.ok) {
@@ -129,16 +165,100 @@ export default function Amendoim() {
     }
   };
 
+  // Buscar métricas de rendimento
+  const fetchMetricasRendimento = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
+      if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
+
+      const res = await fetch(`http://localhost:3000/api/amendoim/metricas/rendimento?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setMetricasRendimento(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar métricas de rendimento:', err);
+      setMetricasRendimento(null);
+    }
+  };
+
   useEffect(() => {
     fetchRegistros();
     fetchEstatisticas();
-  }, [page, filtrosAtivos]);
+    if (viewMode === 'comparativo') {
+      fetchMetricasRendimento();
+    }
+  }, [page, filtrosAtivos, viewMode]);
 
   // Handler para aplicar filtros
   const handleAplicarFiltros = (filtros: FiltrosAmendoim) => {
     setFiltrosAtivos(filtros);
     setPage(1); // Resetar para primeira página ao aplicar filtros
     setChartsOpen(true); // Abrir gráficos ao buscar
+  };
+
+  const fetchCollectorStatus = useCallback(async () => {
+    try {
+      const res = await fetch("http://localhost:3000/api/amendoim/collector/status", { method: "GET" });
+      if (!res.ok) return;
+      const status = await res.json().catch(() => ({}));
+  const isRunning = !!(status && status.running);
+  setCollectorRunning(isRunning);
+    } catch (e) {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchCollectorStatus();
+    const id = window.setInterval(() => void fetchCollectorStatus(), 5000);
+    return () => window.clearInterval(id);
+  }, [fetchCollectorStatus]);
+
+  const handleCollectorToggle = async () => {
+    if (collectorLoading) return;
+  setCollectorLoading(true);
+    try {
+      try { toastManager.showInfoOnce('collector-toggle', collectorRunning ? 'Parando coleta...' : 'Iniciando coleta...'); } catch(e){}
+      if (collectorRunning) {
+        const res = await fetch("http://localhost:3000/api/amendoim/collector/stop", { method: "POST" });
+        if (!res.ok) throw new Error("Falha ao interromper o coletor.");
+        await res.json().catch(() => ({}));
+        await fetchCollectorStatus();
+        await fetchRegistros();
+        await fetchEstatisticas();
+        try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch(e){}
+      } else {
+        // try get current IHM config
+        let ihmConfig = null;
+        try {
+          const configRes = await fetch("http://localhost:3000/api/config/ihm-config");
+          if (configRes.ok) {
+            const configData = await configRes.json();
+            ihmConfig = configData.value;
+          }
+        } catch (e) {}
+
+        // Start amendoim collector (will collect both entrada and saida as configured)
+        startConnecting("Iniciando coletor Amendoim...");
+        const res = await fetch("http://localhost:3000/api/amendoim/collector/start", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ intervalMinutes: 5 }),
+        });
+        if (!res.ok) throw new Error("Falha ao iniciar o coletor Amendoim.");
+        await res.json().catch(() => ({}));
+        await fetchCollectorStatus();
+        await fetchRegistros();
+        await fetchEstatisticas();
+        try { toastManager.updateSuccess('collector-toggle', 'Coletor iniciado'); } catch(e){}
+      }
+    } catch (error: any) {
+      console.error("Erro ao controlar collector:", error);
+    } finally {
+      setCollectorLoading(false);
+    }
   };
 
   // Handle file upload
@@ -152,6 +272,7 @@ export default function Amendoim() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('tipo', uploadTipo); // Adiciona tipo ao upload
 
       const res = await fetch('http://localhost:3000/api/amendoim/upload', {
         method: 'POST',
@@ -204,6 +325,109 @@ export default function Amendoim() {
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1">
             <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
+            
+            {/* Toggle Entrada/Saída/Comparativo */}
+            <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+              <Button
+                size="sm"
+                onClick={() => setViewMode('entrada')}
+                className={cn(
+                  "h-8 text-xs font-medium transition-all",
+                  viewMode === 'entrada'
+                    ? "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+                )}
+              >
+                Entrada
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setViewMode('saida')}
+                className={cn(
+                  "h-8 text-xs font-medium transition-all",
+                  viewMode === 'saida'
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+                )}
+              >
+                Saída
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setViewMode('comparativo')}
+                className={cn(
+                  "h-8 text-xs font-medium transition-all",
+                  viewMode === 'comparativo'
+                    ? "bg-purple-600 text-white hover:bg-purple-700"
+                    : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+                )}
+              >
+                Comparativo
+              </Button>
+            </div>
+            
+            {/* Botão de Configuração */}
+            <Button
+              onClick={() => setConfigModalOpen(true)}
+              className="flex items-center gap-1 bg-gray-700 hover:bg-gray-800"
+              title="Configurar coleta de amendoim"
+            >
+              <Settings className="h-4 w-4" />
+              <p className="hidden 3xl:flex">Configurar</p>
+            </Button>
+            
+            {/* Collector toggle (mesma UI do Report) */}
+            <Button
+              onClick={handleCollectorToggle}
+              disabled={collectorLoading}
+              className={cn(
+                "flex items-center gap-1",
+                collectorRunning ? "bg-gray-600 hover:bg-red-700" : "bg-red-600 hover:bg-gray-700"
+              )}
+            >
+              {collectorLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : collectorRunning ? (
+                <Square className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+              {collectorLoading ? (
+                <p className="hidden 3xl:flex">Processando...</p>
+              ) : collectorRunning ? (
+                <p className="hidden 3xl:flex"> Parar coleta</p>
+              ) : (
+                <p className="hidden 3xl:flex">Iniciar coleta</p>
+              )}
+            </Button>
+            
+            {/* Seletor de tipo de upload */}
+            <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+              <Button
+                size="sm"
+                onClick={() => setUploadTipo('entrada')}
+                className={cn(
+                  "h-8 text-xs font-medium transition-all",
+                  uploadTipo === 'entrada'
+                    ? "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-transparent text-gray-600 hover:bg-gray-100"
+                )}
+              >
+                Entrada
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setUploadTipo('saida')}
+                className={cn(
+                  "h-8 text-xs font-medium transition-all",
+                  uploadTipo === 'saida'
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-transparent text-gray-600 hover:bg-gray-100"
+                )}
+              >
+                Saída
+              </Button>
+            </div>
             
             {/* Upload button - mesmo estilo do coletor */}
             <input
@@ -290,7 +514,7 @@ export default function Amendoim() {
                       Peso (kg)
                     </div>
                     <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '100px', minWidth: '100px' }}>
-                      Balança
+                      Tipo
                     </div>
                   </div>
                 </div>
@@ -328,7 +552,12 @@ export default function Amendoim() {
                         })}
                       </div>
                       <div className="flex items-center justify-center p-2 text-sm border-r border-gray-300" style={{ width: '100px', minWidth: '100px' }}>
-                        {registro.numeroBalanca}
+                        <span className={cn(
+                          "px-2 py-1 rounded text-xs font-medium",
+                          registro.tipo === "entrada" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                        )}>
+                          {registro.tipo.toUpperCase()}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -409,6 +638,7 @@ export default function Amendoim() {
                         ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
                         ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
+                        ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}
                       unit="kg"
                       compact
@@ -429,6 +659,7 @@ export default function Amendoim() {
                         ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
                         ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
+                        ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}
                       unit="kg"
                       compact
@@ -449,6 +680,7 @@ export default function Amendoim() {
                         ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
                         ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
+                        ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}
                       unit="kg"
                     />
@@ -471,6 +703,60 @@ export default function Amendoim() {
 
         {/* Conteúdo do sideinfo - Estatísticas */}
         <div className="flex-1 overflow-auto" style={{ zIndex: 15 }}>
+          
+          {/* Card de Métricas de Rendimento (apenas no modo comparativo) */}
+          {viewMode === 'comparativo' && metricasRendimento && (
+            <div className="mb-4 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-xl p-4 shadow-lg">
+              <div className="text-sm font-bold text-purple-900 mb-3 flex items-center gap-2">
+                <Scale className="h-4 w-4" />
+                Análise de Rendimento
+              </div>
+              
+              <div className="space-y-3">
+                {/* Rendimento % - Destaque Principal */}
+                <div className="bg-white rounded-lg p-3 border border-purple-200">
+                  <div className="text-xs text-gray-500 font-medium uppercase">Rendimento</div>
+                  <div className="text-3xl font-bold text-purple-700">
+                    {metricasRendimento.rendimentoPercentual.toFixed(2)}%
+                  </div>
+                </div>
+
+                {/* Grid Entrada/Saída */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                    <div className="text-xs text-green-600 font-medium">Entrada</div>
+                    <div className="text-sm font-bold text-green-800">
+                      {metricasRendimento.pesoEntrada.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })} kg
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                    <div className="text-xs text-blue-600 font-medium">Saída</div>
+                    <div className="text-sm font-bold text-blue-800">
+                      {metricasRendimento.pesoSaida.toLocaleString('pt-BR', {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      })} kg
+                    </div>
+                  </div>
+                </div>
+
+                {/* Perda */}
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                  <div className="text-xs text-red-600 font-medium">Perda Total</div>
+                  <div className="text-lg font-bold text-red-800">
+                    {metricasRendimento.perda.toLocaleString('pt-BR', {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })} kg
+                    <span className="text-sm ml-2">({metricasRendimento.perdaPercentual.toFixed(2)}%)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           
           {estatisticas && (
             <div className="space-y-2">
@@ -497,11 +783,30 @@ export default function Amendoim() {
                   <div className="text-xl font-bold text-gray-800">{estatisticas.produtosUnicos}</div>
                 </div>
               </div>
+
+              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                <div className="text-xs text-gray-500 font-medium">Caixas Utilizadas</div>
+                <div className="text-xl font-bold text-gray-800">{estatisticas.caixasUtilizadas}</div>
+              </div>
             </div>
           )}
         </div>
       </div>
       </div>
+      
+      {/* Modal de Configuração */}
+      <AmendoimConfig
+        isOpen={configModalOpen}
+        onClose={() => setConfigModalOpen(false)}
+        onSave={() => {
+          // Recarregar dados após salvar configuração
+          fetchRegistros();
+          fetchEstatisticas();
+          if (viewMode === 'comparativo') {
+            fetchMetricasRendimento();
+          }
+        }}
+      />
     </div>
   );
 }

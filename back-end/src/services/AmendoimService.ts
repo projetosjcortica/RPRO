@@ -4,15 +4,20 @@ import { AppDataSource } from "./dbService";
 
 /**
  * Service para processar arquivos CSV de amendoim.
- * Formato esperado: Dia, Hora, ?, Código Produto, Código Caixa, Nome Produto, ?, ?, Peso, ?, Número Balança
+ * Formato esperado: Dia, Hora, ?, Código Produto, Código Caixa, Nome Produto, ?, ?, Peso
+ * Sistema suporta entrada (pré-debulhamento) e saída (pós-debulhamento)
  */
 export class AmendoimService {
   /**
    * Processa um arquivo CSV de amendoim e salva no banco de dados.
    * @param csvContent Conteúdo do arquivo CSV como string
+   * @param tipo Tipo de registro: 'entrada' (pré-debulhamento) ou 'saida' (pós-debulhamento)
    * @returns Número de registros processados e salvos
    */
-  static async processarCSV(csvContent: string): Promise<{
+  static async processarCSV(
+    csvContent: string,
+    tipo: "entrada" | "saida" = "entrada"
+  ): Promise<{
     processados: number;
     salvos: number;
     erros: string[];
@@ -52,8 +57,6 @@ export class AmendoimService {
             _col5,         // 5: Irrelevante
             _col6,         // 6: Irrelevante
             peso,          // 7: Peso
-            _col8,         // 8: Irrelevante
-            numeroBalanca, // 9: Número da balança
           ] = row;
 
           // Separar data e hora
@@ -86,13 +89,13 @@ export class AmendoimService {
 
           // Criar registro
           const registro = new Amendoim();
+          registro.tipo = tipo; // Define o tipo (entrada ou saida)
           registro.dia = dia.trim();
           registro.hora = hora.trim();
           registro.codigoProduto = String(codigoProduto).trim();
           registro.codigoCaixa = String(codigoCaixa || "").trim();
           registro.nomeProduto = String(nomeProduto).trim();
           registro.peso = Number(peso);
-          registro.numeroBalanca = String(numeroBalanca || "").trim();
 
           registrosParaSalvar.push(registro);
         } catch (err: any) {
@@ -122,6 +125,7 @@ export class AmendoimService {
     dataFim?: string;
     codigoProduto?: string;
     nomeProduto?: string;
+    tipo?: "entrada" | "saida";
   }): Promise<{
     rows: Amendoim[];
     total: number;
@@ -135,6 +139,10 @@ export class AmendoimService {
     const qb = repo.createQueryBuilder("amendoim");
 
     // Filtros
+    if (params.tipo) {
+      qb.andWhere("amendoim.tipo = :tipo", { tipo: params.tipo });
+    }
+
     if (params.dataInicio) {
       qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
     }
@@ -175,14 +183,19 @@ export class AmendoimService {
   static async obterEstatisticas(params: {
     dataInicio?: string;
     dataFim?: string;
+    tipo?: "entrada" | "saida";
   }): Promise<{
     totalRegistros: number;
     pesoTotal: number;
     produtosUnicos: number;
-    balancasUtilizadas: number;
+    caixasUtilizadas: number;
   }> {
     const repo = AppDataSource.getRepository(Amendoim);
     const qb = repo.createQueryBuilder("amendoim");
+
+    if (params.tipo) {
+      qb.andWhere("amendoim.tipo = :tipo", { tipo: params.tipo });
+    }
 
     if (params.dataInicio) {
       qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
@@ -202,15 +215,76 @@ export class AmendoimService {
       .select("COUNT(DISTINCT amendoim.codigoProduto)", "count")
       .getRawOne();
 
-    const balancasResult = await qb
-      .select("COUNT(DISTINCT amendoim.numeroBalanca)", "count")
+    const caixasResult = await qb
+      .select("COUNT(DISTINCT amendoim.codigoCaixa)", "count")
       .getRawOne();
 
     return {
       totalRegistros,
       pesoTotal: Number(pesoResult?.total || 0),
       produtosUnicos: Number(produtosResult?.count || 0),
-      balancasUtilizadas: Number(balancasResult?.count || 0),
+      caixasUtilizadas: Number(caixasResult?.count || 0),
+    };
+  }
+
+  /**
+   * Calcula métricas de rendimento (entrada vs saída).
+   */
+  static async calcularMetricasRendimento(params: {
+    dataInicio?: string;
+    dataFim?: string;
+  }): Promise<{
+    pesoEntrada: number;
+    pesoSaida: number;
+    rendimentoPercentual: number;
+    perda: number;
+    perdaPercentual: number;
+  }> {
+    const repo = AppDataSource.getRepository(Amendoim);
+
+    // Buscar peso de entrada
+    const qbEntrada = repo.createQueryBuilder("amendoim");
+    qbEntrada.andWhere("amendoim.tipo = :tipo", { tipo: "entrada" });
+    
+    if (params.dataInicio) {
+      qbEntrada.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+    }
+    if (params.dataFim) {
+      qbEntrada.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+    }
+
+    const entradaResult = await qbEntrada
+      .select("SUM(amendoim.peso)", "total")
+      .getRawOne();
+    const pesoEntrada = Number(entradaResult?.total || 0);
+
+    // Buscar peso de saída
+    const qbSaida = repo.createQueryBuilder("amendoim");
+    qbSaida.andWhere("amendoim.tipo = :tipo", { tipo: "saida" });
+    
+    if (params.dataInicio) {
+      qbSaida.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+    }
+    if (params.dataFim) {
+      qbSaida.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+    }
+
+    const saidaResult = await qbSaida
+      .select("SUM(amendoim.peso)", "total")
+      .getRawOne();
+    const pesoSaida = Number(saidaResult?.total || 0);
+
+    // Calcular métricas
+    const perda = pesoEntrada - pesoSaida;
+    const rendimentoPercentual = pesoEntrada > 0 ? (pesoSaida / pesoEntrada) * 100 : 0;
+    const perdaPercentual = pesoEntrada > 0 ? (perda / pesoEntrada) * 100 : 0;
+
+    return {
+      pesoEntrada,
+      pesoSaida,
+      rendimentoPercentual: Number(rendimentoPercentual.toFixed(2)),
+      perda,
+      perdaPercentual: Number(perdaPercentual.toFixed(2)),
     };
   }
 
@@ -221,6 +295,7 @@ export class AmendoimService {
     dataInicio?: string;
     dataFim?: string;
     codigoProduto?: string;
+    tipo?: "entrada" | "saida";
     limit?: number;
   }): Promise<{
     chartData: Array<{ name: string; value: number; count: number }>;
@@ -231,6 +306,10 @@ export class AmendoimService {
     const qb = repo.createQueryBuilder("amendoim");
 
     // Filtros
+    if (params.tipo) {
+      qb.andWhere("amendoim.tipo = :tipo", { tipo: params.tipo });
+    }
+
     if (params.dataInicio) {
       qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
     }
@@ -280,6 +359,7 @@ export class AmendoimService {
     dataInicio?: string;
     dataFim?: string;
     codigoProduto?: string;
+    tipo?: "entrada" | "saida";
     limit?: number;
   }): Promise<{
     chartData: Array<{ name: string; value: number; count: number }>;
@@ -290,6 +370,10 @@ export class AmendoimService {
     const qb = repo.createQueryBuilder("amendoim");
 
     // Filtros
+    if (params.tipo) {
+      qb.andWhere("amendoim.tipo = :tipo", { tipo: params.tipo });
+    }
+
     if (params.dataInicio) {
       qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
     }
@@ -339,6 +423,7 @@ export class AmendoimService {
     dataInicio?: string;
     dataFim?: string;
     codigoProduto?: string;
+    tipo?: "entrada" | "saida";
   }): Promise<{
     chartData: Array<{ name: string; value: number; count: number; average: number }>;
     total: number;
@@ -349,6 +434,10 @@ export class AmendoimService {
     const qb = repo.createQueryBuilder("amendoim");
 
     // Filtros
+    if (params.tipo) {
+      qb.andWhere("amendoim.tipo = :tipo", { tipo: params.tipo });
+    }
+
     if (params.dataInicio) {
       qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
     }
