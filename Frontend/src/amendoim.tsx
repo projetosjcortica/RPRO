@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
-import { Loader2, Upload, FileText } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
+import toastManager from "./lib/toastManager";
+import { format as formatDateFn } from "date-fns";
 
 interface AmendoimRecord {
   id: number;
@@ -14,14 +16,6 @@ interface AmendoimRecord {
   peso: number;
   numeroBalanca: string;
   createdAt: string;
-}
-
-interface UploadResult {
-  ok: boolean;
-  processados: number;
-  salvos: number;
-  erros: string[];
-  mensagem: string;
 }
 
 interface Estatisticas {
@@ -43,7 +37,6 @@ export default function Amendoim() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [estatisticas, setEstatisticas] = useState<Estatisticas | null>(null);
   
   const [page, setPage] = useState(1);
@@ -55,6 +48,34 @@ export default function Amendoim() {
   
   // Drawer de gráficos
   const [chartsOpen, setChartsOpen] = useState(false);
+
+  // Função para formatar datas
+  const formatDate = (raw: string): string => {
+    if (!raw) return "";
+    const s = String(raw).trim();
+    try {
+      // Formato DD-MM-YY (ex: 03-11-25)
+      if (/^\d{2}-\d{2}-\d{2}$/.test(s)) {
+        const [d, m, y] = s.split("-").map(Number);
+        const fullYear = 2000 + y; // Assumir 20xx
+        return formatDateFn(new Date(fullYear, m - 1, d), "dd/MM/yyyy");
+      }
+      // Formato YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+        const [y, m, d] = s.split("-").map(Number);
+        return formatDateFn(new Date(y, m - 1, d), "dd/MM/yyyy");
+      }
+      // Formato DD-MM-YYYY
+      if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+        const [d, m, y] = s.split("-").map(Number);
+        return formatDateFn(new Date(y, m - 1, d), "dd/MM/yyyy");
+      }
+      // Fallback: tentar parse direto
+      const parsed = new Date(s);
+      if (!isNaN(parsed.getTime())) return formatDateFn(parsed, "dd/MM/yyyy");
+    } catch {}
+    return s;
+  };
 
   // Buscar registros
   const fetchRegistros = async () => {
@@ -125,7 +146,6 @@ export default function Amendoim() {
     if (!file) return;
 
     setUploading(true);
-    setUploadResult(null);
     setError(null);
 
     try {
@@ -143,15 +163,28 @@ export default function Amendoim() {
         throw new Error(data.error || 'Erro ao processar arquivo');
       }
 
-      setUploadResult(data);
-      
+      // Mostrar toast de sucesso
+      const mensagemSucesso = `${data.salvos} registro(s) processado(s) com sucesso`;
+      try {
+        toastManager.updateSuccess('amendoim-upload', mensagemSucesso);
+      } catch (e) {
+        console.error('Toast error:', e);
+      }
+
       // Recarregar registros após upload bem-sucedido
       if (data.salvos > 0) {
         await fetchRegistros();
         await fetchEstatisticas();
       }
     } catch (err: any) {
-      setError(err.message || 'Erro ao enviar arquivo');
+      // Mostrar toast de erro
+      const mensagemErro = err.message || 'Erro ao enviar arquivo';
+      try {
+        toastManager.updateError('amendoim-upload', mensagemErro);
+      } catch (e) {
+        console.error('Toast error:', e);
+      }
+      setError(mensagemErro);
     } finally {
       setUploading(false);
       // Reset input
@@ -165,23 +198,14 @@ export default function Amendoim() {
     <div className="flex flex-col gap-1.5 w-full h-full">
       {/* Header */}
       <div className="h-[10dvh] flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-1 h-[10dvh]"> 
+        <div className="flex flex-row items-end gap-1 h-[10dvh]">
+          {/* Vazio - mantém consistência com Report */}
         </div>
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1">
-            {/* Upload button */}
-            <label htmlFor="csv-upload" className="cursor-pointer">
-              <Button disabled={uploading}>
-                <div className="flex items-center gap-2">
-                  {uploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  {uploading ? 'Enviando...' : 'Enviar CSV'}
-                </div>
-              </Button>
-            </label>
+            <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
+            
+            {/* Upload button - mesmo estilo do coletor */}
             <input
               id="csv-upload"
               type="file"
@@ -190,37 +214,31 @@ export default function Amendoim() {
               onChange={handleFileUpload}
               disabled={uploading}
             />
+            <label htmlFor="csv-upload">
+              <Button disabled={uploading} asChild className="bg-red-600 hover:bg-gray-700">
+                <span className="cursor-pointer">
+                  <div className="flex items-center gap-1">
+                    {uploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {uploading ? (
+                      <p className="hidden 3xl:flex">Enviando...</p>
+                    ) : (
+                      <p className="hidden 3xl:flex">Enviar CSV</p>
+                    )}
+                  </div>
+                </span>
+              </Button>
+            </label>
           </div>
         </div>
       </div>
 
       <div className="flex flex-row gap-2 justify-start w-full">
-        {/* Conteúdo principal */}
-        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-206 w-[68px]">
-          {/* Barra de Filtros */}
-          <div className="flex justify-end w-full">
-            <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
-          </div>
-
-          {/* Upload result */}
-          {uploadResult && (
-            <div className={`p-4 rounded-lg ${uploadResult.ok ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-          <div className="font-semibold mb-2">{uploadResult.mensagem}</div>
-          {uploadResult.erros.length > 0 && (
-            <details className="text-sm">
-              <summary className="cursor-pointer text-gray-600">
-                {uploadResult.erros.length} erro(s) encontrado(s)
-              </summary>
-              <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
-                {uploadResult.erros.map((erro, idx) => (
-                  <li key={idx} className="text-red-600">• {erro}</li>
-                ))}
-              </ul>
-            </details>
-            )}
-            </div>
-          )}
-
+          {/* Conteúdo principal */}
+          <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-206 w-[68px]">
           {/* Error message */}
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg">
@@ -233,16 +251,18 @@ export default function Amendoim() {
         {loading ? (
           <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[50vh] w-full text-center">
             <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
-            <p className="text-lg font-medium">Carregando dados...</p>
+            <p className="text-lg font-medium text-gray-700">Carregando dados...</p>
             <p className="text-sm text-gray-500">Os dados estão sendo processados, por favor aguarde.</p>
           </div>
         ) : registros.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 h-[50vh] w-full text-center">
-            <FileText className="h-12 w-12 mb-2 text-gray-400" />
-            <div className="text-gray-700 font-semibold text-lg">Nenhum registro encontrado</div>
-            <div className="text-sm text-gray-600 mt-1 max-w-md mx-auto">
-              Envie um arquivo CSV para começar
-            </div>
+            <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-lg font-semibold text-gray-700">Nenhum registro encontrado</p>
+            <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
+              Ajuste os filtros ou envie um arquivo CSV para visualizar os dados
+            </p>
           </div>
         ) : (
           <div className="w-full h-full flex flex-col relative">
@@ -285,7 +305,7 @@ export default function Amendoim() {
                       }`}
                     >
                       <div className="flex items-center justify-center p-2 text-sm border-r border-gray-300" style={{ width: '90px', minWidth: '90px' }}>
-                        {registro.dia}
+                        {formatDate(registro.dia)}
                       </div>
                       <div className="flex items-center justify-center p-2 text-sm border-r border-gray-300" style={{ width: '70px', minWidth: '70px' }}>
                         {registro.hora}
@@ -322,7 +342,7 @@ export default function Amendoim() {
           {/* Pagination */}
           <div className="flex flex-row items-center justify-end mt-2">
             {totalPages > 1 && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -330,11 +350,14 @@ export default function Amendoim() {
                     setPage(p => Math.max(1, p - 1));
                   }}
                   disabled={page === 1}
+                  className="hover:bg-red-50 hover:border-red-300 transition-colors"
                 >
                   Anterior
                 </Button>
-                <div className="flex items-center text-sm text-gray-600 px-3">
-                  Página {page} de {totalPages} ({total} registros)
+                <div className="flex items-center text-sm text-gray-700 font-medium px-3">
+                  Página <span className="mx-1 font-bold text-red-600">{page}</span> de <span className="ml-1 font-bold">{totalPages}</span>
+                  <span className="mx-2 text-gray-400">•</span>
+                  <span className="text-gray-600">{total} registros</span>
                 </div>
                 <Button
                   variant="outline"
@@ -343,6 +366,7 @@ export default function Amendoim() {
                     setPage(p => Math.min(totalPages, p + 1));
                   }}
                   disabled={page === totalPages}
+                  className="hover:bg-red-50 hover:border-red-300 transition-colors"
                 >
                   Próxima
                 </Button>
@@ -447,30 +471,36 @@ export default function Amendoim() {
 
         {/* Conteúdo do sideinfo - Estatísticas */}
         <div className="flex-1 overflow-auto" style={{ zIndex: 15 }}>
-          <div className="text-lg font-bold mb-4">Estatísticas</div>
+          <div className="text-base font-bold mb-3 text-gray-800">Resumo</div>
           
           {estatisticas && (
-            <div className="space-y-3">
-              <div className="bg-white border rounded-lg p-4 shadow-sm">
-                <div className="text-sm text-gray-500">Total de Registros</div>
-                <div className="text-2xl font-bold">{estatisticas.totalRegistros}</div>
-              </div>
-              <div className="bg-white border rounded-lg p-4 shadow-sm">
-                <div className="text-sm text-gray-500">Peso Total</div>
-                <div className="text-2xl font-bold">
+            <div className="space-y-2">
+              {/* Peso Total - Destaque */}
+              <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-lg p-3 shadow-sm">
+                <div className="text-xs text-red-700 font-semibold uppercase tracking-wide">Peso Total</div>
+                <div className="text-3xl font-bold text-red-800">
                   {estatisticas.pesoTotal.toLocaleString('pt-BR', { 
                     minimumFractionDigits: 3,
                     maximumFractionDigits: 3,
-                  })} kg
+                  })} <span className="text-lg">kg</span>
                 </div>
               </div>
-              <div className="bg-white border rounded-lg p-4 shadow-sm">
-                <div className="text-sm text-gray-500">Produtos Únicos</div>
-                <div className="text-2xl font-bold">{estatisticas.produtosUnicos}</div>
+
+              {/* Grid com outros cards */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-xs text-gray-500 font-medium">Registros</div>
+                  <div className="text-xl font-bold text-gray-800">{estatisticas.totalRegistros}</div>
+                </div>
+                <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                  <div className="text-xs text-gray-500 font-medium">Produtos</div>
+                  <div className="text-xl font-bold text-gray-800">{estatisticas.produtosUnicos}</div>
+                </div>
               </div>
-              <div className="bg-white border rounded-lg p-4 shadow-sm">
-                <div className="text-sm text-gray-500">Balanças Utilizadas</div>
-                <div className="text-2xl font-bold">{estatisticas.balancasUtilizadas}</div>
+
+              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                <div className="text-xs text-gray-500 font-medium">Balanças Utilizadas</div>
+                <div className="text-xl font-bold text-gray-800">{estatisticas.balancasUtilizadas}</div>
               </div>
             </div>
           )}

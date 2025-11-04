@@ -7,7 +7,21 @@ import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './conf
 import Report from './report';
 import Estoque from './estoque';
 import Amendoim from './amendoim';
-import { Sidebar,SidebarFooter,SidebarContent,SidebarGroup,SidebarHeader,SidebarProvider,SidebarGroupContent,SidebarMenu,SidebarMenuSubButton,SidebarMenuButton,SidebarMenuItem, SidebarGroupLabel} from "./components/ui/sidebar";
+import { 
+  Sidebar,
+  SidebarFooter,
+  SidebarContent,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarProvider,
+  SidebarGroupContent,
+  SidebarMenu,
+  SidebarMenuSubButton,
+  SidebarMenuButton,
+  SidebarMenuItem, 
+  SidebarGroupLabel,
+  SidebarTrigger
+} from "./components/ui/sidebar";
 import { HomeIcon, Settings, Sheet } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { resolvePhotoUrl } from './lib/photoUtils';
@@ -92,47 +106,25 @@ const App = () => {
     };
   }, [user, updateUser]);
   
-  const items=[
+  const items = [
     {
-      title:"Início",
-      icon:HomeIcon,
+      title: "Início",
+      icon: HomeIcon,
       path: '/'
     },
     {
-      title:"Relatórios",
-      icon:Sheet,
+      title: "Relatórios",
+      icon: Sheet,
       path: '/report'
-    },
-    {
-      title:"Amendoim",
-      icon:Sheet,
-      path: '/amendoim'
-    },
-    // {
-    //   title:"Relatórios Personalizados",
-    //   icon:FileText,
-    //   path: '/custom-reports'
-    // },
-    // {
-    //   title:"Estoque",
-    //   icon:BarChart3,
-    //   path: '/estoque'
-    // }
-  ]
-  const itemsFooter=[
-    {
-      title:"Configurações",
-      icon:Settings,
-      view: 'Cfg'
     }
-  ]
-
-  const items = [
-    { title: 'Início', icon: HomeIcon, path: '/' },
-    { title: 'Relatórios', icon: Sheet, path: '/report' },
   ];
 
-  const itemsFooter = [{ title: 'Configurações', icon: Settings }];
+  const itemsFooter = [
+    {
+      title: "Configurações",
+      icon: Settings,
+    }
+  ];
 
   return (
     <div id="app" className="flex w-screen h-dvh overflow-hidden">
@@ -284,8 +276,14 @@ const App = () => {
             <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
             <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
             <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
-            <Route path="/report" element={<RequireAuth><Report /></RequireAuth>} />
-            <Route path="/amendoim" element={<RequireAuth><Amendoim /></RequireAuth>} />
+            <Route 
+              path="/report" 
+              element={
+                <RequireAuth>
+                  {user?.userType === 'amendoim' ? <Amendoim /> : <Report />}
+                </RequireAuth>
+              } 
+            />
             {/* <Route path="/custom-reports" element={<RequireAuth><CustomReports /></RequireAuth>} /> */}
             {/* <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} /> */}
             <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />

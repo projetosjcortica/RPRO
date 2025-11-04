@@ -9,6 +9,7 @@ const Login: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [userType, setUserType] = useState<'racao' | 'amendoim'>('racao');
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -17,7 +18,7 @@ const Login: React.FC = () => {
     setError(null);
     try {
       if (isRegister) {
-        await register(username, password, displayName || undefined);
+        await register(username, password, displayName || undefined, userType);
       } else {
         await login(username, password);
       }
@@ -47,12 +48,12 @@ const Login: React.FC = () => {
                 <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="w-full border px-2 py-1 rounded" />
               </div>
               <div className='flex flex-col gap-2'>
-                <label className="block text-sm font-medium">Fabrica de: </label>
-                  <RadioGroup>
-                      <label className='flex items-center gap-2'>
+                <label className="block text-sm font-medium">Tipo de Fábrica: </label>
+                  <RadioGroup value={userType} onValueChange={(value) => setUserType(value as 'racao' | 'amendoim')}>
+                      <label className='flex items-center gap-2 cursor-pointer'>
                       <RadioGroupItem value="racao"/> 
                       Ração</label>
-                      <label className='flex items-center gap-2'>
+                      <label className='flex items-center gap-2 cursor-pointer'>
                       <RadioGroupItem value="amendoim"/>  
                       Amendoim</label>
                   </RadioGroup>

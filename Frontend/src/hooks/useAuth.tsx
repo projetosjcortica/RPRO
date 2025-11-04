@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type User = { id: number; username: string; displayName?: string; photoPath?: string; isAdmin?: boolean } | null;
+type User = { id: number; username: string; displayName?: string; photoPath?: string; isAdmin?: boolean; userType?: 'racao' | 'amendoim' } | null;
 
 const STORAGE_KEY = 'rpro_user';
 
 type AuthContextValue = {
   user: User;
   login: (username: string, password: string) => Promise<any>;
-  register: (username: string, password: string, displayName?: string) => Promise<any>;
+  register: (username: string, password: string, displayName?: string, userType?: 'racao' | 'amendoim') => Promise<any>;
   logout: () => void;
   refresh: () => void;
   updateUser: (u: User) => void;
@@ -44,11 +44,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return data;
   };
 
-  const register = async (username: string, password: string, displayName?: string) => {
+  const register = async (username: string, password: string, displayName?: string, userType: 'racao' | 'amendoim' = 'racao') => {
     const res = await fetch(`http://localhost:3000/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, displayName }),
+      body: JSON.stringify({ username, password, displayName, userType }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));

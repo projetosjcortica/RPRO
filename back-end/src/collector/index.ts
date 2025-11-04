@@ -8,6 +8,8 @@ import { parserService } from '../services/parserService';
 import { BackupService } from '../services/backupService';
 import { fileProcessorService } from '../services/fileProcessorService';
 import { changeDetectionService } from '../services/changeDetectionService';
+import { CSVFormatDetector } from '../services/csvFormatDetector';
+import { AmendoimService } from '../services/AmendoimService';
 
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
 const TMP_DIR = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
@@ -63,7 +65,7 @@ class Collector {
         return;
       }
       
-      console.log(`[Collector] ${downloaded.length} arquivos novos baixados.`);
+      console.log(`[Collector] ${downloaded.length} arquivo(s) baixado(s)`);
 
       for (const f of downloaded) {
         if (STOP) break;
@@ -76,20 +78,45 @@ class Collector {
           if (changeInfo.hasChanged || changeInfo.changeType === 'new_file') {
             console.log(`📊 [Collector] Mudança detectada: ${changeInfo.changeType}`);
             
-            // Se mudou, processar e atualizar cache
-            const result = await this.fileProcessor.processFile(f.localPath);
+            // 🔎 Detectar formato do CSV (ração ou amendoim)
+            const csvContent = fs.readFileSync(f.localPath, 'utf-8');
+            const format = CSVFormatDetector.detect(csvContent);
+            
+            console.log(`[Collector] Formato detectado: ${format}`);
+            
+            if (format === 'amendoim') {
+              // Processar como amendoim
+              console.log(`🥜 [Collector] Processando como AMENDOIM: ${f.name}`);
+              
+              const resultado = await AmendoimService.processarCSV(csvContent);
+              
+              await this.backup.backupFile({
+                originalname: f.name,
+                path: f.localPath,
+                mimetype: 'text/csv',
+                size: fs.statSync(f.localPath).size,
+              });
+              
+              console.log(`✅ [Collector] Amendoim processado: ${resultado.salvos} registros salvos`);
+              
+            } else if (format === 'racao') {
+              // Processar como ração (comportamento padrão)
+              console.log(`🌾 [Collector] Processando como RAÇÃO: ${f.name}`);
+              
+              const result = await this.fileProcessor.processFile(f.localPath);
 
-            await this.backup.backupFile({
-              originalname: f.name,
-              path: f.localPath,
-              mimetype: 'text/csv',
-              size: fs.statSync(f.localPath).size,
-            });
+              await this.backup.backupFile({
+                originalname: f.name,
+                path: f.localPath,
+                mimetype: 'text/csv',
+                size: fs.statSync(f.localPath).size,
+              });
 
-            console.log(`✅ [Collector] Arquivo ${f.name} processado e cache atualizado:`, {
-              rowsProcessed: result.parsed.rowsCount,
-              fileSize: f.size
-            });
+              console.log(`✅ [Collector] Ração processada: ${result.parsed.rowsCount} registros`);
+              
+            } else {
+              console.warn(`⚠️  [Collector] Formato desconhecido, pulando: ${f.name}`);
+            }
           } else {
             console.log(`⏭️  [Collector] Arquivo ${f.name} não foi modificado, pulando processamento`);
           }

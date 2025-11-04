@@ -1594,7 +1594,7 @@ app.use("/user_photos", express.static(photosBase));
 app.post("/api/auth/register", async (req, res) => {
   try {
     await ensureDatabaseConnection();
-    const { username, password, displayName } = req.body;
+    const { username, password, displayName, userType } = req.body;
     if (!username || !password)
       return res.status(400).json({ error: "usuário e senha requeridos" });
     const repo = AppDataSource.getRepository(User);
@@ -1607,6 +1607,7 @@ app.post("/api/auth/register", async (req, res) => {
       username,
       password: password,
       displayName: displayName || null,
+      userType: userType || 'racao',
       isAdmin,
     });
     const saved = await repo.save(u as any);
@@ -3709,6 +3710,97 @@ app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
   } catch (e: any) {
     console.error('[api/amendoim/chartdata/horarios] error', e);
     return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
+  }
+});
+
+// ==================== COLETOR AMENDOIM ====================
+import { AmendoimCollectorService } from './services/AmendoimCollectorService';
+
+
+
+// POST /api/amendoim/collector/start - Inicia o coletor automático
+app.post('/api/amendoim/collector/start', async (req, res) => {
+  try {
+    const intervalMinutes = req.body.intervalMinutes || 5;
+    await AmendoimCollectorService.start(intervalMinutes);
+    return res.json({ success: true, message: 'Coletor iniciado com sucesso' });
+  } catch (e: any) {
+    console.error('[api/amendoim/collector/start] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao iniciar coletor' });
+  }
+});
+
+// POST /api/amendoim/collector/stop - Para o coletor automático
+app.post('/api/amendoim/collector/stop', async (req, res) => {
+  try {
+    AmendoimCollectorService.stop();
+    return res.json({ success: true, message: 'Coletor parado com sucesso' });
+  } catch (e: any) {
+    console.error('[api/amendoim/collector/stop] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao parar coletor' });
+  }
+});
+
+// GET /api/amendoim/collector/status - Retorna o status do coletor
+app.get('/api/amendoim/collector/status', async (req, res) => {
+  try {
+    const status = AmendoimCollectorService.getStatus();
+    return res.json(status);
+  } catch (e: any) {
+    console.error('[api/amendoim/collector/status] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter status' });
+  }
+});
+
+// POST /api/amendoim/collector/collect - Executa uma coleta única
+app.post('/api/amendoim/collector/collect', async (req, res) => {
+  try {
+    const result = await AmendoimCollectorService.collectOnce();
+    return res.json(result);
+  } catch (e: any) {
+    console.error('[api/amendoim/collector/collect] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao executar coleta' });
+  }
+});
+
+
+
+// GET /api/amendoim/collector/cache/stats - Estatísticas do cache
+app.get('/api/amendoim/collector/cache/stats', async (req, res) => {
+  try {
+    const stats = AmendoimCollectorService.getCacheStats();
+    return res.json(stats);
+  } catch (e: any) {
+    console.error('[api/amendoim/collector/cache/stats] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter estatísticas do cache' });
+  }
+});
+
+// DELETE /api/amendoim/collector/cache - Limpar todo o cache
+app.delete('/api/amendoim/collector/cache', async (req, res) => {
+  try {
+    AmendoimCollectorService.clearAllCache();
+    return res.json({ success: true, message: 'Cache limpo com sucesso' });
+  } catch (e: any) {
+    console.error('[api/amendoim/collector/cache] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao limpar cache' });
+  }
+});
+
+// DELETE /api/amendoim/collector/cache/:fileName - Limpar cache de um arquivo
+app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
+  try {
+    const { fileName } = req.params;
+    const deleted = AmendoimCollectorService.clearFileCache(fileName);
+    
+    if (deleted) {
+      return res.json({ success: true, message: `Cache do arquivo ${fileName} limpo com sucesso` });
+    } else {
+      return res.status(404).json({ error: 'Arquivo não encontrado no cache' });
+    }
+  } catch (e: any) {
+    console.error('[api/amendoim/collector/cache/:fileName] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao limpar cache do arquivo' });
   }
 });
 
