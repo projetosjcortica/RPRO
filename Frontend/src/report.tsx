@@ -1205,8 +1205,18 @@ export default function Report() {
     <div className="flex flex-col gap-1.5 w-full h-full">
       <div className="h-[10dvh] flex flex-row justify-between w-full">
         <div className="flex flex-row items-end gap-1 h-[10dvh]">
-          <Button onClick={() => setView("table")}>Relatórios</Button>
-          <Button onClick={() => setView("product")}>Produtos</Button>
+          <Button 
+            onClick={() => setView("table")} 
+            className={view === "table" ? "bg-red-800 border border-gray-300" : ""}
+          >
+            Relatórios
+          </Button>
+          <Button 
+            onClick={() => setView("product")} 
+            className={view === "product" ? "bg-red-800 border border-gray-300" : ""}
+          >
+            Produtos
+          </Button>
         </div>
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1">
@@ -1339,7 +1349,7 @@ export default function Report() {
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
           {chartsOpen && (
             <div
-              className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
+              className="absolute top-0 transition right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
               style={{ zIndex: 1}}
             >
               <div className="h-full flex flex-col">
@@ -1582,24 +1592,24 @@ export default function Report() {
                   </p>
                 </div>
 
-                <Separator orientation="vertical" />
+              <Separator orientation="vertical" />
 
-                <div className="flex flex-col justify-center gap-1">
-                  <p className="text-center font-bold text-lg">
-                    {resumo && resumo.periodoFim
-                      ? formatShortDate(resumo.periodoFim)
-                      : "--/--/--"}
-                  </p>
-                  <p className="text-center text-sm text-gray-400 font-regular">
-                    {resumo?.lastDayRange?.date && (
-                      <div className="text-sm text-gray-400">
-                        {resumo.lastDayRange.firstTime || "—"}{" "}
-                        <Separator orientation="vertical" />{" "}
-                        {resumo.lastDayRange.lastTime || "—"}
-                      </div>
-                    )}
-                  </p>
-                </div>
+              <div className="flex flex-col justify-center gap-1">
+                <p className="text-center font-bold text-lg">
+                  {resumo && resumo.periodoFim
+                    ? formatShortDate(resumo.periodoFim)
+                    : "--/--/--"}
+                </p>
+                <p className="text-center text-sm text-gray-400 font-regular">
+                  {resumo?.lastDayRange?.date && (
+                    <div className="text-sm text-gray-400">
+                      {resumo.lastDayRange.firstTime || "—"}{" "}
+                      <Separator orientation="vertical" />{" "}
+                      {resumo.lastDayRange.lastTime || "—"}
+                    </div>
+                  )}
+                </p>
+              </div>
               </div>
             </div>
           </div>

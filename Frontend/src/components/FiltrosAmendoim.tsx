@@ -302,7 +302,7 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
       </Popover>
 
       {/* Botões Buscar e Limpar */}
-      <Button onClick={handleBuscar} className="bg-red-600 hover:bg-red-700">
+      <Button onClick={handleBuscar} variant="outline">
         Buscar
       </Button>
       <Button

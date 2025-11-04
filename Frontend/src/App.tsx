@@ -22,7 +22,7 @@ import {
   SidebarGroupLabel,
   SidebarTrigger
 } from "./components/ui/sidebar";
-import { HomeIcon, Settings, Sheet } from 'lucide-react';
+import { CircleUser, GalleryThumbnails, HatGlasses, HomeIcon, Settings, Sheet} from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { resolvePhotoUrl } from './lib/photoUtils';
 import { ToastContainer } from 'react-toastify';
@@ -152,8 +152,7 @@ const App = () => {
                   </AvatarFallback>
                 </Avatar>
 
-                {/* ✅ Esconde quando o sidebar está colapsado */}
-                <div className="flex flex-col font-semibold leading-tight group-data-[state=collapsed]:hidden">
+                <div className="ml-2 flex flex-col font-semibold leading-tight opacity-100 transition-all duration-500 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:invisible group-data-[state=collapsed]:delay-0">
                   <span className="truncate max-w-[175px]" title={sideInfo.proprietario}>
                     {sideInfo.proprietario}
                   </span>
@@ -214,7 +213,7 @@ const App = () => {
                           <CollapsibleContent className="text-popover-foreground flex flex-col outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
                             <Dialog>
                               <DialogTrigger asChild>
-                                <SidebarMenuSubButton>Perfil</SidebarMenuSubButton>
+                                <SidebarMenuSubButton> <CircleUser />Perfil</SidebarMenuSubButton>
                               </DialogTrigger>
                               <DialogContent>
                                 <DialogHeader>
@@ -231,11 +230,11 @@ const App = () => {
                               <>
                                 <Dialog>
                                   <DialogTrigger asChild>
-                                    <SidebarMenuSubButton>IHM</SidebarMenuSubButton>
+                                    <SidebarMenuSubButton><GalleryThumbnails />IHM</SidebarMenuSubButton>
                                   </DialogTrigger>
                                   <DialogContent>
                                     <DialogHeader>
-                                      <DialogTitle>IHM</DialogTitle>
+                                      <DialogTitle> IHM</DialogTitle>
                                       <DialogDescription>
                                         Configurações da IHM
                                       </DialogDescription>
@@ -245,7 +244,8 @@ const App = () => {
                                 </Dialog>
                                 <Dialog>
                                   <DialogTrigger asChild>
-                                    <SidebarMenuSubButton>ADM</SidebarMenuSubButton>
+                                    
+                                    <SidebarMenuSubButton> <HatGlasses /> ADM</SidebarMenuSubButton>
                                   </DialogTrigger>
                                   <DialogContent>
                                     <AdminConfig />

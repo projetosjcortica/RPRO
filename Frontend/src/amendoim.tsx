@@ -5,6 +5,7 @@ import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import toastManager from "./lib/toastManager";
 import { format as formatDateFn } from "date-fns";
+import { Separator } from "./components/ui/separator";
 
 interface AmendoimRecord {
   id: number;
@@ -195,11 +196,10 @@ export default function Amendoim() {
   const totalPages = Math.ceil(total / pageSize);
 
   return (
-    <div className="flex flex-col gap-1.5 w-full h-full">
+    <div className="flex flex-col gap-12.5 w-full h-full justify-start">
       {/* Header */}
       <div className="h-[10dvh] flex flex-row justify-between w-full">
         <div className="flex flex-row items-end gap-1 h-[10dvh]">
-          {/* Vazio - mantém consistência com Report */}
         </div>
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1">
@@ -247,7 +247,7 @@ export default function Amendoim() {
           )}
 
           {/* Table */}
-          <div className="flex w-full h-[74vh] 3xl:h-201 overflow-hidden shadow-xl rounded flex border border-gray-300">
+          <div className="flex w-full h-[74vh] 3xl:h-[75.75vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
         {loading ? (
           <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[50vh] w-full text-center">
             <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
@@ -377,7 +377,7 @@ export default function Amendoim() {
 
       {/* Side Info com drawer de gráficos */}
       <div
-        className="relative w-87 3xl:h-[76vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+        className="relative w-87 3xl:h-[75.75vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
         style={{ zIndex: 10 }}
       >
         {/* Drawer de gráficos compacto, por trás do sideinfo */}
@@ -471,14 +471,13 @@ export default function Amendoim() {
 
         {/* Conteúdo do sideinfo - Estatísticas */}
         <div className="flex-1 overflow-auto" style={{ zIndex: 15 }}>
-          <div className="text-base font-bold mb-3 text-gray-800">Resumo</div>
           
           {estatisticas && (
             <div className="space-y-2">
               {/* Peso Total - Destaque */}
-              <div className="bg-gradient-to-r from-red-50 to-red-100 border-2 border-red-200 rounded-lg p-3 shadow-sm">
-                <div className="text-xs text-red-700 font-semibold uppercase tracking-wide">Peso Total</div>
-                <div className="text-3xl font-bold text-red-800">
+              <div className="bg-gradient-to-r h-25 rounded-lg p-3 shadow-lg flex items-center justify-center ">
+                <p className="text-lg text-black font-bold">Total:</p>
+                <div className="text-lg font-bold text-black">
                   {estatisticas.pesoTotal.toLocaleString('pt-BR', { 
                     minimumFractionDigits: 3,
                     maximumFractionDigits: 3,
@@ -487,20 +486,16 @@ export default function Amendoim() {
               </div>
 
               {/* Grid com outros cards */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+              <div className="grid grid-cols-12 rounded-lg shadow-lg py-1 px-5 h-26">
+                <div className=" col-start-3 flex flex-col items-center justify-center">
                   <div className="text-xs text-gray-500 font-medium">Registros</div>
                   <div className="text-xl font-bold text-gray-800">{estatisticas.totalRegistros}</div>
                 </div>
-                <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                <Separator orientation="vertical" className="col-start-7"/>
+                <div className=" col-start-10 flex flex-col items-center justify-center">
                   <div className="text-xs text-gray-500 font-medium">Produtos</div>
                   <div className="text-xl font-bold text-gray-800">{estatisticas.produtosUnicos}</div>
                 </div>
-              </div>
-
-              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
-                <div className="text-xs text-gray-500 font-medium">Balanças Utilizadas</div>
-                <div className="text-xl font-bold text-gray-800">{estatisticas.balancasUtilizadas}</div>
               </div>
             </div>
           )}
