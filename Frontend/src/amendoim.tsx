@@ -9,6 +9,7 @@ import { format as formatDateFn } from "date-fns";
 import { cn } from "./lib/utils";
 import { useCallback } from "react";
 import { Separator } from "./components/ui/separator";
+import useAuth from "./hooks/useAuth";
 
 interface AmendoimRecord {
   id: number;
@@ -74,6 +75,7 @@ export default function Amendoim() {
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
   const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
 
+  const { user } = useAuth();
 
   // Função para formatar datas
   const formatDate = (raw: string): string => {
@@ -313,15 +315,13 @@ export default function Amendoim() {
         </div>
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1">
-            <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
-            
             {/* Toggle Entrada/Saída/Comparativo */}
-            <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+            <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
               <Button
                 size="sm"
                 onClick={() => setViewMode('entrada')}
                 className={cn(
-                  "h-8 text-xs font-medium transition-all",
+                  "h-7 text-xs font-medium transition-all",
                   viewMode === 'entrada'
                     ? "bg-green-600 text-white hover:bg-green-700"
                     : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
@@ -333,7 +333,7 @@ export default function Amendoim() {
                 size="sm"
                 onClick={() => setViewMode('saida')}
                 className={cn(
-                  "h-8 text-xs font-medium transition-all",
+                  "h-7 text-xs font-medium transition-all",
                   viewMode === 'saida'
                     ? "bg-blue-600 text-white hover:bg-blue-700"
                     : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
@@ -345,7 +345,7 @@ export default function Amendoim() {
                 size="sm"
                 onClick={() => setViewMode('comparativo')}
                 className={cn(
-                  "h-8 text-xs font-medium transition-all",
+                  "h-7 text-xs font-medium transition-all",
                   viewMode === 'comparativo'
                     ? "bg-purple-600 text-white hover:bg-purple-700"
                     : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
@@ -354,17 +354,21 @@ export default function Amendoim() {
                 Comparativo
               </Button>
             </div>
+            <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
+            
             
             {/* Botão de Configuração */}
-            <Button
-              onClick={() => setConfigModalOpen(true)}
-              className="flex items-center gap-1 bg-gray-700 hover:bg-gray-800"
-              title="Configurar coleta de amendoim"
-            >
-              <Settings className="h-4 w-4" />
-              <p className="hidden 3xl:flex">Configurar</p>
-            </Button>
-            
+            {user?.isAdmin && (
+              <Button
+                onClick={() => setConfigModalOpen(true)}
+                className="flex items-center gap-1 bg-gray-700 hover:bg-gray-800"
+                title="Configurar coleta de amendoim"
+              >
+                <Settings className="h-4 w-4" />
+                <p className="hidden 3xl:flex">Configurar</p>
+              </Button>
+            )}
+
             {/* Collector toggle (mesma UI do Report) */}
             <Button
               onClick={handleCollectorToggle}
@@ -391,12 +395,12 @@ export default function Amendoim() {
             </Button>
             
             {/* Seletor de tipo de upload */}
-            <div className="flex items-center gap-1 bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+            <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
               <Button
                 size="sm"
                 onClick={() => setUploadTipo('entrada')}
                 className={cn(
-                  "h-8 text-xs font-medium transition-all",
+                  "h-7 text-xs font-medium transition-all",
                   uploadTipo === 'entrada'
                     ? "bg-green-600 text-white hover:bg-green-700"
                     : "bg-transparent text-gray-600 hover:bg-gray-100"
@@ -408,7 +412,7 @@ export default function Amendoim() {
                 size="sm"
                 onClick={() => setUploadTipo('saida')}
                 className={cn(
-                  "h-8 text-xs font-medium transition-all",
+                  "h-7 text-xs font-medium transition-all",
                   uploadTipo === 'saida'
                     ? "bg-blue-600 text-white hover:bg-blue-700"
                     : "bg-transparent text-gray-600 hover:bg-gray-100"
