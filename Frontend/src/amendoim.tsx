@@ -8,7 +8,6 @@ import toastManager from "./lib/toastManager";
 import { format as formatDateFn } from "date-fns";
 import { cn } from "./lib/utils";
 import { useCallback } from "react";
-import { useGlobalConnection } from "./hooks/useGlobalConnection";
 import { Separator } from "./components/ui/separator";
 
 interface AmendoimRecord {
@@ -74,7 +73,7 @@ export default function Amendoim() {
   // Collector
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
   const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
-  const { startConnecting, stopConnecting } = useGlobalConnection();
+
 
   // Função para formatar datas
   const formatDate = (raw: string): string => {
@@ -230,18 +229,8 @@ export default function Amendoim() {
         await fetchEstatisticas();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch(e){}
       } else {
-        // try get current IHM config
-        let ihmConfig = null;
-        try {
-          const configRes = await fetch("http://localhost:3000/api/config/ihm-config");
-          if (configRes.ok) {
-            const configData = await configRes.json();
-            ihmConfig = configData.value;
-          }
-        } catch (e) {}
-
         // Start amendoim collector (will collect both entrada and saida as configured)
-        startConnecting("Iniciando coletor Amendoim...");
+        try { toastManager.showLoading('collector-toggle', 'Iniciando coletor Amendoim...'); } catch(e){}
         const res = await fetch("http://localhost:3000/api/amendoim/collector/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

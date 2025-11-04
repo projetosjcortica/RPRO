@@ -35,7 +35,7 @@ export class AmendoimCollectorService {
     if (!this.ihmService) {
       const ihmCfg = getRuntimeConfig('ihm-config') || {};
       this.ihmService = new IHMService(
-        ihmCfg.ip || process.env.IHM_IP || '192.168.5.252',
+        ihmCfg.ip || process.env.IHM_IP || '192.168.5.250',
         ihmCfg.user || process.env.IHM_USER || 'anonymous',
         ihmCfg.password || process.env.IHM_PASSWORD || ''
       );
@@ -50,15 +50,41 @@ export class AmendoimCollectorService {
    */
   private static async downloadSpecificFile(
     fileName: string,
-    localDir: string
+    localDir: string,
+    tipo: 'entrada' | 'saida'
   ): Promise<{ name: string; localPath: string; size: number } | null> {
-    const ihmService = this.getIHMService();
-    
-    // Baixar todos os arquivos novos e filtrar pelo nome
-    const downloaded = await ihmService.findAndDownloadNewFiles(localDir);
-    const targetFile = downloaded.find(f => f.name === fileName);
-    
-    return targetFile || null;
+    try {
+      const ihmService = this.getIHMService();
+      
+      // Baixar todos os arquivos novos e filtrar pelo nome
+      const downloaded = await ihmService.findAndDownloadNewFiles(localDir);
+      let targetFile = downloaded.find(f => f.name === fileName);
+      
+      // Se não encontrou arquivo com nome exato, tentar buscar por padrão similar
+      if (!targetFile && downloaded.length > 0) {
+        // Normalizar nome de busca removendo caracteres problemáticos
+        const normalizedSearch = fileName.replace(/\.+/g, '.').replace(/[^a-zA-Z0-9_.-]/g, '');
+        
+        // Tentar match parcial inteligente baseado no tipo
+        const patterns = tipo === 'entrada' 
+          ? ['ENTRA', 'ENTRADA', 'IN', 'INPUT']
+          : ['SAIDA', 'OUT', 'OUTPUT'];
+        
+        targetFile = downloaded.find(f => {
+          const upperName = f.name.toUpperCase();
+          return patterns.some(p => upperName.includes(p));
+        });
+        
+        if (targetFile) {
+          console.log(`[AmendoimCollector] Nome configurado "${fileName}" não encontrado, usando "${targetFile.name}" (match por tipo ${tipo})`);
+        }
+      }
+      
+      return targetFile || null;
+    } catch (err: any) {
+      console.warn(`[AmendoimCollector] Falha no download FTP de ${fileName}: ${err.message}`);
+      return null;
+    }
   }
 
   /**
@@ -250,10 +276,11 @@ export class AmendoimCollectorService {
           // Por enquanto, usar sempre a mesma IHM
 
           // Tentar baixar via IHM usando findAndDownloadNewFiles
-          let downloadedFile = await this.downloadSpecificFile(arquivoInfo.arquivo, this.TMP_DIR);
+          let downloadedFile = await this.downloadSpecificFile(arquivoInfo.arquivo, this.TMP_DIR, arquivoInfo.tipo);
 
           if (!downloadedFile) {
             // Tentativa de fallback local (útil para desenvolvimento/offline):
+            console.log(`[AmendoimCollector] Download IHM falhou para ${arquivoInfo.tipo}, tentando fallback local...`);
             const candidates = [
               path.join(this.TMP_DIR, arquivoInfo.arquivo),
               path.join(this.TMP_DIR, `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`),
@@ -261,11 +288,16 @@ export class AmendoimCollectorService {
               path.join(process.cwd(), 'backups', `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`),
             ];
 
+            console.log(`[AmendoimCollector] Procurando em:`, candidates);
+
             let fallbackPath: string | null = null;
             for (const c of candidates) {
               if (fs.existsSync(c)) {
                 fallbackPath = c;
+                console.log(`[AmendoimCollector] ✓ Encontrado: ${c}`);
                 break;
+              } else {
+                console.log(`[AmendoimCollector] ✗ Não existe: ${c}`);
               }
             }
 
