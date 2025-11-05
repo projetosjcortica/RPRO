@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { Loader2, Save, X } from "lucide-react";
+import { Loader2, Save, X, Scale, ArrowBigDown, ArrowBigUp } from "lucide-react";
 import { cn } from "../lib/utils";
 import toastManager from "../lib/toastManager";
 
@@ -24,6 +24,10 @@ interface AmendoimConfig {
     caminhoRemoto: string;
     usadaPara: "entrada" | "saida";
   };
+  mapeamentoBalancas?: {
+    entrada: string[]; // Ex: ["1", "2", "3"]
+    saida: string[]; // Ex: ["9", "10"]
+  };
 }
 
 interface AmendoimConfigProps {
@@ -46,6 +50,10 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
       mesAno: new Date().toISOString().slice(0, 7),
     },
     caminhoRemoto: "/InternalStorage/data/",
+    mapeamentoBalancas: {
+      entrada: [],
+      saida: [],
+    },
   });
 
   // Buscar configuração atual
@@ -76,6 +84,10 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
             nomeArquivo: data.arquivoSaida,
           },
           caminhoRemoto: data.caminhoRemoto || "/InternalStorage/data/",
+          mapeamentoBalancas: data.mapeamentoBalancas || {
+            entrada: [],
+            saida: [],
+          },
         };
 
         if (data.ihm2) {
@@ -133,6 +145,7 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
         arquivoEntrada: gerarNomeArquivo("entrada"),
         arquivoSaida: gerarNomeArquivo("saida"),
         caminhoRemoto: "/InternalStorage/data/",
+        mapeamentoBalancas: config.mapeamentoBalancas,
       };
 
       if (config.duasIHMs && config.ihm2) {
@@ -536,6 +549,87 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
                 </div>
               </div>
 
+              {/* Mapeamento de Balanças - apenas quando usa uma IHM */}
+              {!config.duasIHMs && (
+                <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-4">
+                  <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                    <Scale className="h-5 w-5" />
+                    Mapeamento de Balanças
+                  </h3>
+                  
+                  <div className="text-sm text-gray-600 mb-4">
+                    Define quais balanças do CSV correspondem a entrada e saída. Útil para análises comparativas.
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Balanças de Entrada */}
+                    <div className="bg-green-50 border border-green-300 rounded-lg p-3">
+                      <label className="text-sm font-bold text-green-800 mb-2 block flex items-center gap-1">
+                        <ArrowBigDown className="h-4 w-4" />
+                        Balanças de Entrada
+                      </label>
+                      <input
+                        type="text"
+                        value={config.mapeamentoBalancas?.entrada?.join(", ") || ""}
+                        onChange={(e) => {
+                          const valores = e.target.value
+                            .split(",")
+                            .map(v => v.trim())
+                            .filter(v => v !== "");
+                          setConfig({
+                            ...config,
+                            mapeamentoBalancas: {
+                              ...config.mapeamentoBalancas,
+                              entrada: valores,
+                              saida: config.mapeamentoBalancas?.saida || [],
+                            },
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        placeholder="Ex: 1, 2, 3"
+                      />
+                      <div className="text-xs text-gray-500 mt-1">
+                        Separe os IDs por vírgula
+                      </div>
+                    </div>
+
+                    {/* Balanças de Saída */}
+                    <div className="bg-blue-50 border border-blue-300 rounded-lg p-3">
+                      <label className="text-sm font-bold text-blue-800 mb-2 block flex items-center gap-1">
+                        <ArrowBigUp className="h-4 w-4" />
+                        Balanças de Saída
+                      </label>
+                      <input
+                        type="text"
+                        value={config.mapeamentoBalancas?.saida?.join(", ") || ""}
+                        onChange={(e) => {
+                          const valores = e.target.value
+                            .split(",")
+                            .map(v => v.trim())
+                            .filter(v => v !== "");
+                          setConfig({
+                            ...config,
+                            mapeamentoBalancas: {
+                              entrada: config.mapeamentoBalancas?.entrada || [],
+                              saida: valores,
+                            },
+                          });
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        placeholder="Ex: 9, 10"
+                      />
+                      <div className="text-xs text-gray-500 mt-1">
+                        Separe os IDs por vírgula
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-2 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">
+                    <strong>ℹ️ Nota:</strong> Este mapeamento será usado nas análises comparativas entre balanças específicas (ex: "entrada balanças 1,2,3 vs saída balanças 9,10").
+                  </div>
+                </div>
+              )}
+
               {/* Resumo */}
               <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
                 <h4 className="text-sm font-bold text-gray-800 mb-3">Resumo da Configuração:</h4>
@@ -559,6 +653,20 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
                     • <strong>Saída:</strong> {gerarNomeArquivo("saida")}{" "}
                     {config.duasIHMs && config.ihm2?.usadaPara === "saida" && "(IHM2)"}
                   </li>
+                  {!config.duasIHMs && config.mapeamentoBalancas && (
+                    <>
+                      {config.mapeamentoBalancas.entrada && config.mapeamentoBalancas.entrada.length > 0 && (
+                        <li>
+                          • <strong>Balanças Entrada:</strong> {config.mapeamentoBalancas.entrada.join(", ")}
+                        </li>
+                      )}
+                      {config.mapeamentoBalancas.saida && config.mapeamentoBalancas.saida.length > 0 && (
+                        <li>
+                          • <strong>Balanças Saída:</strong> {config.mapeamentoBalancas.saida.join(", ")}
+                        </li>
+                      )}
+                    </>
+                  )}
                 </ul>
               </div>
             </div>

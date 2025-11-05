@@ -27,6 +27,7 @@ interface AmendoimRecord {
   codigoCaixa: string;
   nomeProduto: string;
   peso: number;
+  balanca?: string;
   createdAt: string;
 }
 
@@ -619,6 +620,9 @@ export default function Amendoim() {
                     <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '120px', minWidth: '120px' }}>
                       Cód. Caixa
                     </div>
+                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '80px', minWidth: '80px' }}>
+                      Balança
+                    </div>
                     <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '250px', minWidth: '250px' }}>
                       Nome do Produto
                     </div>
@@ -651,6 +655,11 @@ export default function Amendoim() {
                       </div>
                       <div className="flex items-center justify-end p-2 text-sm border-r border-gray-300" style={{ width: '120px', minWidth: '120px' }}>
                         {registro.codigoCaixa}
+                      </div>
+                      <div className="flex items-center justify-center p-2 text-sm border-r border-gray-300" style={{ width: '80px', minWidth: '80px' }}>
+                        <span className="px-2 py-1 rounded text-xs font-bold bg-gray-200 text-gray-700">
+                          {registro.balanca || "-"}
+                        </span>
                       </div>
                       <div className="flex items-center justify-start p-2 text-sm border-r border-gray-300 overflow-hidden" style={{ width: '250px', minWidth: '250px' }}>
                         <div className="w-full break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>

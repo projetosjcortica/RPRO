@@ -57,6 +57,8 @@ export class AmendoimService {
             _col5,         // 5: Irrelevante
             _col6,         // 6: Irrelevante
             peso,          // 7: Peso
+            _col8,         // 8: Irrelevante
+            balanca,       // 9: Identificador da balança
           ] = row;
 
           // Separar data e hora
@@ -96,6 +98,7 @@ export class AmendoimService {
           registro.codigoCaixa = String(codigoCaixa || "").trim();
           registro.nomeProduto = String(nomeProduto).trim();
           registro.peso = Number(peso);
+          registro.balanca = balanca ? String(balanca).trim() : undefined;
 
           registrosParaSalvar.push(registro);
         } catch (err: any) {

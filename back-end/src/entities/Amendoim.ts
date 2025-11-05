@@ -49,6 +49,10 @@ export class Amendoim {
   @Column({ type: "decimal", precision: 10, scale: 3 })
   peso!: number;
 
+  /** Identificador da balança (ex: 1, 2, 3, 9) */
+  @Column({ type: "varchar", length: 10, nullable: true })
+  balanca?: string;
+
   /** Data de criação do registro no banco */
   @CreateDateColumn()
   createdAt!: Date;
