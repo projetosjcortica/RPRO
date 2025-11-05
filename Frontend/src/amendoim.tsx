@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
-import { Loader2, Upload, Play, Square, Scale, Settings } from "lucide-react";
+import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
@@ -316,7 +316,7 @@ export default function Amendoim() {
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1">
             {/* Toggle Entrada/Saída/Comparativo */}
-            <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
+            {/* <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
               <Button
                 size="sm"
                 onClick={() => setViewMode('entrada')}
@@ -353,7 +353,7 @@ export default function Amendoim() {
               >
                 Comparativo
               </Button>
-            </div>
+            </div> */}
             <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
             
             
@@ -464,7 +464,7 @@ export default function Amendoim() {
           )}
 
           {/* Table */}
-          <div className="flex w-full h-[74vh] 3xl:h-[78vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
+          <div className="flex w-full h-[74vh] 3xl:h-[74.90vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
         {loading ? (
           <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[54vh] w-full text-center">
             <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
@@ -599,9 +599,47 @@ export default function Amendoim() {
 
       {/* Side Info com drawer de gráficos */}
       <div
-        className="relative w-87 3xl:h-[74.90vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+        className="relative w-87 3xl:h-[74.90vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0 justify-center items-center"
         style={{ zIndex: 10 }}
       >
+      <div className="flex items-center gap-1 h-9 w-fit bg-white rounded-lg border border-black p-1 shadow-sm">
+        <Button
+          size="sm"
+          onClick={() => setViewMode('entrada')}
+          className={cn(
+            "h-7 text-xs font-medium transition-all",
+            viewMode === 'entrada'
+              ? "bg-green-600 text-white hover:bg-green-700"
+              : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+          )}
+        >
+          Entrada
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => setViewMode('saida')}
+          className={cn(
+            "h-7 text-xs font-medium transition-all",
+            viewMode === 'saida'
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+          )}
+        >
+          Saída
+        </Button>
+        <Button
+          size="sm"
+          onClick={() => setViewMode('comparativo')}
+          className={cn(
+            "h-7 text-xs font-medium transition-all",
+            viewMode === 'comparativo'
+              ? "bg-purple-600 text-white hover:bg-purple-700"
+              : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
+          )}
+        >
+          Comparativo
+        </Button>
+      </div>
         {/* Drawer de gráficos compacto, por trás do sideinfo */}
         {chartsOpen && (
           <div
@@ -719,8 +757,8 @@ export default function Amendoim() {
                 {/* Grid Entrada/Saída */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="shadow-md rounded-lg p-2">
-                    <div className="text-xs text-green-600 font-medium">Entrada</div>
-                    <div className="text-sm font-bold text-green-800">
+                    <div className="text-xs font-medium">Entrada</div>
+                    <div className="text-sm font-bold">
                       {metricasRendimento.pesoEntrada.toLocaleString('pt-BR', {
                         minimumFractionDigits: 1,
                         maximumFractionDigits: 1,
@@ -728,8 +766,8 @@ export default function Amendoim() {
                     </div>
                   </div>
                   <div className="shadow-md rounded-lg p-2">
-                    <div className="text-xs text-blue-600 font-medium">Saída</div>
-                    <div className="text-sm font-bold text-blue-800">
+                    <div className="text-xs font-medium">Saída</div>
+                    <div className="text-sm font-bold">
                       {metricasRendimento.pesoSaida.toLocaleString('pt-BR', {
                         minimumFractionDigits: 1,
                         maximumFractionDigits: 1,
@@ -751,17 +789,32 @@ export default function Amendoim() {
                 </div>
                 <div className=" rounded-lg p-3 shadow-lg transition-shadow">
                 <div className="text-xs text-gray-500 text-center font-medium">Período</div>
-                <div className="grid grid-cols-12 rounded-lg h-18">
-                  <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
+                <div className="grid grid-cols-20 rounded-lg h-18">
+                  <div className="flex flex-col justify-center items-center col-start-5">
+                    <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
                     {registros.length > 0 
-                      ? `${formatDate(registros[0].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      ? `${formatDate(registros[0].dia)}`
                       : "Sem registros"}
+                    </div>
+                    <div className="text-sm font-semibold opacity-50">
+                      {registros.length > 0 
+                        ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
+                        : "Sem registros"}
+                    </div>
                   </div>
-                  <Separator orientation="vertical" className="mt-2 col-start-7"/>
-                  <div className="text-md font-bold text-center text-gray-800 flex justify-center items-center col-start-10">
+                  <Separator orientation="vertical" className="mt-2 col-start-11"/>
+                  
+                  <div className="flex flex-col justify-center items-center col-start-16">
+                    <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
                     {registros.length > 0 
-                      ? `${formatDate(registros[registros.length - 1].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      ? `${formatDate(registros[registros.length - 1].dia)}`
                       : "Sem registros"}
+                    </div>
+                    <div className="text-sm font-semibold opacity-50">
+                      {registros.length > 0 
+                      ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -770,7 +823,11 @@ export default function Amendoim() {
           )}
           
           {viewMode === 'saida' && estatisticas && (
-            <div className="space-y-2">
+            <div className="space-y-2 p-4">
+              <div className="text-sm font-bold mb-3 flex items-center gap-2">
+                <ArrowBigUp className="h-4 w-4"/>
+                Análise de Saída
+              </div>
               {/* Peso Total - Destaque */}
               <div className="bg-gradient-to-r h-25 rounded-lg p-3 shadow-lg flex items-center justify-center ">
                 <p className="text-lg text-black font-bold">Total:</p>
@@ -784,17 +841,32 @@ export default function Amendoim() {
               
               <div className="rounded-lg p-3 shadow-lg transition-shadow">
                 <div className="text-xs text-gray-500 text-center font-medium">Período</div>
-                <div className="grid grid-cols-12 rounded-lg h-18">
-                  <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
+                <div className="grid grid-cols-20 rounded-lg h-18">
+                  <div className="flex flex-col justify-center items-center col-start-5">
+                    <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
                     {registros.length > 0 
-                      ? `${formatDate(registros[0].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      ? `${formatDate(registros[0].dia)}`
                       : "Sem registros"}
+                    </div>
+                    <div className="text-sm font-semibold opacity-50">
+                      {registros.length > 0 
+                        ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
+                        : "Sem registros"}
+                    </div>
                   </div>
-                  <Separator orientation="vertical" className="mt-2 col-start-7"/>
-                  <div className="text-md font-bold text-center text-gray-800 flex justify-center items-center col-start-10">
+                  <Separator orientation="vertical" className="mt-2 col-start-11"/>
+                  
+                  <div className="flex flex-col justify-center items-center col-start-16">
+                    <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
                     {registros.length > 0 
-                      ? `${formatDate(registros[registros.length - 1].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      ? `${formatDate(registros[registros.length - 1].dia)}`
                       : "Sem registros"}
+                    </div>
+                    <div className="text-sm font-semibold opacity-50">
+                      {registros.length > 0 
+                      ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -820,7 +892,11 @@ export default function Amendoim() {
             </div>
           )}
           {viewMode === 'entrada' && estatisticas && registros &&  (
-            <div className="space-y-2">
+           <div className="space-y-2 p-4">
+              <div className="text-sm font-bold mb-3 flex items-center gap-2">
+                <ArrowBigDown className="h-4 w-4"/>
+                Análise de Entrada
+              </div>
               {/* Peso Total - Destaque */}
               <div className="bg-gradient-to-r h-25 rounded-lg p-3 shadow-lg flex items-center justify-center ">
                 <p className="text-lg text-black font-bold">Total:</p>
@@ -833,17 +909,32 @@ export default function Amendoim() {
               </div>
               <div className=" rounded-lg p-3 shadow-lg transition-shadow">
                 <div className="text-xs text-gray-500 text-center font-medium">Período</div>
-                <div className="grid grid-cols-12 rounded-lg h-18">
-                  <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
+                <div className="grid grid-cols-20 rounded-lg h-18">
+                  <div className="flex flex-col justify-center items-center col-start-5">
+                    <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
                     {registros.length > 0 
-                      ? `${formatDate(registros[0].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      ? `${formatDate(registros[0].dia)}`
                       : "Sem registros"}
+                    </div>
+                    <div className="text-sm font-semibold opacity-50">
+                      {registros.length > 0 
+                        ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
+                        : "Sem registros"}
+                    </div>
                   </div>
-                  <Separator orientation="vertical" className="mt-2 col-start-7"/>
-                  <div className="text-md font-bold text-center text-gray-800 flex justify-center items-center col-start-10">
+                  <Separator orientation="vertical" className="mt-2 col-start-11"/>
+                  
+                  <div className="flex flex-col justify-center items-center col-start-16">
+                    <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
                     {registros.length > 0 
-                      ? `${formatDate(registros[registros.length - 1].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      ? `${formatDate(registros[registros.length - 1].dia)}`
                       : "Sem registros"}
+                    </div>
+                    <div className="text-sm font-semibold opacity-50">
+                      {registros.length > 0 
+                      ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                    </div>
                   </div>
                 </div>
               </div>

@@ -152,7 +152,7 @@ const App = () => {
                   </AvatarFallback>
                 </Avatar>
 
-                <div className="ml-2 flex flex-col font-semibold leading-tight opacity-100 transition-all duration-500 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:invisible group-data-[state=collapsed]:delay-0">
+                <div className="flex flex-col font-semibold leading-tight opacity-100 transition-all duration-500 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:invisible group-data-[state=collapsed]:delay-0">
                   <span className="truncate max-w-[175px]" title={sideInfo.proprietario}>
                     {sideInfo.proprietario}
                   </span>
