@@ -464,15 +464,15 @@ export default function Amendoim() {
           )}
 
           {/* Table */}
-          <div className="flex w-full h-[74vh] 3xl:h-[75.75vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
+          <div className="flex w-full h-[74vh] 3xl:h-[78vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
         {loading ? (
-          <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[50vh] w-full text-center">
+          <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[54vh] w-full text-center">
             <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
             <p className="text-lg font-medium text-gray-700">Carregando dados...</p>
             <p className="text-sm text-gray-500">Os dados estão sendo processados, por favor aguarde.</p>
           </div>
         ) : registros.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 h-[50vh] w-full text-center">
+          <div className="flex flex-col items-center justify-center p-8 h-[54vh] w-full text-center">
             <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
@@ -562,7 +562,7 @@ export default function Amendoim() {
           </div>
 
           {/* Pagination */}
-          <div className="flex flex-row items-center justify-end mt-2">
+          <div className="flex flex-row items-center justify-end">
             {totalPages > 1 && (
               <div className="flex gap-2 items-center bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
                 <Button
@@ -599,7 +599,7 @@ export default function Amendoim() {
 
       {/* Side Info com drawer de gráficos */}
       <div
-        className="relative w-87 3xl:h-[75.75vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+        className="relative w-87 3xl:h-[74.90vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
         style={{ zIndex: 10 }}
       >
         {/* Drawer de gráficos compacto, por trás do sideinfo */}
@@ -699,24 +699,26 @@ export default function Amendoim() {
           
           {/* Card de Métricas de Rendimento (apenas no modo comparativo) */}
           {viewMode === 'comparativo' && metricasRendimento && (
-            <div className="mb-4 bg-gradient-to-br from-purple-50 to-purple-100 border-2 border-purple-300 rounded-xl p-4 shadow-lg">
-              <div className="text-sm font-bold text-purple-900 mb-3 flex items-center gap-2">
-                <Scale className="h-4 w-4" />
+            <div className="mb-4 rounded-xl p-4">
+              <div className="text-sm font-bold mb-3 flex items-center gap-2">
+                <Scale className="h-4 w-4"/>
                 Análise de Rendimento
               </div>
+
+              
               
               <div className="space-y-3">
                 {/* Rendimento % - Destaque Principal */}
-                <div className="bg-white rounded-lg p-3 border border-purple-200">
-                  <div className="text-xs text-gray-500 font-medium uppercase">Rendimento</div>
-                  <div className="text-3xl font-bold text-purple-700">
+                <div className="bg-white rounded-lg p-3 shadow-md flex flex-col items-center justify-center">
+                  <div className="text-sm text-gray-500 font-medium ">Aproveitamento</div>
+                  <div className="text-3xl font-bold ">
                     {metricasRendimento.rendimentoPercentual.toFixed(2)}%
                   </div>
                 </div>
 
                 {/* Grid Entrada/Saída */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                  <div className="shadow-md rounded-lg p-2">
                     <div className="text-xs text-green-600 font-medium">Entrada</div>
                     <div className="text-sm font-bold text-green-800">
                       {metricasRendimento.pesoEntrada.toLocaleString('pt-BR', {
@@ -725,7 +727,7 @@ export default function Amendoim() {
                       })} kg
                     </div>
                   </div>
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-2">
+                  <div className="shadow-md rounded-lg p-2">
                     <div className="text-xs text-blue-600 font-medium">Saída</div>
                     <div className="text-sm font-bold text-blue-800">
                       {metricasRendimento.pesoSaida.toLocaleString('pt-BR', {
@@ -737,8 +739,8 @@ export default function Amendoim() {
                 </div>
 
                 {/* Perda */}
-                <div className="bg-red-50 border border-red-200 rounded-lg p-2">
-                  <div className="text-xs text-red-600 font-medium">Perda Total</div>
+                <div className="shadow-md rounded-lg p-2">
+                  <div className="text-xs text-red-600 font-medium">Perda de material</div>
                   <div className="text-lg font-bold text-red-800">
                     {metricasRendimento.perda.toLocaleString('pt-BR', {
                       minimumFractionDigits: 1,
@@ -747,11 +749,27 @@ export default function Amendoim() {
                     <span className="text-sm ml-2">({metricasRendimento.perdaPercentual.toFixed(2)}%)</span>
                   </div>
                 </div>
+                <div className=" rounded-lg p-3 shadow-lg transition-shadow">
+                <div className="text-xs text-gray-500 text-center font-medium">Período</div>
+                <div className="grid grid-cols-12 rounded-lg h-18">
+                  <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
+                    {registros.length > 0 
+                      ? `${formatDate(registros[0].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                  </div>
+                  <Separator orientation="vertical" className="mt-2 col-start-7"/>
+                  <div className="text-md font-bold text-center text-gray-800 flex justify-center items-center col-start-10">
+                    {registros.length > 0 
+                      ? `${formatDate(registros[registros.length - 1].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                  </div>
+                </div>
+              </div>
               </div>
             </div>
           )}
           
-          {estatisticas && (
+          {viewMode === 'saida' && estatisticas && (
             <div className="space-y-2">
               {/* Peso Total - Destaque */}
               <div className="bg-gradient-to-r h-25 rounded-lg p-3 shadow-lg flex items-center justify-center ">
@@ -761,6 +779,72 @@ export default function Amendoim() {
                     minimumFractionDigits: 3,
                     maximumFractionDigits: 3,
                   })} <span className="text-lg">kg</span>
+                </div>
+              </div>
+              
+              <div className="rounded-lg p-3 shadow-lg transition-shadow">
+                <div className="text-xs text-gray-500 text-center font-medium">Período</div>
+                <div className="grid grid-cols-12 rounded-lg h-18">
+                  <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
+                    {registros.length > 0 
+                      ? `${formatDate(registros[0].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                  </div>
+                  <Separator orientation="vertical" className="mt-2 col-start-7"/>
+                  <div className="text-md font-bold text-center text-gray-800 flex justify-center items-center col-start-10">
+                    {registros.length > 0 
+                      ? `${formatDate(registros[registros.length - 1].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid com outros cards */}
+              <div className="grid grid-cols-12 rounded-lg shadow-lg py-1 px-5 h-26">
+                <div className=" col-start-3 flex flex-col items-center justify-center">
+                  <div className="text-xs text-gray-500 font-medium">Registros</div>
+                  <div className="text-xl font-bold text-gray-800">{estatisticas.totalRegistros}</div>
+                </div>
+                <Separator orientation="vertical" className="col-start-7"/>
+                <div className=" col-start-10 flex flex-col items-center justify-center">
+                  <div className="text-xs text-gray-500 font-medium">Produtos</div>
+                  <div className="text-xl font-bold text-gray-800">{estatisticas.produtosUnicos}</div>
+                </div>
+                
+              </div>
+
+              {/* <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+                <div className="text-xs text-gray-500 font-medium">Caixas Utilizadas</div>
+                <div className="text-xl font-bold text-gray-800">{estatisticas.caixasUtilizadas}</div>
+              </div> */}
+            </div>
+          )}
+          {viewMode === 'entrada' && estatisticas && registros &&  (
+            <div className="space-y-2">
+              {/* Peso Total - Destaque */}
+              <div className="bg-gradient-to-r h-25 rounded-lg p-3 shadow-lg flex items-center justify-center ">
+                <p className="text-lg text-black font-bold">Total:</p>
+                <div className="text-lg font-bold text-black">
+                  {estatisticas.pesoTotal.toLocaleString('pt-BR', { 
+                    minimumFractionDigits: 3,
+                    maximumFractionDigits: 3,
+                  })} <span className="text-lg">kg</span>
+                </div>
+              </div>
+              <div className=" rounded-lg p-3 shadow-lg transition-shadow">
+                <div className="text-xs text-gray-500 text-center font-medium">Período</div>
+                <div className="grid grid-cols-12 rounded-lg h-18">
+                  <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
+                    {registros.length > 0 
+                      ? `${formatDate(registros[0].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                  </div>
+                  <Separator orientation="vertical" className="mt-2 col-start-7"/>
+                  <div className="text-md font-bold text-center text-gray-800 flex justify-center items-center col-start-10">
+                    {registros.length > 0 
+                      ? `${formatDate(registros[registros.length - 1].dia)} ${registros[0].hora} ${registros[registros.length - 1].hora}`
+                      : "Sem registros"}
+                  </div>
                 </div>
               </div>
 
@@ -777,10 +861,10 @@ export default function Amendoim() {
                 </div>
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
+              {/* <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
                 <div className="text-xs text-gray-500 font-medium">Caixas Utilizadas</div>
                 <div className="text-xl font-bold text-gray-800">{estatisticas.caixasUtilizadas}</div>
-              </div>
+              </div> */}
             </div>
           )}
         </div>
