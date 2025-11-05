@@ -224,25 +224,25 @@ export default function Home() {
   // Renderizar home específica baseado no tipo
   if (tipoHome === "amendoim") {
     return (
-      <div className="h-screen overflow-hidden flex flex-col bg-gray-50">
-        <div className="flex-1 overflow-y-auto thin-red-scrollbar">
-          <div className="p-4 space-y-4">
+      <div className="h-screen flex flex-col">
+        <div className="flex-1 overflow-hidden ">
+          <div className="p-4 space">
             {/* Linha: Horário de Produção e Produção Semanal (com controles) */}
             <div className="grid grid-cols-2 gap-4">
-              {/* Horário de Produção */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[400px] 3xl:h-[500px]">
+              {/* Eficiência por Turno */}
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[325px] 3xl:h-[500px]">
                 <CardHeader className="border-b border-gray-100 pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold text-gray-900">Horário de Produção</CardTitle>
+                    <CardTitle className="text-base font-semibold text-gray-900">Eficiência por Turno</CardTitle>
                     <div className="flex items-center space-x-2">
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!horariosDateRange && "text-gray-400") }>
-                            {horariosDateRange?.from ? (
-                              horariosDateRange.to ? (
-                                <>{formatDate(horariosDateRange.from, 'dd/MM/yy')} - {formatDate(horariosDateRange.to, 'dd/MM/yy')}</>
+                          <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!turnosDateRange && "text-gray-400") }>
+                            {turnosDateRange?.from ? (
+                              turnosDateRange.to ? (
+                                <>{formatDate(turnosDateRange.from, 'dd/MM/yy')} - {formatDate(turnosDateRange.to, 'dd/MM/yy')}</>
                               ) : (
-                                formatDate(horariosDateRange.from, 'dd/MM/yy')
+                                formatDate(turnosDateRange.from, 'dd/MM/yy')
                               )
                             ) : (
                               <span>Selecione um Período</span>
@@ -250,20 +250,20 @@ export default function Home() {
                             <CalendarIcon className="ml-2 h-4 w-4" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyHorariosFilters}>
+                        <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyTurnosFilters}>
                           <Calendar
                             mode="range"
                             locale={pt}
-                            defaultMonth={horariosDateRange?.from}
-                            selected={horariosDateRange}
-                            onSelect={handleHorariosDateChange}
+                            defaultMonth={turnosDateRange?.from}
+                            selected={turnosDateRange}
+                            onSelect={handleTurnosDateChange}
                             numberOfMonths={1}
                           />
                           <div className="flex gap-2 mt-2 px-1">
-                            <Button variant="outline" onClick={clearHorariosFilters} size="sm" className="flex-1">
+                            <Button variant="outline" onClick={clearTurnosFilters} size="sm" className="flex-1">
                               Ontem
                             </Button>
-                            <Button onClick={applyHorariosFilters} size="sm" className="flex-1">
+                            <Button onClick={applyTurnosFilters} size="sm" className="flex-1">
                               Aplicar
                             </Button>
                           </div>
@@ -274,13 +274,13 @@ export default function Home() {
                 </CardHeader>
                 <CardContent className="pt-4 h-[calc(100%-60px)]">
                   <div className="w-full h-full">
-                    <ChartEntradaSaidaPorHorario dados={dadosHorarios} bare />
+                    <ChartEficienciaPorTurno dados={dadosTurnos} bare />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Produção Semanal */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[400px] 3xl:h-[500px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[325px] 3xl:h-[500px]">
                 <CardHeader className="border-b border-gray-100 pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Produção Semanal</CardTitle>
@@ -359,56 +359,55 @@ export default function Home() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Eficiência por Turno */}
-            <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[400px] 3xl:h-[500px]">
-              <CardHeader className="border-b border-gray-100 pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-semibold text-gray-900">Eficiência por Turno</CardTitle>
-                  <div className="flex items-center space-x-2">
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!turnosDateRange && "text-gray-400") }>
-                          {turnosDateRange?.from ? (
-                            turnosDateRange.to ? (
-                              <>{formatDate(turnosDateRange.from, 'dd/MM/yy')} - {formatDate(turnosDateRange.to, 'dd/MM/yy')}</>
+            {/* Horário de Produção */}
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-5 overflow-hidden h-[380px] 3xl:h-[420px]">
+                <CardHeader className="border-b border-gray-100 pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-semibold text-gray-900">Horário de Produção</CardTitle>
+                    <div className="flex items-center space-x-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!horariosDateRange && "text-gray-400") }>
+                            {horariosDateRange?.from ? (
+                              horariosDateRange.to ? (
+                                <>{formatDate(horariosDateRange.from, 'dd/MM/yy')} - {formatDate(horariosDateRange.to, 'dd/MM/yy')}</>
+                              ) : (
+                                formatDate(horariosDateRange.from, 'dd/MM/yy')
+                              )
                             ) : (
-                              formatDate(turnosDateRange.from, 'dd/MM/yy')
-                            )
-                          ) : (
-                            <span>Selecione um Período</span>
-                          )}
-                          <CalendarIcon className="ml-2 h-4 w-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyTurnosFilters}>
-                        <Calendar
-                          mode="range"
-                          locale={pt}
-                          defaultMonth={turnosDateRange?.from}
-                          selected={turnosDateRange}
-                          onSelect={handleTurnosDateChange}
-                          numberOfMonths={1}
-                        />
-                        <div className="flex gap-2 mt-2 px-1">
-                          <Button variant="outline" onClick={clearTurnosFilters} size="sm" className="flex-1">
-                            Ontem
+                              <span>Selecione um Período</span>
+                            )}
+                            <CalendarIcon className="ml-2 h-4 w-4" />
                           </Button>
-                          <Button onClick={applyTurnosFilters} size="sm" className="flex-1">
-                            Aplicar
-                          </Button>
-                        </div>
-                      </PopoverContent>
-                    </Popover>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyHorariosFilters}>
+                          <Calendar
+                            mode="range"
+                            locale={pt}
+                            defaultMonth={horariosDateRange?.from}
+                            selected={horariosDateRange}
+                            onSelect={handleHorariosDateChange}
+                            numberOfMonths={1}
+                          />
+                          <div className="flex gap-2 mt-2 px-1">
+                            <Button variant="outline" onClick={clearHorariosFilters} size="sm" className="flex-1">
+                              Ontem
+                            </Button>
+                            <Button onClick={applyHorariosFilters} size="sm" className="flex-1">
+                              Aplicar
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4 h-[calc(100%-60px)]">
-                <div className="w-full h-full">
-                  <ChartEficienciaPorTurno dados={dadosTurnos} bare />
-                </div>
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                  <div className="w-full h-full">
+                    <ChartEntradaSaidaPorHorario dados={dadosHorarios} bare />
+                  </div>
+                </CardContent>
+              </Card>
           </div>
         </div>
       </div>
