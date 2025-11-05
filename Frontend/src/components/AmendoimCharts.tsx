@@ -57,7 +57,7 @@ export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPo
   })) || [];
 
   const chart = (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="hora" />
@@ -136,7 +136,7 @@ export function ChartRendimentoPorDia({ dados }: ChartRendimentoPorDiaProps) {
         <CardDescription>Entrada, saída (kg) e rendimento (%) por dia</CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={320}>
+        <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="dia" />
@@ -174,7 +174,7 @@ export function ChartFluxoSemanal({ dados, bare }: ChartFluxoSemanalProps) {
   })) || [];
 
   const chart = (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="dia" />
@@ -219,7 +219,7 @@ export function ChartEficienciaPorTurno({ dados, bare }: ChartEficienciaPorTurno
   })) || [];
 
   const chart = (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data}>
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="turno" />
@@ -292,7 +292,7 @@ export function ChartPerdaAcumulada({ dados }: ChartPerdaAcumuladaProps) {
         <CardDescription>Diferença entrada-saída (kg) ao longo do tempo</CardDescription>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="dia" />
