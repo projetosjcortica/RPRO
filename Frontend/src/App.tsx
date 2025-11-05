@@ -59,6 +59,15 @@ const App = () => {
     }
   }, [location.pathname, user, navigate]);
 
+  // Redireciona home padrão para home de amendoim quando aplicável
+  useEffect(() => {
+    if (!user) return;
+    const isHome = location.pathname === '/' || location.pathname === '/home';
+    if (isHome && user.userType === 'amendoim') {
+      navigate('/amendoim-home', { replace: true });
+    }
+  }, [location.pathname, user, navigate]);
+
   const [sideInfo, setSideInfo] = useState({
     granja: 'Granja',
     proprietario: 'Proprietario',
@@ -110,7 +119,7 @@ const App = () => {
     {
       title: "Início",
       icon: HomeIcon,
-      path: '/'
+      path: user?.userType === 'amendoim' ? '/amendoim-home' : '/'
     },
     {
       title: "Relatórios",
@@ -275,6 +284,7 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
             <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
+            <Route path="/amendoim-home" element={<RequireAuth><Home /></RequireAuth>} />
             <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
             <Route 
               path="/report" 

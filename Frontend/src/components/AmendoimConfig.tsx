@@ -16,10 +16,12 @@ interface AmendoimConfig {
     mesAno?: string;
     nomeArquivo?: string;
   };
+  caminhoRemoto: string;
   ihm2?: {
     ip: string;
     user: string;
     password: string;
+    caminhoRemoto: string;
     usadaPara: "entrada" | "saida";
   };
 }
@@ -43,6 +45,7 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
       tipoRelatorio: "mensal",
       mesAno: new Date().toISOString().slice(0, 7),
     },
+    caminhoRemoto: "/InternalStorage/data/",
   });
 
   // Buscar configuração atual
@@ -72,6 +75,7 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
             mesAno: extractMesAno(data.arquivoSaida),
             nomeArquivo: data.arquivoSaida,
           },
+          caminhoRemoto: data.caminhoRemoto || "/InternalStorage/data/",
         };
 
         if (data.ihm2) {

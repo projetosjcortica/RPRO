@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
-import { Loader2, Upload, Play, Square, Scale, Settings } from "lucide-react";
+import { Loader2, Upload, Play, Square, Scale, Settings, BarChart3 } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
@@ -10,6 +10,13 @@ import { cn } from "./lib/utils";
 import { useCallback } from "react";
 import { Separator } from "./components/ui/separator";
 import useAuth from "./hooks/useAuth";
+import {
+  ChartEntradaSaidaPorHorario,
+  ChartRendimentoPorDia,
+  ChartFluxoSemanal,
+  ChartEficienciaPorTurno,
+  ChartPerdaAcumulada,
+} from "./components/AmendoimCharts";
 
 interface AmendoimRecord {
   id: number;
@@ -21,6 +28,73 @@ interface AmendoimRecord {
   nomeProduto: string;
   peso: number;
   createdAt: string;
+}
+
+// Componente para renderizar gráficos do AmendoimCharts com dados filtrados
+function AmendoimChartsContainer({ 
+  filtros, 
+  chartType 
+}: { 
+  filtros: any; 
+  chartType: 'entradaSaidaPorHorario' | 'fluxoSemanal' | 'eficienciaPorTurno';
+}) {
+  const [dadosChart, setDadosChart] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDados = async () => {
+      try {
+        setLoading(true);
+        const params = new URLSearchParams({
+          ...(filtros.dataInicio && { dataInicio: filtros.dataInicio }),
+          ...(filtros.dataFim && { dataFim: filtros.dataFim }),
+        });
+        
+        const response = await fetch(`http://localhost:3000/api/amendoim/analise?${params}`);
+        const dados = await response.json();
+        
+        setDadosChart(dados[chartType] || []);
+      } catch (error) {
+        console.error('Erro ao buscar dados do gráfico:', error);
+        setDadosChart([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDados();
+  }, [filtros.dataInicio, filtros.dataFim, chartType]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+      </div>
+    );
+  }
+
+  if (!dadosChart || dadosChart.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-gray-500">
+        <div className="text-center">
+          <div className="text-sm">Sem dados para exibir</div>
+          <div className="text-xs mt-1">Ajuste os filtros e tente novamente</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Renderizar o gráfico apropriado
+  switch (chartType) {
+    case 'entradaSaidaPorHorario':
+      return <ChartEntradaSaidaPorHorario dados={dadosChart} />;
+    case 'fluxoSemanal':
+      return <ChartFluxoSemanal dados={dadosChart} />;
+    case 'eficienciaPorTurno':
+      return <ChartEficienciaPorTurno dados={dadosChart} />;
+    default:
+      return <div>Gráfico não encontrado</div>;
+  }
 }
 
 interface Estatisticas {
@@ -38,6 +112,14 @@ interface MetricasRendimento {
   perdaPercentual: number;
 }
 
+interface DadosAnalise {
+  entradaSaidaPorHorario: Array<{ hora: number; entrada: number; saida: number }>;
+  rendimentoPorDia: Array<{ dia: string; entrada: number; saida: number; rendimento: number }>;
+  fluxoSemanal: Array<{ diaSemana: string; entrada: number; saida: number }>;
+  eficienciaPorTurno: Array<{ turno: string; entrada: number; saida: number; rendimento: number }>;
+  perdaAcumulada: Array<{ dia: string; perdaDiaria: number; perdaAcumulada: number }>;
+}
+
 interface FiltrosAmendoim {
   dataInicio?: string;
   dataFim?: string;
@@ -53,6 +135,7 @@ export default function Amendoim() {
   const [error, setError] = useState<string | null>(null);
   const [estatisticas, setEstatisticas] = useState<Estatisticas | null>(null);
   const [metricasRendimento, setMetricasRendimento] = useState<MetricasRendimento | null>(null);
+  const [dadosAnalise, setDadosAnalise] = useState<DadosAnalise | null>(null);
   
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -69,6 +152,8 @@ export default function Amendoim() {
   
   // Drawer de gráficos
   const [chartsOpen, setChartsOpen] = useState(false);
+  // Seção de análises expandida
+  const [analisesExpanded, setAnalisesExpanded] = useState(false);
   // Modal de configuração
   const [configModalOpen, setConfigModalOpen] = useState(false);
   // Collector
@@ -184,9 +269,28 @@ export default function Amendoim() {
     }
   };
 
+  // Buscar dados de análise pré-processados
+  const fetchDadosAnalise = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
+      if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
+
+      const res = await fetch(`http://localhost:3000/api/amendoim/analise?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDadosAnalise(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar dados de análise:', err);
+      setDadosAnalise(null);
+    }
+  };
+
   useEffect(() => {
     fetchRegistros();
     fetchEstatisticas();
+    fetchDadosAnalise(); // Carregar dados de análise sempre
     if (viewMode === 'comparativo') {
       fetchMetricasRendimento();
     }
@@ -354,6 +458,19 @@ export default function Amendoim() {
                 Comparativo
               </Button>
             </div>
+            
+            {/* Botão para expandir análises */}
+            <Button
+              size="sm"
+              onClick={() => setAnalisesExpanded((prev) => !prev)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white h-9"
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span className="hidden 3xl:flex ml-1">
+                {analisesExpanded ? "Ocultar Análises" : "Ver Análises"}
+              </span>
+            </Button>
+            
             <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
             
             
@@ -452,6 +569,21 @@ export default function Amendoim() {
           </div>
         </div>
       </div>
+
+      {/* Seção de Análises Expandível */}
+      {analisesExpanded && dadosAnalise && (
+        <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 mb-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <ChartEntradaSaidaPorHorario dados={dadosAnalise.entradaSaidaPorHorario} />
+            <ChartRendimentoPorDia dados={dadosAnalise.rendimentoPorDia} />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <ChartFluxoSemanal dados={dadosAnalise.fluxoSemanal} />
+            <ChartEficienciaPorTurno dados={dadosAnalise.eficienciaPorTurno} />
+            <ChartPerdaAcumulada dados={dadosAnalise.perdaAcumulada} />
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-row gap-2 justify-start w-full">
           {/* Conteúdo principal */}
@@ -677,6 +809,58 @@ export default function Amendoim() {
                       })}`}
                       unit="kg"
                     />
+                  </div>
+                </div>
+
+                {/* Separador para Gráficos Gerenciais */}
+                <div className="flex items-center gap-3 my-6">
+                  <div className="flex-1 h-px bg-gradient-to-r from-transparent to-gray-300"></div>
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gráficos Gerenciais</span>
+                  <div className="flex-1 h-px bg-gradient-to-l from-transparent to-gray-300"></div>
+                </div>
+
+                {/* Entrada e Saída por Horário */}
+                <div className="border-2 border-red-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-red-100 bg-gradient-to-r from-red-50 to-white">
+                    <div className="text-sm font-bold text-red-800">
+                      Produção por Horário
+                    </div>
+                    <div className="text-xs text-red-600 font-medium mt-0.5">
+                      Entrada vs Saída por hora
+                    </div>
+                  </div>
+                  <div className="h-[320px] px-3 py-3">
+                    <AmendoimChartsContainer filtros={filtrosAtivos} chartType="entradaSaidaPorHorario" />
+                  </div>
+                </div>
+
+                {/* Fluxo Semanal */}
+                <div className="border-2 border-blue-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-blue-100 bg-gradient-to-r from-blue-50 to-white">
+                    <div className="text-sm font-bold text-blue-800">
+                      Fluxo Semanal
+                    </div>
+                    <div className="text-xs text-blue-600 font-medium mt-0.5">
+                      Produção por dia da semana
+                    </div>
+                  </div>
+                  <div className="h-[320px] px-3 py-3">
+                    <AmendoimChartsContainer filtros={filtrosAtivos} chartType="fluxoSemanal" />
+                  </div>
+                </div>
+
+                {/* Eficiência por Turno */}
+                <div className="border-2 border-green-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                  <div className="px-4 py-3 border-b-2 border-green-100 bg-gradient-to-r from-green-50 to-white">
+                    <div className="text-sm font-bold text-green-800">
+                      Eficiência por Turno
+                    </div>
+                    <div className="text-xs text-green-600 font-medium mt-0.5">
+                      Performance operacional
+                    </div>
+                  </div>
+                  <div className="h-[320px] px-3 py-3">
+                    <AmendoimChartsContainer filtros={filtrosAtivos} chartType="eficienciaPorTurno" />
                   </div>
                 </div>
               </div>

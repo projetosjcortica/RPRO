@@ -3775,6 +3775,154 @@ app.get('/api/amendoim/metricas/rendimento', async (req, res) => {
   }
 });
 
+// GET /api/amendoim/analise - Obter dados pré-processados para gráficos de análise
+app.get('/api/amendoim/analise', async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+
+    console.log('[API /api/amendoim/analise] REQUEST - dataInicio:', dataInicio, 'dataFim:', dataFim);
+
+    const dadosAnalise = await AmendoimService.obterDadosAnalise({
+      dataInicio,
+      dataFim,
+    });
+
+    console.log('[API /api/amendoim/analise] RESPONSE - entradaSaidaPorHorario length:', dadosAnalise.entradaSaidaPorHorario.length);
+    console.log('[API /api/amendoim/analise] RESPONSE - sample:', JSON.stringify(dadosAnalise.entradaSaidaPorHorario.slice(0, 3)));
+
+    return res.json(dadosAnalise);
+  } catch (e: any) {
+    console.error('[api/amendoim/analise] error', e);
+    // Sempre retornar estrutura válida, mesmo em erro
+    const emptyStructure = {
+      entradaSaidaPorHorario: Array.from({ length: 24 }, (_, h) => ({ hora: h, entrada: 0, saida: 0 })),
+      rendimentoPorDia: [],
+      fluxoSemanal: ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"].map(dia => ({ diaSemana: dia, entrada: 0, saida: 0 })),
+      eficienciaPorTurno: [
+        { turno: "Madrugada", entrada: 0, saida: 0, rendimento: 0 },
+        { turno: "Manhã", entrada: 0, saida: 0, rendimento: 0 },
+        { turno: "Tarde", entrada: 0, saida: 0, rendimento: 0 },
+        { turno: "Noite", entrada: 0, saida: 0, rendimento: 0 },
+      ],
+      perdaAcumulada: [],
+    };
+    return res.status(200).json(emptyStructure);
+  }
+});
+
+// GET /api/amendoim/count - Verifica quantos registros existem
+app.get('/api/amendoim/count', async (req, res) => {
+  try {
+    const repo = AppDataSource.getRepository(Amendoim);
+    const total = await repo.count();
+    const entrada = await repo.count({ where: { tipo: 'entrada' } });
+    const saida = await repo.count({ where: { tipo: 'saida' } });
+    
+    console.log('[api/amendoim/count]', { total, entrada, saida });
+    
+    return res.json({ total, entrada, saida });
+  } catch (e: any) {
+    console.error('[api/amendoim/count] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao contar registros' });
+  }
+});
+
+// GET /api/amendoim/datas - Retorna intervalo de datas disponíveis
+app.get('/api/amendoim/datas', async (req, res) => {
+  try {
+    const repo = AppDataSource.getRepository(Amendoim);
+    const registros = await repo.find({
+      select: ['dia'],
+      order: { dia: 'ASC' },
+    });
+    
+    if (registros.length === 0) {
+      return res.json({ min: null, max: null, datas: [] });
+    }
+    
+    const datas = [...new Set(registros.map(r => r.dia))].sort();
+    
+    console.log('[api/amendoim/datas]', { min: datas[0], max: datas[datas.length - 1], total: datas.length });
+    
+    return res.json({ 
+      min: datas[0], 
+      max: datas[datas.length - 1], 
+      datas 
+    });
+  } catch (e: any) {
+    console.error('[api/amendoim/datas] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao buscar datas' });
+  }
+});
+
+// POST /api/amendoim/seed - Popula dados de teste (desenvolvimento apenas)
+app.post('/api/amendoim/seed', async (req, res) => {
+  try {
+    console.log('[api/amendoim/seed] Gerando dados de teste...');
+    
+    const hoje = new Date();
+    const csvLines: string[] = [];
+
+    // Gerar dados para últimos 7 dias
+    for (let d = 0; d < 7; d++) {
+      const data = new Date(hoje);
+      data.setDate(hoje.getDate() - d);
+      const diaStr = data.toISOString().split('T')[0];
+      const [y, m, dd] = diaStr.split('-');
+      const diaFormatado = `${dd}-${m}-${y.slice(2)}`; // DD-MM-YY
+
+      // Dados de entrada
+      for (let h = 6; h < 18; h++) {
+        const hora = `${String(h).padStart(2, '0')}:00:00`;
+        const peso = 100 + Math.random() * 400;
+        csvLines.push(`${diaFormatado} ${hora},X,001,CX${h},Amendoim Cru,X,X,${peso.toFixed(2)}`);
+      }
+    }
+
+    const csvEntrada = csvLines.join('\n');
+    const resultEntrada = await AmendoimService.processarCSV(csvEntrada, "entrada");
+
+    // Dados de saída
+    const csvLinesSaida: string[] = [];
+    for (let d = 0; d < 7; d++) {
+      const data = new Date(hoje);
+      data.setDate(hoje.getDate() - d);
+      const diaStr = data.toISOString().split('T')[0];
+      const [y, m, dd] = diaStr.split('-');
+      const diaFormatado = `${dd}-${m}-${y.slice(2)}`;
+
+      for (let h = 6; h < 18; h++) {
+        const hora = `${String(h).padStart(2, '0')}:30:00`;
+        const pesoOriginal = 100 + Math.random() * 400;
+        const rendimento = 0.70 + Math.random() * 0.10;
+        const peso = pesoOriginal * rendimento;
+        csvLinesSaida.push(`${diaFormatado} ${hora},X,001,CX${h},Amendoim Debulhado,X,X,${peso.toFixed(2)}`);
+      }
+    }
+
+    const csvSaida = csvLinesSaida.join('\n');
+    const resultSaida = await AmendoimService.processarCSV(csvSaida, "saida");
+
+    console.log('[api/amendoim/seed] Concluído!', { 
+      entrada: resultEntrada,
+      saida: resultSaida
+    });
+
+    return res.json({
+      success: true,
+      entrada: resultEntrada,
+      saida: resultSaida,
+      message: 'Dados de teste criados com sucesso'
+    });
+  } catch (e: any) {
+    console.error('[api/amendoim/seed] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao criar dados de teste' });
+  }
+});
+
 // ==================== COLETOR AMENDOIM ====================
 import { AmendoimCollectorService } from './services/AmendoimCollectorService';
 
