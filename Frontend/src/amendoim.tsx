@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
-import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp } from "lucide-react";
+import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp, FileUp } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
@@ -18,6 +18,7 @@ import {
   ChartEficienciaPorTurno,
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
 
 interface AmendoimRecord {
   id: number;
@@ -525,7 +526,16 @@ export default function Amendoim() {
               )}
             </Button>
             
-            {/* Seletor de tipo de upload */}
+            
+            <Popover>
+              <PopoverTrigger>
+                <Button>
+                  <FileUp />
+                  <p className="hidden 3xl:flex">Enviar manualmente</p>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className=" w-fit gap-2 flex flex-col" side="bottom" sideOffset={4}>
+                {/* Seletor de tipo de upload */}
             <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
               <Button
                 size="sm"
@@ -552,34 +562,36 @@ export default function Amendoim() {
                 Saída
               </Button>
             </div>
-            
+                <input
+                  id="csv-upload"
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                />
+                <label htmlFor="csv-upload">
+                  <Button disabled={uploading} asChild className="bg-red-600 hover:bg-gray-700 w-34">
+                    <span className="cursor-pointer">
+                      <div className="flex items-center gap-1">
+                      {uploading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="h-4 w-4" />
+                      )}
+                      {uploading ? (
+                        <p className="hidden 3xl:flex">Enviando...</p>
+                      ) : (
+                        <p className="hidden 3xl:flex">Enviar CSV</p>
+                      )}
+                    </div>
+                  </span>
+                </Button>
+              </label>
+              </PopoverContent>
+            </Popover>
             {/* Upload button - mesmo estilo do coletor */}
-            <input
-              id="csv-upload"
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={handleFileUpload}
-              disabled={uploading}
-            />
-            <label htmlFor="csv-upload">
-              <Button disabled={uploading} asChild className="bg-red-600 hover:bg-gray-700">
-                <span className="cursor-pointer">
-                  <div className="flex items-center gap-1">
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    {uploading ? (
-                      <p className="hidden 3xl:flex">Enviando...</p>
-                    ) : (
-                      <p className="hidden 3xl:flex">Enviar CSV</p>
-                    )}
-                  </div>
-                </span>
-              </Button>
-            </label>
+            
           </div>
         </div>
       </div>
@@ -915,7 +927,7 @@ export default function Amendoim() {
                     <div className="text-sm font-semibold opacity-50">
                       {registros.length > 0 
                         ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                        : "Sem registros"}
+                        : ""}
                     </div>
                   </div>
                   <Separator orientation="vertical" className="mt-2 col-start-11"/>
@@ -929,7 +941,7 @@ export default function Amendoim() {
                     <div className="text-sm font-semibold opacity-50">
                       {registros.length > 0 
                       ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                      : "Sem registros"}
+                      : ""}
                     </div>
                   </div>
                 </div>
@@ -946,13 +958,12 @@ export default function Amendoim() {
               </div>
               {/* Peso Total - Destaque */}
               <div className="bg-gradient-to-r h-25 rounded-lg p-3 shadow-lg flex items-center justify-center ">
-                <p className="text-lg text-black font-bold">Total:</p>
-                <div className="text-lg font-bold text-black">
+                <p className="text-lg text-black font-bold">Total: {""}
                   {estatisticas.pesoTotal.toLocaleString('pt-BR', { 
                     minimumFractionDigits: 3,
                     maximumFractionDigits: 3,
                   })} <span className="text-lg">kg</span>
-                </div>
+                </p>
               </div>
               
               <div className="rounded-lg p-3 shadow-lg transition-shadow">
@@ -967,7 +978,7 @@ export default function Amendoim() {
                     <div className="text-sm font-semibold opacity-50">
                       {registros.length > 0 
                         ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                        : "Sem registros"}
+                        : ""}
                     </div>
                   </div>
                   <Separator orientation="vertical" className="mt-2 col-start-11"/>
@@ -981,7 +992,7 @@ export default function Amendoim() {
                     <div className="text-sm font-semibold opacity-50">
                       {registros.length > 0 
                       ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                      : "Sem registros"}
+                      : ""}
                     </div>
                   </div>
                 </div>
@@ -1015,13 +1026,12 @@ export default function Amendoim() {
               </div>
               {/* Peso Total - Destaque */}
               <div className="bg-gradient-to-r h-25 rounded-lg p-3 shadow-lg flex items-center justify-center ">
-                <p className="text-lg text-black font-bold">Total:</p>
-                <div className="text-lg font-bold text-black">
+                <p className="text-lg text-black font-bold">Total: {""}
                   {estatisticas.pesoTotal.toLocaleString('pt-BR', { 
                     minimumFractionDigits: 3,
                     maximumFractionDigits: 3,
                   })} <span className="text-lg">kg</span>
-                </div>
+                </p>
               </div>
               <div className=" rounded-lg p-3 shadow-lg transition-shadow">
                 <div className="text-xs text-gray-500 text-center font-medium">Período</div>
@@ -1035,7 +1045,7 @@ export default function Amendoim() {
                     <div className="text-sm font-semibold opacity-50">
                       {registros.length > 0 
                         ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                        : "Sem registros"}
+                        : ""}
                     </div>
                   </div>
                   <Separator orientation="vertical" className="mt-2 col-start-11"/>
@@ -1049,7 +1059,7 @@ export default function Amendoim() {
                     <div className="text-sm font-semibold opacity-50">
                       {registros.length > 0 
                       ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                      : "Sem registros"}
+                      : ""}
                     </div>
                   </div>
                 </div>
