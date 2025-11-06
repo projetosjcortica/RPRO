@@ -147,11 +147,15 @@ export class AmendoimService {
     }
 
     if (params.dataInicio) {
-      qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+      // Converter formato YYYY-MM-DD para DD-MM-YY antes de comparar
+      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     }
 
     if (params.dataFim) {
-      qb.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+      // Converter formato YYYY-MM-DD para DD-MM-YY antes de comparar
+      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
 
     if (params.codigoProduto) {
@@ -201,11 +205,13 @@ export class AmendoimService {
     }
 
     if (params.dataInicio) {
-      qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     }
 
     if (params.dataFim) {
-      qb.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
 
     const totalRegistros = await qb.getCount();
@@ -430,10 +436,12 @@ export class AmendoimService {
     qbEntrada.andWhere("amendoim.tipo = :tipo", { tipo: "entrada" });
     
     if (params.dataInicio) {
-      qbEntrada.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
+      qbEntrada.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     }
     if (params.dataFim) {
-      qbEntrada.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
+      qbEntrada.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
 
     const entradaResult = await qbEntrada
@@ -446,10 +454,12 @@ export class AmendoimService {
     qbSaida.andWhere("amendoim.tipo = :tipo", { tipo: "saida" });
     
     if (params.dataInicio) {
-      qbSaida.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
+      qbSaida.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     }
     if (params.dataFim) {
-      qbSaida.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
+      qbSaida.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
 
     const saidaResult = await qbSaida
@@ -494,11 +504,13 @@ export class AmendoimService {
     }
 
     if (params.dataInicio) {
-      qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     }
 
     if (params.dataFim) {
-      qb.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
 
     if (params.codigoProduto) {
@@ -558,11 +570,13 @@ export class AmendoimService {
     }
 
     if (params.dataInicio) {
-      qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     }
 
     if (params.dataFim) {
-      qb.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
 
     if (params.codigoProduto) {
@@ -622,11 +636,13 @@ export class AmendoimService {
     }
 
     if (params.dataInicio) {
-      qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: params.dataInicio });
+      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     }
 
     if (params.dataFim) {
-      qb.andWhere("amendoim.dia <= :dataFim", { dataFim: params.dataFim });
+      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
+      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
 
     if (params.codigoProduto) {

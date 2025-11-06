@@ -3995,6 +3995,236 @@ app.delete('/api/amendoim/collector/cache', async (req, res) => {
   }
 });
 
+// ==================== EXPORTAÇÃO AMENDOIM ====================
+
+// GET /api/amendoim/exportExcel - Exportar dados de amendoim para Excel
+app.get('/api/amendoim/exportExcel', async (req, res) => {
+  try {
+    await dbService.init();
+    
+    // Filtros
+    const tipo = req.query.tipo ? String(req.query.tipo) : undefined;
+    const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const codigoCaixa = req.query.codigoCaixa ? String(req.query.codigoCaixa) : undefined;
+    const nomeProduto = req.query.nomeProduto ? String(req.query.nomeProduto) : undefined;
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+
+    const repo = AppDataSource.getRepository(Amendoim);
+    const qb = repo.createQueryBuilder("a");
+
+    // Aplicar filtros
+    if (tipo && (tipo === 'entrada' || tipo === 'saida')) {
+      qb.andWhere("a.tipo = :tipo", { tipo });
+    }
+    if (codigoProduto) {
+      qb.andWhere("a.codigoProduto = :codigoProduto", { codigoProduto });
+    }
+    if (codigoCaixa) {
+      qb.andWhere("a.codigoCaixa = :codigoCaixa", { codigoCaixa });
+    }
+    if (nomeProduto) {
+      qb.andWhere("LOWER(a.nomeProduto) LIKE LOWER(:nomeProduto)", { 
+        nomeProduto: `%${nomeProduto}%` 
+      });
+    }
+    if (dataInicio) {
+      qb.andWhere("a.dia >= :dataInicio", { dataInicio });
+    }
+    if (dataFim) {
+      qb.andWhere("a.dia <= :dataFim", { dataFim });
+    }
+
+    qb.orderBy("a.dia", "DESC").addOrderBy("a.hora", "DESC");
+
+    const registros = await qb.getMany();
+
+    // Criar workbook Excel
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Amendoim");
+
+    // Cabeçalho
+    ws.addRow([
+      "Tipo",
+      "Data",
+      "Hora",
+      "Código Produto",
+      "Código Caixa",
+      "Nome Produto",
+      "Peso (kg)",
+      "Balança"
+    ]);
+
+    // Estilizar cabeçalho
+    const headerRow = ws.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
+
+    // Adicionar dados
+    for (const r of registros) {
+      ws.addRow([
+        r.tipo === 'entrada' ? 'Entrada' : 'Saída',
+        r.dia,
+        r.hora,
+        r.codigoProduto,
+        r.codigoCaixa,
+        r.nomeProduto,
+        r.peso,
+        r.balanca || ""
+      ]);
+    }
+
+    // Formatar colunas
+    ws.getColumn(7).numFmt = "#,##0.000"; // Peso com 3 casas decimais
+
+    // Auto-ajustar largura das colunas
+    ws.columns.forEach((column) => {
+      let maxLength = 0;
+      column.eachCell?.({ includeEmpty: false }, (cell) => {
+        const cellLength = cell.value ? String(cell.value).length : 0;
+        if (cellLength > maxLength) {
+          maxLength = cellLength;
+        }
+      });
+      column.width = Math.min(Math.max(maxLength + 2, 10), 50);
+    });
+
+    // Enviar arquivo
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=amendoim_${Date.now()}.xlsx`
+    );
+    
+    await wb.xlsx.write(res as any);
+    res.end();
+  } catch (e: any) {
+    console.error("[exportExcel amendoim] error", e);
+    return res.status(500).json({ error: "internal", details: e?.message });
+  }
+});
+
+// POST /api/amendoim/exportExcel - Exportar com filtros no body
+app.post('/api/amendoim/exportExcel', async (req, res) => {
+  try {
+    await dbService.init();
+    
+    // Filtros do body
+    const tipo = req.body.tipo || undefined;
+    const codigoProduto = req.body.codigoProduto || undefined;
+    const codigoCaixa = req.body.codigoCaixa || undefined;
+    const nomeProduto = req.body.nomeProduto || undefined;
+    const dataInicio = req.body.dataInicio || undefined;
+    const dataFim = req.body.dataFim || undefined;
+
+    const repo = AppDataSource.getRepository(Amendoim);
+    const qb = repo.createQueryBuilder("a");
+
+    // Aplicar filtros
+    if (tipo && (tipo === 'entrada' || tipo === 'saida')) {
+      qb.andWhere("a.tipo = :tipo", { tipo });
+    }
+    if (codigoProduto) {
+      qb.andWhere("a.codigoProduto = :codigoProduto", { codigoProduto });
+    }
+    if (codigoCaixa) {
+      qb.andWhere("a.codigoCaixa = :codigoCaixa", { codigoCaixa });
+    }
+    if (nomeProduto) {
+      qb.andWhere("LOWER(a.nomeProduto) LIKE LOWER(:nomeProduto)", { 
+        nomeProduto: `%${nomeProduto}%` 
+      });
+    }
+    if (dataInicio) {
+      qb.andWhere("a.dia >= :dataInicio", { dataInicio });
+    }
+    if (dataFim) {
+      qb.andWhere("a.dia <= :dataFim", { dataFim });
+    }
+
+    qb.orderBy("a.dia", "DESC").addOrderBy("a.hora", "DESC");
+
+    const registros = await qb.getMany();
+
+    // Criar workbook Excel
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Amendoim");
+
+    // Cabeçalho
+    ws.addRow([
+      "Tipo",
+      "Data",
+      "Hora",
+      "Código Produto",
+      "Código Caixa",
+      "Nome Produto",
+      "Peso (kg)",
+      "Balança"
+    ]);
+
+    // Estilizar cabeçalho
+    const headerRow = ws.getRow(1);
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFE0E0E0" },
+    };
+
+    // Adicionar dados
+    for (const r of registros) {
+      ws.addRow([
+        r.tipo === 'entrada' ? 'Entrada' : 'Saída',
+        r.dia,
+        r.hora,
+        r.codigoProduto,
+        r.codigoCaixa,
+        r.nomeProduto,
+        r.peso,
+        r.balanca || ""
+      ]);
+    }
+
+    // Formatar colunas
+    ws.getColumn(7).numFmt = "#,##0.000"; // Peso com 3 casas decimais
+
+    // Auto-ajustar largura das colunas
+    ws.columns.forEach((column) => {
+      let maxLength = 0;
+      column.eachCell?.({ includeEmpty: false }, (cell) => {
+        const cellLength = cell.value ? String(cell.value).length : 0;
+        if (cellLength > maxLength) {
+          maxLength = cellLength;
+        }
+      });
+      column.width = Math.min(Math.max(maxLength + 2, 10), 50);
+    });
+
+    // Enviar arquivo
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=amendoim_${Date.now()}.xlsx`
+    );
+    
+    await wb.xlsx.write(res as any);
+    res.end();
+  } catch (e: any) {
+    console.error("[exportExcel POST amendoim] error", e);
+    return res.status(500).json({ error: "internal", details: e?.message });
+  }
+});
+
 // DELETE /api/amendoim/collector/cache/:fileName - Limpar cache de um arquivo
 app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
   try {

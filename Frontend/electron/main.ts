@@ -482,7 +482,7 @@ function createWindow() {
   });
 
   win.maximize();
-  win.setMenu(null);
+  // win.setMenu(null);
 
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
@@ -490,10 +490,12 @@ function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
+    // win.setMenu(null);
   } else {
     // When packaged, __dirname points inside app.asar. It's more reliable to resolve
     // the index.html relative to __dirname instead of constructing a path via process.resourcesPath
     // which may result in a file:// URL containing app.asar and trigger "Not allowed to load local resource".
+    win.setMenu(null);
     try {
       const packagedIndex = path.join(
         process.resourcesPath,

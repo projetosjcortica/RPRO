@@ -4,6 +4,7 @@ import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigU
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
+import { AmendoimExport } from "./components/AmendoimExport";
 import toastManager from "./lib/toastManager";
 import { format as formatDateFn } from "date-fns";
 import { cn } from "./lib/utils";
@@ -137,6 +138,8 @@ export default function Amendoim() {
   const [estatisticas, setEstatisticas] = useState<Estatisticas | null>(null);
   const [metricasRendimento, setMetricasRendimento] = useState<MetricasRendimento | null>(null);
   const [dadosAnalise, setDadosAnalise] = useState<DadosAnalise | null>(null);
+  // resumoProdutos removed from main UI; summary is generated in PDF
+  const [comentarios, setComentarios] = useState<{ texto: string; data?: string }[]>([]);
   
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -288,14 +291,38 @@ export default function Amendoim() {
     }
   };
 
+  // (Resumo por produto agora gerado apenas no PDF; não buscado aqui)
+
   useEffect(() => {
-    fetchRegistros();
-    fetchEstatisticas();
-    fetchDadosAnalise(); // Carregar dados de análise sempre
+  fetchRegistros();
+  fetchEstatisticas();
+  fetchDadosAnalise(); // Carregar dados de análise sempre
     if (viewMode === 'comparativo') {
       fetchMetricasRendimento();
     }
   }, [page, filtrosAtivos, viewMode]);
+
+  // resumoTable removed; summary rendering is handled in the PDF component only
+
+  // Helper: render detailed rows (original registros)
+  function detailedRows(items: AmendoimRecord[]) {
+    return (
+      <div>
+        {items.map((r) => (
+          <div key={r.id} className={`flex border-b items-center ${r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+            <div className="p-2" style={{ width: '90px', minWidth: '90px' }}>{formatDate(r.dia)}</div>
+            <div className="p-2" style={{ width: '70px', minWidth: '70px' }}>{r.hora}</div>
+            <div className="p-2" style={{ width: '120px', minWidth: '120px' }}>{r.codigoProduto}</div>
+            <div className="p-2" style={{ width: '120px', minWidth: '120px' }}>{r.codigoCaixa}</div>
+            <div className="p-2" style={{ width: '80px', minWidth: '80px' }}>{r.balanca ?? '-'}</div>
+            <div className="p-2" style={{ width: '250px', minWidth: '250px', overflow: 'hidden' }}>{r.nomeProduto}</div>
+            <div className="p-2 text-right" style={{ width: '120px', minWidth: '120px' }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
+            <div className="p-2" style={{ width: '100px', minWidth: '100px' }}>{r.tipo}</div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   // Handler para aplicar filtros
   const handleAplicarFiltros = (filtros: FiltrosAmendoim) => {
@@ -460,7 +487,6 @@ export default function Amendoim() {
               </Button>
             </div> */}
             <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
-            
             
             {/* Botão de Configuração */}
             {user?.isAdmin && (
@@ -635,53 +661,13 @@ export default function Amendoim() {
                   </div>
                 </div>
 
-                {/* Corpo da tabela */}
+                {/* Corpo da tabela — visão detalhada (resumo disponível apenas no PDF) */}
                 <div>
-                  {registros.map((registro, rowIdx) => (
-                    <div
-                      key={registro.id}
-                      className={`flex border-b border-gray-300 hover:bg-gray-50 ${
-                        rowIdx % 2 === 0 ? "bg-white" : "bg-gray-100"
-                      }`}
-                    >
-                      <div className="flex items-center justify-center p-2 text-sm border-r border-gray-300" style={{ width: '90px', minWidth: '90px' }}>
-                        {formatDate(registro.dia)}
-                      </div>
-                      <div className="flex items-center justify-center p-2 text-sm border-r border-gray-300" style={{ width: '70px', minWidth: '70px' }}>
-                        {registro.hora}
-                      </div>
-                      <div className="flex items-center justify-end p-2 text-sm border-r border-gray-300" style={{ width: '120px', minWidth: '120px' }}>
-                        {registro.codigoProduto}
-                      </div>
-                      <div className="flex items-center justify-end p-2 text-sm border-r border-gray-300" style={{ width: '120px', minWidth: '120px' }}>
-                        {registro.codigoCaixa}
-                      </div>
-                      <div className="flex items-center justify-center p-2 text-sm border-r border-gray-300" style={{ width: '80px', minWidth: '80px' }}>
-                        <span className="px-2 py-1 rounded text-xs font-bold bg-gray-200 text-gray-700">
-                          {registro.balanca || "-"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-start p-2 text-sm border-r border-gray-300 overflow-hidden" style={{ width: '250px', minWidth: '250px' }}>
-                        <div className="w-full break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
-                          {registro.nomeProduto}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end p-2 text-sm border-r border-gray-300" style={{ width: '120px', minWidth: '120px' }}>
-                        {Number(registro.peso).toLocaleString('pt-BR', {
-                          minimumFractionDigits: 3,
-                          maximumFractionDigits: 3,
-                        })}
-                      </div>
-                      <div className="flex items-center justify-center p-2 text-sm border-r border-gray-300" style={{ width: '100px', minWidth: '100px' }}>
-                        <span className={cn(
-                          "px-2 py-1 rounded text-xs font-medium",
-                          registro.tipo === "entrada" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
-                        )}>
-                          {registro.tipo.toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                  {registros && registros.length > 0 ? (
+                    detailedRows(registros)
+                  ) : (
+                    <div className="p-6 text-center text-sm text-gray-500">Sem registros para exibir</div>
+                  )}
                 </div>
               </div>
             </div>
@@ -727,9 +713,10 @@ export default function Amendoim() {
 
       {/* Side Info com drawer de gráficos */}
       <div
-        className="relative w-87 3xl:h-[74.90vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0 justify-center items-center"
+        className="relative w-87 3xl:h-[74.90vh] h-[74vh] flex flex-col shadow-xl rounded border border-gray-300 flex-shrink-0"
         style={{ zIndex: 10 }}
       >
+      <div className="flex flex-col p-2 gap-2 justify-center items-center flex-1 overflow-hidden">
       <div className="flex items-center gap-1 h-9 w-fit bg-white rounded-lg border border-black p-1 shadow-sm">
         <Button
           size="sm"
@@ -791,7 +778,8 @@ export default function Amendoim() {
                       Produtos (Top 20)
                     </div>
                   </div>
-                  <div className="h-[280px] px-3 py-3 relative">
+                  <div className="h-[420px] px-3 py-3 relative">
+                    
                     <DonutChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({
                         ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
@@ -812,7 +800,7 @@ export default function Amendoim() {
                       Caixas
                     </div>
                   </div>
-                  <div className="h-[280px] px-3 py-3 relative">
+                  <div className="h-[420px] px-3 py-3 relative">
                     <DonutChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/caixas?${new URLSearchParams({
                         ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
@@ -833,7 +821,7 @@ export default function Amendoim() {
                       Horários
                     </div>
                   </div>
-                  <div className="h-[280px] px-3 py-3 relative">
+                  <div className="h-[420px] px-3 py-3 relative">
                     <BarChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/horarios?${new URLSearchParams({
                         ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
@@ -843,58 +831,6 @@ export default function Amendoim() {
                       })}`}
                       unit="kg"
                     />
-                  </div>
-                </div>
-
-                {/* Separador para Gráficos Gerenciais */}
-                <div className="flex items-center gap-3 my-6">
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent to-gray-300"></div>
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Gráficos Gerenciais</span>
-                  <div className="flex-1 h-px bg-gradient-to-l from-transparent to-gray-300"></div>
-                </div>
-
-                {/* Entrada e Saída por Horário */}
-                <div className="border-2 border-red-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-red-100 bg-gradient-to-r from-red-50 to-white">
-                    <div className="text-sm font-bold text-red-800">
-                      Produção por Horário
-                    </div>
-                    <div className="text-xs text-red-600 font-medium mt-0.5">
-                      Entrada vs Saída por hora
-                    </div>
-                  </div>
-                  <div className="h-[320px] px-3 py-3">
-                    <AmendoimChartsContainer filtros={filtrosAtivos} chartType="entradaSaidaPorHorario" />
-                  </div>
-                </div>
-
-                {/* Fluxo Semanal */}
-                <div className="border-2 border-blue-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-blue-100 bg-gradient-to-r from-blue-50 to-white">
-                    <div className="text-sm font-bold text-blue-800">
-                      Fluxo Semanal
-                    </div>
-                    <div className="text-xs text-blue-600 font-medium mt-0.5">
-                      Produção por dia da semana
-                    </div>
-                  </div>
-                  <div className="h-[320px] px-3 py-3">
-                    <AmendoimChartsContainer filtros={filtrosAtivos} chartType="fluxoSemanal" />
-                  </div>
-                </div>
-
-                {/* Eficiência por Turno */}
-                <div className="border-2 border-green-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-green-100 bg-gradient-to-r from-green-50 to-white">
-                    <div className="text-sm font-bold text-green-800">
-                      Eficiência por Turno
-                    </div>
-                    <div className="text-xs text-green-600 font-medium mt-0.5">
-                      Performance operacional
-                    </div>
-                  </div>
-                  <div className="h-[320px] px-3 py-3">
-                    <AmendoimChartsContainer filtros={filtrosAtivos} chartType="eficienciaPorTurno" />
                   </div>
                 </div>
               </div>
@@ -1138,6 +1074,26 @@ export default function Amendoim() {
               </div> */}
             </div>
           )}
+        </div>
+      </div>
+        
+        {/* Botão de Exportação - Abaixo do Side Info */}
+        <div className="w-full px-2 pb-2">
+          {/* Convert comments to the id'd shape expected by the Export UI */}
+          {(() => {
+            const comentariosComId = comentarios.map((c, idx) => ({ id: String(idx), texto: c.texto, data: c.data || new Date().toLocaleString('pt-BR') }));
+            return (
+              <AmendoimExport
+                filtros={{ ...filtrosAtivos, ...(viewMode !== 'comparativo' ? { tipo: viewMode } : {}) }}
+                comentarios={comentariosComId}
+                onAddComment={(texto) => setComentarios((s) => [...s, { texto, data: new Date().toLocaleString('pt-BR') }])}
+                onRemoveComment={(id) => {
+                  const index = parseInt(id as string);
+                  if (!isNaN(index)) setComentarios((s) => s.filter((_, i) => i !== index));
+                }}
+              />
+            );
+          })()}
         </div>
       </div>
       </div>
