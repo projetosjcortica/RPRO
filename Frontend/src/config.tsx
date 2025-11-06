@@ -258,7 +258,7 @@ export function usePersistentForm(key: string) {
       if (success) {
         setOriginalData(formData);
         setIsEditing(false);
-        toast.success("Data saved successfully!");
+        toast.success("salvo com sucesso!");
         try {
           await configService.saveAllConfigs();
         } catch (err) {
