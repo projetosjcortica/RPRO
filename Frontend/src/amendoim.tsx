@@ -1092,15 +1092,25 @@ export default function Amendoim() {
           {/* Convert comments to the id'd shape expected by the Export UI */}
           {(() => {
             const comentariosComId = comentarios.map((c, idx) => ({ id: String(idx), texto: c.texto, data: c.data || new Date().toLocaleString('pt-BR') }));
+            const handleTipoChangeFromExport = (tipo: string) => {
+              // Map 'todos' to 'comparativo' view, otherwise set entrada/saida
+              const newView = tipo === 'todos' ? 'comparativo' : (tipo as 'entrada' | 'saida');
+              setViewMode(newView);
+              setPage(1);
+              setFiltrosAtivos((prev) => ({ ...prev, tipo: tipo === 'todos' ? undefined : (tipo as 'entrada' | 'saida') }));
+            };
+
             return (
               <AmendoimExport
                 filtros={{ ...filtrosAtivos, ...(viewMode !== 'comparativo' ? { tipo: viewMode } : {}) }}
                 comentarios={comentariosComId}
+                estatisticas={estatisticas}
                 onAddComment={(texto) => setComentarios((s) => [...s, { texto, data: new Date().toLocaleString('pt-BR') }])}
                 onRemoveComment={(id) => {
                   const index = parseInt(id as string);
                   if (!isNaN(index)) setComentarios((s) => s.filter((_, i) => i !== index));
                 }}
+                onTipoChange={handleTipoChangeFromExport}
               />
             );
           })()}
