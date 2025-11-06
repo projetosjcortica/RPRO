@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
 import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp, FileUp } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
+import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
 import { AmendoimExport } from "./components/AmendoimExport";
@@ -19,6 +20,9 @@ import {
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
+import { Calendar } from "./components/ui/calendar";
+import { Calendar as CalendarIcon } from "lucide-react";
+import { pt } from 'date-fns/locale';
 
 interface AmendoimRecord {
   id: number;
@@ -154,6 +158,80 @@ export default function Amendoim() {
 
   // Filtros ativos
   const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>({});
+
+  // Per-card date ranges and filters (produtos / caixas / entradaSaida)
+  const getDefaultWeekRange = () => {
+    const today = new Date();
+    const day = today.getDay();
+    const start = new Date(today);
+    start.setDate(today.getDate() - (day === 0 ? 0 : day));
+    const end = new Date(today);
+    end.setDate(today.getDate() + (day === 0 ? 6 : 6 - day));
+    return { from: start, to: end };
+  };
+
+  const [produtosDateRange, setProdutosDateRange] = useState<any>(() => getDefaultWeekRange());
+  const [produtosFilters, setProdutosFilters] = useState<any>(() => {
+    const r = getDefaultWeekRange();
+    return { dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') };
+  });
+  const handleProdutosDateChange = (range: any) => setProdutosDateRange(range);
+  const applyProdutosFilters = () => {
+    if (produtosDateRange?.from) {
+      const start = formatDateFn(produtosDateRange.from, 'yyyy-MM-dd');
+      const end = produtosDateRange.to ? formatDateFn(produtosDateRange.to, 'yyyy-MM-dd') : start;
+      setProdutosFilters({ dataInicio: start, dataFim: end });
+    } else {
+      setProdutosFilters({ dataInicio: '', dataFim: '' });
+    }
+  };
+  const clearProdutosFilters = () => {
+    const r = getDefaultWeekRange();
+    setProdutosDateRange(r);
+    setProdutosFilters({ dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') });
+  };
+
+  const [caixasDateRange, setCaixasDateRange] = useState<any>(() => getDefaultWeekRange());
+  const [caixasFilters, setCaixasFilters] = useState<any>(() => {
+    const r = getDefaultWeekRange();
+    return { dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') };
+  });
+  const handleCaixasDateChange = (range: any) => setCaixasDateRange(range);
+  const applyCaixasFilters = () => {
+    if (caixasDateRange?.from) {
+      const start = formatDateFn(caixasDateRange.from, 'yyyy-MM-dd');
+      const end = caixasDateRange.to ? formatDateFn(caixasDateRange.to, 'yyyy-MM-dd') : start;
+      setCaixasFilters({ dataInicio: start, dataFim: end });
+    } else {
+      setCaixasFilters({ dataInicio: '', dataFim: '' });
+    }
+  };
+  const clearCaixasFilters = () => {
+    const r = getDefaultWeekRange();
+    setCaixasDateRange(r);
+    setCaixasFilters({ dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') });
+  };
+
+  const [horariosDateRange, setHorariosDateRange] = useState<any>(() => getDefaultWeekRange());
+  const [horariosFilters, setHorariosFilters] = useState<any>(() => {
+    const r = getDefaultWeekRange();
+    return { dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') };
+  });
+  const handleHorariosDateChange = (range: any) => setHorariosDateRange(range);
+  const applyHorariosFilters = () => {
+    if (horariosDateRange?.from) {
+      const start = formatDateFn(horariosDateRange.from, 'yyyy-MM-dd');
+      const end = horariosDateRange.to ? formatDateFn(horariosDateRange.to, 'yyyy-MM-dd') : start;
+      setHorariosFilters({ dataInicio: start, dataFim: end });
+    } else {
+      setHorariosFilters({ dataInicio: '', dataFim: '' });
+    }
+  };
+  const clearHorariosFilters = () => {
+    const r = getDefaultWeekRange();
+    setHorariosDateRange(r);
+    setHorariosFilters({ dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') });
+  };
   
   // Drawer de gráficos
   const [chartsOpen, setChartsOpen] = useState(false);
@@ -597,6 +675,8 @@ export default function Amendoim() {
       </div>
 
       {/* Seção de Análises Expandível */}
+      {/* Top donuts: Produtos / Caixas / Entrada x Saída (visível apenas na tela Amendoim) */}
+       
       {analisesExpanded && dadosAnalise && (
         <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 mb-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
@@ -786,16 +866,52 @@ export default function Amendoim() {
                 {/* Produtos Donut */}
                 <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">
-                      Produtos (Top 20)
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-bold text-gray-800">Produtos (Top 20)</div>
+                      <div className="flex items-center space-x-2">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!produtosDateRange && "text-gray-400") }>
+                              {produtosDateRange?.from ? (
+                                produtosDateRange.to ? (
+                                  <>{formatDateFn(produtosDateRange.from, 'dd/MM/yy')} - {formatDateFn(produtosDateRange.to, 'dd/MM/yy')}</>
+                                ) : (
+                                  formatDateFn(produtosDateRange.from, 'dd/MM/yy')
+                                )
+                              ) : (
+                                <span>Selecione um Período</span>
+                              )}
+                              <CalendarIcon className="ml-2 h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyProdutosFilters}>
+                            <Calendar
+                              mode="range"
+                              locale={pt}
+                              defaultMonth={produtosDateRange?.from}
+                              selected={produtosDateRange}
+                              onSelect={handleProdutosDateChange}
+                              numberOfMonths={1}
+                            />
+                            <div className="flex gap-2 mt-2 px-1">
+                              <Button variant="outline" onClick={clearProdutosFilters} size="sm" className="flex-1">
+                                Semana Atual
+                              </Button>
+                              <Button onClick={applyProdutosFilters} size="sm" className="flex-1">
+                                Aplicar
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
                   </div>
                   <div className="h-[420px] px-3 py-3 relative">
                     
                     <DonutChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({
-                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
-                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
+                        ...(produtosFilters?.dataInicio && { dataInicio: produtosFilters.dataInicio }),
+                        ...(produtosFilters?.dataFim && { dataFim: produtosFilters.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
                         ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}
@@ -808,15 +924,51 @@ export default function Amendoim() {
                 {/* Caixas Donut */}
                 <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">
-                      Caixas
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-bold text-gray-800">Caixas</div>
+                      <div className="flex items-center space-x-2">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!caixasDateRange && "text-gray-400") }>
+                              {caixasDateRange?.from ? (
+                                caixasDateRange.to ? (
+                                  <>{formatDateFn(caixasDateRange.from, 'dd/MM/yy')} - {formatDateFn(caixasDateRange.to, 'dd/MM/yy')}</>
+                                ) : (
+                                  formatDateFn(caixasDateRange.from, 'dd/MM/yy')
+                                )
+                              ) : (
+                                <span>Selecione um Período</span>
+                              )}
+                              <CalendarIcon className="ml-2 h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyCaixasFilters}>
+                            <Calendar
+                              mode="range"
+                              locale={pt}
+                              defaultMonth={caixasDateRange?.from}
+                              selected={caixasDateRange}
+                              onSelect={handleCaixasDateChange}
+                              numberOfMonths={1}
+                            />
+                            <div className="flex gap-2 mt-2 px-1">
+                              <Button variant="outline" onClick={clearCaixasFilters} size="sm" className="flex-1">
+                                Semana Atual
+                              </Button>
+                              <Button onClick={applyCaixasFilters} size="sm" className="flex-1">
+                                Aplicar
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
                   </div>
                   <div className="h-[420px] px-3 py-3 relative">
                     <DonutChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/caixas?${new URLSearchParams({
-                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
-                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
+                        ...(caixasFilters?.dataInicio && { dataInicio: caixasFilters.dataInicio }),
+                        ...(caixasFilters?.dataFim && { dataFim: caixasFilters.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
                         ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}
@@ -829,15 +981,51 @@ export default function Amendoim() {
                 {/* Horários Bar */}
                 <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">
-                      Horários
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-bold text-gray-800">Horários</div>
+                      <div className="flex items-center space-x-2">
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!horariosDateRange && "text-gray-400") }>
+                              {horariosDateRange?.from ? (
+                                horariosDateRange.to ? (
+                                  <>{formatDateFn(horariosDateRange.from, 'dd/MM/yy')} - {formatDateFn(horariosDateRange.to, 'dd/MM/yy')}</>
+                                ) : (
+                                  formatDateFn(horariosDateRange.from, 'dd/MM/yy')
+                                )
+                              ) : (
+                                <span>Selecione um Período</span>
+                              )}
+                              <CalendarIcon className="ml-2 h-4 w-4" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyHorariosFilters}>
+                            <Calendar
+                              mode="range"
+                              locale={pt}
+                              defaultMonth={horariosDateRange?.from}
+                              selected={horariosDateRange}
+                              onSelect={handleHorariosDateChange}
+                              numberOfMonths={1}
+                            />
+                            <div className="flex gap-2 mt-2 px-1">
+                              <Button variant="outline" onClick={clearHorariosFilters} size="sm" className="flex-1">
+                                Semana Atual
+                              </Button>
+                              <Button onClick={applyHorariosFilters} size="sm" className="flex-1">
+                                Aplicar
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </div>
                   </div>
                   <div className="h-[420px] px-3 py-3 relative">
                     <BarChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/horarios?${new URLSearchParams({
-                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
-                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
+                        ...(horariosFilters?.dataInicio && { dataInicio: horariosFilters.dataInicio }),
+                        ...(horariosFilters?.dataFim && { dataFim: horariosFilters.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
                         ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}

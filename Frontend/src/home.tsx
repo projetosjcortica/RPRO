@@ -7,6 +7,8 @@ import {
   ChartFluxoSemanal,
   ChartEficienciaPorTurno,
 } from './components/AmendoimCharts';
+import { DonutChartWidget, BarChartWidget } from './components/Widgets';
+import Amendoim from './amendoim';
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "./components/ui/popover";
 import { Calendar } from "./components/ui/calendar";
@@ -39,6 +41,9 @@ export default function Home() {
       setTipoHome('relatorio');
     }
   }, [user]);
+
+  // Side-info state reused for relatorio home
+  const [chartsOpen, setChartsOpen] = useState(false);
 
   // Buscar dados agregados para cards (usar semana atual por padrão)
   // (efeito definido mais abaixo após weeklyFilters)
@@ -221,198 +226,56 @@ export default function Home() {
 
   // Removido código de debug
 
-  // Renderizar home específica baseado no tipo
+  // Render Amendoim page as a standalone component when user/module is amendoim
   if (tipoHome === "amendoim") {
-    return (
-      <div className="h-screen flex flex-col">
-        <div className="flex-1 overflow-hidden ">
-          <div className="p-4 space">
-            {/* Linha: Horário de Produção e Produção Semanal (com controles) */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Eficiência por Turno */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[325px] 3xl:h-[500px]">
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold text-gray-900">Eficiência por Turno</CardTitle>
-                    <div className="flex items-center space-x-2">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!turnosDateRange && "text-gray-400") }>
-                            {turnosDateRange?.from ? (
-                              turnosDateRange.to ? (
-                                <>{formatDate(turnosDateRange.from, 'dd/MM/yy')} - {formatDate(turnosDateRange.to, 'dd/MM/yy')}</>
-                              ) : (
-                                formatDate(turnosDateRange.from, 'dd/MM/yy')
-                              )
-                            ) : (
-                              <span>Selecione um Período</span>
-                            )}
-                            <CalendarIcon className="ml-2 h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyTurnosFilters}>
-                          <Calendar
-                            mode="range"
-                            locale={pt}
-                            defaultMonth={turnosDateRange?.from}
-                            selected={turnosDateRange}
-                            onSelect={handleTurnosDateChange}
-                            numberOfMonths={1}
-                          />
-                          <div className="flex gap-2 mt-2 px-1">
-                            <Button variant="outline" onClick={clearTurnosFilters} size="sm" className="flex-1">
-                              Ontem
-                            </Button>
-                            <Button onClick={applyTurnosFilters} size="sm" className="flex-1">
-                              Aplicar
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
-                  <div className="w-full h-full">
-                    <ChartEficienciaPorTurno dados={dadosTurnos} bare />
-                  </div>
-                </CardContent>
-              </Card>
+    return <Amendoim />;
+  }
 
-              {/* Produção Semanal */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[325px] 3xl:h-[500px]">
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold text-gray-900">Produção Semanal</CardTitle>
-                    <div className="flex items-center gap-1">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => {
-                          const prevWeekStart = new Date(weeklyDateRange.from);
-                          prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-                          handleWeeklyDateChange(prevWeekStart);
-                        }}
-                        className="h-8 px-1.5"
-                      >
-                        ←
-                      </Button>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!weeklyDateRange && "text-gray-400")}>
-                            {weeklyDateRange?.from && weeklyDateRange?.to ? (
-                              <>{formatDate(weeklyDateRange.from, 'dd/MM/yy')} - {formatDate(weeklyDateRange.to, 'dd/MM/yy')}</>
-                            ) : (
-                              <span>Selecione uma semana</span>
-                            )}
-                            <CalendarIcon className=" h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45}>
-                          <Calendar
-                            mode="single"
-                            locale={pt}
-                            selected={weeklyDateRange?.from}
-                            onSelect={(date) => handleWeeklyDateChange(date as Date)}
-                            numberOfMonths={1}
-                            modifiers={{
-                              weekRange: (date: Date) => {
-                                if (!weeklyDateRange?.from) return false;
-                                const start = new Date(weeklyDateRange.from);
-                                start.setHours(0,0,0,0);
-                                const end = new Date(start);
-                                end.setDate(end.getDate() + 6);
-                                end.setHours(23,59,59,999);
-                                return date >= start && date <= end;
-                              }
-                            }}
-                            modifiersStyles={{
-                              weekRange: { backgroundColor: 'rgb(254 202 202)', color: 'rgb(127 29 29)', fontWeight: 'bold' }
-                            }}
-                          />
-                          <div className="flex gap-2 mt-2 px-1">
-                            <Button variant="outline" onClick={clearWeeklyFilters} size="sm" className="w-full">
-                              Semana Atual
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => {
-                          const nextWeekStart = new Date(weeklyDateRange.from);
-                          nextWeekStart.setDate(nextWeekStart.getDate() + 7);
-                          handleWeeklyDateChange(nextWeekStart);
-                        }}
-                        className="h-8 px-1.5"
-                      >
-                           →
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
-                  <div className="w-full h-full">
-                    <ChartFluxoSemanal dados={dadosSemanal} bare />
-                  </div>
-                </CardContent>
-              </Card>
+  // Render HomeRelatorio with a right-side sideinfo column (charts/donuts)
+  return (
+    <div className="h-screen flex">
+      <div className="flex-1 overflow-auto">
+        <HomeRelatorio />
+      </div>
+      <div className="w-87 3xl:h-[76vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm font-semibold">Resumo Visual</div>
+          <button className="text-sm text-gray-500" onClick={() => setChartsOpen(s => !s)}>{chartsOpen ? 'Ocultar' : 'Mostrar'}</button>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <div className="space-y-4">
+            <div className="border rounded bg-white p-2">
+              <div className="text-sm font-bold mb-1">Produtos</div>
+              <div className="h-36">
+                <DonutChartWidget fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }) })}`} compact unit="kg" />
+              </div>
             </div>
-            {/* Horário de Produção */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl mt-5 overflow-hidden h-[380px] 3xl:h-[420px]">
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold text-gray-900">Horário de Produção</CardTitle>
-                    <div className="flex items-center space-x-2">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" className={"w-47 justify-start text-left font-normal border border-black " + (!horariosDateRange && "text-gray-400") }>
-                            {horariosDateRange?.from ? (
-                              horariosDateRange.to ? (
-                                <>{formatDate(horariosDateRange.from, 'dd/MM/yy')} - {formatDate(horariosDateRange.to, 'dd/MM/yy')}</>
-                              ) : (
-                                formatDate(horariosDateRange.from, 'dd/MM/yy')
-                              )
-                            ) : (
-                              <span>Selecione um Período</span>
-                            )}
-                            <CalendarIcon className="ml-2 h-4 w-4" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyHorariosFilters}>
-                          <Calendar
-                            mode="range"
-                            locale={pt}
-                            defaultMonth={horariosDateRange?.from}
-                            selected={horariosDateRange}
-                            onSelect={handleHorariosDateChange}
-                            numberOfMonths={1}
-                          />
-                          <div className="flex gap-2 mt-2 px-1">
-                            <Button variant="outline" onClick={clearHorariosFilters} size="sm" className="flex-1">
-                              Ontem
-                            </Button>
-                            <Button onClick={applyHorariosFilters} size="sm" className="flex-1">
-                              Aplicar
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
-                  <div className="w-full h-full">
-                    <ChartEntradaSaidaPorHorario dados={dadosHorarios} bare />
-                  </div>
-                </CardContent>
-              </Card>
+
+            <div className="border rounded bg-white p-2">
+              <div className="text-sm font-bold mb-1">Caixas</div>
+              <div className="h-36">
+                <DonutChartWidget fetchUrl={`http://localhost:3000/api/amendoim/chartdata/caixas?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }) })}`} compact unit="kg" />
+              </div>
+            </div>
+
+            <div className="border rounded bg-white p-2">
+              <div className="text-sm font-bold mb-1">Entrada x Saída</div>
+              <div className="h-36">
+                <DonutChartWidget fetchUrl={`http://localhost:3000/api/amendoim/chartdata/entradaSaida?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }) })}`} compact unit="kg" />
+              </div>
+            </div>
+
+            {chartsOpen && (
+              <div className="border rounded bg-white p-2">
+                <div className="text-sm font-bold mb-1">Horários</div>
+                <div className="h-44">
+                  <BarChartWidget fetchUrl={`http://localhost:3000/api/amendoim/chartdata/horarios?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }) })}`} unit="kg" />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
-    );
-  }
-
-  return <HomeRelatorio />;
+    </div>
+  );
 }

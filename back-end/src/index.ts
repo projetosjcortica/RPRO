@@ -3707,6 +3707,28 @@ app.get('/api/amendoim/chartdata/caixas', async (req, res) => {
   }
 });
 
+// GET /api/amendoim/chartdata/entradaSaida - Dados para donut Entrada x Saída
+app.get('/api/amendoim/chartdata/entradaSaida', async (req, res) => {
+  try {
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+
+    const metricas = await AmendoimService.calcularMetricasRendimento({ dataInicio, dataFim });
+
+    const entrada = Number(metricas.pesoEntrada || 0);
+    const saida = Number(metricas.pesoSaida || 0);
+    const chartData = [
+      { name: 'Entrada', value: entrada, count: 0 },
+      { name: 'Saída', value: saida, count: 0 },
+    ];
+
+    return res.json({ chartData, total: entrada + saida, totalRecords: 1 });
+  } catch (e: any) {
+    console.error('[api/amendoim/chartdata/entradaSaida] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
+  }
+});
+
 // GET /api/amendoim/chartdata/horarios - Dados para gráfico de horários
 app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
   try {
