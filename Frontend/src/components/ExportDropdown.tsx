@@ -26,6 +26,7 @@ import { format as formatDate } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import IhmProfilesConfig from "./IhmProfilesConfig";
 
 interface Comment {
   id: string;
@@ -69,6 +70,7 @@ export function ExportDropdown({
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
+  const [ihmProfilesOpen, setIhmProfilesOpen] = useState(false);
   
   // Filtros Excel
   const [nomeFormula, setNomeFormula] = useState("");
@@ -141,8 +143,14 @@ export function ExportDropdown({
             <FileSpreadsheet className="h-4 w-4" />
             Excel
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setIhmProfilesOpen(true)} className="gap-2 cursor-pointer">
+            <Settings className="h-4 w-4" />
+            IHM Configs
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <IhmProfilesConfig isOpen={ihmProfilesOpen} onClose={() => setIhmProfilesOpen(false)} />
 
       {/* Modal PDF */}
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>

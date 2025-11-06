@@ -36,6 +36,14 @@ export const initialFormData = {
   mySqlDir: "",
   dumpDir: "",
   batchDumpDir: "",
+  // optional second IHM defaults
+  duasIHMs: false,
+  ip2: "",
+  user2: "",
+  password2: "",
+  metodoCSV2: "",
+  localCSV2: "",
+  selectedIhm: 1,
 };
 
 export interface FormData {
@@ -56,15 +64,33 @@ export interface FormData {
   mockEnabled?: boolean;
 }
 
+// Extended optional fields to support two IHM profiles and per-IHM file settings.
+export interface FormDataOptional {
+  duasIHMs?: boolean;
+  // second IHM fields
+  ip2?: string;
+  user2?: string;
+  password2?: string;
+  metodoCSV2?: string; // 'mensal' | 'geral' | 'custom'
+  localCSV2?: string;
+  // optionally remember which IHM tab is active
+  selectedIhm?: number;
+  // per-IHM file method for first IHM if needed (keeps backward compatibility)
+  metodoCSV?: string;
+  localCSV?: string;
+}
+
 type FormDataKey = keyof FormData;
+
+// Allow keys of optional fields when updating via onChange
+type FormDataOptionalKey = keyof FormDataOptional;
 
 // API Service para comunicação HTTP
 const configService = {
-  async loadConfig(key: string): Promise<FormData | null> {
+  async loadConfig(key: string, inputsOnly: boolean = true): Promise<FormData | null> {
     try {
-      const response = await fetch(
-        `http://localhost:3000/api/config/${encodeURIComponent(key)}?inputs=true`
-      );
+      const url = `http://localhost:3000/api/config/${encodeURIComponent(key)}` + (inputsOnly ? '?inputs=true' : '');
+      const response = await fetch(url);
       if (!response.ok) {
         if (response.status === 404) {
           return null;
@@ -217,7 +243,7 @@ const configService = {
 
 // Custom hook to manage form state with persistence via HTTP
 export function usePersistentForm(key: string) {
-  const [formData, setFormData] = useState<FormData>(initialFormData);
+  const [formData, setFormData] = useState<FormData & Partial<FormDataOptional>>(initialFormData as any);
   const [isEditing, setIsEditing] = useState(false);
   const [originalData, setOriginalData] = useState<FormData>(initialFormData);
   const [isLoading, setIsLoading] = useState(true);
@@ -227,7 +253,13 @@ export function usePersistentForm(key: string) {
     const loadFormData = async () => {
       try {
         setIsLoading(true);
-        const savedData = await configService.loadConfig(key);
+        // by default load only inputs (backwards compatible). Callers can pass
+        // a custom flag via a second arg on usePersistentForm - but to keep
+        // the public signature simple we check for a special key naming
+        // convention: if key === 'ihm-config' we load full object to support
+        // extended fields (ip2, metodoCSV2, etc.).
+        const inputsOnly = key !== 'ihm-config';
+        const savedData = await configService.loadConfig(key, inputsOnly);
         if (savedData) {
           setFormData((prev) => ({ ...prev, ...(savedData as any) }));
           setOriginalData((prev) => ({ ...prev, ...(savedData as any) }));
@@ -243,8 +275,11 @@ export function usePersistentForm(key: string) {
     loadFormData();
   }, [key]);
 
-  const onChange = (field: FormDataKey, value: FormData[FormDataKey]) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const onChange = (
+    field: FormDataKey | FormDataOptionalKey,
+    value: any
+  ) => {
+    setFormData((prev: any) => ({ ...prev, [field as string]: value }));
   };
 
   const onEdit = () => {
@@ -554,40 +589,164 @@ export function IHMConfig({
 
   // ✅ RETURN FINAL
   return (
-    <div id="webCfg" className="flex flex-col gap-4 bg-white"> 
+    <div id="webCfg" className="flex flex-col gap-4 bg-white">
+      {/* duasIHMs toggle */}
+      <div className="flex items-center justify-between">
+        <Label className="font-medium text-gray-700">Usar duas IHMs</Label>
+        <label className="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            className="h-5 w-5 text-red-600 rounded"
+            checked={!!(formData as any).duasIHMs}
+            disabled={!isEditing}
+            onChange={(e) => onChange("duasIHMs", !!e.target.checked)}
+          />
+        </label>
+      </div>
 
-      <Label className="font-medium text-gray-700">
-        IP da IHM
-        <Input
-          type="text"
-          value={formData.ip}
-          onChange={(e) => onChange("ip", e.target.value)}
+      {/* IHM tab selector */}
+      <div className="flex gap-2">
+        <button
+          type="button"
           disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
-        />
-      </Label>
+          onClick={() => onChange("selectedIhm", 1)}
+          className={`px-3 py-2 rounded-md border ${((formData as any).selectedIhm || 1) === 1 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700'}`}
+        >
+          IHM 1
+        </button>
+        <button
+          type="button"
+          disabled={!isEditing || !(formData as any).duasIHMs}
+          onClick={() => onChange("selectedIhm", 2)}
+          className={`px-3 py-2 rounded-md border ${((formData as any).selectedIhm || 1) === 2 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700'} ${!(formData as any).duasIHMs ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          IHM 2
+        </button>
+      </div>
 
-      <Label className="font-medium text-gray-700">
-        Usuário
-        <Input
-          type="text"
-          value={formData.user}
-          onChange={(e) => onChange("user", e.target.value)}
-          disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
-        />
-      </Label>
+      {/* Selected IHM fields */}
+      {(() => {
+        const sel = Number((formData as any).selectedIhm || 1);
+        const ipKey = sel === 1 ? 'ip' : 'ip2';
+        const userKey = sel === 1 ? 'user' : 'user2';
+        const passKey = sel === 1 ? 'password' : 'password2';
+        const metodoKey = sel === 1 ? 'metodoCSV' : 'metodoCSV2';
+        const localKey = sel === 1 ? 'localCSV' : 'localCSV2';
 
-      <Label className="font-medium text-gray-700">
-        Senha
-        <Input
-          type="password"
-          value={formData.password}
-          onChange={(e) => onChange("password", e.target.value)}
-          disabled={!isEditing}
-          className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
-        />
-      </Label>
+        // generate mensal filename using current date
+        const now = new Date();
+        const yyyy = now.getFullYear();
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const mensalName = `Relatorio_${yyyy}_${mm}.csv`;
+
+        return (
+          <div className="flex flex-col gap-3">
+            <Label className="font-medium text-gray-700">
+              IP da IHM ({sel})
+              <Input
+                type="text"
+                value={(formData as any)[ipKey] ?? ''}
+                onChange={(e) => onChange(ipKey as any, e.target.value)}
+                disabled={!isEditing}
+                className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+            </Label>
+
+            <Label className="font-medium text-gray-700">
+              Usuário
+              <Input
+                type="text"
+                value={(formData as any)[userKey] ?? ''}
+                onChange={(e) => onChange(userKey as any, e.target.value)}
+                disabled={!isEditing}
+                className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+            </Label>
+
+            <Label className="font-medium text-gray-700">
+              Senha
+              <Input
+                type="password"
+                value={(formData as any)[passKey] ?? ''}
+                onChange={(e) => onChange(passKey as any, e.target.value)}
+                disabled={!isEditing}
+                className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+            </Label>
+
+            <div className="flex flex-col gap-2">
+              <Label className="font-medium text-gray-700">Arquivo tipo</Label>
+              <div className="flex gap-4 items-center">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`metodo-${sel}`}
+                    value="mensal"
+                    checked={(formData as any)[metodoKey] === 'mensal'}
+                    disabled={!isEditing}
+                    onChange={() => onChange(metodoKey as any, 'mensal')}
+                  />
+                  Mensal
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`metodo-${sel}`}
+                    value="geral"
+                    checked={(formData as any)[metodoKey] === 'geral'}
+                    disabled={!isEditing}
+                    onChange={() => onChange(metodoKey as any, 'geral')}
+                  />
+                  Geral
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name={`metodo-${sel}`}
+                    value="custom"
+                    checked={(formData as any)[metodoKey] === 'custom'}
+                    disabled={!isEditing}
+                    onChange={() => onChange(metodoKey as any, 'custom')}
+                  />
+                  Customizado
+                </label>
+              </div>
+
+              {/* show file name depending on selection */}
+              <div className="mt-2">
+                {((formData as any)[metodoKey] === 'mensal') && (
+                  <Input readOnly value={mensalName} />
+                )}
+                {((formData as any)[metodoKey] === 'geral') && (
+                  <Input readOnly value={'Relatorio_1.csv'} />
+                )}
+                {((formData as any)[metodoKey] === 'custom') && (
+                  <div className="flex gap-2">
+                    <Input
+                      value={(formData as any)[localKey] ?? ''}
+                      onChange={(e) => onChange(localKey as any, e.target.value)}
+                      disabled={!isEditing}
+                    />
+                    <Button
+                      disabled={!isEditing}
+                      onClick={async () => {
+                        try {
+                          const f = await configService.selectFile();
+                          if (f) onChange(localKey as any, f);
+                        } catch (err) {
+                          console.warn('file select failed', err);
+                        }
+                      }}
+                    >
+                      Selecionar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex gap-2 justify-end mt-6">
         {isEditing ? (

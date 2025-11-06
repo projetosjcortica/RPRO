@@ -44,6 +44,13 @@ interface AmendoimExportProps {
   // add receives the raw text, remove receives the comment id
   onAddComment?: (texto: string) => void;
   onRemoveComment?: (id: string) => void;
+  onTipoChange?: (tipo: string) => void;
+  estatisticas?: {
+    totalRegistros: number;
+    pesoTotal: number;
+    produtosUnicos: number;
+    caixasUtilizadas: number;
+  } | null;
 }
 
 interface AmendoimRecord {
@@ -58,7 +65,7 @@ interface AmendoimRecord {
   balanca?: string;
 }
 
-export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment }: AmendoimExportProps) {
+export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, onTipoChange, estatisticas = null }: AmendoimExportProps) {
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
@@ -81,6 +88,12 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   const [localComments, setLocalComments] = useState<{ id?: string; texto: string; data?: string }[]>(comentarios || []);
   // Show/hide detailed report pages in the PDF
   const [showDetailed, setShowDetailed] = useState(true);
+
+  // keep tipo in sync if parent filtros prop changes
+  useEffect(() => {
+    setTipo(filtros?.tipo || "todos");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtros?.tipo]);
 
   // Keep localComments in sync if parent prop changes
   useEffect(() => {
@@ -340,6 +353,21 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
           </DialogHeader>
 
           <div className="py-4">
+            <div className="mb-3 flex items-center gap-4">
+              <div className="w-48">
+                <Label htmlFor="pdfTipo">Tipo</Label>
+                <Select value={tipo} onValueChange={(v) => { setTipo(v); if (typeof onTipoChange === 'function') onTipoChange(v); if (pdfModalOpen) { void handleLoadPdfData(); } }}>
+                  <SelectTrigger id="pdfTipo">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="entrada">Entrada</SelectItem>
+                    <SelectItem value="saida">Saída</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             {loadingPdf ? (
               <div className="flex items-center justify-center h-[400px]">
                 <div className="text-center">
@@ -362,6 +390,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     }}
                     comentarios={commentsForPdf}
                     showDetailed={showDetailed}
+                    estatisticas={estatisticas || undefined}
                   />
                 </PDFViewer>
               </div>
