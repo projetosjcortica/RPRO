@@ -16,8 +16,8 @@ import { resolvePhotoUrl } from "./lib/photoUtils";
 import useAuth from "./hooks/useAuth";
 
 import {
-  ChevronsLeft,
-  ChevronsRight,
+  ChevronLeft,
+  ChevronRight,
   Play,
   Square,
   Loader2,
@@ -1284,7 +1284,7 @@ export default function Report() {
                     className="p-1"
                     title="Página anterior"
                   >
-                    <ChevronsLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4" />
                   </button>
                 </PaginationItem>
 
@@ -1333,7 +1333,7 @@ export default function Report() {
                     className="p-1"
                     title="Próxima página"
                   >
-                    <ChevronsRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4" />
                   </button>
                 </PaginationItem>
               </PaginationContent>
