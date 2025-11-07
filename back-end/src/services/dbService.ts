@@ -85,11 +85,13 @@ export class DBService extends BaseService {
         const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
         const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
         this.sqlitePath = absPath;
-        const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
+        // Always enable TypeORM schema synchronization by default so schemas are auto-applied.
+        // You can disable it by setting TYPEORM_SYNC=false in the environment if needed.
+        const typeormSync = process.env.TYPEORM_SYNC !== 'false';
         this.ds = new DataSource({
           type: 'sqlite',
           database: absPath,
-          synchronize: shouldSync,
+          synchronize: typeormSync,
           logging: false,
           entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim],
         });

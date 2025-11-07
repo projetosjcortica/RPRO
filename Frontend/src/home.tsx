@@ -212,6 +212,52 @@ export default function Home() {
     setSaidaFilters({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim });
   };
 
+  // Saídas por Produto (últimos 30 dias por padrão)
+  const [produtosDateRange, setProdutosDateRange] = useState<any>(() => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    return { from: thirtyDaysAgo, to: today };
+  });
+  const [produtosFilters, setProdutosFilters] = useState<any>(() => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    return { 
+      dataInicio: formatDate(thirtyDaysAgo, 'yyyy-MM-dd'), 
+      dataFim: formatDate(today, 'yyyy-MM-dd') 
+    };
+  });
+  const handleProdutosDateChange = (range: any) => {
+    if (!range) {
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today);
+      thirtyDaysAgo.setDate(today.getDate() - 30);
+      setProdutosDateRange({ from: thirtyDaysAgo, to: today });
+      return;
+    }
+    setProdutosDateRange(range);
+  };
+  const applyProdutosFilters = () => {
+    if (produtosDateRange?.from) {
+      const start = formatDate(produtosDateRange.from, 'yyyy-MM-dd');
+      const end = produtosDateRange.to ? formatDate(produtosDateRange.to, 'yyyy-MM-dd') : start;
+      setProdutosFilters({ dataInicio: start, dataFim: end });
+    } else {
+      setProdutosFilters({ dataInicio: '', dataFim: '' });
+    }
+  };
+  const clearProdutosFilters = () => {
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(today.getDate() - 30);
+    setProdutosDateRange({ from: thirtyDaysAgo, to: today });
+    setProdutosFilters({ 
+      dataInicio: formatDate(thirtyDaysAgo, 'yyyy-MM-dd'), 
+      dataFim: formatDate(today, 'yyyy-MM-dd') 
+    });
+  };
+
   // Dados específicos por gráfico
   const [dadosHorarios, setDadosHorarios] = useState<any[]>([]);
   const [dadosSemanal, setDadosSemanal] = useState<any[]>([]);
@@ -447,9 +493,117 @@ export default function Home() {
             {/* Top: 3 Donut charts */}
           
 
-            {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300px]">
+            {/* Grid com 3 colunas: Saídas por Produto (2 cols, linha 1) + Rendimento (1 col, 2 linhas) + Entrada/Saída (1 col cada, linha 2) */}
+            <div className="grid grid-cols-3 grid-rows-2 gap-4 mb-4">
+              {/* Saídas por Produto ocupando 2 colunas na primeira linha */}
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden col-span-2 row-start-1">
+                <CardHeader className="border-b border-gray-100 pb-2 px-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-semibold">Saídas por Produto (comparação)</CardTitle>
+                    <div className="flex items-center space-x-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={"w-44 justify-start text-left font-normal"}>
+                            {produtosDateRange?.from ? (
+                              produtosDateRange.to ? (
+                                <>{formatDate(produtosDateRange.from, 'dd/MM/yy')} - {formatDate(produtosDateRange.to, 'dd/MM/yy')}</>
+                              ) : (
+                                formatDate(produtosDateRange.from, 'dd/MM/yy')
+                              )
+                            ) : (
+                              <span>Período</span>
+                            )}
+                            <CalendarIcon className="ml-2 h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45}>
+                          <Calendar
+                            mode="range"
+                            locale={pt}
+                            defaultMonth={produtosDateRange?.from}
+                            selected={produtosDateRange}
+                            onSelect={handleProdutosDateChange}
+                            numberOfMonths={1}
+                          />
+                          <div className="flex gap-2 mt-2 px-1">
+                            <Button variant="outline" onClick={clearProdutosFilters} size="sm" className="flex-1">
+                              Limpar
+                            </Button>
+                            <Button onClick={applyProdutosFilters} size="sm" className="flex-1">
+                              Aplicar
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-3" style={{ height: 'calc(100% - 60px)' }}>
+                  <DonutChartWidget
+                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(produtosFilters?.dataInicio && { dataInicio: produtosFilters.dataInicio }), ...(produtosFilters?.dataFim && { dataFim: produtosFilters.dataFim }), tipo: 'saida' })}`}
+                    compact={false}
+                    unit="kg"
+                  />
+                </CardContent>
+              </Card>
+
+              {/* Card de Cálculo de Rendimento - coluna 3, ocupando 2 linhas */}
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden col-start-3 row-span-2">
+                <CardHeader className="border-b border-gray-100 pb-3 px-3">
+                  <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 px-4">
+                  {(entradaSum !== null && saidaSum !== null) && (entradaSum > 0 || saidaSum > 0) ? (
+                    <div className="space-y-4">
+                      {/* Porcentagem de Aproveitamento */}
+                      <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                        <div className="text-xs text-gray-600 font-medium uppercase tracking-wide mb-1">Aproveitamento</div>
+                        <div className="text-4xl font-bold text-green-700">
+                          {entradaSum > 0 
+                            ? ((saidaSum / entradaSum) * 100).toFixed(2)
+                            : '0.00'}%
+                        </div>
+                      </div>
+
+                      {/* Entrada e Saída */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                          <div className="text-xs text-gray-600 font-medium mb-1">Entrada</div>
+                          <div className="text-lg font-bold text-red-700">
+                            {entradaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          </div>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="text-xs text-gray-600 font-medium mb-1">Saída</div>
+                          <div className="text-lg font-bold text-blue-700">
+                            {saidaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Perda */}
+                      <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="text-xs text-gray-600 font-medium mb-1">Perda de Material</div>
+                        <div className="text-xl font-bold text-orange-700">
+                          {(entradaSum - saidaSum).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          <span className="text-sm ml-2">
+                            ({entradaSum > 0 
+                              ? (((entradaSum - saidaSum) / entradaSum) * 100).toFixed(2)
+                              : '0.00'}%)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                      {entradaSum === null || saidaSum === null ? 'Carregando...' : 'Selecione os períodos de Entrada e Saída'}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Segunda linha: Entrada e Saída lado a lado (colunas 1 e 2, linha 2) */}
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden col-start-1 row-start-2">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Entrada (período selecionado)</CardTitle>
@@ -519,7 +673,7 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden col-start-2 row-start-2">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Saída (período selecionado)</CardTitle>
@@ -584,79 +738,6 @@ export default function Home() {
                   ) : (
                     <div className="flex items-center justify-center h-full text-sm text-gray-500">
                       {saidaSum === null ? 'Carregando...' : 'Sem dados para o período'}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300px]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
-                  <CardTitle className="text-sm font-semibold">Saídas por Produto (comparação)</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 h-[220px]">
-                  <DonutChartWidget
-                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }), tipo: 'saida' })}`}
-                    compact
-                    unit="kg"
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Gráficos de barras Entrada e Saída + Card de Rendimento */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-                   
-
-              {/* Card de Cálculo de Conflito/Rendimento */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px]">
-                <CardHeader className="border-b border-gray-100 pb-3 px-3">
-                  <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4 px-4">
-                  {(entradaSum !== null && saidaSum !== null) && (entradaSum > 0 || saidaSum > 0) ? (
-                    <div className="space-y-4">
-                      {/* Porcentagem de Aproveitamento */}
-                      <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                        <div className="text-xs text-gray-600 font-medium uppercase tracking-wide mb-1">Aproveitamento</div>
-                        <div className="text-4xl font-bold text-green-700">
-                          {entradaSum > 0 
-                            ? ((saidaSum / entradaSum) * 100).toFixed(2)
-                            : '0.00'}%
-                        </div>
-                      </div>
-
-                      {/* Entrada e Saída */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                          <div className="text-xs text-gray-600 font-medium mb-1">Entrada</div>
-                          <div className="text-lg font-bold text-red-700">
-                            {entradaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
-                          </div>
-                        </div>
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="text-xs text-gray-600 font-medium mb-1">Saída</div>
-                          <div className="text-lg font-bold text-blue-700">
-                            {saidaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Perda */}
-                      <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                        <div className="text-xs text-gray-600 font-medium mb-1">Perda de Material</div>
-                        <div className="text-xl font-bold text-orange-700">
-                          {(entradaSum - saidaSum).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
-                          <span className="text-sm ml-2">
-                            ({entradaSum > 0 
-                              ? (((entradaSum - saidaSum) / entradaSum) * 100).toFixed(2)
-                              : '0.00'}%)
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-                      {entradaSum === null || saidaSum === null ? 'Carregando...' : 'Selecione os períodos de Entrada e Saída'}
                     </div>
                   )}
                 </CardContent>
