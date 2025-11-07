@@ -551,8 +551,9 @@ export default function Report() {
         // Get current IHM config before starting collector
         let ihmConfig = null;
         try {
+          const moduleParam = user?.userType === 'amendoim' ? '?module=amendoim' : '';
           const configRes = await fetch(
-            "http://localhost:3000/api/config/ihm-config"
+            `http://localhost:3000/api/config/ihm-config${moduleParam}`
           );
           if (configRes.ok) {
             const configData = await configRes.json();

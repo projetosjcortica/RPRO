@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, buttonVariants } from "./components/ui/button";
-import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp, FileUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "./components/ui/button";
+import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp, FileUp } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
@@ -20,10 +20,6 @@ import {
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
-import { Calendar } from "./components/ui/calendar";
-import { Calendar as CalendarIcon } from "lucide-react";
-import { pt } from 'date-fns/locale';
-import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
 
 interface AmendoimRecord {
   id: number;
@@ -159,80 +155,6 @@ export default function Amendoim() {
 
   // Filtros ativos
   const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>({});
-
-  // Per-card date ranges and filters (produtos / caixas / entradaSaida)
-  const getDefaultWeekRange = () => {
-    const today = new Date();
-    const day = today.getDay();
-    const start = new Date(today);
-    start.setDate(today.getDate() - (day === 0 ? 0 : day));
-    const end = new Date(today);
-    end.setDate(today.getDate() + (day === 0 ? 6 : 6 - day));
-    return { from: start, to: end };
-  };
-
-  const [produtosDateRange, setProdutosDateRange] = useState<any>(() => getDefaultWeekRange());
-  const [produtosFilters, setProdutosFilters] = useState<any>(() => {
-    const r = getDefaultWeekRange();
-    return { dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') };
-  });
-  const handleProdutosDateChange = (range: any) => setProdutosDateRange(range);
-  const applyProdutosFilters = () => {
-    if (produtosDateRange?.from) {
-      const start = formatDateFn(produtosDateRange.from, 'yyyy-MM-dd');
-      const end = produtosDateRange.to ? formatDateFn(produtosDateRange.to, 'yyyy-MM-dd') : start;
-      setProdutosFilters({ dataInicio: start, dataFim: end });
-    } else {
-      setProdutosFilters({ dataInicio: '', dataFim: '' });
-    }
-  };
-  const clearProdutosFilters = () => {
-    const r = getDefaultWeekRange();
-    setProdutosDateRange(r);
-    setProdutosFilters({ dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') });
-  };
-
-  const [caixasDateRange, setCaixasDateRange] = useState<any>(() => getDefaultWeekRange());
-  const [caixasFilters, setCaixasFilters] = useState<any>(() => {
-    const r = getDefaultWeekRange();
-    return { dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') };
-  });
-  const handleCaixasDateChange = (range: any) => setCaixasDateRange(range);
-  const applyCaixasFilters = () => {
-    if (caixasDateRange?.from) {
-      const start = formatDateFn(caixasDateRange.from, 'yyyy-MM-dd');
-      const end = caixasDateRange.to ? formatDateFn(caixasDateRange.to, 'yyyy-MM-dd') : start;
-      setCaixasFilters({ dataInicio: start, dataFim: end });
-    } else {
-      setCaixasFilters({ dataInicio: '', dataFim: '' });
-    }
-  };
-  const clearCaixasFilters = () => {
-    const r = getDefaultWeekRange();
-    setCaixasDateRange(r);
-    setCaixasFilters({ dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') });
-  };
-
-  const [horariosDateRange, setHorariosDateRange] = useState<any>(() => getDefaultWeekRange());
-  const [horariosFilters, setHorariosFilters] = useState<any>(() => {
-    const r = getDefaultWeekRange();
-    return { dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') };
-  });
-  const handleHorariosDateChange = (range: any) => setHorariosDateRange(range);
-  const applyHorariosFilters = () => {
-    if (horariosDateRange?.from) {
-      const start = formatDateFn(horariosDateRange.from, 'yyyy-MM-dd');
-      const end = horariosDateRange.to ? formatDateFn(horariosDateRange.to, 'yyyy-MM-dd') : start;
-      setHorariosFilters({ dataInicio: start, dataFim: end });
-    } else {
-      setHorariosFilters({ dataInicio: '', dataFim: '' });
-    }
-  };
-  const clearHorariosFilters = () => {
-    const r = getDefaultWeekRange();
-    setHorariosDateRange(r);
-    setHorariosFilters({ dataInicio: formatDateFn(r.from, 'yyyy-MM-dd'), dataFim: formatDateFn(r.to, 'yyyy-MM-dd') });
-  };
   
   // Drawer de gráficos
   const [chartsOpen, setChartsOpen] = useState(false);
@@ -389,15 +311,15 @@ export default function Amendoim() {
     return (
       <div>
         {items.map((r) => (
-          <div key={r.id} className={`flex items-center border-y ${r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-            <div className="border-x py-2 flex justify-center" style={{ width: '100px', minWidth: '100px' }}>{formatDate(r.dia)}</div>
-            <div className="border-x py-2 flex justify-center" style={{ width: '80px', minWidth: '80px' }}>{r.hora}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{r.codigoProduto}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{r.codigoCaixa}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '80px', minWidth: '80px' }}>{r.balanca ?? '-'}</div>
-            <div className="border-x py-2 pl-2 flex justify-start" style={{ width: '250px', minWidth: '250px', overflow: 'hidden' }}>{r.nomeProduto}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
-            <div className="border-x py-2 flex justify-center" style={{ width: '100/px', minWidth: '100px' }}>{r.tipo}</div>
+          <div key={r.id} className={`flex border-b items-center ${r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+            <div className="p-2" style={{ width: '90px', minWidth: '90px' }}>{formatDate(r.dia)}</div>
+            <div className="p-2" style={{ width: '70px', minWidth: '70px' }}>{r.hora}</div>
+            <div className="p-2" style={{ width: '120px', minWidth: '120px' }}>{r.codigoProduto}</div>
+            <div className="p-2" style={{ width: '120px', minWidth: '120px' }}>{r.codigoCaixa}</div>
+            <div className="p-2" style={{ width: '80px', minWidth: '80px' }}>{r.balanca ?? '-'}</div>
+            <div className="p-2" style={{ width: '250px', minWidth: '250px', overflow: 'hidden' }}>{r.nomeProduto}</div>
+            <div className="p-2 text-right" style={{ width: '120px', minWidth: '120px' }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
+            <div className="p-2" style={{ width: '100px', minWidth: '100px' }}>{r.tipo}</div>
           </div>
         ))}
       </div>
@@ -410,7 +332,6 @@ export default function Amendoim() {
     setPage(1); // Resetar para primeira página ao aplicar filtros
     setChartsOpen(true); // Abrir gráficos ao buscar
   };
-
 
   const fetchCollectorStatus = useCallback(async () => {
     try {
@@ -519,17 +440,6 @@ export default function Amendoim() {
   };
 
   const totalPages = Math.ceil(total / pageSize);
-// Adicionando a lógica de paginação do Report.tsx
-const maxVisiblePages = 10;
-let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
-const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-if (endPage - startPage < maxVisiblePages - 1) {
-  startPage = Math.max(1, endPage - maxVisiblePages + 1);
-}
-const pages = Array.from(
-  { length: endPage - startPage + 1 },
-  (_, i) => startPage + i
-);
 
   return (
     <div className="flex flex-col gap-12.5 w-full h-full justify-start">
@@ -739,10 +649,10 @@ const pages = Array.from(
                 {/* Cabeçalho */}
                 <div className="sticky top-0 z-10 bg-gray-200 border-b border-gray-300">
                   <div className="flex">
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '100px', minWidth: '100px' }}>
+                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '90px', minWidth: '90px' }}>
                       Dia
                     </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '80px', minWidth: '80px' }}>
+                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '70px', minWidth: '70px' }}>
                       Hora
                     </div>
                     <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '120px', minWidth: '120px' }}>
@@ -767,11 +677,11 @@ const pages = Array.from(
                 </div>
 
                 {/* Corpo da tabela — visão detalhada (resumo disponível apenas no PDF) */}
-                <div className="">
+                <div>
                   {registros && registros.length > 0 ? (
                     detailedRows(registros)
                   ) : (
-                    <div className="p-6 text-centertext-sm text-gray-500">Sem registros para exibir</div>
+                    <div className="p-6 text-center text-sm text-gray-500">Sem registros para exibir</div>
                   )}
                 </div>
               </div>
@@ -781,7 +691,7 @@ const pages = Array.from(
           </div>
 
           {/* Pagination */}
-          {/* <div className="flex flex-row items-center justify-end">
+          <div className="flex flex-row items-center justify-end">
             {totalPages > 1 && (
               <div className="flex gap-2 items-center bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
                 <Button
@@ -813,78 +723,6 @@ const pages = Array.from(
                 </Button>
               </div>
             )}
-          </div> */}
-
-          {/* Paginação */}
-          <div className="flex flex-row items-center justify-end mt-2">
-            <Pagination className="flex flex-row justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <button
-                    onClick={() => {
-                      if (page !== 1) {
-                        // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        setPage(Math.max(1, page - 1));
-                      }
-                    }}
-                    disabled={page === 1 || loading}
-                    className="p-1"
-                    title="Página anterior"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                </PaginationItem>
-                {pages.map((p) => {
-                  const isActive = p === page;
-                  return (
-                    <PaginationItem key={p}>
-                      <button
-                        onClick={() => {
-                          if (p !== page) {
-                            // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                            setPage(p);
-                          }
-                        }}
-                        aria-current={isActive ? "page" : undefined}
-                        disabled={loading && p !== page}
-                        className={cn(
-                          buttonVariants({ variant: "default" }),
-                          isActive
-                            ? "bg-red-600 text-white"
-                            : loading && p !== page
-                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
-                        )}
-                      >
-                        {p}
-                      </button>
-                    </PaginationItem>
-                  );
-                })}
-                {/* 
-                pau no seu cu
-                se leu seu cu é meu
-                 */}
-                <PaginationItem>
-                  <button
-                    onClick={() => {
-                      if (page !== totalPages) {
-                        // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        setPage(Math.min(page + 1, totalPages));
-                      }
-                    }}
-                    disabled={page === totalPages || loading}
-                    className="p-1"
-                    title="Próxima página"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
           </div>
         </div>
 
@@ -951,52 +789,16 @@ const pages = Array.from(
                 {/* Produtos Donut */}
                 <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-bold text-gray-800">Produtos (Top 20)</div>
-                      <div className="flex items-center space-x-2">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!produtosDateRange && "text-gray-400") }>
-                              {produtosDateRange?.from ? (
-                                produtosDateRange.to ? (
-                                  <>{formatDateFn(produtosDateRange.from, 'dd/MM/yy')} - {formatDateFn(produtosDateRange.to, 'dd/MM/yy')}</>
-                                ) : (
-                                  formatDateFn(produtosDateRange.from, 'dd/MM/yy')
-                                )
-                              ) : (
-                                <span>Selecione um Período</span>
-                              )}
-                              <CalendarIcon className="ml-2 h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyProdutosFilters}>
-                            <Calendar
-                              mode="range"
-                              locale={pt}
-                              defaultMonth={produtosDateRange?.from}
-                              selected={produtosDateRange}
-                              onSelect={handleProdutosDateChange}
-                              numberOfMonths={1}
-                            />
-                            <div className="flex gap-2 mt-2 px-1">
-                              <Button variant="outline" onClick={clearProdutosFilters} size="sm" className="flex-1">
-                                Semana Atual
-                              </Button>
-                              <Button onClick={applyProdutosFilters} size="sm" className="flex-1">
-                                Aplicar
-                              </Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                    <div className="text-sm font-bold text-gray-800">
+                      Produtos (Top 20)
                     </div>
                   </div>
                   <div className="h-[420px] px-3 py-3 relative">
                     
                     <DonutChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({
-                        ...(produtosFilters?.dataInicio && { dataInicio: produtosFilters.dataInicio }),
-                        ...(produtosFilters?.dataFim && { dataFim: produtosFilters.dataFim }),
+                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
+                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
                         ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}
@@ -1009,51 +811,15 @@ const pages = Array.from(
                 {/* Caixas Donut */}
                 <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-bold text-gray-800">Caixas</div>
-                      <div className="flex items-center space-x-2">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!caixasDateRange && "text-gray-400") }>
-                              {caixasDateRange?.from ? (
-                                caixasDateRange.to ? (
-                                  <>{formatDateFn(caixasDateRange.from, 'dd/MM/yy')} - {formatDateFn(caixasDateRange.to, 'dd/MM/yy')}</>
-                                ) : (
-                                  formatDateFn(caixasDateRange.from, 'dd/MM/yy')
-                                )
-                              ) : (
-                                <span>Selecione um Período</span>
-                              )}
-                              <CalendarIcon className="ml-2 h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyCaixasFilters}>
-                            <Calendar
-                              mode="range"
-                              locale={pt}
-                              defaultMonth={caixasDateRange?.from}
-                              selected={caixasDateRange}
-                              onSelect={handleCaixasDateChange}
-                              numberOfMonths={1}
-                            />
-                            <div className="flex gap-2 mt-2 px-1">
-                              <Button variant="outline" onClick={clearCaixasFilters} size="sm" className="flex-1">
-                                Semana Atual
-                              </Button>
-                              <Button onClick={applyCaixasFilters} size="sm" className="flex-1">
-                                Aplicar
-                              </Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                    <div className="text-sm font-bold text-gray-800">
+                      Caixas
                     </div>
                   </div>
                   <div className="h-[420px] px-3 py-3 relative">
                     <DonutChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/caixas?${new URLSearchParams({
-                        ...(caixasFilters?.dataInicio && { dataInicio: caixasFilters.dataInicio }),
-                        ...(caixasFilters?.dataFim && { dataFim: caixasFilters.dataFim }),
+                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
+                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
                         ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}
@@ -1066,51 +832,15 @@ const pages = Array.from(
                 {/* Horários Bar */}
                 <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
                   <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-bold text-gray-800">Horários</div>
-                      <div className="flex items-center space-x-2">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" className={"w-44 justify-start text-left font-normal border border-black " + (!horariosDateRange && "text-gray-400") }>
-                              {horariosDateRange?.from ? (
-                                horariosDateRange.to ? (
-                                  <>{formatDateFn(horariosDateRange.from, 'dd/MM/yy')} - {formatDateFn(horariosDateRange.to, 'dd/MM/yy')}</>
-                                ) : (
-                                  formatDateFn(horariosDateRange.from, 'dd/MM/yy')
-                                )
-                              ) : (
-                                <span>Selecione um Período</span>
-                              )}
-                              <CalendarIcon className="ml-2 h-4 w-4" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyHorariosFilters}>
-                            <Calendar
-                              mode="range"
-                              locale={pt}
-                              defaultMonth={horariosDateRange?.from}
-                              selected={horariosDateRange}
-                              onSelect={handleHorariosDateChange}
-                              numberOfMonths={1}
-                            />
-                            <div className="flex gap-2 mt-2 px-1">
-                              <Button variant="outline" onClick={clearHorariosFilters} size="sm" className="flex-1">
-                                Semana Atual
-                              </Button>
-                              <Button onClick={applyHorariosFilters} size="sm" className="flex-1">
-                                Aplicar
-                              </Button>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </div>
+                    <div className="text-sm font-bold text-gray-800">
+                      Horários
                     </div>
                   </div>
                   <div className="h-[420px] px-3 py-3 relative">
                     <BarChartWidget
                       fetchUrl={`http://localhost:3000/api/amendoim/chartdata/horarios?${new URLSearchParams({
-                        ...(horariosFilters?.dataInicio && { dataInicio: horariosFilters.dataInicio }),
-                        ...(horariosFilters?.dataFim && { dataFim: horariosFilters.dataFim }),
+                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
+                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
                         ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
                         ...(viewMode !== 'comparativo' && { tipo: viewMode }),
                       })}`}
@@ -1134,7 +864,7 @@ const pages = Array.from(
         </button>
 
         {/* Conteúdo do sideinfo - Estatísticas */}
-        <div className="flex-1 overflow-hidden" style={{ zIndex: 15 }}>
+        <div className="flex-1 overflow-auto" style={{ zIndex: 15 }}>
           
           {/* Card de Métricas de Rendimento (apenas no modo comparativo) */}
           {viewMode === 'comparativo' && metricasRendimento && (
@@ -1177,10 +907,6 @@ const pages = Array.from(
                   </div>
                 </div>
 
-                  <div className="rounded shadow-md p-2">
-                      <p className="font-semibold text-xs">Dosagens totais (entradas + saidas )</p>
-                      <p className="font-bold ">{estatisticas.totalRegistros}</p>
-                  </div>
                 {/* Perda */}
                 <div className="shadow-md rounded-lg p-2">
                   <div className="text-xs text-red-600 font-medium">Perda de material</div>
@@ -1243,19 +969,6 @@ const pages = Array.from(
                 </p>
               </div>
               
-              {/* Grid com outros cards */}
-              <div className="grid grid-cols-12 rounded-lg shadow-lg py-1 px-5 h-26">
-                <div className=" col-start-3 flex flex-col items-center justify-center">
-                  <div className="text-xs text-gray-500 font-medium">Dosagens</div>
-                  <div className="text-xl font-bold text-gray-800">{estatisticas.totalRegistros}</div>
-                </div>
-                <Separator orientation="vertical" className="col-start-7"/>
-                <div className=" col-start-10 flex flex-col items-center justify-center">
-                  <div className="text-xs text-gray-500 font-medium">Produtos</div>
-                  <div className="text-xl font-bold text-gray-800">{estatisticas.produtosUnicos}</div>
-                </div>
-              </div>
-
               <div className="rounded-lg p-3 shadow-lg transition-shadow">
                 <div className="text-xs text-gray-500 text-center font-medium">Período</div>
                 <div className="grid grid-cols-20 rounded-lg h-18">
@@ -1287,7 +1000,20 @@ const pages = Array.from(
                   </div>
                 </div>
               </div>
-              
+
+              {/* Grid com outros cards */}
+              <div className="grid grid-cols-12 rounded-lg shadow-lg py-1 px-5 h-26">
+                <div className=" col-start-3 flex flex-col items-center justify-center">
+                  <div className="text-xs text-gray-500 font-medium">Registros</div>
+                  <div className="text-xl font-bold text-gray-800">{estatisticas.totalRegistros}</div>
+                </div>
+                <Separator orientation="vertical" className="col-start-7"/>
+                <div className=" col-start-10 flex flex-col items-center justify-center">
+                  <div className="text-xs text-gray-500 font-medium">Produtos</div>
+                  <div className="text-xl font-bold text-gray-800">{estatisticas.produtosUnicos}</div>
+                </div>
+                
+              </div>
 
               {/* <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
                 <div className="text-xs text-gray-500 font-medium">Caixas Utilizadas</div>
@@ -1310,20 +1036,6 @@ const pages = Array.from(
                   })} <span className="text-lg">kg</span>
                 </p>
               </div>
-
-              {/* Grid com outros cards */}
-              <div className="grid grid-cols-12 rounded-lg shadow-lg py-1 px-5 h-26">
-                <div className=" col-start-3 flex flex-col items-center justify-center">
-                  <div className="text-xs text-gray-500 font-medium">Dosagens</div>
-                  <div className="text-xl font-bold text-gray-800">{estatisticas.totalRegistros}</div>
-                </div>
-                <Separator orientation="vertical" className="col-start-7"/>
-                <div className=" col-start-10 flex flex-col items-center justify-center">
-                  <div className="text-xs text-gray-500 font-medium">Produtos</div>
-                  <div className="text-xl font-bold text-gray-800">{estatisticas.produtosUnicos}</div>
-                </div>
-              </div>
-
               <div className=" rounded-lg p-3 shadow-lg transition-shadow">
                 <div className="text-xs text-gray-500 text-center font-medium">Período</div>
                 <div className="grid grid-cols-20 rounded-lg h-18">
@@ -1356,6 +1068,19 @@ const pages = Array.from(
                 </div>
               </div>
 
+              {/* Grid com outros cards */}
+              <div className="grid grid-cols-12 rounded-lg shadow-lg py-1 px-5 h-26">
+                <div className=" col-start-3 flex flex-col items-center justify-center">
+                  <div className="text-xs text-gray-500 font-medium">Registros</div>
+                  <div className="text-xl font-bold text-gray-800">{estatisticas.totalRegistros}</div>
+                </div>
+                <Separator orientation="vertical" className="col-start-7"/>
+                <div className=" col-start-10 flex flex-col items-center justify-center">
+                  <div className="text-xs text-gray-500 font-medium">Produtos</div>
+                  <div className="text-xl font-bold text-gray-800">{estatisticas.produtosUnicos}</div>
+                </div>
+              </div>
+
               {/* <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow">
                 <div className="text-xs text-gray-500 font-medium">Caixas Utilizadas</div>
                 <div className="text-xl font-bold text-gray-800">{estatisticas.caixasUtilizadas}</div>
@@ -1366,7 +1091,7 @@ const pages = Array.from(
       </div>
         
         {/* Botão de Exportação - Abaixo do Side Info */}
-        <div className="w-full px-2 pb-2 flex justify-center items-center">
+        <div className="w-full px-2 pb-2">
           {/* Convert comments to the id'd shape expected by the Export UI */}
           {(() => {
             const comentariosComId = comentarios.map((c, idx) => ({ id: String(idx), texto: c.texto, data: c.data || new Date().toLocaleString('pt-BR') }));
