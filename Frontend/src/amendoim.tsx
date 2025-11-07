@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button } from "./components/ui/button";
-import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Button, buttonVariants } from "./components/ui/button";
+import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
@@ -19,7 +19,6 @@ import {
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
 import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
-import { buttonVariants } from "./components/ui/button";
 
 interface AmendoimRecord {
   id: number;
@@ -311,15 +310,15 @@ export default function Amendoim() {
     return (
       <div>
         {items.map((r) => (
-          <div key={r.id} className={`flex border-b items-center ${r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-            <div className="p-2" style={{ width: '90px', minWidth: '90px' }}>{formatDate(r.dia)}</div>
-            <div className="p-2" style={{ width: '70px', minWidth: '70px' }}>{r.hora}</div>
-            <div className="p-2" style={{ width: '120px', minWidth: '120px' }}>{r.codigoProduto}</div>
-            <div className="p-2" style={{ width: '120px', minWidth: '120px' }}>{r.codigoCaixa}</div>
-            <div className="p-2" style={{ width: '80px', minWidth: '80px' }}>{r.balanca ?? '-'}</div>
-            <div className="p-2" style={{ width: '250px', minWidth: '250px', overflow: 'hidden' }}>{r.nomeProduto}</div>
-            <div className="p-2 text-right" style={{ width: '120px', minWidth: '120px' }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
-            <div className="p-2" style={{ width: '100px', minWidth: '100px' }}>{r.tipo}</div>
+          <div key={r.id} className={`flex items-center border-y ${r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+            <div className="border-x py-2 flex justify-center" style={{ width: '100px', minWidth: '100px' }}>{formatDate(r.dia)}</div>
+            <div className="border-x py-2 flex justify-center" style={{ width: '80px', minWidth: '80px' }}>{r.hora}</div>
+            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{r.codigoProduto}</div>
+            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{r.codigoCaixa}</div>
+            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '80px', minWidth: '80px' }}>{r.balanca ?? '-'}</div>
+            <div className="border-x py-2 pl-2 flex justify-start" style={{ width: '250px', minWidth: '250px', overflow: 'hidden' }}>{r.nomeProduto}</div>
+            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
+            <div className="border-x py-2 flex justify-center" style={{ width: '100/px', minWidth: '100px' }}>{r.tipo}</div>
           </div>
         ))}
       </div>
@@ -602,10 +601,10 @@ export default function Amendoim() {
                 {/* Cabeçalho */}
                 <div className="sticky top-0 z-10 bg-gray-200 border-b border-gray-300">
                   <div className="flex">
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '90px', minWidth: '90px' }}>
+                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '100px', minWidth: '100px' }}>
                       Dia
                     </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '70px', minWidth: '70px' }}>
+                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '80px', minWidth: '80px' }}>
                       Hora
                     </div>
                     <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '120px', minWidth: '120px' }}>

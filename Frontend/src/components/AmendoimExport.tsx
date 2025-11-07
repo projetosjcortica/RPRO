@@ -44,13 +44,6 @@ interface AmendoimExportProps {
   // add receives the raw text, remove receives the comment id
   onAddComment?: (texto: string) => void;
   onRemoveComment?: (id: string) => void;
-  onTipoChange?: (tipo: string) => void;
-  estatisticas?: {
-    totalRegistros: number;
-    pesoTotal: number;
-    produtosUnicos: number;
-    caixasUtilizadas: number;
-  } | null;
 }
 
 interface AmendoimRecord {
@@ -65,7 +58,7 @@ interface AmendoimRecord {
   balanca?: string;
 }
 
-export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, onTipoChange, estatisticas = null }: AmendoimExportProps) {
+export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment }: AmendoimExportProps) {
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
@@ -88,12 +81,6 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   const [localComments, setLocalComments] = useState<{ id?: string; texto: string; data?: string }[]>(comentarios || []);
   // Show/hide detailed report pages in the PDF
   const [showDetailed, setShowDetailed] = useState(true);
-
-  // keep tipo in sync if parent filtros prop changes
-  useEffect(() => {
-    setTipo(filtros?.tipo || "todos");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtros?.tipo]);
 
   // Keep localComments in sync if parent prop changes
   useEffect(() => {
@@ -344,7 +331,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
       {/* Modal PDF */}
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
-        <DialogContent className="sm:max-w-[900px] max-h-[80vh]">
+        <DialogContent className="sm:max-w-[580px] 3xl:h-[900px] h-[750px] overflow-auto thin-red-scrollbar">
           <DialogHeader>
             <DialogTitle>Exportar para PDF</DialogTitle>
             <DialogDescription>
@@ -353,21 +340,6 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
           </DialogHeader>
 
           <div className="py-4">
-            <div className="mb-3 flex items-center gap-4">
-              <div className="w-48">
-                <Label htmlFor="pdfTipo">Tipo</Label>
-                <Select value={tipo} onValueChange={(v) => { setTipo(v); if (typeof onTipoChange === 'function') onTipoChange(v); if (pdfModalOpen) { void handleLoadPdfData(); } }}>
-                  <SelectTrigger id="pdfTipo">
-                    <SelectValue placeholder="Tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos</SelectItem>
-                    <SelectItem value="entrada">Entrada</SelectItem>
-                    <SelectItem value="saida">Saída</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
             {loadingPdf ? (
               <div className="flex items-center justify-center h-[400px]">
                 <div className="text-center">
@@ -376,8 +348,8 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                 </div>
               </div>
             ) : pdfData.length > 0 ? (
-              <div className="h-[500px] border rounded">
-                <PDFViewer width="100%" height="100%">
+              <div className="h-[698px] rounded justify-center flex">
+                <PDFViewer width="90%" height="100%">
                   <AmendoimPDFDocument
                     registros={pdfData}
                     filtros={{
@@ -390,7 +362,6 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     }}
                     comentarios={commentsForPdf}
                     showDetailed={showDetailed}
-                    estatisticas={estatisticas || undefined}
                   />
                 </PDFViewer>
               </div>
@@ -403,25 +374,25 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
             )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPdfModalOpen(false)}>
+          <DialogFooter className="flex sm:items-center sm:justify-center">
+            {/* <Button variant="outline" onClick={() => setPdfModalOpen(false)}>
               Fechar
-            </Button>
+            </Button> */}
             {pdfData.length === 0 ? (
               <Button onClick={handleLoadPdfData} className="gap-2">
                 <FileText className="h-4 w-4" />
                 Carregar Dados
               </Button>
             ) : (
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-center gap-2">
+                <div className="flex-1 items-center justify-center">
+                  <div className="flex items-center justify-center mb-3">
                     <div className="flex items-center gap-4">
-                      <h3 className="text-sm font-medium">Comentários</h3>
                       <label className="flex items-center gap-2 text-sm">
                         <input type="checkbox" checked={!showDetailed} onChange={() => setShowDetailed((s) => !s)} />
                         <span className="text-xs text-gray-600">Ocultar relatório detalhado</span>
                       </label>
+                      <h3 className="text-sm font-medium">Comentários: </h3>
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -450,7 +421,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                   {showCommentsSection && (
                     <>
                       {showCommentEditor && (
-                        <div className="mb-3 border max-w-md rounded-lg p-3 bg-gray-50">
+                        <div className="mb-3 border rounded-lg p-3">
                           <Textarea
                             value={newComment}
                             onChange={(e) => setNewComment(e.target.value)}
@@ -529,7 +500,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                   }
                   fileName={`amendoim_${Date.now()}.pdf`}
                 >
-                  {({ loading }) => (
+                  {/* {({ loading }) => (
                       <Button className="gap-2" disabled={loading} onClick={() => {
                         const texto = newComment?.trim();
                         if (texto) {
@@ -542,7 +513,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                       <FileText className="h-4 w-4" />
                       {loading ? "Gerando PDF..." : "Baixar PDF"}
                     </Button>
-                  )}
+                  )} */}
                 </PDFDownloadLink>
               </div>
             )}
