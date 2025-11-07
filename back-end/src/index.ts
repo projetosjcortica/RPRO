@@ -2450,6 +2450,59 @@ app.get("/api/config/:key", async (req, res) => {
       }
     }
 
+    // If the client requested the IHM config while working in the Amendoim module,
+    // prefer to return an IHM object derived from the current amendoim-config so
+    // the frontend can show the Amendoim-specific options and the collector uses them.
+    const wantsAmendoimModule = String(req.query?.module || "").toLowerCase() === "amendoim" ||
+      String(req.query?.userType || "").toLowerCase() === "amendoim" ||
+      String((req.headers || {})["x-module"] || "").toLowerCase() === "amendoim";
+
+    if (key === 'ihm-config' && wantsAmendoimModule) {
+      try {
+        // Build a base IHM config from the parsed value or known defaults
+        const baseIhm = (out && typeof out === 'object') ? { ...(knownDefaults['ihm-config'] || {}), ...out } : { ...(knownDefaults['ihm-config'] || {}) };
+        // Read amendoim-config and map its fields into IHM fields
+        try {
+          const amCfg = (await Promise.resolve().then(() => require('./services/AmendoimConfigService')).then(m => m.AmendoimConfigService.getConfig()));
+          // Helper: infer method from filename
+          const inferMethod = (name: any) => {
+            if (!name) return '';
+            const s = String(name || '').trim();
+            if (/Relatorio_\d{4}_\d{2}\.csv$/i.test(s)) return 'mensal';
+            if (/Relatorio_1\.csv$/i.test(s)) return 'geral';
+            return 'custom';
+          };
+
+          const entradaMethod = inferMethod(amCfg.arquivoEntrada);
+          const saidaMethod = inferMethod(amCfg.arquivoSaida);
+
+          if (entradaMethod) baseIhm.metodoCSV = entradaMethod;
+          if (entradaMethod === 'custom') baseIhm.localCSV = String(amCfg.arquivoEntrada || baseIhm.localCSV || '');
+
+          if (saidaMethod) baseIhm.metodoCSV2 = saidaMethod;
+          if (saidaMethod === 'custom') baseIhm.localCSV2 = String(amCfg.arquivoSaida || baseIhm.localCSV2 || '');
+
+          // Copy secondary IHM creds if provided in amendoim-config
+          if (amCfg.duasIHMs && amCfg.ihm2) {
+            baseIhm.ip2 = amCfg.ihm2.ip || baseIhm.ip2;
+            baseIhm.user2 = amCfg.ihm2.user || baseIhm.user2;
+            baseIhm.password2 = amCfg.ihm2.password || baseIhm.password2;
+          }
+
+          // Ensure paths are present
+          if (amCfg.caminhoRemoto) baseIhm.localCSVPath = amCfg.caminhoRemoto;
+          if (amCfg.ihm2 && amCfg.ihm2.caminhoRemoto) baseIhm.localCSVPath2 = amCfg.ihm2.caminhoRemoto;
+
+        } catch (e) {
+          // ignore mapping failures and fall back to parsed out
+        }
+
+        out = baseIhm;
+      } catch (e) {
+        // ignore and continue to normal behavior
+      }
+    }
+
     // If known default exists and parsed out is empty, return default
     if (
       (out === null ||
@@ -3707,6 +3760,28 @@ app.get('/api/amendoim/chartdata/caixas', async (req, res) => {
   }
 });
 
+// GET /api/amendoim/chartdata/entradaSaida - Dados para donut Entrada x Saída
+app.get('/api/amendoim/chartdata/entradaSaida', async (req, res) => {
+  try {
+    const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
+    const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+
+    const metricas = await AmendoimService.calcularMetricasRendimento({ dataInicio, dataFim });
+
+    const entrada = Number(metricas.pesoEntrada || 0);
+    const saida = Number(metricas.pesoSaida || 0);
+    const chartData = [
+      { name: 'Entrada', value: entrada, count: 0 },
+      { name: 'Saída', value: saida, count: 0 },
+    ];
+
+    return res.json({ chartData, total: entrada + saida, totalRecords: 1 });
+  } catch (e: any) {
+    console.error('[api/amendoim/chartdata/entradaSaida] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
+  }
+});
+
 // GET /api/amendoim/chartdata/horarios - Dados para gráfico de horários
 app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
   try {
@@ -3744,6 +3819,28 @@ app.get('/api/amendoim/config', async (req, res) => {
 });
 
 // POST /api/amendoim/config - Atualizar configuração
+
+// GET /api/amendoim/chartdata/last30 - últimos 30 dias (linha)
+app.get('/api/amendoim/chartdata/last30', async (req, res) => {
+  try {
+    const today = new Date();
+    const prev = new Date();
+    prev.setDate(prev.getDate() - 29);
+
+    const fmt = (d: Date) => `${d.getFullYear().toString().padStart(4,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+    const dados = await AmendoimService.obterDadosAnalise({ dataInicio: fmt(prev), dataFim: fmt(today) });
+
+    // Map rendimentoPorDia to chart friendly shape
+    const chartData = (dados.rendimentoPorDia || []).map((d: any) => ({ name: d.dia, entrada: d.entrada, saida: d.saida }));
+
+    return res.json({ chartData, total: chartData.reduce((s: number, x: any) => s + (x.entrada + x.saida), 0) });
+  } catch (e: any) {
+    console.error('[api/amendoim/chartdata/last30] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao obter dados last30' });
+  }
+});
+
 app.post('/api/amendoim/config', async (req, res) => {
   try {
     // Normalizar configuração (substituir placeholders de data pelo mês atual)

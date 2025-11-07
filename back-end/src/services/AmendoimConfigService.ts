@@ -22,6 +22,7 @@ export interface AmendoimConfig {
     ip: string;
     user: string;
     password: string;
+    caminhoRemoto?: string;
     /** Para qual tipo essa IHM será usada */
     usadaPara: "entrada" | "saida";
   };
@@ -45,13 +46,15 @@ export class AmendoimConfigService {
 
   /**
    * Obter configuração atual do sistema de amendoim
+   * Retorna SOMENTE o que está salvo em amendoim-config (sem merge com ihm-config)
    */
   static getConfig(): AmendoimConfig {
     const stored = getRuntimeConfig(this.CONFIG_KEY);
     if (stored && typeof stored === "object") {
-      return { ...AMENDOIM_CONFIG_DEFAULT, ...stored };
+      const merged = { ...AMENDOIM_CONFIG_DEFAULT, ...stored } as AmendoimConfig;
+      return this.normalizarConfig(merged);
     }
-    return { ...AMENDOIM_CONFIG_DEFAULT };
+    return this.normalizarConfig({ ...AMENDOIM_CONFIG_DEFAULT });
   }
 
   /**
@@ -60,7 +63,51 @@ export class AmendoimConfigService {
   static async setConfig(config: Partial<AmendoimConfig>): Promise<void> {
     const current = this.getConfig();
     const updated = { ...current, ...config };
-    await setRuntimeConfigs({ [this.CONFIG_KEY]: updated });
+    // Persist amendoim-config into runtime store
+    // Additionally, mirror relevant fields into 'ihm-config' so the Amendoim collector
+    // can use the IHM settings (metodoCSV/localCSV and secondary IHM credentials if provided).
+    try {
+      const ihmCfg = getRuntimeConfig('ihm-config') || {};
+
+      const methodFromName = (name?: string) => {
+        if (!name) return '';
+        const n = String(name || '').trim();
+        if (/Relatorio_\d{4}_\d{2}\.csv$/i.test(n)) return 'mensal';
+        if (/Relatorio_1\.csv$/i.test(n)) return 'geral';
+        return 'custom';
+      };
+
+      const entradaMethod = methodFromName(updated.arquivoEntrada);
+      const saidaMethod = methodFromName(updated.arquivoSaida);
+
+      const newIhmCfg: any = { ...ihmCfg };
+      // Map entrada -> metodoCSV / localCSV
+      newIhmCfg.metodoCSV = entradaMethod || (newIhmCfg.metodoCSV ?? '');
+      if (entradaMethod === 'custom') newIhmCfg.localCSV = String(updated.arquivoEntrada);
+
+      // Map saida -> metodoCSV2 / localCSV2
+      newIhmCfg.metodoCSV2 = saidaMethod || (newIhmCfg.metodoCSV2 ?? newIhmCfg.metodoCSV);
+      if (saidaMethod === 'custom') newIhmCfg.localCSV2 = String(updated.arquivoSaida);
+
+      // If a second IHM was provided in amendoim config, copy its credentials to ip2/user2/password2
+      if (updated.duasIHMs && updated.ihm2) {
+        newIhmCfg.ip2 = updated.ihm2.ip || newIhmCfg.ip2;
+        newIhmCfg.user2 = updated.ihm2.user || newIhmCfg.user2;
+        newIhmCfg.password2 = updated.ihm2.password || newIhmCfg.password2;
+        // Optionally store a caminhoRemoto2 so consumers can use it
+        if (updated.ihm2.caminhoRemoto) newIhmCfg.localCSVPath2 = updated.ihm2.caminhoRemoto;
+      }
+
+      // Also, ensure the main caminhoRemoto is available to IHM consumers
+      if (updated.caminhoRemoto) newIhmCfg.localCSVPath = updated.caminhoRemoto;
+
+      // Persist both keys into the runtime store so collector will pick them up immediately
+      await setRuntimeConfigs({ [this.CONFIG_KEY]: updated, ['ihm-config']: newIhmCfg });
+      return;
+    } catch (e) {
+      // fallback: at least set amendoim-config
+      await setRuntimeConfigs({ [this.CONFIG_KEY]: updated });
+    }
   }
 
   /**
@@ -90,14 +137,30 @@ export class AmendoimConfigService {
     const configBase = { ...AMENDOIM_CONFIG_DEFAULT, ...config };
     
     // Se arquivo de entrada está vazio ou é mensal sem data, gerar com mês atual
-    if (configBase.arquivoEntrada.includes("_ATUAL_") || configBase.arquivoEntrada === "") {
+    if (!configBase.arquivoEntrada || configBase.arquivoEntrada === "") {
       configBase.arquivoEntrada = `Relatorio_${this.getMesAtual()}.csv`;
     }
-    
-    // Se arquivo de saída está vazio ou é mensal sem data, gerar com mês atual
-    if (configBase.arquivoSaida.includes("_ATUAL_") || configBase.arquivoSaida === "") {
+
+    // Se arquivo de saída vazio
+    if (!configBase.arquivoSaida || configBase.arquivoSaida === "") {
       configBase.arquivoSaida = `Relatorio_${this.getMesAtual()}.csv`;
     }
+
+    // Segurança: garantir que o nome termina em .csv e não possui sufixos estranhos
+    const sanitize = (name: string) => {
+      if (!name) return name;
+      const cleaned = name.trim();
+      const lower = cleaned.toLowerCase();
+      const idx = lower.indexOf('.csv');
+      if (idx >= 0) {
+        return cleaned.slice(0, idx + 4);
+      }
+      // If no .csv, append .csv
+      return cleaned + '.csv';
+    };
+
+    configBase.arquivoEntrada = sanitize(String(configBase.arquivoEntrada));
+    configBase.arquivoSaida = sanitize(String(configBase.arquivoSaida));
 
     return configBase;
   }

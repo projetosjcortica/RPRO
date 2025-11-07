@@ -30,6 +30,7 @@ export class AmendoimCollectorService {
 
   /**
    * Inicializa o IHMService com as configurações do ihm-config
+   * USA SOMENTE runtime ihm-config (salvo via config.tsx IHMConfig)
    */
   private static getIHMService(): IHMService {
     if (!this.ihmService) {
@@ -51,40 +52,66 @@ export class AmendoimCollectorService {
   private static async downloadSpecificFile(
     fileName: string,
     localDir: string,
-    tipo: 'entrada' | 'saida'
+    tipo: 'entrada' | 'saida',
+    ihmServiceOverride?: IHMService
   ): Promise<{ name: string; localPath: string; size: number } | null> {
-    try {
-      const ihmService = this.getIHMService();
-      
-      // Baixar todos os arquivos novos e filtrar pelo nome
-      const downloaded = await ihmService.findAndDownloadNewFiles(localDir);
-      let targetFile = downloaded.find(f => f.name === fileName);
-      
-      // Se não encontrou arquivo com nome exato, tentar buscar por padrão similar
-      if (!targetFile && downloaded.length > 0) {
-        // Normalizar nome de busca removendo caracteres problemáticos
-        const normalizedSearch = fileName.replace(/\.+/g, '.').replace(/[^a-zA-Z0-9_.-]/g, '');
-        
-        // Tentar match parcial inteligente baseado no tipo
-        const patterns = tipo === 'entrada' 
-          ? ['ENTRA', 'ENTRADA', 'IN', 'INPUT']
-          : ['SAIDA', 'OUT', 'OUTPUT'];
-        
-        targetFile = downloaded.find(f => {
-          const upperName = f.name.toUpperCase();
-          return patterns.some(p => upperName.includes(p));
-        });
-        
-        if (targetFile) {
-          console.log(`[AmendoimCollector] Nome configurado "${fileName}" não encontrado, usando "${targetFile.name}" (match por tipo ${tipo})`);
+    // Try primary IHM first, then fall back to IHM2 (if configured) before giving up
+    const tryWithService = async (svc: IHMService) => {
+      try {
+        const downloaded = await svc.findAndDownloadNewFiles(localDir);
+        if (!downloaded || downloaded.length === 0) return null;
+        let targetFile = downloaded.find(f => f.name === fileName);
+
+        // If exact name not found, try intelligent partial match by tipo
+        if (!targetFile && downloaded.length > 0) {
+          const normalizedSearch = fileName.replace(/\.+/g, '.').replace(/[^a-zA-Z0-9_.-]/g, '');
+          const patterns = tipo === 'entrada' ? ['ENTRA', 'ENTRADA', 'IN', 'INPUT'] : ['SAIDA', 'OUT', 'OUTPUT'];
+          targetFile = downloaded.find(f => {
+            const upperName = f.name.toUpperCase();
+            return patterns.some(p => upperName.includes(p));
+          });
+          if (targetFile) {
+            console.log(`[AmendoimCollector] Nome configurado "${fileName}" não encontrado, usando "${targetFile.name}" (match por tipo ${tipo})`);
+          }
         }
+
+        return targetFile || null;
+      } catch (err: any) {
+        console.warn(`[AmendoimCollector] Falha no download FTP de ${fileName} com um IHM (erro: ${err?.message || err})`);
+        return null;
       }
-      
-      return targetFile || null;
-    } catch (err: any) {
-      console.warn(`[AmendoimCollector] Falha no download FTP de ${fileName}: ${err.message}`);
-      return null;
+    };
+
+    // Primary attempt
+    const primarySvc = ihmServiceOverride ?? this.getIHMService();
+    let result = await tryWithService(primarySvc);
+
+    // If primary failed, and Amendoim has a configured ihm2, try it
+    if (!result) {
+      try {
+        const amCfg = AmendoimConfigService.getConfig();
+        if ((amCfg as any).duasIHMs && (amCfg as any).ihm2) {
+          const ih2 = (amCfg as any).ihm2;
+          // Only try IHM2 if it is intended for this tipo OR if primary failed
+          try {
+            console.log(`[AmendoimCollector] Tentando IHM2 (${ih2.ip}) como fallback para ${fileName}`);
+            const svc2 = new IHMService(
+              ih2.ip || process.env.IHM_IP || '192.168.5.250',
+              ih2.user || process.env.IHM_USER || 'anonymous',
+              ih2.password || process.env.IHM_PASSWORD || ''
+            );
+            result = await tryWithService(svc2);
+            if (result) console.log(`[AmendoimCollector] Sucesso via IHM2: ${result.name}`);
+          } catch (e) {
+            console.warn('[AmendoimCollector] Erro ao tentar IHM2 fallback', e);
+          }
+        }
+      } catch (e) {
+        // ignore amendoim-config read errors
+      }
     }
+
+    return result;
   }
 
   /**
@@ -252,18 +279,43 @@ export class AmendoimCollectorService {
     };
 
     try {
-      const config = AmendoimConfigService.getConfig();
+      // Usar SOMENTE runtime ihm-config para definir quais arquivos coletar
+      const ihmCfg: any = getRuntimeConfig('ihm-config') || {};
       const ihmService = this.getIHMService();
       
-      console.log('[AmendoimCollector] Configuração:', {
-        arquivoEntrada: config.arquivoEntrada,
-        arquivoSaida: config.arquivoSaida,
-        caminhoRemoto: config.caminhoRemoto,
-        duasIHMs: config.duasIHMs,
+      // Helper para gerar nome do arquivo baseado no método
+      const computeFileName = (metodo: string, localFile?: string): string => {
+        const m = String(metodo || '').toLowerCase();
+        if (m === 'mensal') {
+          const now = new Date();
+          const yyyy = now.getFullYear();
+          const mm = String(now.getMonth() + 1).padStart(2, '0');
+          return `Relatorio_${yyyy}_${mm}.csv`;
+        }
+        if (m === 'geral') return 'Relatorio_1.csv';
+        if (m === 'custom' && localFile) return String(localFile);
+        return 'Relatorio_1.csv'; // fallback
+      };
+
+      const arquivoEntrada = computeFileName(ihmCfg.metodoCSV || '', ihmCfg.localCSV);
+      const arquivoSaida = computeFileName(ihmCfg.metodoCSV2 || ihmCfg.metodoCSV || '', ihmCfg.localCSV2 || ihmCfg.localCSV);
+      const caminhoRemoto = ihmCfg.localCSVPath || '/InternalStorage/data/';
+      const duasIHMs = !!ihmCfg.duasIHMs;
+
+      console.log('[AmendoimCollector] Configuração (ihm-config):', {
+        arquivoEntrada,
+        arquivoSaida,
+        caminhoRemoto,
+        duasIHMs,
+        metodoCSV: ihmCfg.metodoCSV,
+        metodoCSV2: ihmCfg.metodoCSV2,
       });
 
-      // Obter lista de arquivos para coletar
-      const arquivosParaColetar = AmendoimConfigService.getArquivosParaColetar();
+      // Montar lista de arquivos para coletar
+      const arquivosParaColetar = [
+        { tipo: 'entrada' as const, arquivo: arquivoEntrada, caminho: caminhoRemoto },
+        { tipo: 'saida' as const, arquivo: arquivoSaida, caminho: caminhoRemoto },
+      ];
 
       // Executar downloads e processamento em paralelo para reduzir tempo e isolar falhas por arquivo
       const tasks = arquivosParaColetar.map(async (arquivoInfo) => {
@@ -272,20 +324,41 @@ export class AmendoimCollectorService {
         try {
           console.log(`[AmendoimCollector] (parallel) Buscando arquivo ${arquivoInfo.tipo}: ${arquivoInfo.arquivo}`);
 
-          // TODO: Se duasIHMs = true e tipo = 'saida', usar ihm2
-          // Por enquanto, usar sempre a mesma IHM
+          // Determine which IHM to use for this arquivo (usar ihm-config.ip2/user2/password2 se duasIHMs)
+          let ihmForThis: IHMService | undefined = undefined;
+          try {
+            if (duasIHMs && ihmCfg.ip2) {
+              // Criar IHM2 usando credenciais do ihm-config
+              ihmForThis = new IHMService(
+                ihmCfg.ip2 || ihmCfg.ip || '192.168.5.250', 
+                ihmCfg.user2 || ihmCfg.user || 'anonymous', 
+                ihmCfg.password2 || ihmCfg.password || ''
+              );
+              console.log('[AmendoimCollector] Usando IHM2 (ihm-config.ip2) para tipo', arquivoInfo.tipo, ':', ihmCfg.ip2);
+            }
+          } catch (e) {
+            console.warn('[AmendoimCollector] falha ao inicializar IHM2 override', e);
+            ihmForThis = undefined;
+          }
 
-          // Tentar baixar via IHM usando findAndDownloadNewFiles
-          let downloadedFile = await this.downloadSpecificFile(arquivoInfo.arquivo, this.TMP_DIR, arquivoInfo.tipo);
+          // Normalize arquivo name defensively (strip garbage after .csv)
+          let arquivoNome = String(arquivoInfo.arquivo || '');
+          const lower = arquivoNome.toLowerCase();
+          const idx = lower.indexOf('.csv');
+          if (idx >= 0) arquivoNome = arquivoNome.slice(0, idx + 4);
+          arquivoNome = arquivoNome.trim();
+
+          // Tentar baixar via IHM usando findAndDownloadNewFiles (possivelmente override)
+          let downloadedFile = await this.downloadSpecificFile(arquivoNome, this.TMP_DIR, arquivoInfo.tipo, ihmForThis);
 
           if (!downloadedFile) {
             // Tentativa de fallback local (útil para desenvolvimento/offline):
             console.log(`[AmendoimCollector] Download IHM falhou para ${arquivoInfo.tipo}, tentando fallback local...`);
             const candidates = [
-              path.join(this.TMP_DIR, arquivoInfo.arquivo),
-              path.join(this.TMP_DIR, `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`),
-              path.join(process.cwd(), 'backups', arquivoInfo.arquivo),
-              path.join(process.cwd(), 'backups', `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`),
+              path.join(this.TMP_DIR, arquivoNome),
+              path.join(this.TMP_DIR, `${arquivoInfo.tipo}_${arquivoNome}`),
+              path.join(process.cwd(), 'backups', arquivoNome),
+              path.join(process.cwd(), 'backups', `${arquivoInfo.tipo}_${arquivoNome}`),
             ];
 
             console.log(`[AmendoimCollector] Procurando em:`, candidates);
@@ -301,13 +374,13 @@ export class AmendoimCollectorService {
               }
             }
 
-            if (fallbackPath) {
+              if (fallbackPath) {
               console.log(`[AmendoimCollector] Usando fallback local para ${arquivoInfo.tipo}: ${fallbackPath}`);
               // Garantir que o arquivo local final existe com o nome esperado
               if (fallbackPath !== localFile) {
                 fs.copyFileSync(fallbackPath, localFile);
               }
-              downloadedFile = { name: arquivoInfo.arquivo, localPath: localFile, size: fs.statSync(localFile).size };
+              downloadedFile = { name: arquivoNome, localPath: localFile, size: fs.statSync(localFile).size };
             } else {
               const msg = `Arquivo ${arquivoInfo.tipo} não encontrado no IHM e sem fallback local: ${arquivoInfo.arquivo}`;
               console.warn(`[AmendoimCollector] ${msg}`);
