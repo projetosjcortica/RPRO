@@ -143,10 +143,6 @@ export function ExportDropdown({
             <FileSpreadsheet className="h-4 w-4" />
             Excel
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => setIhmProfilesOpen(true)} className="gap-2 cursor-pointer">
-            <Settings className="h-4 w-4" />
-            IHM Configs
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -162,7 +158,7 @@ export function ExportDropdown({
                 variant="outline"
                 size="sm"
                 onClick={() => setPdfSettingsOpen(true)}
-                className="gap-2"
+                className="gap-2 mr-5"
               >
                 <Settings className="h-4 w-4" />
                 Customizar Relatório

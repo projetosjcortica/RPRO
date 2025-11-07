@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS `relatorio` (
   `id` varchar(36) NOT NULL,
   `Dia` varchar(10) NULL,
   `Hora` time NULL,
-  `Nome` varchar(30) NULL,
+  `Nome` varchar(255) NULL,
   `Form1` int NOT NULL DEFAULT 0,
   `Form2` int NOT NULL DEFAULT 0,
   Prod_1 INTEGER NOT NULL DEFAULT 0,
