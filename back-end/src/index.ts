@@ -3667,11 +3667,15 @@ app.get('/api/amendoim/estatisticas', async (req, res) => {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
     const tipo = req.query.tipo === 'saida' ? 'saida' : req.query.tipo === 'entrada' ? 'entrada' : undefined;
+    const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const nomeProduto = req.query.nomeProduto ? String(req.query.nomeProduto) : undefined;
 
     const estatisticas = await AmendoimService.obterEstatisticas({
       dataInicio,
       dataFim,
       tipo,
+      codigoProduto,
+      nomeProduto,
     });
 
     return res.json(estatisticas);
@@ -3859,10 +3863,14 @@ app.get('/api/amendoim/metricas/rendimento', async (req, res) => {
   try {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+    const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
+    const nomeProduto = req.query.nomeProduto ? String(req.query.nomeProduto) : undefined;
 
     const metricas = await AmendoimService.calcularMetricasRendimento({
       dataInicio,
       dataFim,
+      codigoProduto,
+      nomeProduto,
     });
 
     return res.json(metricas);

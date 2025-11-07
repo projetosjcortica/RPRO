@@ -191,11 +191,17 @@ export class AmendoimService {
     dataInicio?: string;
     dataFim?: string;
     tipo?: "entrada" | "saida";
+    codigoProduto?: string;
+    nomeProduto?: string;
   }): Promise<{
     totalRegistros: number;
     pesoTotal: number;
     produtosUnicos: number;
     caixasUtilizadas: number;
+    primeiraData?: string;
+    ultimaData?: string;
+    primeiraHora?: string;
+    ultimaHora?: string;
   }> {
     const repo = AppDataSource.getRepository(Amendoim);
     const qb = repo.createQueryBuilder("amendoim");
@@ -214,6 +220,18 @@ export class AmendoimService {
       qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
 
+    if (params.codigoProduto) {
+      qb.andWhere("amendoim.codigoProduto LIKE :codigoProduto", {
+        codigoProduto: `%${params.codigoProduto}%`,
+      });
+    }
+
+    if (params.nomeProduto) {
+      qb.andWhere("amendoim.nomeProduto LIKE :nomeProduto", {
+        nomeProduto: `%${params.nomeProduto}%`,
+      });
+    }
+
     const totalRegistros = await qb.getCount();
 
     const pesoResult = await qb
@@ -228,11 +246,32 @@ export class AmendoimService {
       .select("COUNT(DISTINCT amendoim.codigoCaixa)", "count")
       .getRawOne();
 
+    // Buscar primeira e última data/hora
+    const primeiroRegistro = await qb
+      .clone()
+      .orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "ASC")
+      .addOrderBy("amendoim.hora", "ASC")
+      .select(["amendoim.dia", "amendoim.hora"])
+      .limit(1)
+      .getOne();
+
+    const ultimoRegistro = await qb
+      .clone()
+      .orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "DESC")
+      .addOrderBy("amendoim.hora", "DESC")
+      .select(["amendoim.dia", "amendoim.hora"])
+      .limit(1)
+      .getOne();
+
     return {
       totalRegistros,
       pesoTotal: Number(pesoResult?.total || 0),
       produtosUnicos: Number(produtosResult?.count || 0),
       caixasUtilizadas: Number(caixasResult?.count || 0),
+      primeiraData: primeiroRegistro?.dia,
+      ultimaData: ultimoRegistro?.dia,
+      primeiraHora: primeiroRegistro?.hora,
+      ultimaHora: ultimoRegistro?.hora,
     };
   }
 
@@ -422,12 +461,18 @@ export class AmendoimService {
   static async calcularMetricasRendimento(params: {
     dataInicio?: string;
     dataFim?: string;
+    codigoProduto?: string;
+    nomeProduto?: string;
   }): Promise<{
     pesoEntrada: number;
     pesoSaida: number;
     rendimentoPercentual: number;
     perda: number;
     perdaPercentual: number;
+    primeiraData?: string;
+    ultimaData?: string;
+    primeiraHora?: string;
+    ultimaHora?: string;
   }> {
     const repo = AppDataSource.getRepository(Amendoim);
 
@@ -442,6 +487,16 @@ export class AmendoimService {
     if (params.dataFim) {
       const dataFimDB = this.convertDateToDBFormat(params.dataFim);
       qbEntrada.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    }
+    if (params.codigoProduto) {
+      qbEntrada.andWhere("amendoim.codigoProduto LIKE :codigoProduto", {
+        codigoProduto: `%${params.codigoProduto}%`,
+      });
+    }
+    if (params.nomeProduto) {
+      qbEntrada.andWhere("amendoim.nomeProduto LIKE :nomeProduto", {
+        nomeProduto: `%${params.nomeProduto}%`,
+      });
     }
 
     const entradaResult = await qbEntrada
@@ -461,11 +516,59 @@ export class AmendoimService {
       const dataFimDB = this.convertDateToDBFormat(params.dataFim);
       qbSaida.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
     }
+    if (params.codigoProduto) {
+      qbSaida.andWhere("amendoim.codigoProduto LIKE :codigoProduto", {
+        codigoProduto: `%${params.codigoProduto}%`,
+      });
+    }
+    if (params.nomeProduto) {
+      qbSaida.andWhere("amendoim.nomeProduto LIKE :nomeProduto", {
+        nomeProduto: `%${params.nomeProduto}%`,
+      });
+    }
 
     const saidaResult = await qbSaida
       .select("SUM(amendoim.peso)", "total")
       .getRawOne();
     const pesoSaida = Number(saidaResult?.total || 0);
+
+    // Buscar primeira e última data/hora de TODO o período (entrada + saída)
+    const qbPeriodo = repo.createQueryBuilder("amendoim");
+    
+    if (params.dataInicio) {
+      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
+      qbPeriodo.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
+    }
+    if (params.dataFim) {
+      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
+      qbPeriodo.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    }
+    if (params.codigoProduto) {
+      qbPeriodo.andWhere("amendoim.codigoProduto LIKE :codigoProduto", {
+        codigoProduto: `%${params.codigoProduto}%`,
+      });
+    }
+    if (params.nomeProduto) {
+      qbPeriodo.andWhere("amendoim.nomeProduto LIKE :nomeProduto", {
+        nomeProduto: `%${params.nomeProduto}%`,
+      });
+    }
+
+    const primeiroRegistro = await qbPeriodo
+      .clone()
+      .orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "ASC")
+      .addOrderBy("amendoim.hora", "ASC")
+      .select(["amendoim.dia", "amendoim.hora"])
+      .limit(1)
+      .getOne();
+
+    const ultimoRegistro = await qbPeriodo
+      .clone()
+      .orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "DESC")
+      .addOrderBy("amendoim.hora", "DESC")
+      .select(["amendoim.dia", "amendoim.hora"])
+      .limit(1)
+      .getOne();
 
     // Calcular métricas
     const perda = pesoEntrada - pesoSaida;
@@ -478,6 +581,10 @@ export class AmendoimService {
       rendimentoPercentual: Number(rendimentoPercentual.toFixed(2)),
       perda,
       perdaPercentual: Number(perdaPercentual.toFixed(2)),
+      primeiraData: primeiroRegistro?.dia,
+      ultimaData: ultimoRegistro?.dia,
+      primeiraHora: primeiroRegistro?.hora,
+      ultimaHora: ultimoRegistro?.hora,
     };
   }
 

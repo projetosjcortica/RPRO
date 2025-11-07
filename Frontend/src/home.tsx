@@ -16,6 +16,15 @@ import { Button } from "./components/ui/button";
 import { CalendarIcon } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { pt } from "date-fns/locale";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 // HomeAmendoim removido do render; charts renderizados diretamente aqui quando amendoim
 import useAuth from "./hooks/useAuth";
 
@@ -212,6 +221,8 @@ export default function Home() {
   const [dadosRendimento30, setDadosRendimento30] = useState<any[]>([]);
   const [entradaSum, setEntradaSum] = useState<number | null>(null);
   const [saidaSum, setSaidaSum] = useState<number | null>(null);
+  const [dadosEntradaPorDia, setDadosEntradaPorDia] = useState<any[]>([]);
+  const [dadosSaidaPorDia, setDadosSaidaPorDia] = useState<any[]>([]);
   // Per-card date ranges and filters for testing
   const [entradaDateRange, setEntradaDateRange] = useState<any>(() => ({ ...weeklyDateRange }));
   const [entradaFilters, setEntradaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim }));
@@ -306,51 +317,83 @@ export default function Home() {
     void fetchComparativo();
   }, [tipoHome, weeklyFilters?.dataInicio, weeklyFilters?.dataFim]);
 
-  // Fetch entrada and saida sums separately and sum them (calls estatisticas per tipo)
+  // Fetch entrada and saida data per day (instead of just sums)
   useEffect(() => {
     if (tipoHome !== 'amendoim') return;
-    const fetchSums = async () => {
+    const fetchDadosPorDia = async () => {
       try {
         const eStart = entradaFilters?.dataInicio;
         const eEnd = entradaFilters?.dataFim;
         const sStart = saidaFilters?.dataInicio;
         const sEnd = saidaFilters?.dataFim;
 
-        if (!eStart || !eEnd) setEntradaSum(null);
-        if (!sStart || !sEnd) setSaidaSum(null);
-
-        const promises: Promise<Response>[] = [];
-        if (eStart && eEnd) promises.push(fetch(`http://localhost:3000/api/amendoim/estatisticas?dataInicio=${encodeURIComponent(eStart)}&dataFim=${encodeURIComponent(eEnd)}&tipo=entrada`));
-        if (sStart && sEnd) promises.push(fetch(`http://localhost:3000/api/amendoim/estatisticas?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}&tipo=saida`));
-
-        const results = await Promise.all(promises);
-        let idx = 0;
+        // Fetch entrada data
         if (eStart && eEnd) {
-          const resEntrada = results[idx++];
+          const urlEntrada = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(eStart)}&dataFim=${encodeURIComponent(eEnd)}`;
+          const resEntrada = await fetch(urlEntrada);
           if (resEntrada.ok) {
-            const jEntrada = await resEntrada.json();
-            setEntradaSum(Number(jEntrada.pesoTotal || 0));
+            const dataEntrada = await resEntrada.json();
+            // rendimentoPorDia contains { dia, entrada, saida, rendimento }
+            const dadosEntrada = (dataEntrada.rendimentoPorDia || []).map((d: any) => ({
+              dia: d.dia,
+              valor: d.entrada || 0
+            }));
+            setDadosEntradaPorDia(dadosEntrada);
+            // Calculate sum
+            const sum = dadosEntrada.reduce((acc: number, d: any) => acc + d.valor, 0);
+            setEntradaSum(sum);
           } else {
+            setDadosEntradaPorDia([]);
             setEntradaSum(null);
           }
+        } else {
+          setDadosEntradaPorDia([]);
+          setEntradaSum(null);
         }
 
+        // Fetch saida data
         if (sStart && sEnd) {
-          const resSaida = results[idx++ - (eStart && eEnd ? 0 : 0)];
+          const urlSaida = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}`;
+          const resSaida = await fetch(urlSaida);
           if (resSaida.ok) {
-            const jSaida = await resSaida.json();
-            setSaidaSum(Number(jSaida.pesoTotal || 0));
+            const dataSaida = await resSaida.json();
+            const dadosSaida = (dataSaida.rendimentoPorDia || []).map((d: any) => ({
+              dia: d.dia,
+              valor: d.saida || 0
+            }));
+            setDadosSaidaPorDia(dadosSaida);
+            // Calculate sum
+            const sum = dadosSaida.reduce((acc: number, d: any) => acc + d.valor, 0);
+            setSaidaSum(sum);
           } else {
+            setDadosSaidaPorDia([]);
             setSaidaSum(null);
           }
+        } else {
+          setDadosSaidaPorDia([]);
+          setSaidaSum(null);
+        }
+
+        // Calculate comparativo (rendimento) from the fetched data
+        if (eStart && eEnd && sStart && sEnd) {
+          const totalEntrada = entradaSum || 0;
+          const totalSaida = saidaSum || 0;
+          setComparativo({
+            entradaCurrent: totalEntrada,
+            saidaCurrent: totalSaida,
+            entradaPrev: 0,
+            saidaPrev: 0,
+          });
         }
       } catch (err) {
-        console.error('Erro ao buscar sums entrada/saida:', err);
+        console.error('Erro ao buscar dados por dia:', err);
+        setDadosEntradaPorDia([]);
+        setDadosSaidaPorDia([]);
         setEntradaSum(null);
         setSaidaSum(null);
       }
     };
-    void fetchSums();
+    void fetchDadosPorDia();
   }, [tipoHome, entradaFilters?.dataInicio, entradaFilters?.dataFim, saidaFilters?.dataInicio, saidaFilters?.dataFim]);
 
   // Fetch last 30 days rendimento (for line chart)
@@ -402,46 +445,7 @@ export default function Home() {
         <div className="flex-1 overflow-auto ">
           <div className="p-4 space">
             {/* Top: 3 Donut charts */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
-                  <CardTitle className="text-sm font-semibold">Produtos (comparação)</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 h-[250px]">
-                  <DonutChartWidget
-                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }) })}`}
-                    compact
-                    unit="kg"
-                  />
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
-                  <CardTitle className="text-sm font-semibold">Caixas (comparação)</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 h-[250px]">
-                  <DonutChartWidget
-                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/caixas?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }) })}`}
-                    compact
-                    unit="kg"
-                  />
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
-                  <CardTitle className="text-sm font-semibold">Entrada x Saída</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 h-[250px]">
-                  <DonutChartWidget
-                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/entradaSaida?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }) })}`}
-                    compact
-                    unit="kg"
-                  />
-                </CardContent>
-              </Card>
-            </div>
+          
 
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
             <div className="grid grid-cols-3 gap-4 mb-4">
@@ -487,17 +491,31 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-3 h-[220px] flex items-center justify-center">
-                  <div className="text-center">
-                    {entradaSum === null ? (
-                      <div className="text-sm text-gray-500">Carregando...</div>
-                    ) : (
-                      <div>
-                        <div className="text-3xl font-bold text-red-600">{entradaSum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</div>
-                        <div className="text-xs text-gray-500 mt-1">Total do período selecionado</div>
-                      </div>
-                    )}
-                  </div>
+                <CardContent className="p-2 h-[220px]">
+                  {dadosEntradaPorDia.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dadosEntradaPorDia} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="dia" 
+                          tick={{ fontSize: 11 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={60}
+                        />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip 
+                          contentStyle={{ fontSize: 12 }}
+                          formatter={(value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg`}
+                        />
+                        <Bar dataKey="valor" fill="#ef4444" name="Entrada" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-sm text-gray-500">
+                      {entradaSum === null ? 'Carregando...' : 'Sem dados para o período'}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -543,17 +561,31 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-3 h-[220px] flex items-center justify-center">
-                  <div className="text-center">
-                    {saidaSum === null ? (
-                      <div className="text-sm text-gray-500">Carregando...</div>
-                    ) : (
-                      <div>
-                        <div className="text-3xl font-bold text-gray-700">{saidaSum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</div>
-                        <div className="text-xs text-gray-500 mt-1">Total do período selecionado</div>
-                      </div>
-                    )}
-                  </div>
+                <CardContent className="p-2 h-[220px]">
+                  {dadosSaidaPorDia.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={dadosSaidaPorDia} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis 
+                          dataKey="dia" 
+                          tick={{ fontSize: 11 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={60}
+                        />
+                        <YAxis tick={{ fontSize: 11 }} />
+                        <Tooltip 
+                          contentStyle={{ fontSize: 12 }}
+                          formatter={(value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg`}
+                        />
+                        <Bar dataKey="valor" fill="#6b7280" name="Saída" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-sm text-gray-500">
+                      {saidaSum === null ? 'Carregando...' : 'Sem dados para o período'}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -571,51 +603,68 @@ export default function Home() {
               </Card>
             </div>
 
-            {/* Comparativo simples: diferença entre período selecionado e período anterior */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <Card className="shadow-sm border border-gray-200 rounded-lg p-3">
-                <div className="text-xs text-gray-500">Comparativo (período vs anterior)</div>
-                <div className="text-lg font-bold text-red-600 mt-2">
-                  {comparativo ? (
-                    <>
-                      <div>Entrada: {(comparativo.entradaCurrent - comparativo.entradaPrev).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg</div>
-                      <div className="text-sm text-gray-500">(Atual: {comparativo.entradaCurrent.toLocaleString('pt-BR')}, Anterior: {comparativo.entradaPrev.toLocaleString('pt-BR')})</div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-gray-500">Sem dados</div>
-                  )}
-                </div>
-              </Card>
-              <Card className="shadow-sm border border-gray-200 rounded-lg p-3">
-                <div className="text-xs text-gray-500">Comparativo (Saída)</div>
-                <div className="text-lg font-bold text-gray-700 mt-2">
-                  {comparativo ? (
-                    <>
-                      <div>Saída: {(comparativo.saidaCurrent - comparativo.saidaPrev).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} kg</div>
-                      <div className="text-sm text-gray-500">(Atual: {comparativo.saidaCurrent.toLocaleString('pt-BR')}, Anterior: {comparativo.saidaPrev.toLocaleString('pt-BR')})</div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-gray-500">Sem dados</div>
-                  )}
-                </div>
-              </Card>
-              <div />
-            </div>
+            {/* Gráficos de barras Entrada e Saída + Card de Rendimento */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+                   
 
-            {/* Últimos 30 dias: linha com entradas e saídas juntos */}
-            <div className="mb-4">
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300px]">
+              {/* Card de Cálculo de Conflito/Rendimento */}
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px]">
                 <CardHeader className="border-b border-gray-100 pb-3 px-3">
-                  <CardTitle className="text-base font-semibold text-gray-900">Últimos 30 dias — Entradas e Saídas</CardTitle>
+                  <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
-                  <div className="w-full h-[240px]">
-                    {/* Reuse ChartRendimentoPorDia which displays entrada+saida per day */}
-                    <ChartRendimentoPorDia dados={dadosRendimento30} />
-                  </div>
+                <CardContent className="pt-4 px-4">
+                  {(entradaSum !== null && saidaSum !== null) && (entradaSum > 0 || saidaSum > 0) ? (
+                    <div className="space-y-4">
+                      {/* Porcentagem de Aproveitamento */}
+                      <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                        <div className="text-xs text-gray-600 font-medium uppercase tracking-wide mb-1">Aproveitamento</div>
+                        <div className="text-4xl font-bold text-green-700">
+                          {entradaSum > 0 
+                            ? ((saidaSum / entradaSum) * 100).toFixed(2)
+                            : '0.00'}%
+                        </div>
+                      </div>
+
+                      {/* Entrada e Saída */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                          <div className="text-xs text-gray-600 font-medium mb-1">Entrada</div>
+                          <div className="text-lg font-bold text-red-700">
+                            {entradaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          </div>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="text-xs text-gray-600 font-medium mb-1">Saída</div>
+                          <div className="text-lg font-bold text-blue-700">
+                            {saidaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Perda */}
+                      <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="text-xs text-gray-600 font-medium mb-1">Perda de Material</div>
+                        <div className="text-xl font-bold text-orange-700">
+                          {(entradaSum - saidaSum).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          <span className="text-sm ml-2">
+                            ({entradaSum > 0 
+                              ? (((entradaSum - saidaSum) / entradaSum) * 100).toFixed(2)
+                              : '0.00'}%)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                      {entradaSum === null || saidaSum === null ? 'Carregando...' : 'Selecione os períodos de Entrada e Saída'}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
+
+            {/* Últimos 30 dias: linha com entradas e saídas comparadas */}
+            
 
             {/* Now render the Horário de Produção and Produção Semanal side-by-side */}
             <div className="grid grid-cols-2 gap-4">

@@ -105,6 +105,10 @@ interface Estatisticas {
   pesoTotal: number;
   produtosUnicos: number;
   caixasUtilizadas: number;
+  primeiraData?: string;
+  ultimaData?: string;
+  primeiraHora?: string;
+  ultimaHora?: string;
 }
 
 interface MetricasRendimento {
@@ -113,6 +117,10 @@ interface MetricasRendimento {
   rendimentoPercentual: number;
   perda: number;
   perdaPercentual: number;
+  primeiraData?: string;
+  ultimaData?: string;
+  primeiraHora?: string;
+  ultimaHora?: string;
 }
 
 interface DadosAnalise {
@@ -240,6 +248,8 @@ export default function Amendoim() {
       const params = new URLSearchParams();
       if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
       if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
+      if (filtrosAtivos.codigoProduto) params.set('codigoProduto', filtrosAtivos.codigoProduto);
+      if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
       
       // Adicionar tipo se não estiver no modo comparativo
       if (viewMode !== 'comparativo') {
@@ -262,6 +272,8 @@ export default function Amendoim() {
       const params = new URLSearchParams();
       if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
       if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
+      if (filtrosAtivos.codigoProduto) params.set('codigoProduto', filtrosAtivos.codigoProduto);
+      if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
 
       const res = await fetch(`http://localhost:3000/api/amendoim/metricas/rendimento?${params}`);
       if (res.ok) {
@@ -280,6 +292,8 @@ export default function Amendoim() {
       const params = new URLSearchParams();
       if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
       if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
+      if (filtrosAtivos.codigoProduto) params.set('codigoProduto', filtrosAtivos.codigoProduto);
+      if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
 
       const res = await fetch(`http://localhost:3000/api/amendoim/analise?${params}`);
       if (res.ok) {
@@ -907,28 +921,24 @@ export default function Amendoim() {
                 <div className="grid grid-cols-20 rounded-lg h-18">
                   <div className="flex flex-col justify-center items-center col-start-5">
                     <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
-                    {registros.length > 0 
-                      ? `${formatDate(registros[0].dia)}`
+                    {metricasRendimento.primeiraData 
+                      ? `${formatDate(metricasRendimento.primeiraData)}`
                       : "Sem registros"}
                     </div>
                     <div className="text-sm font-semibold opacity-50">
-                      {registros.length > 0 
-                        ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                        : ""}
+                      {metricasRendimento.primeiraHora || ""}
                     </div>
                   </div>
                   <Separator orientation="vertical" className="mt-2 col-start-11"/>
                   
                   <div className="flex flex-col justify-center items-center col-start-16">
                     <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
-                    {registros.length > 0 
-                      ? `${formatDate(registros[registros.length - 1].dia)}`
+                    {metricasRendimento.ultimaData 
+                      ? `${formatDate(metricasRendimento.ultimaData)}`
                       : "Sem registros"}
                     </div>
                     <div className="text-sm font-semibold opacity-50">
-                      {registros.length > 0 
-                      ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                      : ""}
+                      {metricasRendimento.ultimaHora || ""}
                     </div>
                   </div>
                 </div>
@@ -958,28 +968,24 @@ export default function Amendoim() {
                 <div className="grid grid-cols-20 rounded-lg h-18">
                   <div className="flex flex-col justify-center items-center col-start-5">
                     <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
-                    {registros.length > 0 
-                      ? `${formatDate(registros[0].dia)}`
+                    {estatisticas.primeiraData 
+                      ? `${formatDate(estatisticas.primeiraData)}`
                       : "Sem registros"}
                     </div>
                     <div className="text-sm font-semibold opacity-50">
-                      {registros.length > 0 
-                        ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                        : ""}
+                      {estatisticas.primeiraHora || ""}
                     </div>
                   </div>
                   <Separator orientation="vertical" className="mt-2 col-start-11"/>
                   
                   <div className="flex flex-col justify-center items-center col-start-16">
                     <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
-                    {registros.length > 0 
-                      ? `${formatDate(registros[registros.length - 1].dia)}`
+                    {estatisticas.ultimaData 
+                      ? `${formatDate(estatisticas.ultimaData)}`
                       : "Sem registros"}
                     </div>
                     <div className="text-sm font-semibold opacity-50">
-                      {registros.length > 0 
-                      ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                      : ""}
+                      {estatisticas.ultimaHora || ""}
                     </div>
                   </div>
                 </div>
@@ -1025,28 +1031,24 @@ export default function Amendoim() {
                 <div className="grid grid-cols-20 rounded-lg h-18">
                   <div className="flex flex-col justify-center items-center col-start-5">
                     <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
-                    {registros.length > 0 
-                      ? `${formatDate(registros[0].dia)}`
+                    {estatisticas.primeiraData 
+                      ? `${formatDate(estatisticas.primeiraData)}`
                       : "Sem registros"}
                     </div>
                     <div className="text-sm font-semibold opacity-50">
-                      {registros.length > 0 
-                        ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                        : ""}
+                      {estatisticas.primeiraHora || ""}
                     </div>
                   </div>
                   <Separator orientation="vertical" className="mt-2 col-start-11"/>
                   
                   <div className="flex flex-col justify-center items-center col-start-16">
                     <div className="text-md text-center font-bold text-gray-800 flex justify-center items-center col-start-3">
-                    {registros.length > 0 
-                      ? `${formatDate(registros[registros.length - 1].dia)}`
+                    {estatisticas.ultimaData 
+                      ? `${formatDate(estatisticas.ultimaData)}`
                       : "Sem registros"}
                     </div>
                     <div className="text-sm font-semibold opacity-50">
-                      {registros.length > 0 
-                      ? `${registros[0].hora} ${registros[registros.length - 1].hora}`
-                      : ""}
+                      {estatisticas.ultimaHora || ""}
                     </div>
                   </div>
                 </div>
