@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
-import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp, FileUp } from "lucide-react";
+import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
-import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
 import { AmendoimExport } from "./components/AmendoimExport";
@@ -19,7 +18,8 @@ import {
   ChartEficienciaPorTurno,
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
-import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
+import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
+import { buttonVariants } from "./components/ui/button";
 
 interface AmendoimRecord {
   id: number;
@@ -441,6 +441,26 @@ export default function Amendoim() {
 
   const totalPages = Math.ceil(total / pageSize);
 
+  // Gerar array de páginas para renderização (mesmo padrão do report.tsx)
+  const pages = (() => {
+    const maxVisible = 5;
+    const result: number[] = [];
+    
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) result.push(i);
+    } else {
+      if (page <= 3) {
+        for (let i = 1; i <= maxVisible; i++) result.push(i);
+      } else if (page >= totalPages - 2) {
+        for (let i = totalPages - maxVisible + 1; i <= totalPages; i++) result.push(i);
+      } else {
+        for (let i = page - 2; i <= page + 2; i++) result.push(i);
+      }
+    }
+    
+    return result;
+  })();
+
   return (
     <div className="flex flex-col gap-12.5 w-full h-full justify-start">
       {/* Header */}
@@ -624,38 +644,70 @@ export default function Amendoim() {
           </div>
 
           {/* Pagination */}
-          <div className="flex flex-row items-center justify-end">
-            {totalPages > 1 && (
-              <div className="flex gap-2 items-center bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2 rounded-lg border border-gray-200 shadow-sm">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                    setPage(p => Math.max(1, p - 1));
-                  }}
-                  disabled={page === 1}
-                  className="hover:bg-red-50 hover:border-red-300 transition-colors"
-                >
-                  Anterior
-                </Button>
-                <div className="flex items-center text-sm text-gray-700 font-medium px-3">
-                  Página <span className="mx-1 font-bold text-red-600">{page}</span> de <span className="ml-1 font-bold">{totalPages}</span>
-                  <span className="mx-2 text-gray-400">•</span>
-                  <span className="text-gray-600">{total} registros</span>
-                </div>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                    setPage(p => Math.min(totalPages, p + 1));
-                  }}
-                  disabled={page === totalPages}
-                  className="hover:bg-red-50 hover:border-red-300 transition-colors"
-                >
-                  Próxima
-                </Button>
-              </div>
-            )}
+          <div className="flex flex-row items-center justify-end mt-2">
+            <Pagination className="flex flex-row justify-end">
+              <PaginationContent>
+                <PaginationItem>
+                  <button
+                    onClick={() => {
+                      if (page !== 1) {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                        setPage(Math.max(1, page - 1));
+                      }
+                    }}
+                    disabled={page === 1 || loading}
+                    className="p-1"
+                    title="Página anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                </PaginationItem>
+
+                {pages.map((p) => {
+                  const isActive = p === page;
+                  return (
+                    <PaginationItem key={p}>
+                      <button
+                        onClick={() => {
+                          if (p !== page) {
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                            setPage(p);
+                          }
+                        }}
+                        aria-current={isActive ? "page" : undefined}
+                        disabled={loading && p !== page}
+                        className={cn(
+                          buttonVariants({ variant: "default" }),
+                          isActive
+                            ? "bg-red-600 text-white"
+                            : loading && p !== page
+                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                              : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    </PaginationItem>
+                  );
+                })}
+
+                <PaginationItem>
+                  <button
+                    onClick={() => {
+                      if (page !== totalPages) {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                        setPage(Math.min(page + 1, totalPages));
+                      }
+                    }}
+                    disabled={page === totalPages || loading}
+                    className="p-1"
+                    title="Próxima página"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         </div>
 
@@ -1021,15 +1073,12 @@ export default function Amendoim() {
             </div>
           )}
         </div>
-      </div>
         
-        {/* Botão de Exportação - Abaixo do Side Info */}
-        <div className="w-full px-2 pb-2">
-          {/* Convert comments to the id'd shape expected by the Export UI */}
+        {/* Botão de Exportação - Centralizado */}
+        <div className="w-full px-2 pb-2 flex justify-center">
           {(() => {
             const comentariosComId = comentarios.map((c, idx) => ({ id: String(idx), texto: c.texto, data: c.data || new Date().toLocaleString('pt-BR') }));
             const handleTipoChangeFromExport = (tipo: string) => {
-              // Map 'todos' to 'comparativo' view, otherwise set entrada/saida
               const newView = tipo === 'todos' ? 'comparativo' : (tipo as 'entrada' | 'saida');
               setViewMode(newView);
               setPage(1);
@@ -1051,6 +1100,7 @@ export default function Amendoim() {
             );
           })()}
         </div>
+      </div>
       </div>
       </div>
       
