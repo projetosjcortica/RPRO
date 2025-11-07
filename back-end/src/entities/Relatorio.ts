@@ -6,7 +6,7 @@ export class Relatorio {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'varchar', length: 10, nullable: true }) Dia!: string | null;
   @Column({ type: 'time', nullable: true }) Hora!: string | null;
-  @Column({ type: 'varchar', length: 30, nullable: true }) Nome!: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true }) Nome!: string | null;
   @Column({ type: 'int', default: 0 }) Form1!: number;
   @Column({ type: 'int', default: 0 }) Form2!: number;
   @Column({ type: 'int', default: 0 }) Prod_1!: number;

@@ -5,8 +5,8 @@ import HomeRelatorio from "./components/HomeRelatorio";
 import { 
   ChartEntradaSaidaPorHorario,
   ChartFluxoSemanal,
-  ChartEficienciaPorTurno,
-  ChartRendimentoPorDia,
+  // ChartEficienciaPorTurno,
+  // ChartRendimentoPorDia,
 } from './components/AmendoimCharts';
 import { DonutChartWidget } from './components/Widgets';
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
@@ -164,6 +164,8 @@ export default function Home() {
     setTurnosFilters({ dataInicio: ds, dataFim: ds });
   };
 
+  console.log(handleTurnosDateChange.name, applyTurnosFilters.name, clearTurnosFilters.name);
+
   // Per-card handlers for Entrada
   const handleEntradaDateChange = (range: any) => {
     if (!range) {
@@ -228,6 +230,8 @@ export default function Home() {
   const [entradaFilters, setEntradaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim }));
   const [saidaDateRange, setSaidaDateRange] = useState<any>(() => ({ ...weeklyDateRange }));
   const [saidaFilters, setSaidaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim }));
+
+  console.log(dadosTurnos, comparativo, dadosRendimento30);
 
   // Fetch por gráfico
   const fetchAnaliseFor = async (fi: { dataInicio?: string; dataFim?: string }) => {
@@ -444,8 +448,6 @@ export default function Home() {
       <div className="h-screen flex flex-col">
         <div className="flex-1 overflow-auto ">
           <div className="p-4 space">
-            {/* Top: 3 Donut charts */}
-          
 
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
             <div className="grid grid-cols-3 gap-4 mb-4">
@@ -661,14 +663,6 @@ export default function Home() {
                   )}
                 </CardContent>
               </Card>
-            </div>
-
-            {/* Últimos 30 dias: linha com entradas e saídas comparadas */}
-            
-
-            {/* Now render the Horário de Produção and Produção Semanal side-by-side */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Horário de Produção */}
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
                 <CardHeader className="border-b border-gray-100 pb-3">
                   <div className="flex items-center justify-between">
@@ -797,6 +791,15 @@ export default function Home() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Últimos 30 dias: linha com entradas e saídas comparadas */}
+            
+
+            {/* Now render the Horário de Produção and Produção Semanal side-by-side */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Horário de Produção */}
+              
             </div>
           </div>
         </div>

@@ -69,7 +69,7 @@ interface AmendoimExportDropdownProps {
 export function AmendoimExportDropdown({
   onExcelExport,
   pdfDocument,
-  showComments = false,
+  // showComments = false,
   showCharts = false,
   onToggleComments,
   onToggleCharts,

@@ -272,7 +272,7 @@ const App = () => {
 
               {/* ✅ Logo também desaparece quando colapsado */}
               <div className="flex justify-center group-data-[state=collapsed]:hidden mt-2">
-                <img src={monoLogo} alt="Logo" className="w-20 opacity-80 px-1" />
+                <img src={monoLogo} alt="Logo" className="w-55 opacity- px-1" />
               </div>
 
             </SidebarFooter>

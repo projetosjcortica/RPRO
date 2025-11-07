@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, buttonVariants } from "./components/ui/button";
-import { Loader2, Upload, Play, Square, Scale, Settings, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
@@ -10,7 +10,7 @@ import { format as formatDateFn } from "date-fns";
 import { cn } from "./lib/utils";
 import { useCallback } from "react";
 import { Separator } from "./components/ui/separator";
-import useAuth from "./hooks/useAuth";
+// import useAuth from "./hooks/useAuth";
 import {
   ChartEntradaSaidaPorHorario,
   ChartRendimentoPorDia,
@@ -68,6 +68,8 @@ function AmendoimChartsContainer({
     fetchDados();
   }, [filtros.dataInicio, filtros.dataFim, chartType]);
 
+  
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -99,6 +101,7 @@ function AmendoimChartsContainer({
       return <div>Gráfico não encontrado</div>;
   }
 }
+console.log(AmendoimChartsContainer.name);
 
 interface Estatisticas {
   totalRegistros: number;
@@ -173,7 +176,7 @@ export default function Amendoim() {
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
   const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
 
-  const { user } = useAuth();
+  console.log(setAnalisesExpanded.name, setUploadTipo.name, uploading);
 
   // Função para formatar datas
   const formatDate = (raw: string): string => {
@@ -451,6 +454,8 @@ export default function Amendoim() {
       event.target.value = '';
     }
   };
+
+  console.log(handleFileUpload.name);
 
   const totalPages = Math.ceil(total / pageSize);
 
@@ -1079,24 +1084,16 @@ export default function Amendoim() {
         <div className="w-full px-2 pb-2 flex justify-center">
           {(() => {
             const comentariosComId = comentarios.map((c, idx) => ({ id: String(idx), texto: c.texto, data: c.data || new Date().toLocaleString('pt-BR') }));
-            const handleTipoChangeFromExport = (tipo: string) => {
-              const newView = tipo === 'todos' ? 'comparativo' : (tipo as 'entrada' | 'saida');
-              setViewMode(newView);
-              setPage(1);
-              setFiltrosAtivos((prev) => ({ ...prev, tipo: tipo === 'todos' ? undefined : (tipo as 'entrada' | 'saida') }));
-            };
 
             return (
               <AmendoimExport
                 filtros={{ ...filtrosAtivos, ...(viewMode !== 'comparativo' ? { tipo: viewMode } : {}) }}
                 comentarios={comentariosComId}
-                estatisticas={estatisticas}
                 onAddComment={(texto) => setComentarios((s) => [...s, { texto, data: new Date().toLocaleString('pt-BR') }])}
                 onRemoveComment={(id) => {
                   const index = parseInt(id as string);
                   if (!isNaN(index)) setComentarios((s) => s.filter((_, i) => i !== index));
                 }}
-                onTipoChange={handleTipoChangeFromExport}
               />
             );
           })()}
