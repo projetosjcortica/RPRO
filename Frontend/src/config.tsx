@@ -3,7 +3,7 @@ import { toast } from "react-toastify";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
-import { Loader2, Plus } from 'lucide-react';
+import { FileUp, Loader2, Plus, Upload } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
 import { getProcessador } from "./Processador";
@@ -20,6 +20,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
+import { cn } from "./lib/utils";
+import toastManager from "./lib/toastManager";
 
 export const initialFormData = {
   nomeCliente: "",
@@ -788,6 +791,35 @@ export function AdminConfig({
   configKey?: string;
 }) {
   // ✅ HOOKS PRIMEIRO
+  
+  interface AmendoimRecord {
+  id: number;
+  tipo: "entrada" | "saida";
+  dia: string;
+  hora: string;
+  codigoProduto: string;
+  codigoCaixa: string;
+  nomeProduto: string;
+  peso: number;
+  balanca?: string;
+  createdAt: string;
+}
+
+interface FiltrosAmendoim {
+  dataInicio?: string;
+  dataFim?: string;
+  codigoProduto?: string;
+  nomeProduto?: string;
+  tipo?: "entrada" | "saida";
+}
+
+interface Estatisticas {
+  totalRegistros: number;
+  pesoTotal: number;
+  produtosUnicos: number;
+  caixasUtilizadas: number;
+}
+
   const { isEditing, isLoading, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
   // Export state and handler (inline form instead of prompt)
@@ -796,6 +828,112 @@ export function AdminConfig({
   const [exportDataFim, setExportDataFim] = useState<string | null>(null);
   const [exportFormula, setExportFormula] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
+  const [uploadTipo, setUploadTipo] = useState<"entrada" | "saida">("entrada");
+  const [uploading, setUploading] = useState(false);
+  const [, setError] = useState<string | null>(null);
+  const [, setLoading] = useState(false);
+  const [filtrosAtivos,] = useState<FiltrosAmendoim>({});
+  const [, setRegistros] = useState<AmendoimRecord[]>([]);
+
+  const { user } = useAuth();
+
+  const [page,] = useState(1);
+  const [, setTotal] = useState(0);
+  const pageSize = 50;
+
+  const [viewMode, ] = useState<"entrada" | "saida" | "comparativo">("entrada");
+
+  const [, setEstatisticas] = useState<Estatisticas | null>(null);
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+  
+      setUploading(true);
+      setError(null);
+  
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('tipo', uploadTipo); // Adiciona tipo ao upload
+  
+        const res = await fetch('http://localhost:3000/api/amendoim/upload', {
+          method: 'POST',
+          body: formData,
+        });
+  
+        const data = await res.json();
+  
+        if (!res.ok) {
+          throw new Error(data.error || 'Erro ao processar arquivo');
+        }
+  
+        // Mostrar toast de sucesso
+        const mensagemSucesso = `${data.salvos} registro(s) processado(s) com sucesso`;
+        try {
+          toastManager.updateSuccess('amendoim-upload', mensagemSucesso);
+        } catch (e) {
+          console.error('Toast error:', e);
+        }
+  
+        // Recarregar registros após upload bem-sucedido
+        if (data.salvos > 0) {
+          await fetchRegistros();
+          await fetchEstatisticas();
+        }
+      } catch (err: any) {
+        // Mostrar toast de erro
+        const mensagemErro = err.message || 'Erro ao enviar arquivo';
+        try {
+          toastManager.updateError('amendoim-upload', mensagemErro);
+        } catch (e) {
+          console.error('Toast error:', e);
+        }
+        setError(mensagemErro);
+      } finally {
+        setUploading(false);
+        // Reset input
+        event.target.value = '';
+      }
+    };
+
+    const fetchRegistros = async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+      });
+
+      // Adicionar filtros aos parâmetros
+      if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
+      if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
+      if (filtrosAtivos.codigoProduto) params.set('codigoProduto', filtrosAtivos.codigoProduto);
+      if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
+      
+      // Adicionar tipo se não estiver no modo comparativo
+      if (viewMode !== 'comparativo') {
+        params.set('tipo', viewMode);
+      }
+
+      const res = await fetch(`http://localhost:3000/api/amendoim/registros?${params}`);
+      
+      if (!res.ok) {
+        throw new Error(`Erro ao buscar registros: ${res.status}`);
+      }
+
+      const data = await res.json();
+      setRegistros(data.rows || []);
+      setTotal(data.total || 0);
+    } catch (err: any) {
+      setError(err.message || "Erro ao carregar dados");
+      setRegistros([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleExportExecute = async () => {
     try {
@@ -830,6 +968,26 @@ export function AdminConfig({
     } catch (err) {
       console.error('Erro exportando Excel', err);
       toast.error('Erro ao exportar relatório');
+    }
+  };
+  const fetchEstatisticas = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
+      if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
+      
+      // Adicionar tipo se não estiver no modo comparativo
+      if (viewMode !== 'comparativo') {
+        params.set('tipo', viewMode);
+      }
+
+      const res = await fetch(`http://localhost:3000/api/amendoim/estatisticas?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setEstatisticas(data);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar estatísticas:', err);
     }
   };
 
@@ -1258,11 +1416,84 @@ export function AdminConfig({
           </Label>
         </div> */}
 
+        {user?.userType === 'amendoim' && (
+        <div className="flex flex-col justify-center items-center border rounded p-4 bg-white w-fit">
+          {/* Upload button - mesmo estilo do coletor */}
+          <Popover>
+            <div>
+              <Label className="font-medium text-gray-700 mb-2">Importar CSV</Label>
+            </div>
+            <PopoverTrigger>
+              <Button>
+                <FileUp />
+                <p>Importar</p>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className=" w-fit gap-2 flex flex-col" side="bottom" sideOffset={4}>
+              {/* Seletor de tipo de upload */}
+              <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
+                <Button
+                size="sm"
+                onClick={() => setUploadTipo('entrada')}
+                className={cn(
+                  "h-7 text-xs font-medium transition-all",
+                  uploadTipo === 'entrada'
+                    ? "bg-green-600 text-white hover:bg-green-700"
+                    : "bg-transparent text-gray-600 hover:bg-gray-100"
+                )}
+                >
+                Entrada
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setUploadTipo('saida')}
+                  className={cn(
+                    "h-7 text-xs font-medium transition-all",
+                    uploadTipo === 'saida'
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-transparent text-gray-600 hover:bg-gray-100"
+                  )}
+                >
+                Saída
+                </Button>
+              </div>
+              <input
+                id="csv-upload"
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleFileUpload}
+                disabled={uploading}
+              />
+              <label htmlFor="csv-upload">
+                <Button disabled={uploading} asChild className="bg-red-600 hover:bg-gray-700 w-34">
+                  <span className="cursor-pointer">
+                    <div className="flex items-center gap-1">
+                    {uploading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                    {uploading ? (
+                      <p className="hidden 3xl:flex">Enviando...</p>
+                    ) : (
+                      <p className="hidden 3xl:flex">Enviar CSV</p>
+                    )}
+                    </div>
+                  </span>
+                </Button>
+              </label>
+            </PopoverContent>
+          </Popover>
+        </div>
+        )}
+        
+        {user?.userType === 'racao' && (
         <div
           id="CsvImport"
-          className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3"
+          className="flex flex-col justify-center items-center border rounded p-4 bg-white md:w-1/3"
         >
-          <Label className="font-medium text-gray-700">Importar CSV</Label>
+          <Label className="font-medium text-gray-700">Importar CSV </Label>
           <Button
             disabled={!isEditing}
             className="w-full mt-2 bg-red-600 hover:bg-red-700"
@@ -1339,10 +1570,11 @@ export function AdminConfig({
               input.click();
             }}
           >
+            <FileUp />
             Importar
           </Button>
         </div>
- 
+        )}
       </div>
 
       <div className="flex gap-2 justify-end mt-6">

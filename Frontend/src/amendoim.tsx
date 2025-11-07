@@ -503,7 +503,7 @@ const pages = Array.from(
             <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
             
             {/* Botão de Configuração */}
-            {user?.isAdmin && (
+            {/* {user?.isAdmin && (
               <Button
                 onClick={() => setConfigModalOpen(true)}
                 className="flex items-center gap-1 bg-gray-700 hover:bg-gray-800"
@@ -512,7 +512,7 @@ const pages = Array.from(
                 <Settings className="h-4 w-4" />
                 <p className="hidden 3xl:flex">Configurar</p>
               </Button>
-            )}
+            )} */}
 
             {/* Collector toggle (mesma UI do Report) */}
             <Button
@@ -531,80 +531,13 @@ const pages = Array.from(
                 <Play className="h-4 w-4" />
               )}
               {collectorLoading ? (
-                <p className="hidden 3xl:flex">Processando...</p>
+                <p> Processando...</p>
               ) : collectorRunning ? (
-                <p className="hidden 3xl:flex"> Parar coleta</p>
+                <p>  Parar coleta</p>
               ) : (
-                <p className="hidden 3xl:flex">Iniciar coleta</p>
+                <p> Iniciar coleta</p>
               )}
             </Button>
-            
-            
-            <Popover>
-              <PopoverTrigger>
-                <Button>
-                  <FileUp />
-                  <p className="hidden 3xl:flex">Enviar manualmente</p>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className=" w-fit gap-2 flex flex-col" side="bottom" sideOffset={4}>
-                {/* Seletor de tipo de upload */}
-            <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
-              <Button
-                size="sm"
-                onClick={() => setUploadTipo('entrada')}
-                className={cn(
-                  "h-7 text-xs font-medium transition-all",
-                  uploadTipo === 'entrada'
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-transparent text-gray-600 hover:bg-gray-100"
-                )}
-              >
-                Entrada
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => setUploadTipo('saida')}
-                className={cn(
-                  "h-7 text-xs font-medium transition-all",
-                  uploadTipo === 'saida'
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-transparent text-gray-600 hover:bg-gray-100"
-                )}
-              >
-                Saída
-              </Button>
-            </div>
-                <input
-                  id="csv-upload"
-                  type="file"
-                  accept=".csv"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                />
-                <label htmlFor="csv-upload">
-                  <Button disabled={uploading} asChild className="bg-red-600 hover:bg-gray-700 w-34">
-                    <span className="cursor-pointer">
-                      <div className="flex items-center gap-1">
-                      {uploading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Upload className="h-4 w-4" />
-                      )}
-                      {uploading ? (
-                        <p className="hidden 3xl:flex">Enviando...</p>
-                      ) : (
-                        <p className="hidden 3xl:flex">Enviar CSV</p>
-                      )}
-                    </div>
-                  </span>
-                </Button>
-              </label>
-              </PopoverContent>
-            </Popover>
-            {/* Upload button - mesmo estilo do coletor */}
-            
           </div>
         </div>
       </div>
