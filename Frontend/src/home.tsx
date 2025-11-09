@@ -446,12 +446,12 @@ export default function Home() {
   if (tipoHome === "amendoim") {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-1 overflow-auto ">
+        <div className="flex-1 overflow-hidden ">
           <div className="p-4 space">
 
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300px]">
+            <div className="grid grid-cols-3 gap-4 mb-4 ">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Entrada (período selecionado)</CardTitle>
@@ -521,7 +521,7 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Saída (período selecionado)</CardTitle>
@@ -591,30 +591,11 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[300px]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
-                  <CardTitle className="text-sm font-semibold">Saídas por Produto (comparação)</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 h-[220px]">
-                  <DonutChartWidget
-                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }), tipo: 'saida' })}`}
-                    compact
-                    unit="kg"
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Gráficos de barras Entrada e Saída + Card de Rendimento */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
-                   
-
-              {/* Card de Cálculo de Conflito/Rendimento */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px]">
-                <CardHeader className="border-b border-gray-100 pb-3 px-3">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
+                <CardHeader className="border-b border-gray-100 pt-2 h-17">
                   <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-4 px-4">
+                <CardContent className="pt-4 h-[calc(100%-60px)]">
                   {(entradaSum !== null && saidaSum !== null) && (entradaSum > 0 || saidaSum > 0) ? (
                     <div className="space-y-4">
                       {/* Porcentagem de Aproveitamento */}
@@ -663,6 +644,30 @@ export default function Home() {
                   )}
                 </CardContent>
               </Card>
+
+              
+            </div>
+
+            {/* Gráficos de barras Entrada e Saída + Card de Rendimento */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+                   
+
+              {/* Card de Cálculo de Conflito/Rendimento */}
+              
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
+                <CardHeader className="border-b border-gray-100 h-18 pt-2">
+                  <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto (comparação)</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                  <DonutChartWidget
+                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }), tipo: 'saida' })}`}
+                    compact
+                    unit="kg"
+                  />
+                </CardContent>
+              </Card>
+              
+              
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
                 <CardHeader className="border-b border-gray-100 pb-3">
                   <div className="flex items-center justify-between">
@@ -714,7 +719,7 @@ export default function Home() {
 
               {/* Produção Semanal */}
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
-                <CardHeader className="border-b border-gray-100 pb-3">
+                <CardHeader className="border-b border-gray-100 pb-3 h-17">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Produção Semanal</CardTitle>
                     <div className="flex items-center gap-1">
