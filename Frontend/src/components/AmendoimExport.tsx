@@ -91,6 +91,16 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
     setLocalComments(comentarios || []);
   }, [comentarios]);
 
+  // Keep filter inputs in sync if parent `filtros` prop changes (report applies filters)
+  useEffect(() => {
+    setTipo(filtros.tipo || "todos");
+    setDataInicio(filtros.dataInicio || "");
+    setDataFim(filtros.dataFim || "");
+    setCodigoProduto(filtros.codigoProduto || "");
+    setNomeProduto(filtros.nomeProduto || "");
+    setCodigoCaixa(filtros.codigoCaixa || "");
+  }, [filtros.tipo, filtros.dataInicio, filtros.dataFim, filtros.codigoProduto, filtros.nomeProduto, filtros.codigoCaixa]);
+
   const handleExcelExport = async () => {
     try {
       const backendPort = 3000;
@@ -163,8 +173,25 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
       const params = new URLSearchParams();
 
       // Build common params
-      if (dataInicio) params.append("dataInicio", dataInicio);
-      if (dataFim) params.append("dataFim", dataFim);
+      // backend expects dates in DD-MM-YY like the Excel export — convert if necessary
+      const convertToDB = (d?: string) => {
+        if (!d) return undefined;
+        if (/^\d{2}-\d{2}-\d{2}$/.test(d)) return d;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+          const [y, m, day] = d.split("-");
+          return `${day}-${m}-${y.slice(-2)}`;
+        }
+        return d;
+      };
+
+      const dInicio = convertToDB(dataInicio);
+      const dFim = convertToDB(dataFim);
+      if (dInicio) params.append("dataInicio", dInicio);
+      if (dFim) params.append("dataFim", dFim);
+      // advanced filters: include product/box filters so PDF data matches UI filters
+      if (codigoProduto) params.append("codigoProduto", codigoProduto);
+      if (nomeProduto) params.append("nomeProduto", nomeProduto);
+      if (codigoCaixa) params.append("codigoCaixa", codigoCaixa);
       // Request a large pageSize to fetch all registros for the PDF (avoid pagination mismatch)
       params.append("page", "1");
       params.append("pageSize", "100000");

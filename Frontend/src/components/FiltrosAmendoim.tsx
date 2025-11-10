@@ -91,8 +91,27 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
       setLoadingFiltros(true);
       try {
         const params = new URLSearchParams();
-        if (filtrosTemporarios.dataInicio) params.set('dataInicio', filtrosTemporarios.dataInicio);
-        if (filtrosTemporarios.dataFim) params.set('dataFim', filtrosTemporarios.dataFim);
+        // Backend expects DB date format (DD-MM-YY). Convert from YYYY-MM-DD inputs.
+        const convertToDB = (d?: string) => {
+          if (!d) return undefined;
+          const s = String(d).trim();
+          if (/^\d{2}-\d{2}-\d{2}$/.test(s)) return s;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+            const [y, m, day] = s.split('-');
+            return `${day}-${m}-${y.slice(-2)}`;
+          }
+          if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+            const [datePart] = s.split('T');
+            const [y, m, day] = datePart.split('-');
+            return `${day}-${m}-${y.slice(-2)}`;
+          }
+          return s;
+        };
+
+        const dInicio = convertToDB(filtrosTemporarios.dataInicio);
+        const dFim = convertToDB(filtrosTemporarios.dataFim);
+        if (dInicio) params.set('dataInicio', dInicio);
+        if (dFim) params.set('dataFim', dFim);
         const url = `http://localhost:3000/api/amendoim/filtrosDisponiveis?${params.toString()}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('Failed to fetch filtros disponíveis');
@@ -101,11 +120,8 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
         if (!mounted) return;
 
         const cods = Array.isArray(body.codigosProduto) ? body.codigosProduto.map(c => String(c)) : [];
-        
-        // Only update options if we got valid data
-        if (cods.length > 0) {
-          setCodigosOptions(cods);
-        }
+        // Always update options even if empty so the UI reflects 'no codes for this period'
+        setCodigosOptions(cods);
 
         // Keep the existing product code selection
         setFiltrosTemporarios(prev => ({
