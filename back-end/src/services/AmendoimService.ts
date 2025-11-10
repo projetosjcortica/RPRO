@@ -170,8 +170,8 @@ export class AmendoimService {
       });
     }
 
-    // Ordenação
-    qb.orderBy("amendoim.dia", "DESC");
+    // Ordenação usando conversão de data (DD-MM-YY -> data real)
+    qb.orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "DESC");
     qb.addOrderBy("amendoim.hora", "DESC");
 
     // Paginação
