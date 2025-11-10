@@ -5,6 +5,7 @@ import {
   View,
   StyleSheet,
   Font,
+  Image,
 } from "@react-pdf/renderer";
 
 // Registrar fontes
@@ -172,8 +173,13 @@ export const AmendoimPDFDocument = ({
   // Helper: safely format numbers that may come as string/null
   const formatNumber = (value: any, decimals = 2) => {
     const n = Number(value);
-    if (!isFinite(n)) return (0).toFixed(decimals);
-    return n.toFixed(decimals);
+    if (!isFinite(n)) return "0" + (decimals > 0 ? "." + "0".repeat(decimals) : "");
+    
+    // Formatar com separador de milhares (ponto) e casas decimais
+    return n.toLocaleString("pt-BR", {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
   };
 
   // Calcular estatísticas se não fornecidas
@@ -240,15 +246,23 @@ export const AmendoimPDFDocument = ({
     <Document>
       <Page size="A4" orientation="portrait" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.title}>Relatório de Amendoim - Cortez</Text>
-          <Text style={styles.subtitle}>Gerado em: {dataGeracao}</Text>
-          {filtros.dataInicio && (
-            <Text style={styles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
-          )}
-          {filtros.tipo && <Text style={styles.subtitle}>Tipo: {filtros.tipo}</Text>}
-          {filtros.codigoProduto && <Text style={styles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
-          {filtros.nomeProduto && <Text style={styles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
-          {filtros.codigoCaixa && <Text style={styles.subtitle}>Cód. Caixa: {filtros.codigoCaixa}</Text>}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.title}>Relatório de Amendoim - Cortez</Text>
+              <Text style={styles.subtitle}>Gerado em: {dataGeracao}</Text>
+              {filtros.dataInicio && (
+                <Text style={styles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
+              )}
+              {filtros.tipo && <Text style={styles.subtitle}>Tipo: {filtros.tipo}</Text>}
+              {filtros.codigoProduto && <Text style={styles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
+              {filtros.nomeProduto && <Text style={styles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
+              {filtros.codigoCaixa && <Text style={styles.subtitle}>Cód. Caixa: {filtros.codigoCaixa}</Text>}
+            </View>
+            <Image 
+              src="/logo.png" 
+              style={{ width: 60, height: 60, objectFit: 'contain' }}
+            />
+          </View>
         </View>
 
         <View style={styles.section}>
@@ -260,7 +274,7 @@ export const AmendoimPDFDocument = ({
             </View>
             <View style={[styles.metricCard, { flex: 1 }]}>
               <Text style={styles.metricTitle}>Peso Total (kg)</Text>
-              <Text style={styles.metricValue}>{formatNumber(stats.pesoTotal, 2)}</Text>
+              <Text style={styles.metricValue}>{formatNumber(stats.pesoTotal, 3)}</Text>
             </View>
             <View style={[styles.metricCard, { flex: 1 }]}>
               <Text style={styles.metricTitle}>Rendimento (%)</Text>

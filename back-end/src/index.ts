@@ -741,6 +741,9 @@ app.post("/api/clear/production", async (req, res) => {
         await cacheService.clearAll();
         console.log('[api/clear/production] collector cache cleared');
       }
+      
+      // Clear AmendoimCollector change detection cache (in-memory)
+      AmendoimCollectorService.clearChangeCache();
     } catch (e) {
       console.warn("[api/clear/production] clearing collector cache failed", e);
     }
@@ -4096,11 +4099,27 @@ app.get('/api/amendoim/collector/cache/stats', async (req, res) => {
 // DELETE /api/amendoim/collector/cache - Limpar todo o cache
 app.delete('/api/amendoim/collector/cache', async (req, res) => {
   try {
-    AmendoimCollectorService.clearAllCache();
+    await AmendoimCollectorService.clearAllCache();
     return res.json({ success: true, message: 'Cache limpo com sucesso' });
   } catch (e: any) {
     console.error('[api/amendoim/collector/cache] error', e);
     return res.status(500).json({ error: e?.message || 'Erro ao limpar cache' });
+  }
+});
+
+// DELETE /api/amendoim/collector/cache/:fileName - Limpar cache de arquivo específico
+app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
+  try {
+    const { fileName } = req.params;
+    const deleted = await AmendoimCollectorService.clearFileCache(fileName);
+    return res.json({ 
+      success: true, 
+      deleted,
+      message: deleted ? 'Cache do arquivo limpo com sucesso' : 'Arquivo não encontrado no cache' 
+    });
+  } catch (e: any) {
+    console.error('[api/amendoim/collector/cache/:fileName] error', e);
+    return res.status(500).json({ error: e?.message || 'Erro ao limpar cache do arquivo' });
   }
 });
 

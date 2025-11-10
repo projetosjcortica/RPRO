@@ -330,7 +330,7 @@ export class DBService extends BaseService {
    */
   async clearAll() {
     await this.init();
-    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User];
+    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim];
     // Use a transaction to ensure atomicity when supported
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -628,7 +628,7 @@ export class DBService extends BaseService {
 
     console.log(`[DBService] Exporting SQL dump to: ${outputPath}`);
 
-    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, Setting, User];
+    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, Setting, User, Amendoim];
     const exportedTables: string[] = [];
     let sqlContent = '';
 

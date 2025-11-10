@@ -101,7 +101,12 @@ export default function HomeAmendoim() {
               <TrendingUp className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{((metricas?.pesoEntrada || 0) / 1000).toFixed(2)}t</div>
+              <div className="text-2xl font-bold">
+                {(metricas?.pesoEntrada || 0).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 3,
+                  maximumFractionDigits: 3,
+                })} kg
+              </div>
               <p className="text-xs text-muted-foreground">Matéria-prima recebida</p>
             </CardContent>
           </Card>
@@ -112,7 +117,12 @@ export default function HomeAmendoim() {
               <Package className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{((metricas?.pesoSaida || 0) / 1000).toFixed(2)}t</div>
+              <div className="text-2xl font-bold">
+                {(metricas?.pesoSaida || 0).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 3,
+                  maximumFractionDigits: 3,
+                })} kg
+              </div>
               <p className="text-xs text-muted-foreground">Produto processado</p>
             </CardContent>
           </Card>

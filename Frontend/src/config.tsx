@@ -81,22 +81,6 @@ export interface FormDataOptional {
   // per-IHM file method for first IHM if needed (keeps backward compatibility)
   metodoCSV?: string;
   localCSV?: string;
-  // Roteamento de dados para amendoim
-  ihmEntrada?: string | null; // 'ihm1' | 'ihm2' | null
-  ihmSaida?: string | null; // 'ihm1' | 'ihm2' | null
-  // Tipo de coleta quando usando uma única IHM
-  tipoColetaUnicaIHM?: string; // 'ambos' | 'entrada' | 'saida'
-  // Arquivos de entrada e saída para amendoim
-  arquivoEntrada?: string;
-  arquivoSaida?: string;
-  // Configuração da segunda IHM para amendoim
-  ihm2?: {
-    ip?: string;
-    user?: string;
-    password?: string;
-    caminhoRemoto?: string;
-  };
-  caminhoRemoto?: string;
 }
 
 type FormDataKey = keyof FormData;
@@ -623,69 +607,7 @@ export function IHMConfig({
         </label>
       </div>
 
-      {/* Tipo de dados - apenas quando usando UMA IHM */}
-      {!(formData as any).duasIHMs && (
-        <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-          <Label className="font-medium text-gray-700 mb-3 block">
-            Tipo de Coleta
-          </Label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={!isEditing}
-              onClick={() => {
-                onChange("ihmEntrada", "ihm1");
-                onChange("ihmSaida", "ihm1");
-                onChange("tipoColetaUnicaIHM", "ambos");
-              }}
-              className={`flex-1 px-3 py-2 rounded-md border transition-colors ${
-                ((formData as any).tipoColetaUnicaIHM || "ambos") === "ambos"
-                  ? "bg-red-600 text-white border-red-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              } ${!isEditing ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              Entrada + Saída
-            </button>
-            <button
-              type="button"
-              disabled={!isEditing}
-              onClick={() => {
-                onChange("ihmEntrada", "ihm1");
-                onChange("ihmSaida", null);
-                onChange("tipoColetaUnicaIHM", "entrada");
-              }}
-              className={`flex-1 px-3 py-2 rounded-md border transition-colors ${
-                ((formData as any).tipoColetaUnicaIHM || "ambos") === "entrada"
-                  ? "bg-red-600 text-white border-red-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              } ${!isEditing ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              Apenas Entrada
-            </button>
-            <button
-              type="button"
-              disabled={!isEditing}
-              onClick={() => {
-                onChange("ihmEntrada", null);
-                onChange("ihmSaida", "ihm1");
-                onChange("tipoColetaUnicaIHM", "saida");
-              }}
-              className={`flex-1 px-3 py-2 rounded-md border transition-colors ${
-                ((formData as any).tipoColetaUnicaIHM || "ambos") === "saida"
-                  ? "bg-red-600 text-white border-red-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              } ${!isEditing ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              Apenas Saída
-            </button>
-          </div>
-          <div className="mt-2 text-xs text-gray-500">
-            {((formData as any).tipoColetaUnicaIHM || "ambos") === "ambos" && "Coletando dados de entrada e saída da mesma IHM"}
-            {((formData as any).tipoColetaUnicaIHM || "ambos") === "entrada" && "Coletando apenas dados de entrada"}
-            {((formData as any).tipoColetaUnicaIHM || "ambos") === "saida" && "Coletando apenas dados de saída"}
-          </div>
-        </div>
-      )}
+
 
       {/* IHM tab selector */}
       <div className="flex gap-2">
@@ -831,92 +753,7 @@ export function IHMConfig({
         );
       })()}
 
-      {/* Roteamento de dados - apenas se duasIHMs estiver ativo */}
-      {(formData as any).duasIHMs && (
-        <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-          <Label className="font-medium text-gray-700 mb-4 block">
-            Roteamento de Dados
-          </Label>
-          
-          <div className="grid grid-cols-2 gap-4">
-            {/* Seleção IHM para ENTRADA */}
-            <div>
-              <Label className="text-sm font-medium text-gray-600 mb-2 block">
-                Dados de Entrada
-              </Label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={!isEditing}
-                  onClick={() => onChange("ihmEntrada", "ihm1")}
-                  className={`flex-1 px-3 py-2 rounded-md border transition-colors ${
-                    ((formData as any).ihmEntrada || "ihm1") === "ihm1"
-                      ? "bg-red-600 text-white border-red-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  } ${!isEditing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  IHM 1
-                </button>
-                <button
-                  type="button"
-                  disabled={!isEditing}
-                  onClick={() => onChange("ihmEntrada", "ihm2")}
-                  className={`flex-1 px-3 py-2 rounded-md border transition-colors ${
-                    ((formData as any).ihmEntrada || "ihm1") === "ihm2"
-                      ? "bg-red-600 text-white border-red-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  } ${!isEditing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  IHM 2
-                </button>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">
-                IP: {((formData as any).ihmEntrada || "ihm1") === "ihm1" 
-                  ? ((formData as any).ip || "Não configurado")
-                  : ((formData as any).ip2 || "Não configurado")}
-              </div>
-            </div>
 
-            {/* Seleção IHM para SAÍDA */}
-            <div>
-              <Label className="text-sm font-medium text-gray-600 mb-2 block">
-                Dados de Saída
-              </Label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={!isEditing}
-                  onClick={() => onChange("ihmSaida", "ihm1")}
-                  className={`flex-1 px-3 py-2 rounded-md border transition-colors ${
-                    ((formData as any).ihmSaida || "ihm1") === "ihm1"
-                      ? "bg-red-600 text-white border-red-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  } ${!isEditing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  IHM 1
-                </button>
-                <button
-                  type="button"
-                  disabled={!isEditing}
-                  onClick={() => onChange("ihmSaida", "ihm2")}
-                  className={`flex-1 px-3 py-2 rounded-md border transition-colors ${
-                    ((formData as any).ihmSaida || "ihm1") === "ihm2"
-                      ? "bg-red-600 text-white border-red-600"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                  } ${!isEditing ? "opacity-50 cursor-not-allowed" : ""}`}
-                >
-                  IHM 2
-                </button>
-              </div>
-              <div className="mt-2 text-xs text-gray-500">
-                IP: {((formData as any).ihmSaida || "ihm1") === "ihm1" 
-                  ? ((formData as any).ip || "Não configurado")
-                  : ((formData as any).ip2 || "Não configurado")}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="flex gap-2 justify-end mt-6">
         {isEditing ? (

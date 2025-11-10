@@ -50,6 +50,7 @@ export interface AmendoimConfig {
 
 /**
  * Configuração padrão do sistema de amendoim
+ * REGRA FIXA: IHM1 = ENTRADA, IHM2 = SAÍDA
  */
 export const AMENDOIM_CONFIG_DEFAULT: AmendoimConfig = {
   arquivoEntrada: "Relatorio_2025_11.csv", // Padrão mensal
@@ -64,8 +65,8 @@ export const AMENDOIM_CONFIG_DEFAULT: AmendoimConfig = {
     entrada: [],
     saida: [],
   },
-  ihmEntrada: "ihm1", // Por padrão, IHM1 coleta entrada
-  ihmSaida: "ihm1",   // Por padrão, IHM1 coleta saída
+  ihmEntrada: "ihm1", // FIXO: IHM1 sempre coleta entrada
+  ihmSaida: "ihm1",   // Se uma IHM, usa IHM1 para saída também. Se duas IHMs, usa IHM2 (ajustado dinamicamente)
 };
 
 /**

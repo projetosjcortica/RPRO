@@ -4,7 +4,8 @@ import { AppDataSource } from "./dbService";
 
 /**
  * Service para processar arquivos CSV de amendoim.
- * Formato esperado: Dia, Hora, ?, Código Produto, Código Caixa, Nome Produto, ?, ?, Peso
+ * Formato esperado: Data,Hora,,CódigoProduto,CódigoCaixa,NomeProduto,,,Peso,,Balanca
+ * Exemplo: 10/11/25,14:15:03,,,1,456,Amendoim,,,2210,,1
  * Sistema suporta entrada (pré-debulhamento) e saída (pós-debulhamento)
  */
 export class AmendoimService {
@@ -48,39 +49,38 @@ export class AmendoimService {
             continue;
           }
 
+          // Formato novo: Data,Hora,Col2,Col3,CódigoProduto,CódigoCaixa,NomeProduto,Col7,Col8,Peso,Col10,Balanca
+          // Exemplo: 10/11/25,14:15:03,,,1,456,Amendoim,,,2210,,1
           const [
-            dataHora,      // 0: Data e Hora juntas (DD-MM-YY HH:MM:SS)
-            _col1,         // 1: Irrelevante
-            codigoProduto, // 2: Código do produto
-            codigoCaixa,   // 3: Código da caixa
-            nomeProduto,   // 4: Nome do produto
-            _col5,         // 5: Irrelevante
-            _col6,         // 6: Irrelevante
-            peso,          // 7: Peso
-            _col8,         // 8: Irrelevante
-            balanca,       // 9: Identificador da balança
+            data,          // 0: Data (DD/MM/YY)
+            hora,          // 1: Hora (HH:MM:SS)
+            _col2,         // 2: Vazio
+            _col3,         // 3: Vazio
+            codigoProduto, // 4: Código do produto
+            codigoCaixa,   // 5: Código da caixa
+            nomeProduto,   // 6: Nome do produto
+            _col7,         // 7: Vazio
+            _col8,         // 8: Vazio
+            peso,          // 9: Peso
+            _col10,        // 10: Vazio
+            balanca,       // 11: Identificador da balança
           ] = row;
 
-          // Separar data e hora
-          const dataHoraStr = String(dataHora || "").trim();
-          const partes = dataHoraStr.split(" ");
-          
-          if (partes.length < 2) {
-            erros.push(`Linha ${i + 1}: Formato de data/hora inválido (${dataHoraStr})`);
-            continue;
-          }
-
-          const dia = partes[0]; // DD-MM-YY
-          const hora = partes[1]; // HH:MM:SS
-
           // Validações básicas
-          if (!dia || !hora) {
+          const diaStr = String(data || "").trim();
+          const horaStr = String(hora || "").trim();
+          
+          if (!diaStr || !horaStr) {
             erros.push(`Linha ${i + 1}: Data ou hora ausente`);
             continue;
           }
 
-          if (!codigoProduto || !nomeProduto) {
-            erros.push(`Linha ${i + 1}: Código ou nome do produto ausente`);
+          // Validar se há produto (nome ou código)
+          const hasProduto = nomeProduto && String(nomeProduto).trim() !== "";
+          const hasCodigo = codigoProduto && String(codigoProduto).trim() !== "";
+          
+          if (!hasProduto && !hasCodigo) {
+            // Linha sem produto, pular silenciosamente (pode ser teste da balança)
             continue;
           }
 
@@ -92,11 +92,15 @@ export class AmendoimService {
           // Criar registro
           const registro = new Amendoim();
           registro.tipo = tipo; // Define o tipo (entrada ou saida)
-          registro.dia = dia.trim();
-          registro.hora = hora.trim();
-          registro.codigoProduto = String(codigoProduto).trim();
-          registro.codigoCaixa = String(codigoCaixa || "").trim();
-          registro.nomeProduto = String(nomeProduto).trim();
+          registro.dia = diaStr;
+          registro.hora = horaStr;
+          registro.codigoProduto = codigoProduto ? String(codigoProduto).trim() : "";
+          registro.codigoCaixa = codigoCaixa ? String(codigoCaixa).trim() : "";
+          
+          // Fallback para nome do produto vazio
+          const nomeProcessado = nomeProduto ? String(nomeProduto).trim() : "";
+          registro.nomeProduto = nomeProcessado || "Sem nome";
+          
           registro.peso = Number(peso);
           registro.balanca = balanca ? String(balanca).trim() : undefined;
 
@@ -106,10 +110,41 @@ export class AmendoimService {
         }
       }
 
-      // Salvar em lote
+      // Salvar em lote (usando upsert para evitar duplicatas)
       if (registrosParaSalvar.length > 0) {
-        await repo.save(registrosParaSalvar);
-        salvos = registrosParaSalvar.length;
+        // Buscar registros existentes para evitar duplicatas
+        // Chave única: dia + hora + tipo + codigoProduto (ou nomeProduto) + peso
+        const existentes = await repo.find({
+          where: registrosParaSalvar.map(r => ({
+            dia: r.dia,
+            hora: r.hora,
+            tipo: r.tipo,
+            peso: r.peso,
+          })),
+        });
+
+        // Filtrar apenas registros novos (não duplicados)
+        const registrosNovos = registrosParaSalvar.filter(novo => {
+          return !existentes.some(existente => 
+            existente.dia === novo.dia &&
+            existente.hora === novo.hora &&
+            existente.tipo === novo.tipo &&
+            existente.peso === novo.peso &&
+            existente.codigoProduto === novo.codigoProduto
+          );
+        });
+
+        if (registrosNovos.length > 0) {
+          await repo.save(registrosNovos);
+          salvos = registrosNovos.length;
+          
+          if (registrosNovos.length < registrosParaSalvar.length) {
+            const duplicados = registrosParaSalvar.length - registrosNovos.length;
+            console.log(`[AmendoimService] ${duplicados} registros duplicados ignorados`);
+          }
+        } else {
+          console.log(`[AmendoimService] Todos os ${registrosParaSalvar.length} registros já existem (duplicados)`);
+        }
       }
 
       return { processados, salvos, erros };
@@ -650,7 +685,7 @@ export class AmendoimService {
 
     return {
       chartData: results.map((r) => ({
-        name: r.name || "Desconhecido",
+        name: r.name || "Sem nome",
         value: Number(r.value || 0),
         count: Number(r.count || 0),
       })),

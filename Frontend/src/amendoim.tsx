@@ -894,8 +894,8 @@ export default function Amendoim() {
                     <div className="text-xs font-medium">Entrada</div>
                     <div className="text-sm font-bold">
                       {metricasRendimento.pesoEntrada.toLocaleString('pt-BR', {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
+                        minimumFractionDigits: 3,
+                        maximumFractionDigits: 3,
                       })} kg
                     </div>
                   </div>
@@ -903,8 +903,8 @@ export default function Amendoim() {
                     <div className="text-xs font-medium">Saída</div>
                     <div className="text-sm font-bold">
                       {metricasRendimento.pesoSaida.toLocaleString('pt-BR', {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
+                        minimumFractionDigits: 3,
+                        maximumFractionDigits: 3,
                       })} kg
                     </div>
                   </div>
@@ -915,8 +915,8 @@ export default function Amendoim() {
                   <div className="text-xs text-red-600 font-medium">Perda de material</div>
                   <div className="text-lg font-bold text-red-800">
                     {metricasRendimento.perda.toLocaleString('pt-BR', {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
+                      minimumFractionDigits: 3,
+                      maximumFractionDigits: 3,
                     })} kg
                     <span className="text-sm ml-2">({metricasRendimento.perdaPercentual.toFixed(2)}%)</span>
                   </div>

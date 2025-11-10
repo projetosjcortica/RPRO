@@ -46,31 +46,33 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    backgroundColor: "#dadadaff",
-    padding: 6,
+    backgroundColor: "#af1e1eff",
+    color: "#ffffff",
+    padding: 8,
     borderRadius: 4,
     marginBottom: 10,
-    color: "#af1e1eff",
+    textAlign: "center",
   },
   infoRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 8 },
   label: { fontWeight: "bold", color: "#374151" },
   value: { textAlign: "right" },
   table: {
     width: "100%",
-    borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderWidth: 2,
+    borderColor: "#af1e1eff",
     borderRightWidth: 0,
     borderBottomWidth: 0,
     flexDirection: "column",
     borderRadius: 4,
     overflow: "hidden",
+    marginBottom: 10,
   },
   tableRow: { flexDirection: "row" },
   tableRowEven: { flexDirection: "row", backgroundColor: "#f9fafb" },
   tableColHeader: {
     width: "70%",
-    borderBottomWidth: 1,
-    borderColor: "#d1d5db",
+    borderBottomWidth: 2,
+    borderColor: "#af1e1eff",
     backgroundColor: "#e2e2e2ff",
     padding: 8,
     fontWeight: "bold",
@@ -78,8 +80,8 @@ const styles = StyleSheet.create({
   },
   tableColHeaderSmall: {
     width: "30%",
-    borderBottomWidth: 1,
-    borderColor: "#d1d5db",
+    borderBottomWidth: 2,
+    borderColor: "#af1e1eff",
     backgroundColor: "#e5e7eb",
     padding: 8,
     fontWeight: "bold",
@@ -92,12 +94,13 @@ const styles = StyleSheet.create({
   comentarioMeta: { fontSize: 10, color: "#666666", marginBottom: 6 },
   comentarioTexto: { fontSize: 11, color: "#333333", lineHeight: 1.4 },
   // Chart styles
-  chartSection: { marginBottom: 10 },
-  chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
-  chartLabel: { width: '30%', fontSize: 10, color: '#374151' },
-  chartBarContainer: { width: '55%', height: 12, backgroundColor: '#e6e7ea', borderRadius: 4, overflow: 'hidden', marginRight: 6 },
-  chartBarFill: { height: 12, backgroundColor: '#af1e1eff' },
-  chartValue: { width: '10%', fontSize: 9, textAlign: 'right', color: '#374151' },
+  chartSection: { marginBottom: 15 },
+  chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, paddingVertical: 2 },
+  chartLabel: { width: '25%', fontSize: 8, color: '#374151', paddingRight: 4 },
+  chartBarContainer: { width: '45%', height: 10, backgroundColor: '#e6e7ea', borderRadius: 3, overflow: 'hidden', marginRight: 4 },
+  chartBarFill: { height: 10, backgroundColor: '#af1e1eff' },
+  chartValue: { width: '15%', fontSize: 8, textAlign: 'right', color: '#374151', paddingRight: 2 },
+  chartPercent: { width: '15%', fontSize: 8, textAlign: 'right', color: '#6b7280' },
   // donut
   donutContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   donutBox: { width: '35%', alignItems: 'center', justifyContent: 'center' },
@@ -183,7 +186,28 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // semanaChartData = [],
   // diasSemanaChartData = [],
 }) => {
-  const dataGeracao = new Date().toLocaleString("pt-BR");
+  const dataGeracao = new Date().toLocaleString("pt-BR", {
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  
+  // Formatar datas do período
+  const formatarData = (data: string) => {
+    if (!data || data === '-') return '-';
+    try {
+      const d = new Date(data);
+      if (isNaN(d.getTime())) return data;
+      return d.toLocaleDateString('pt-BR');
+    } catch {
+      return data;
+    }
+  };
+
+  const periodoInicioFormatado = formatarData(periodoInicio);
+  const periodoFimFormatado = formatarData(periodoFim);
   
   // Calcular tamanhos de fonte baseados na customização
   const fontSizes = {
@@ -628,13 +652,13 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           <View style={{ marginBottom: 6 }}>
             <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-              Data inicial: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoInicio}</Text>
+              Data inicial: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoInicioFormatado}</Text>
             </Text>
           </View>
 
           <View style={{ marginBottom: 6 }}>
             <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-              Data final: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoFim}</Text>
+              Data final: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoFimFormatado}</Text>
             </Text>
           </View>
 
@@ -655,7 +679,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {/* Fórmulas */}
         {formulasOrdenadas.length > 0 && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Resumo por Fórmula</Text>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>TABELA DE FÓRMULAS</Text>
             {renderFormulaTable(formulasOrdenadas)}
           </View>
         )}
@@ -680,16 +704,20 @@ export const MyDocument: FC<MyDocumentProps> = ({
       {/* Página 2 */}
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Produtos</Text>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>TABELA DE PRODUTOS</Text>
           
           {categorias.map((cat, idx) => ( 
-            <View key={idx} style={{ marginBottom: 10 }}>
+            <View key={idx} style={{ marginBottom: 15 }}>
+              <Text style={{ fontSize: currentFontSizes.base + 1, fontWeight: 'bold', color: '#af1e1eff', marginBottom: 8, paddingLeft: 4 }}>
+                {cat}
+              </Text>
               {renderTable(produtosPorCategoria[cat], (p) => ({
                 col1: p.nome,
                 col2: ((p.unidade === "kg" 
                   ? p.qtd 
                   : p.qtd).toLocaleString("pt-BR", {
                   minimumFractionDigits: 3,
+                  maximumFractionDigits: 3,
                 })+" kg"),
               }))}
             </View>
@@ -703,13 +731,14 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {/* Comentários do Relatório */}
         {comentarios && comentarios.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Comentários do Relatório
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>
+              COMENTÁRIOS DO RELATÓRIO
             </Text>
             {comentarios.map((c, i) => (
               <View key={i} style={styles.comentarioContainer}>
                 <Text style={styles.comentarioMeta}>
-                  {c.data || new Date().toLocaleDateString("pt-BR")}
+                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
+                  {c.autor && ` • ${c.autor}`}
                 </Text>
                 <Text style={styles.comentarioTexto}>{c.texto}</Text>
               </View>
@@ -755,24 +784,24 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {/* Gráficos */}
         {showCharts && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Porcentagens</Text>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Análise de Produção</Text>
             {chartTop.length === 0 ? (
               <Text style={styles.smallNote}>Nenhum dado de gráfico disponível.</Text>
             ) : (
               <View style={[styles.chartSection, { flexDirection: 'column' }]}>
-                <View style={{ marginTop: 8 }}>
+                <View style={{ marginTop: 4 }}>
                   {chartSource.slice().sort((a, b) => b.value - a.value).map((row, i) => {
                     const totalAll = chartSource.reduce((s, it) => s + it.value, 0) || 1;
                     const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
                     const color = palette[i % palette.length];
                     return (
                       <View key={i} style={styles.chartRow}>
-                        <Text style={styles.chartLabel}>{row.name}</Text>
+                        <Text style={styles.chartLabel}>{row.name.length > 30 ? row.name.substring(0, 27) + '...' : row.name}</Text>
                         <View style={styles.chartBarContainer}>
                           <View style={[styles.chartBarFill, { width: `${Math.max(1, Math.round(pct))}%`, backgroundColor: color }]} />
                         </View>
-                        <Text style={styles.chartValue}>{Number(row.value).toLocaleString('pt-BR', { maximumFractionDigits: 3 })} kg</Text>
-                        <Text style={{ fontSize: 9, width: 36, textAlign: 'right', color: '#6b7280' }}>{pct.toFixed(1)}%</Text>
+                        <Text style={styles.chartValue}>{Number(row.value).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</Text>
+                        <Text style={styles.chartPercent}>{pct.toFixed(1)}%</Text>
                       </View>
                     );
                   })}

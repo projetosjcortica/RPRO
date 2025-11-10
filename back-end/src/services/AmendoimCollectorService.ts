@@ -5,6 +5,7 @@ import { AmendoimService } from './AmendoimService';
 import { backupSvc } from './backupService';
 import { IHMService } from './IHMService';
 import { getRuntimeConfig } from '../core/runtimeConfig';
+import { cacheService } from './CacheService';
 
 interface ChangeDetectionRecord {
   filePath: string;
@@ -44,9 +45,8 @@ export class AmendoimCollectorService {
   }
 
   /**
-   * Baixar arquivo específico do IHM via findAndDownloadNewFiles
-   * Como o IHMService não tem método direto, usamos findAndDownloadNewFiles
-   * e filtramos pelo nome desejado
+   * Baixar arquivo do IHM via findAndDownloadNewFiles
+   * Usa o arquivo configurado como referência, mas aceita qualquer CSV baixado
    */
   private static async downloadSpecificFile(
     fileName: string,
@@ -54,59 +54,73 @@ export class AmendoimCollectorService {
     tipo: 'entrada' | 'saida',
     ihmServiceOverride?: IHMService
   ): Promise<{ name: string; localPath: string; size: number } | null> {
-    // Try primary IHM first, then fall back to IHM2 (if configured) before giving up
     const tryWithService = async (svc: IHMService) => {
       try {
         const downloaded = await svc.findAndDownloadNewFiles(localDir);
-        if (!downloaded || downloaded.length === 0) return null;
-        let targetFile = downloaded.find(f => f.name === fileName);
+        if (!downloaded || downloaded.length === 0) {
+          console.log(`[AmendoimCollector] Nenhum arquivo novo baixado do IHM`);
+          return null;
+        }
 
-        // If exact name not found, try intelligent partial match by tipo
-        if (!targetFile && downloaded.length > 0) {
-          const normalizedSearch = fileName.replace(/\.+/g, '.').replace(/[^a-zA-Z0-9_.-]/g, '');
-          const patterns = tipo === 'entrada' ? ['ENTRA', 'ENTRADA', 'IN', 'INPUT'] : ['SAIDA', 'OUT', 'OUTPUT'];
+        // Prioridade 1: Nome exato configurado
+        let targetFile = downloaded.find(f => f.name === fileName);
+        
+        // Prioridade 2: Match inteligente por padrão do tipo (ENTRADA/SAIDA)
+        if (!targetFile) {
+          const patterns = tipo === 'entrada' 
+            ? ['ENTRA', 'ENTRADA', 'IN', 'INPUT'] 
+            : ['SAIDA', 'OUT', 'OUTPUT'];
+          
           targetFile = downloaded.find(f => {
             const upperName = f.name.toUpperCase();
             return patterns.some(p => upperName.includes(p));
           });
+          
           if (targetFile) {
-            console.log(`[AmendoimCollector] Nome configurado "${fileName}" não encontrado, usando "${targetFile.name}" (match por tipo ${tipo})`);
+            console.log(`[AmendoimCollector] ✓ Arquivo encontrado por padrão ${tipo}: "${targetFile.name}" (configurado: "${fileName}")`);
+          }
+        }
+
+        // Prioridade 3: Usar primeiro CSV disponível (sem _sys.csv)
+        if (!targetFile && downloaded.length > 0) {
+          targetFile = downloaded.find(f => 
+            !f.name.toLowerCase().includes('_sys') && 
+            f.name.toLowerCase().endsWith('.csv')
+          );
+          
+          if (targetFile) {
+            console.log(`[AmendoimCollector] ⚠️ Usando primeiro CSV disponível: "${targetFile.name}" (configurado: "${fileName}")`);
           }
         }
 
         return targetFile || null;
       } catch (err: any) {
-        console.warn(`[AmendoimCollector] Falha no download FTP de ${fileName} com um IHM (erro: ${err?.message || err})`);
+        console.warn(`[AmendoimCollector] Erro no download FTP: ${err?.message || err}`);
         return null;
       }
     };
 
-    // Primary attempt
+    // Tentar IHM primário
     const primarySvc = ihmServiceOverride ?? this.getIHMService();
     let result = await tryWithService(primarySvc);
 
-    // If primary failed, and ihm-config has a configured ihm2, try it
+    // Tentar IHM2 se configurado e primário falhou
     if (!result) {
-      try {
-        const ihmCfg = getRuntimeConfig('ihm-config') || {};
-        if ((ihmCfg as any).duasIHMs && (ihmCfg as any).ihm2) {
-          const ih2 = (ihmCfg as any).ihm2;
-          // Only try IHM2 if it is intended for this tipo OR if primary failed
-          try {
-            console.log(`[AmendoimCollector] Tentando IHM2 (${ih2.ip}) como fallback para ${fileName}`);
-            const svc2 = new IHMService(
-              ih2.ip || process.env.IHM_IP || '192.168.5.250',
-              ih2.user || process.env.IHM_USER || 'anonymous',
-              ih2.password || process.env.IHM_PASSWORD || ''
-            );
-            result = await tryWithService(svc2);
-            if (result) console.log(`[AmendoimCollector] Sucesso via IHM2: ${result.name}`);
-          } catch (e) {
-            console.warn('[AmendoimCollector] Erro ao tentar IHM2 fallback', e);
-          }
+      const ihmCfg = getRuntimeConfig('ihm-config') || {};
+      if ((ihmCfg as any).duasIHMs && (ihmCfg as any).ihm2) {
+        const ih2 = (ihmCfg as any).ihm2;
+        try {
+          console.log(`[AmendoimCollector] Tentando IHM2 (${ih2.ip}) como fallback`);
+          const svc2 = new IHMService(
+            ih2.ip || '192.168.5.250',
+            ih2.user || 'anonymous',
+            ih2.password || ''
+          );
+          result = await tryWithService(svc2);
+          if (result) console.log(`[AmendoimCollector] ✓ Arquivo obtido via IHM2: ${result.name}`);
+        } catch (e) {
+          console.warn('[AmendoimCollector] Erro ao tentar IHM2:', e);
         }
-      } catch (e) {
-        // ignore amendoim-config read errors
       }
     }
 
@@ -193,8 +207,7 @@ export class AmendoimCollectorService {
       };
     }
 
-    // Arquivo não mudou
-    console.log(`⏭️  [AmendoimCollector] Arquivo ${fileName} não foi modificado, pulando processamento`);
+    // Arquivo não mudou (mas será reprocessado mesmo assim)
     return {
       hasChanged: false,
       changeType: 'none',
@@ -210,6 +223,16 @@ export class AmendoimCollectorService {
     return {
       running: this.isRunning,
     };
+  }
+
+  /**
+   * Limpa a cache de detecção de mudanças
+   * Deve ser chamado ao limpar dados de produção para forçar reprocessamento
+   */
+  static clearChangeCache(): void {
+    const count = this.changeRecords.size;
+    this.changeRecords.clear();
+    console.log(`[AmendoimCollector] Cache de mudanças limpa: ${count} registros removidos`);
   }
 
   /**
@@ -281,28 +304,37 @@ export class AmendoimCollectorService {
       // Usar configuração do ihm-config
       const ihmCfg = getRuntimeConfig('ihm-config') || {};
       
+      // ⚡ VALIDAÇÃO: Verificar se há configuração mínima
+      if (!ihmCfg.ip && !process.env.IHM_IP) {
+        throw new Error('Configuração de IHM não encontrada. Configure a IHM antes de iniciar o coletor.');
+      }
+      
+      // ⚡ REGRA FIXA: IHM1 = ENTRADA, IHM2 = SAÍDA
+      const ihmEntrada = ihmCfg.duasIHMs ? "ihm1" : "ihm1";
+      const ihmSaida = ihmCfg.duasIHMs ? "ihm2" : "ihm1";
+      
       console.log('[AmendoimCollector] Configuração (ihm-config):', {
         arquivoEntrada: ihmCfg.arquivoEntrada,
         arquivoSaida: ihmCfg.arquivoSaida,
         caminhoRemoto: ihmCfg.caminhoRemoto,
         duasIHMs: ihmCfg.duasIHMs,
-        ihmEntrada: ihmCfg.ihmEntrada,
-        ihmSaida: ihmCfg.ihmSaida,
+        ihmEntrada,
+        ihmSaida,
         ip: ihmCfg.ip,
       });
 
-      // Criar IHM1 (principal)
+      // Criar IHM1 (principal - sempre ENTRADA)
       const ihm1Service = new IHMService(
         ihmCfg.ip || process.env.IHM_IP || '192.168.5.250',
         ihmCfg.user || process.env.IHM_USER || 'anonymous',
         ihmCfg.password || process.env.IHM_PASSWORD || ''
       );
 
-      // Criar IHM2 se configurada
+      // Criar IHM2 se configurada (sempre SAÍDA)
       let ihm2Service: IHMService | null = null;
-      if (ihmCfg.duasIHMs && ihmCfg.ihm2) {
+      if (ihmCfg.duasIHMs && ihmCfg.ihm2 && ihmCfg.ihm2.ip) {
         ihm2Service = new IHMService(
-          ihmCfg.ihm2.ip || '192.168.5.251',
+          ihmCfg.ihm2.ip,
           ihmCfg.ihm2.user || 'anonymous',
           ihmCfg.ihm2.password || ''
         );
@@ -311,49 +343,37 @@ export class AmendoimCollectorService {
       // Determinar quais arquivos coletar e de qual IHM
       const arquivosParaColetar: Array<{ tipo: 'entrada' | 'saida'; arquivo: string; caminho: string; ihmService: IHMService }> = [];
 
-      // Adicionar arquivo de ENTRADA (se configurado)
-      if (ihmCfg.ihmEntrada) {
-        const ihmParaEntrada = ihmCfg.ihmEntrada === "ihm2" && ihm2Service ? ihm2Service : ihm1Service;
-        const caminhoEntrada = ihmCfg.ihmEntrada === "ihm2" && ihmCfg.ihm2?.caminhoRemoto 
-          ? ihmCfg.ihm2.caminhoRemoto 
-          : (ihmCfg.caminhoRemoto || '/InternalStorage/data/');
-        
-        arquivosParaColetar.push({
-          tipo: 'entrada',
-          arquivo: ihmCfg.arquivoEntrada || 'Relatorio_2025_11.csv',
-          caminho: caminhoEntrada,
-          ihmService: ihmParaEntrada,
-        });
-        console.log(`[AmendoimCollector] ENTRADA será coletada da ${ihmCfg.ihmEntrada === "ihm2" ? "IHM2" : "IHM1"}`);
-      } else {
-        console.log(`[AmendoimCollector] ENTRADA não será coletada (desabilitada)`);
-      }
+      // Arquivo de ENTRADA - sempre da IHM1
+      const ihmParaEntrada = ihm1Service;
+      const caminhoEntrada = ihmCfg.caminhoRemoto || '/InternalStorage/data/';
+      
+      arquivosParaColetar.push({
+        tipo: 'entrada',
+        arquivo: ihmCfg.arquivoEntrada || 'Relatorio_2025_11.csv',
+        caminho: caminhoEntrada,
+        ihmService: ihmParaEntrada,
+      });
+      console.log(`[AmendoimCollector] ENTRADA será coletada da IHM1`);
 
-      // Adicionar arquivo de SAÍDA (se configurado)
-      if (ihmCfg.ihmSaida) {
-        const ihmParaSaida = ihmCfg.ihmSaida === "ihm2" && ihm2Service ? ihm2Service : ihm1Service;
-        const caminhoSaida = ihmCfg.ihmSaida === "ihm2" && ihmCfg.ihm2?.caminhoRemoto 
-          ? ihmCfg.ihm2.caminhoRemoto 
-          : (ihmCfg.caminhoRemoto || '/InternalStorage/data/');
-        
-        arquivosParaColetar.push({
-          tipo: 'saida',
-          arquivo: ihmCfg.arquivoSaida || 'Relatorio_2025_11.csv',
-          caminho: caminhoSaida,
-          ihmService: ihmParaSaida,
-        });
-        console.log(`[AmendoimCollector] SAÍDA será coletada da ${ihmCfg.ihmSaida === "ihm2" ? "IHM2" : "IHM1"}`);
-      } else {
-        console.log(`[AmendoimCollector] SAÍDA não será coletada (desabilitada)`);
-      }
+      // Arquivo de SAÍDA - da IHM2 se configurado, senão IHM1
+      const ihmParaSaida = ihmCfg.duasIHMs && ihm2Service ? ihm2Service : ihm1Service;
+      const caminhoSaida = ihmCfg.duasIHMs && ihmCfg.ihm2?.caminhoRemoto 
+        ? ihmCfg.ihm2.caminhoRemoto 
+        : (ihmCfg.caminhoRemoto || '/InternalStorage/data/');
+      
+      arquivosParaColetar.push({
+        tipo: 'saida',
+        arquivo: ihmCfg.arquivoSaida || 'Relatorio_2025_11.csv',
+        caminho: caminhoSaida,
+        ihmService: ihmParaSaida,
+      });
+      console.log(`[AmendoimCollector] SAÍDA será coletada da ${ihmCfg.duasIHMs ? "IHM2" : "IHM1"}`);
 
       console.log(`[AmendoimCollector] Total de arquivos para coletar: ${arquivosParaColetar.length}`);
       arquivosParaColetar.forEach(a => console.log(`  - ${a.tipo}: ${a.arquivo}`));
 
       // Executar downloads e processamento em paralelo para reduzir tempo e isolar falhas por arquivo
       const tasks = arquivosParaColetar.map(async (arquivoInfo) => {
-        const localFile = path.join(this.TMP_DIR, `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`);
-        const cacheKey = `${arquivoInfo.tipo}_${arquivoInfo.arquivo}`;
         try {
           console.log(`[AmendoimCollector] (parallel) Buscando arquivo ${arquivoInfo.tipo}: ${arquivoInfo.arquivo}`);
 
@@ -364,94 +384,115 @@ export class AmendoimCollectorService {
           if (idx >= 0) arquivoNome = arquivoNome.slice(0, idx + 4);
           arquivoNome = arquivoNome.trim();
 
-          // Tentar baixar via IHM usando findAndDownloadNewFiles (usar o ihmService específico da configuração)
+          // Tentar baixar via IHM
           let downloadedFile = await this.downloadSpecificFile(arquivoNome, this.TMP_DIR, arquivoInfo.tipo, arquivoInfo.ihmService);
 
+          let localFile: string;
+          let cacheKey: string;
+          
           if (!downloadedFile) {
-            // Tentativa de fallback local (útil para desenvolvimento/offline):
-            console.log(`[AmendoimCollector] Download IHM falhou para ${arquivoInfo.tipo}, tentando fallback local...`);
-            const candidates = [
-              path.join(this.TMP_DIR, arquivoNome),
-              path.join(this.TMP_DIR, `${arquivoInfo.tipo}_${arquivoNome}`),
-              path.join(process.cwd(), 'backups', arquivoNome),
-              path.join(process.cwd(), 'backups', `${arquivoInfo.tipo}_${arquivoNome}`),
-            ];
-
-            console.log(`[AmendoimCollector] Procurando em:`, candidates);
-
-            let fallbackPath: string | null = null;
-            for (const c of candidates) {
-              if (fs.existsSync(c)) {
-                fallbackPath = c;
-                console.log(`[AmendoimCollector] ✓ Encontrado: ${c}`);
-                break;
-              } else {
-                console.log(`[AmendoimCollector] ✗ Não existe: ${c}`);
-              }
-            }
-
-              if (fallbackPath) {
-              console.log(`[AmendoimCollector] Usando fallback local para ${arquivoInfo.tipo}: ${fallbackPath}`);
-              // Garantir que o arquivo local final existe com o nome esperado
-              if (fallbackPath !== localFile) {
-                fs.copyFileSync(fallbackPath, localFile);
-              }
-              downloadedFile = { name: arquivoNome, localPath: localFile, size: fs.statSync(localFile).size };
-            } else {
-              const msg = `Arquivo ${arquivoInfo.tipo} não encontrado no IHM e sem fallback local: ${arquivoInfo.arquivo}`;
+            // IHM não baixou arquivo novo (sem mudanças ou erro)
+            // Verificar se existe arquivo local anterior para reprocessar
+            console.log(`[AmendoimCollector] IHM não retornou arquivo novo para ${arquivoInfo.tipo}`);
+            
+            // Procurar por arquivos locais que possam ser do tipo correto
+            const possibleFiles = fs.readdirSync(this.TMP_DIR)
+              .filter(f => f.toLowerCase().endsWith('.csv') && !f.includes('_sys'))
+              .map(f => path.join(this.TMP_DIR, f));
+            
+            if (possibleFiles.length === 0) {
+              const msg = `Arquivo ${arquivoInfo.tipo} não encontrado no IHM e sem arquivo local`;
               console.warn(`[AmendoimCollector] ${msg}`);
               return { filesProcessed: 0, recordsSaved: 0, errors: [msg] };
             }
-          }
-
-          // Copiar para nome específico com prefixo de tipo (se necessário)
-          if (downloadedFile.localPath !== localFile) {
-            fs.copyFileSync(downloadedFile.localPath, localFile);
+            
+            // Usar o primeiro arquivo disponível
+            localFile = possibleFiles[0];
+            cacheKey = `${arquivoInfo.tipo}_${path.basename(localFile)}`;
+            
+            console.log(`[AmendoimCollector] ✓ Usando arquivo local existente: ${localFile}`);
+          } else {
+            // Arquivo baixado com sucesso
+            localFile = downloadedFile.localPath;
+            cacheKey = `${arquivoInfo.tipo}_${downloadedFile.name}`;
+            
+            console.log(`[AmendoimCollector] ✓ Arquivo ${arquivoInfo.tipo} baixado do IHM: ${downloadedFile.name} (${downloadedFile.size} bytes)`);
           }
 
           // Ler conteúdo
           const csvContent = fs.readFileSync(localFile, 'utf-8');
           const fileSize = Buffer.byteLength(csvContent, 'utf-8');
+          const fileHash = this.calculateContentHash(csvContent);
 
-          // 🔍 Detectar mudanças no arquivo
-          const changeInfo = await this.detectChanges(cacheKey, csvContent, fileSize);
-
-          if (changeInfo.hasChanged || changeInfo.changeType === 'new_file') {
-            console.log(`📊 [AmendoimCollector] Mudança detectada (${arquivoInfo.tipo}): ${changeInfo.changeType}`);
-
-            // Fazer backup do arquivo
-            try {
-              await backupSvc.backupFile({
-                originalname: cacheKey,
-                path: localFile,
-                size: fileSize,
-              });
-              console.log(`[AmendoimCollector] Backup criado: ${cacheKey}`);
-            } catch (backupErr) {
-              console.warn(`[AmendoimCollector] Erro ao criar backup: ${backupErr}`);
+          // 🔍 Verificar cache do banco de dados para evitar duplicatas
+          try {
+            await cacheService.init();
+            const cacheRecord = await cacheService.getByName(cacheKey);
+            
+            if (cacheRecord && cacheRecord.lastHash === fileHash) {
+              console.log(`⏭️  [AmendoimCollector] Arquivo ${arquivoInfo.tipo} já processado (hash idêntico) - pulando`);
+              return { filesProcessed: 0, recordsSaved: 0, errors: [] };
             }
-
-            // Processar CSV com o tipo correto (entrada ou saida)
-            const processResult = await AmendoimService.processarCSV(csvContent, arquivoInfo.tipo);
-
-            const errors: string[] = [];
-            if (processResult.erros && processResult.erros.length > 0) {
-              errors.push(`${cacheKey}: ${processResult.erros.length} erros de validação`);
+            
+            if (cacheRecord) {
+              console.log(`🔄 [AmendoimCollector] Arquivo ${arquivoInfo.tipo} modificado - reprocessando`);
+            } else {
+              console.log(`� [AmendoimCollector] Novo arquivo ${arquivoInfo.tipo} - processando`);
             }
-
-            console.log(`✅ [AmendoimCollector] Arquivo ${arquivoInfo.tipo} processado:`, {
-              arquivo: arquivoInfo.arquivo,
-              tipo: arquivoInfo.tipo,
-              processados: processResult.processados,
-              salvos: processResult.salvos,
-              fileSize,
-            });
-
-            return { filesProcessed: 1, recordsSaved: processResult.salvos || 0, errors };
+          } catch (cacheErr) {
+            console.warn(`[AmendoimCollector] Erro ao verificar cache: ${cacheErr}`);
           }
 
-          console.log(`⏭️  [AmendoimCollector] Arquivo ${arquivoInfo.tipo} (${arquivoInfo.arquivo}) não foi modificado`);
-          return { filesProcessed: 0, recordsSaved: 0, errors: [] };
+          // 🔍 Detectar mudanças no arquivo (apenas para logging em memória)
+          const changeInfo = await this.detectChanges(cacheKey, csvContent, fileSize);
+
+          if (changeInfo.changeType !== 'none') {
+            console.log(`� [AmendoimCollector] Mudança detectada (${arquivoInfo.tipo}): ${changeInfo.changeType}`);
+          }
+
+          // Fazer backup do arquivo
+          try {
+            await backupSvc.backupFile({
+              originalname: cacheKey,
+              path: localFile,
+              size: fileSize,
+            });
+            console.log(`[AmendoimCollector] Backup criado: ${cacheKey}`);
+          } catch (backupErr) {
+            console.warn(`[AmendoimCollector] Erro ao criar backup: ${backupErr}`);
+          }
+
+          // Processar CSV com o tipo correto (entrada ou saida)
+          const processResult = await AmendoimService.processarCSV(csvContent, arquivoInfo.tipo);
+
+          // ✅ Atualizar cache no banco de dados após processamento bem-sucedido
+          try {
+            await cacheService.upsert({
+              originalName: cacheKey,
+              lastHash: fileHash,
+              lastSize: fileSize,
+              lastMTime: new Date().toISOString(),
+              lastProcessedAt: new Date().toISOString(),
+            });
+            console.log(`[AmendoimCollector] Cache atualizado para: ${cacheKey}`);
+          } catch (cacheErr) {
+            console.warn(`[AmendoimCollector] Erro ao atualizar cache: ${cacheErr}`);
+          }
+
+          const errors: string[] = [];
+          if (processResult.erros && processResult.erros.length > 0) {
+            errors.push(`${cacheKey}: ${processResult.erros.length} erros de validação`);
+          }
+
+          console.log(`✅ [AmendoimCollector] Arquivo ${arquivoInfo.tipo} processado:`, {
+            arquivo: arquivoInfo.arquivo,
+            tipo: arquivoInfo.tipo,
+            processados: processResult.processados,
+            salvos: processResult.salvos,
+            fileSize,
+          });
+
+          return { filesProcessed: 1, recordsSaved: processResult.salvos || 0, errors };
         } catch (err: any) {
           console.error(`[AmendoimCollector] Erro ao processar ${arquivoInfo.tipo}:`, err?.message || err);
           return { filesProcessed: 0, recordsSaved: 0, errors: [`${arquivoInfo.tipo}: ${err?.message || err}`] };
@@ -478,23 +519,58 @@ export class AmendoimCollectorService {
   }
 
   /**
-   * Limpar cache de um arquivo específico
+   * Limpar cache de um arquivo específico (memória + banco)
    */
-  static clearFileCache(fileName: string): boolean {
-    const deleted = this.changeRecords.delete(fileName);
-    if (deleted) {
-      console.log(`🗑️  [AmendoimCollector] Cache limpo para: ${fileName}`);
+  static async clearFileCache(fileName: string): Promise<boolean> {
+    // Limpar cache em memória
+    const deletedMemory = this.changeRecords.delete(fileName);
+    
+    // Limpar cache no banco de dados
+    try {
+      await cacheService.init();
+      const cacheRecord = await cacheService.getByName(fileName);
+      if (cacheRecord) {
+        const repo = cacheService.ds.getRepository(cacheService.ds.getMetadata('CacheFile').target);
+        await repo.remove(cacheRecord);
+        console.log(`🗑️  [AmendoimCollector] Cache DB limpo para: ${fileName}`);
+      }
+    } catch (err) {
+      console.warn(`[AmendoimCollector] Erro ao limpar cache DB: ${err}`);
     }
-    return deleted;
+    
+    if (deletedMemory) {
+      console.log(`🗑️  [AmendoimCollector] Cache memória limpo para: ${fileName}`);
+    }
+    return deletedMemory;
   }
 
   /**
-   * Limpar todo o cache
+   * Limpar todo o cache (memória + banco)
    */
-  static clearAllCache(): void {
+  static async clearAllCache(): Promise<void> {
+    // Limpar cache em memória
     const count = this.changeRecords.size;
     this.changeRecords.clear();
-    console.log(`🗑️  [AmendoimCollector] Cache completo limpo (${count} arquivo(s))`);
+    console.log(`🗑️  [AmendoimCollector] Cache memória limpo (${count} arquivo(s))`);
+    
+    // Limpar cache do banco de dados (apenas registros de amendoim)
+    try {
+      await cacheService.init();
+      const repo = cacheService.ds.getRepository(cacheService.ds.getMetadata('CacheFile').target);
+      const amendoimRecords = await repo.createQueryBuilder('c')
+        .where('c.originalName LIKE :pattern1 OR c.originalName LIKE :pattern2', {
+          pattern1: 'entrada_%',
+          pattern2: 'saida_%'
+        })
+        .getMany();
+      
+      if (amendoimRecords.length > 0) {
+        await repo.remove(amendoimRecords);
+        console.log(`🗑️  [AmendoimCollector] Cache DB limpo (${amendoimRecords.length} registro(s) de amendoim)`);
+      }
+    } catch (err) {
+      console.warn(`[AmendoimCollector] Erro ao limpar cache DB: ${err}`);
+    }
   }
 
   /**
