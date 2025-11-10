@@ -386,6 +386,7 @@ export class DBService extends BaseService {
       MovimentacaoEstoque,
       Setting,
       User,
+      Amendoim,
     };
     for (const k of Object.keys(entities)) {
       // @ts-ignore
@@ -428,6 +429,7 @@ export class DBService extends BaseService {
       MovimentacaoEstoque,
       Setting,
       User,
+      Amendoim,
     };
 
     const queryRunner = this.ds.createQueryRunner();
