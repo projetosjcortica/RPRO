@@ -3772,6 +3772,10 @@ app.get('/api/amendoim/chartdata/entradaSaida', async (req, res) => {
 
     const metricas = await AmendoimService.calcularMetricasRendimento({ dataInicio, dataFim });
 
+    if (!metricas) {
+      return res.json({ chartData: [], total: 0, totalRecords: 0 });
+    }
+
     const entrada = Number(metricas.pesoEntrada || 0);
     const saida = Number(metricas.pesoSaida || 0);
     const chartData = [
