@@ -223,7 +223,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
         setPdfData([...taggedE, ...taggedS]);
       } else {
         // append tipo for entrada/saida PDFs (comparativo handled above)
-        if (pdfTipo !== "comparativo") params.append("tipo", pdfTipo as string);
+        params.append("tipo", pdfTipo);
 
         const url = `${base}/api/amendoim/registros?${params.toString()}`;
 
