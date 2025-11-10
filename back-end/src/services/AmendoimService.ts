@@ -473,7 +473,7 @@ export class AmendoimService {
     ultimaData?: string;
     primeiraHora?: string;
     ultimaHora?: string;
-  }> {
+  } | null> {
     const repo = AppDataSource.getRepository(Amendoim);
 
     // Buscar peso de entrada
@@ -574,6 +574,11 @@ export class AmendoimService {
     const perda = pesoEntrada - pesoSaida;
     const rendimentoPercentual = pesoEntrada > 0 ? (pesoSaida / pesoEntrada) * 100 : 0;
     const perdaPercentual = pesoEntrada > 0 ? (perda / pesoEntrada) * 100 : 0;
+
+    // Retornar null se não houver dados suficientes (entrada e saída zerados)
+    if (pesoEntrada === 0 && pesoSaida === 0) {
+      return null as any;
+    }
 
     return {
       pesoEntrada,
