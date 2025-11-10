@@ -25,6 +25,10 @@ interface FiltrosAmendoim {
   nomeProduto?: string;
 }
 
+interface FiltrosResponse {
+  codigosProduto: (string | number)[];
+}
+
 interface FiltrosAmendoimBarProps {
   onAplicarFiltros?: (filtros: FiltrosAmendoim) => void;
 }
@@ -59,6 +63,27 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
   const [codigosOptions, setCodigosOptions] = useState<string[]>([]);
   const [loadingFiltros, setLoadingFiltros] = useState<boolean>(false);
 
+  // Initial fetch of product codes
+  useEffect(() => {
+    const fetchInitialCodigos = async () => {
+      setLoadingFiltros(true);
+      try {
+        const resp = await fetch('http://localhost:3000/api/amendoim/filtrosDisponiveis');
+        if (!resp.ok) throw new Error('Failed to fetch initial filtros');
+        const body = await resp.json() as FiltrosResponse;
+        const cods = Array.isArray(body.codigosProduto) ? body.codigosProduto.map(c => String(c)) : [];
+        if (cods.length > 0) {
+          setCodigosOptions(cods);
+        }
+      } catch (err) {
+        console.error('[FiltrosAmendoimBar] erro ao buscar códigos iniciais', err);
+      } finally {
+        setLoadingFiltros(false);
+      }
+    };
+    fetchInitialCodigos();
+  }, []);
+
   // Fetch available filters
   useEffect(() => {
     let mounted = true;
@@ -71,21 +96,23 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
         const url = `http://localhost:3000/api/amendoim/filtrosDisponiveis?${params.toString()}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('Failed to fetch filtros disponíveis');
-        const body = await resp.json();
+        const body = await resp.json() as FiltrosResponse;
 
         if (!mounted) return;
 
-        const cods = Array.isArray(body.codigosProduto) ? body.codigosProduto.map((c: any) => String(c)) : [];
-        setCodigosOptions(cods);
+        const cods = Array.isArray(body.codigosProduto) ? body.codigosProduto.map(c => String(c)) : [];
+        
+        // Only update options if we got valid data
+        if (cods.length > 0) {
+          setCodigosOptions(cods);
+        }
 
+        // Keep the existing product code selection
         setFiltrosTemporarios(prev => ({
-          ...prev,
-          codigoProduto: prev.codigoProduto || ''
+          ...prev
         }));
       } catch (err) {
         console.error('[FiltrosAmendoimBar] erro ao buscar filtros disponíveis', err);
-        setCodigosOptions([]);
-        setFiltrosTemporarios(prev => ({ ...prev, codigoProduto: '' }));
       } finally {
         if (mounted) setLoadingFiltros(false);
       }
@@ -121,18 +148,22 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
     }));
   };
 
-  const handleBuscar = () => {
+  const aplicarFiltros = (filtros: FiltrosAmendoim) => {
     const filtrosParaAplicar = {
-      ...filtrosTemporarios,
-      nomeProduto: filtrosTemporarios.nomeProduto || undefined,
-      codigoProduto: filtrosTemporarios.codigoProduto && filtrosTemporarios.codigoProduto !== '__all' ? filtrosTemporarios.codigoProduto : undefined,
-      dataInicio: filtrosTemporarios.dataInicio || undefined,
-      dataFim: filtrosTemporarios.dataFim || undefined,
+      ...filtros,
+      nomeProduto: filtros.nomeProduto || undefined,
+      codigoProduto: filtros.codigoProduto && filtros.codigoProduto !== '__all' ? filtros.codigoProduto : undefined,
+      dataInicio: filtros.dataInicio || undefined,
+      dataFim: filtros.dataFim || undefined,
     };
 
     if (onAplicarFiltros) {
       onAplicarFiltros(filtrosParaAplicar);
     }
+  };
+
+  const handleBuscar = () => {
+    aplicarFiltros(filtrosTemporarios);
   };
 
   const handleLimpar = () => {
@@ -260,9 +291,10 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
                   key="__all"
                   value="__all"
                   onSelect={() => {
-                    setFiltrosTemporarios(prev => ({ ...prev, codigoProduto: '__all' }));
+                    const novosFiltros = { ...filtrosTemporarios, codigoProduto: '__all' };
+                    setFiltrosTemporarios(novosFiltros);
                     setOpenCodigo(false);
-                    handleBuscar();
+                    aplicarFiltros(novosFiltros);
                   }}
                 >
                   <CheckIcon
@@ -278,23 +310,27 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
                     key={codigo}
                     value={codigo}
                     onSelect={(currentValue) => {
-                      setFiltrosTemporarios(prev => ({
-                        ...prev,
-                        codigoProduto: prev.codigoProduto === currentValue ? '' : currentValue
-                      }));
+                      const novosFiltros = {
+                        ...filtrosTemporarios,
+                        codigoProduto: currentValue
+                      };
+                      setFiltrosTemporarios(novosFiltros);
                       setOpenCodigo(false);
-                      handleBuscar();
+                      aplicarFiltros(novosFiltros);
                     }}
                   >
                     <CheckIcon
                       className={cn(
                         "mr-2 h-4 w-4",
-                        filtrosTemporarios.codigoProduto === codigo ? "opacity-100" : "opacity-0"
+            filtrosTemporarios.codigoProduto === codigo ? "opacity-100" : "opacity-0"
                       )}
                     />
                     {codigo}
                   </CommandItem>
                 ))}
+                {loadingFiltros && filteredCodigos.length === 0 && (
+                  <CommandItem disabled>Carregando códigos...</CommandItem>
+                )}
               </CommandGroup>
             </CommandList>
           </Command>

@@ -451,7 +451,7 @@ export default function Home() {
 
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
             <div className="grid grid-cols-3 gap-4 mb-4 ">
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px] 3xl:h-[450px]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Entrada (período selecionado)</CardTitle>
@@ -493,7 +493,7 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-2 h-[220px]">
+                <CardContent className="pt-4 h-[calc(100%-60px)]">
                   {dadosEntradaPorDia.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dadosEntradaPorDia} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
@@ -521,7 +521,7 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px] 3xl:h-[450px]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Saída (período selecionado)</CardTitle>
@@ -563,7 +563,7 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="p-2 h-[220px]">
+                <CardContent className="pt-4 h-[calc(100%-60px)]">
                   {dadosSaidaPorDia.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dadosSaidaPorDia} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
@@ -591,7 +591,7 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px] 3xl:h-[450px]">
                 <CardHeader className="border-b border-gray-100 pt-2 h-17">
                   <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
                 </CardHeader>
@@ -599,9 +599,9 @@ export default function Home() {
                   {(entradaSum !== null && saidaSum !== null) && (entradaSum > 0 || saidaSum > 0) ? (
                     <div className="space-y-4">
                       {/* Porcentagem de Aproveitamento */}
-                      <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                        <div className="text-xs text-gray-600 font-medium uppercase tracking-wide mb-1">Aproveitamento</div>
-                        <div className="text-4xl font-bold text-green-700">
+                      <div className="bg-white rounded-lg p-4 shadow-md flex flex-col items-center justify-center">
+                        <div className="text-sm text-gray-500 font-medium">Aproveitamento</div>
+                        <div className="text-3xl font-bold">
                           {entradaSum > 0 
                             ? ((saidaSum / entradaSum) * 100).toFixed(2)
                             : '0.00'}%
@@ -609,25 +609,25 @@ export default function Home() {
                       </div>
 
                       {/* Entrada e Saída */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="p-3 bg-red-50 rounded-lg border border-red-200">
-                          <div className="text-xs text-gray-600 font-medium mb-1">Entrada</div>
-                          <div className="text-lg font-bold text-red-700">
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="shadow-md rounded-lg p-4">
+                          <div className="text-sm text-gray-500 font-medium">Entrada</div>
+                          <div className="text-lg font-bold">
                             {entradaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
                           </div>
                         </div>
-                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="text-xs text-gray-600 font-medium mb-1">Saída</div>
-                          <div className="text-lg font-bold text-blue-700">
+                        <div className="shadow-md rounded-lg p-4">
+                          <div className="text-sm text-gray-500 font-medium">Saída</div>
+                          <div className="text-lg font-bold">
                             {saidaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
                           </div>
                         </div>
                       </div>
 
                       {/* Perda */}
-                      <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
-                        <div className="text-xs text-gray-600 font-medium mb-1">Perda de Material</div>
-                        <div className="text-xl font-bold text-orange-700">
+                      <div className="shadow-md rounded-lg p-5">
+                        <div className="text-xs text-red-600 font-medium">Perda de Material</div>
+                        <div className="text-3xl font-bold text-red-800">
                           {(entradaSum - saidaSum).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
                           <span className="text-sm ml-2">
                             ({entradaSum > 0 
@@ -654,21 +654,7 @@ export default function Home() {
 
               {/* Card de Cálculo de Conflito/Rendimento */}
               
-              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
-                <CardHeader className="border-b border-gray-100 h-18 pt-2">
-                  <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto (comparação)</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
-                  <DonutChartWidget
-                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }), tipo: 'saida' })}`}
-                    compact
-                    unit="kg"
-                  />
-                </CardContent>
-              </Card>
-              
-              
-              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
                 <CardHeader className="border-b border-gray-100 pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Horário de Produção</CardTitle>
@@ -718,7 +704,7 @@ export default function Home() {
               </Card>
 
               {/* Produção Semanal */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
                 <CardHeader className="border-b border-gray-100 pb-3 h-17">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Produção Semanal</CardTitle>
@@ -796,6 +782,20 @@ export default function Home() {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
+                <CardHeader className="border-b border-gray-100 h-18 pt-2">
+                  <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                  <DonutChartWidget
+                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }), tipo: 'saida' })}`}
+                    compact
+                    unit="kg"
+                  />
+                </CardContent>
+              </Card>
+              
             </div>
 
             {/* Últimos 30 dias: linha com entradas e saídas comparadas */}
