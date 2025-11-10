@@ -492,9 +492,10 @@ export default function Home() {
   if (tipoHome === "amendoim") {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-1 overflow-auto ">
+        <div className="flex-1 overflow-hidden ">
           <div className="p-4 space">
 
+<<<<<<< HEAD
             {/* Grid com 3 colunas: Saídas por Produto (2 cols, linha 1) + Rendimento (1 col, 2 linhas) + Entrada/Saída (1 col cada, linha 2) */}
             <div className="grid grid-cols-3 grid-rows-2 gap-4 mb-4">
               {/* Saídas por Produto ocupando 2 colunas na primeira linha */}
@@ -606,6 +607,11 @@ export default function Home() {
 
               {/* Segunda linha: Entrada e Saída lado a lado (colunas 1 e 2, linha 2) */}
               <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden col-start-1 row-start-2">
+=======
+            {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
+            <div className="grid grid-cols-3 gap-4 mb-4 ">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
+>>>>>>> cf9261d9b53b3689154d0bc955a5ff103c23cb8c
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Entrada (período selecionado)</CardTitle>
@@ -675,7 +681,11 @@ export default function Home() {
                 </CardContent>
               </Card>
 
+<<<<<<< HEAD
               <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden col-start-2 row-start-2">
+=======
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
+>>>>>>> cf9261d9b53b3689154d0bc955a5ff103c23cb8c
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Saída (período selecionado)</CardTitle>
@@ -744,6 +754,7 @@ export default function Home() {
                   )}
                 </CardContent>
               </Card>
+<<<<<<< HEAD
             </div>
 
             {/* Últimos 30 dias: linha com entradas e saídas comparadas */}
@@ -752,6 +763,86 @@ export default function Home() {
             {/* Now render the Horário de Produção and Produção Semanal side-by-side */}
             <div className="grid grid-cols-2 gap-4">
               {/* Horário de Produção */}
+=======
+
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px]">
+                <CardHeader className="border-b border-gray-100 pt-2 h-17">
+                  <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                  {(entradaSum !== null && saidaSum !== null) && (entradaSum > 0 || saidaSum > 0) ? (
+                    <div className="space-y-4">
+                      {/* Porcentagem de Aproveitamento */}
+                      <div className="text-center p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
+                        <div className="text-xs text-gray-600 font-medium uppercase tracking-wide mb-1">Aproveitamento</div>
+                        <div className="text-4xl font-bold text-green-700">
+                          {entradaSum > 0 
+                            ? ((saidaSum / entradaSum) * 100).toFixed(2)
+                            : '0.00'}%
+                        </div>
+                      </div>
+
+                      {/* Entrada e Saída */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-red-50 rounded-lg border border-red-200">
+                          <div className="text-xs text-gray-600 font-medium mb-1">Entrada</div>
+                          <div className="text-lg font-bold text-red-700">
+                            {entradaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          </div>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="text-xs text-gray-600 font-medium mb-1">Saída</div>
+                          <div className="text-lg font-bold text-blue-700">
+                            {saidaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Perda */}
+                      <div className="p-3 bg-orange-50 rounded-lg border border-orange-200">
+                        <div className="text-xs text-gray-600 font-medium mb-1">Perda de Material</div>
+                        <div className="text-xl font-bold text-orange-700">
+                          {(entradaSum - saidaSum).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          <span className="text-sm ml-2">
+                            ({entradaSum > 0 
+                              ? (((entradaSum - saidaSum) / entradaSum) * 100).toFixed(2)
+                              : '0.00'}%)
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                      {entradaSum === null || saidaSum === null ? 'Carregando...' : 'Selecione os períodos de Entrada e Saída'}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              
+            </div>
+
+            {/* Gráficos de barras Entrada e Saída + Card de Rendimento */}
+            <div className="grid grid-cols-3 gap-4 mb-4">
+                   
+
+              {/* Card de Cálculo de Conflito/Rendimento */}
+              
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
+                <CardHeader className="border-b border-gray-100 h-18 pt-2">
+                  <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto (comparação)</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                  <DonutChartWidget
+                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }), tipo: 'saida' })}`}
+                    compact
+                    unit="kg"
+                  />
+                </CardContent>
+              </Card>
+              
+              
+>>>>>>> cf9261d9b53b3689154d0bc955a5ff103c23cb8c
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
                 <CardHeader className="border-b border-gray-100 pb-3">
                   <div className="flex items-center justify-between">
@@ -803,8 +894,7 @@ export default function Home() {
 
               {/* Produção Semanal */}
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[420px]">
-                <CardHeader className="border-b border-gray-100 pb-3">
-                  <div className="flex items-center justify-between">
+                <CardHeader className="border-b border-gray-100 pb-3 h-17">                  <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Produção Semanal</CardTitle>
                     <div className="flex items-center gap-1">
                       <Button 
