@@ -246,6 +246,9 @@ export const AmendoimPDFDocument = ({
             <Text style={styles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
           )}
           {filtros.tipo && <Text style={styles.subtitle}>Tipo: {filtros.tipo}</Text>}
+          {filtros.codigoProduto && <Text style={styles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
+          {filtros.nomeProduto && <Text style={styles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
+          {filtros.codigoCaixa && <Text style={styles.subtitle}>Cód. Caixa: {filtros.codigoCaixa}</Text>}
         </View>
 
         <View style={styles.section}>
@@ -357,6 +360,9 @@ export const AmendoimPDFDocument = ({
                 <Text style={styles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
               )}
               {filtros.tipo && <Text style={styles.subtitle}>Tipo: {filtros.tipo}</Text>}
+              {filtros.codigoProduto && <Text style={styles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
+              {filtros.nomeProduto && <Text style={styles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
+              {filtros.codigoCaixa && <Text style={styles.subtitle}>Cód. Caixa: {filtros.codigoCaixa}</Text>}
             </View>
 
             <View style={styles.section}>
@@ -405,6 +411,9 @@ export const AmendoimPDFDocument = ({
               <Text style={styles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
             )}
             {filtros.tipo && <Text style={styles.subtitle}>Tipo: {filtros.tipo}</Text>}
+            {filtros.codigoProduto && <Text style={styles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
+            {filtros.nomeProduto && <Text style={styles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
+            {filtros.codigoCaixa && <Text style={styles.subtitle}>Cód. Caixa: {filtros.codigoCaixa}</Text>}
           </View>
 
           <View style={styles.section}>

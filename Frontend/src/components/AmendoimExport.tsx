@@ -74,6 +74,10 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   // Estados para PDF
   const [pdfData, setPdfData] = useState<AmendoimRecord[]>([]);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  // PDF tipo: entrada / saida / comparativo
+  const [pdfTipo, setPdfTipo] = useState<"entrada" | "saida" | "comparativo">(
+    filtros.tipo === "entrada" || filtros.tipo === "saida" ? (filtros.tipo as "entrada" | "saida") : "entrada"
+  );
   // Comentários locais (se o pai passar, preferir o prop). Keep a local copy so user can add/delete even if parent handlers aren't provided.
   const [showCommentsSection, setShowCommentsSection] = useState(true);
   const [showCommentEditor, setShowCommentEditor] = useState(false);
@@ -86,6 +90,16 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   useEffect(() => {
     setLocalComments(comentarios || []);
   }, [comentarios]);
+
+  // Keep filter inputs in sync if parent `filtros` prop changes (report applies filters)
+  useEffect(() => {
+    setTipo(filtros.tipo || "todos");
+    setDataInicio(filtros.dataInicio || "");
+    setDataFim(filtros.dataFim || "");
+    setCodigoProduto(filtros.codigoProduto || "");
+    setNomeProduto(filtros.nomeProduto || "");
+    setCodigoCaixa(filtros.codigoCaixa || "");
+  }, [filtros.tipo, filtros.dataInicio, filtros.dataFim, filtros.codigoProduto, filtros.nomeProduto, filtros.codigoCaixa]);
 
   const handleExcelExport = async () => {
     try {
@@ -158,28 +172,75 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
       const base = `http://localhost:${backendPort}`;
       const params = new URLSearchParams();
 
-  if (tipo && tipo !== "todos") params.append("tipo", tipo);
-  if (dataInicio) params.append("dataInicio", dataInicio);
-  if (dataFim) params.append("dataFim", dataFim);
-  // Request a large pageSize to fetch all registros for the PDF (avoid pagination mismatch)
-  params.append('page', '1');
-  params.append('pageSize', '100000');
+      // Build common params
+      // backend expects dates in DD-MM-YY like the Excel export — convert if necessary
+      const convertToDB = (d?: string) => {
+        if (!d) return undefined;
+        if (/^\d{2}-\d{2}-\d{2}$/.test(d)) return d;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
+          const [y, m, day] = d.split("-");
+          return `${day}-${m}-${y.slice(-2)}`;
+        }
+        return d;
+      };
 
-      const url = `${base}/api/amendoim/registros?${params.toString()}`;
+      const dInicio = convertToDB(dataInicio);
+      const dFim = convertToDB(dataFim);
+      if (dInicio) params.append("dataInicio", dInicio);
+      if (dFim) params.append("dataFim", dFim);
+      // advanced filters: include product/box filters so PDF data matches UI filters
+      if (codigoProduto) params.append("codigoProduto", codigoProduto);
+      if (nomeProduto) params.append("nomeProduto", nomeProduto);
+      if (codigoCaixa) params.append("codigoCaixa", codigoCaixa);
+      // Request a large pageSize to fetch all registros for the PDF (avoid pagination mismatch)
+      params.append("page", "1");
+      params.append("pageSize", "100000");
 
-      const resp = await fetch(url);
-      if (!resp.ok) {
-        throw new Error("Erro ao carregar dados");
-      }
+      // If comparativo, fetch entrada and saida separately and merge
+      if (pdfTipo === "comparativo") {
+        const paramsEntrada = new URLSearchParams(params.toString());
+        paramsEntrada.append("tipo", "entrada");
+        const paramsSaida = new URLSearchParams(params.toString());
+        paramsSaida.append("tipo", "saida");
 
-      const data = await resp.json();
-      // backend returns { rows, total, page, pageSize }
-      const rows = data.rows || data.registros || data;
-      if (!Array.isArray(rows)) {
-        console.warn('[AmendoimExport] unexpected registros payload', data);
-        setPdfData([]);
+        const [respE, respS] = await Promise.all([
+          fetch(`${base}/api/amendoim/registros?${paramsEntrada.toString()}`),
+          fetch(`${base}/api/amendoim/registros?${paramsSaida.toString()}`),
+        ]);
+
+        if (!respE.ok || !respS.ok) {
+          throw new Error("Erro ao carregar dados comparativos");
+        }
+
+        const [dataE, dataS] = await Promise.all([respE.json(), respS.json()]);
+        const rowsE = Array.isArray(dataE.rows ? dataE.rows : dataE.registros ? dataE.registros : dataE) ? (dataE.rows || dataE.registros || dataE) : [];
+        const rowsS = Array.isArray(dataS.rows ? dataS.rows : dataS.registros ? dataS.registros : dataS) ? (dataS.rows || dataS.registros || dataS) : [];
+
+        // Ensure tipo field is present so PDF can differentiate
+        const taggedE = rowsE.map((r: any) => ({ ...(r as any), tipo: "entrada" }));
+        const taggedS = rowsS.map((r: any) => ({ ...(r as any), tipo: "saida" }));
+
+        setPdfData([...taggedE, ...taggedS]);
       } else {
-        setPdfData(rows);
+        // append tipo for entrada/saida PDFs (comparativo handled above)
+        if (pdfTipo !== "comparativo") params.append("tipo", pdfTipo as string);
+
+        const url = `${base}/api/amendoim/registros?${params.toString()}`;
+
+        const resp = await fetch(url);
+        if (!resp.ok) {
+          throw new Error("Erro ao carregar dados");
+        }
+
+        const data = await resp.json();
+        // backend returns { rows, total, page, pageSize }
+        const rows = data.rows || data.registros || data;
+        if (!Array.isArray(rows)) {
+          console.warn("[AmendoimExport] unexpected registros payload", data);
+          setPdfData([]);
+        } else {
+          setPdfData(rows.map((r: any) => ({ ...(r as any) })));
+        }
       }
     } catch (err) {
       console.error("Erro carregando dados para PDF", err);
@@ -194,8 +255,9 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
     if (pdfModalOpen) {
       void handleLoadPdfData();
     }
+    // Reload when modal opens or when pdfTipo changes while modal is open
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdfModalOpen]);
+  }, [pdfModalOpen, pdfTipo]);
 
   // Prepare comments to pass to PDF: include saved localComments plus the editor's newComment (if any)
   const commentsForPdf = [
@@ -334,12 +396,26 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
         <DialogContent className="sm:max-w-[580px] 3xl:h-[900px] h-[750px] overflow-auto thin-red-scrollbar">
           <DialogHeader>
             <DialogTitle>Exportar para PDF</DialogTitle>
-            <DialogDescription>
-              Visualize e baixe o relatório em PDF
-            </DialogDescription>
           </DialogHeader>
 
           <div className="py-4">
+            {/* PDF mode selector: Entrada / Saída / Comparativo */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 items-end">
+              <div className="col-span-1">
+                <Label htmlFor="pdfTipo" className="p-3">Modo do PDF</Label>
+                <Select value={pdfTipo} onValueChange={(v) => setPdfTipo(v as "entrada" | "saida" | "comparativo") }>
+                  <SelectTrigger id="pdfTipo">
+                    <SelectValue placeholder="Selecione o modo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="entrada">Entrada</SelectItem>
+                    <SelectItem value="saida">Saída</SelectItem>
+                    <SelectItem value="comparativo">Comparativo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             {loadingPdf ? (
               <div className="flex items-center justify-center h-[400px]">
                 <div className="text-center">
@@ -353,7 +429,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                   <AmendoimPDFDocument
                     registros={pdfData}
                     filtros={{
-                      tipo,
+                      tipo: pdfTipo,
                       dataInicio,
                       dataFim,
                       codigoProduto,
@@ -493,7 +569,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                   document={
                     <AmendoimPDFDocument
                       registros={pdfData}
-                      filtros={{ tipo, dataInicio, dataFim, codigoProduto, nomeProduto, codigoCaixa }}
+                      filtros={{ tipo: pdfTipo, dataInicio, dataFim, codigoProduto, nomeProduto, codigoCaixa }}
                         comentarios={commentsForPdf}
                         showDetailed={showDetailed}
                     />
