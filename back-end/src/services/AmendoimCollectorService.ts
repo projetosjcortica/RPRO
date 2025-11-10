@@ -301,43 +301,63 @@ export class AmendoimCollectorService {
     };
 
     try {
+      // ⚡ INICIALIZAR CACHE antes de processar
+      await cacheService.init();
+      console.log('[AmendoimCollector] Cache service inicializado');
+
       // Usar configuração do ihm-config
       const ihmCfg = getRuntimeConfig('ihm-config') || {};
       
       // ⚡ VALIDAÇÃO: Verificar se há configuração mínima
-      if (!ihmCfg.ip && !process.env.IHM_IP) {
-        throw new Error('Configuração de IHM não encontrada. Configure a IHM antes de iniciar o coletor.');
+      const hasIpConfig = ihmCfg.ip || process.env.IHM_IP;
+      if (!hasIpConfig) {
+        console.warn('[AmendoimCollector] ⚠️  Configuração de IHM não encontrada, usando padrão 192.168.5.250');
       }
+      
+      // Valores padrão para evitar erros
+      const ipPadrao = ihmCfg.ip || process.env.IHM_IP || '192.168.5.250';
+      const userPadrao = ihmCfg.user || process.env.IHM_USER || 'anonymous';
+      const passwordPadrao = ihmCfg.password || process.env.IHM_PASSWORD || '';
+      const caminhoPadrao = ihmCfg.caminhoRemoto || '/InternalStorage/data/';
+      
+      // Gerar nomes de arquivo padrão baseado no mês/ano atual
+      const agora = new Date();
+      const mes = String(agora.getMonth() + 1).padStart(2, '0');
+      const ano = agora.getFullYear();
+      const arquivoPadrao = `Relatorio_${ano}_${mes}.csv`;
+      
+      const arquivoEntradaPadrao = ihmCfg.arquivoEntrada || arquivoPadrao;
+      const arquivoSaidaPadrao = ihmCfg.arquivoSaida || arquivoPadrao;
       
       // ⚡ REGRA FIXA: IHM1 = ENTRADA, IHM2 = SAÍDA
       const ihmEntrada = ihmCfg.duasIHMs ? "ihm1" : "ihm1";
       const ihmSaida = ihmCfg.duasIHMs ? "ihm2" : "ihm1";
       
       console.log('[AmendoimCollector] Configuração (ihm-config):', {
-        arquivoEntrada: ihmCfg.arquivoEntrada,
-        arquivoSaida: ihmCfg.arquivoSaida,
-        caminhoRemoto: ihmCfg.caminhoRemoto,
+        arquivoEntrada: arquivoEntradaPadrao,
+        arquivoSaida: arquivoSaidaPadrao,
+        caminhoRemoto: caminhoPadrao,
         duasIHMs: ihmCfg.duasIHMs,
         ihmEntrada,
         ihmSaida,
-        ip: ihmCfg.ip,
+        ip: ipPadrao,
       });
 
       // Criar IHM1 (principal - sempre ENTRADA)
-      const ihm1Service = new IHMService(
-        ihmCfg.ip || process.env.IHM_IP || '192.168.5.250',
-        ihmCfg.user || process.env.IHM_USER || 'anonymous',
-        ihmCfg.password || process.env.IHM_PASSWORD || ''
-      );
+      const ihm1Service = new IHMService(ipPadrao, userPadrao, passwordPadrao, caminhoPadrao);
+      console.log(`[AmendoimCollector] IHM1 criada - IP: ${ipPadrao}, Caminho: ${caminhoPadrao}`);
 
       // Criar IHM2 se configurada (sempre SAÍDA)
       let ihm2Service: IHMService | null = null;
       if (ihmCfg.duasIHMs && ihmCfg.ihm2 && ihmCfg.ihm2.ip) {
+        const caminhoIhm2 = ihmCfg.ihm2.caminhoRemoto || caminhoPadrao;
         ihm2Service = new IHMService(
           ihmCfg.ihm2.ip,
           ihmCfg.ihm2.user || 'anonymous',
-          ihmCfg.ihm2.password || ''
+          ihmCfg.ihm2.password || '',
+          caminhoIhm2
         );
+        console.log(`[AmendoimCollector] IHM2 criada - IP: ${ihmCfg.ihm2.ip}, Caminho: ${caminhoIhm2}`);
       }
 
       // Determinar quais arquivos coletar e de qual IHM
@@ -345,11 +365,11 @@ export class AmendoimCollectorService {
 
       // Arquivo de ENTRADA - sempre da IHM1
       const ihmParaEntrada = ihm1Service;
-      const caminhoEntrada = ihmCfg.caminhoRemoto || '/InternalStorage/data/';
+      const caminhoEntrada = caminhoPadrao;
       
       arquivosParaColetar.push({
         tipo: 'entrada',
-        arquivo: ihmCfg.arquivoEntrada || 'Relatorio_2025_11.csv',
+        arquivo: arquivoEntradaPadrao,
         caminho: caminhoEntrada,
         ihmService: ihmParaEntrada,
       });
@@ -359,11 +379,11 @@ export class AmendoimCollectorService {
       const ihmParaSaida = ihmCfg.duasIHMs && ihm2Service ? ihm2Service : ihm1Service;
       const caminhoSaida = ihmCfg.duasIHMs && ihmCfg.ihm2?.caminhoRemoto 
         ? ihmCfg.ihm2.caminhoRemoto 
-        : (ihmCfg.caminhoRemoto || '/InternalStorage/data/');
+        : caminhoPadrao;
       
       arquivosParaColetar.push({
         tipo: 'saida',
-        arquivo: ihmCfg.arquivoSaida || 'Relatorio_2025_11.csv',
+        arquivo: arquivoSaidaPadrao,
         caminho: caminhoSaida,
         ihmService: ihmParaSaida,
       });
@@ -375,6 +395,8 @@ export class AmendoimCollectorService {
       // Executar downloads e processamento em paralelo para reduzir tempo e isolar falhas por arquivo
       const tasks = arquivosParaColetar.map(async (arquivoInfo) => {
         try {
+          const ihmLabel = arquivoInfo.ihmService === ihm1Service ? 'IHM1' : 'IHM2';
+          console.log(`[AmendoimCollector] ⚡ Iniciando coleta ${arquivoInfo.tipo.toUpperCase()} da ${ihmLabel}`);
           console.log(`[AmendoimCollector] (parallel) Buscando arquivo ${arquivoInfo.tipo}: ${arquivoInfo.arquivo}`);
 
           // Normalize arquivo name defensively (strip garbage after .csv)
@@ -384,40 +406,21 @@ export class AmendoimCollectorService {
           if (idx >= 0) arquivoNome = arquivoNome.slice(0, idx + 4);
           arquivoNome = arquivoNome.trim();
 
-          // Tentar baixar via IHM
-          let downloadedFile = await this.downloadSpecificFile(arquivoNome, this.TMP_DIR, arquivoInfo.tipo, arquivoInfo.ihmService);
+          // ⚡ SEMPRE BAIXAR DO IHM - SEM FALLBACK LOCAL
+          const downloadedFile = await this.downloadSpecificFile(arquivoNome, this.TMP_DIR, arquivoInfo.tipo, arquivoInfo.ihmService);
 
-          let localFile: string;
-          let cacheKey: string;
-          
           if (!downloadedFile) {
-            // IHM não baixou arquivo novo (sem mudanças ou erro)
-            // Verificar se existe arquivo local anterior para reprocessar
-            console.log(`[AmendoimCollector] IHM não retornou arquivo novo para ${arquivoInfo.tipo}`);
-            
-            // Procurar por arquivos locais que possam ser do tipo correto
-            const possibleFiles = fs.readdirSync(this.TMP_DIR)
-              .filter(f => f.toLowerCase().endsWith('.csv') && !f.includes('_sys'))
-              .map(f => path.join(this.TMP_DIR, f));
-            
-            if (possibleFiles.length === 0) {
-              const msg = `Arquivo ${arquivoInfo.tipo} não encontrado no IHM e sem arquivo local`;
-              console.warn(`[AmendoimCollector] ${msg}`);
-              return { filesProcessed: 0, recordsSaved: 0, errors: [msg] };
-            }
-            
-            // Usar o primeiro arquivo disponível
-            localFile = possibleFiles[0];
-            cacheKey = `${arquivoInfo.tipo}_${path.basename(localFile)}`;
-            
-            console.log(`[AmendoimCollector] ✓ Usando arquivo local existente: ${localFile}`);
-          } else {
-            // Arquivo baixado com sucesso
-            localFile = downloadedFile.localPath;
-            cacheKey = `${arquivoInfo.tipo}_${downloadedFile.name}`;
-            
-            console.log(`[AmendoimCollector] ✓ Arquivo ${arquivoInfo.tipo} baixado do IHM: ${downloadedFile.name} (${downloadedFile.size} bytes)`);
+            // IHM não retornou arquivo - PULAR (não usar arquivo local)
+            const msg = `Arquivo ${arquivoInfo.tipo} não disponível na ${ihmLabel} - pulando`;
+            console.log(`⏭️  [AmendoimCollector] ${msg}`);
+            return { filesProcessed: 0, recordsSaved: 0, errors: [] };
           }
+
+          // Usar APENAS arquivo baixado do IHM
+          const localFile = downloadedFile.localPath;
+          const cacheKey = `${arquivoInfo.tipo}_${downloadedFile.name}`;
+          
+          console.log(`[AmendoimCollector] ✓ Arquivo ${arquivoInfo.tipo} baixado da ${ihmLabel}: ${downloadedFile.name} (${downloadedFile.size} bytes)`);
 
           // Ler conteúdo
           const csvContent = fs.readFileSync(localFile, 'utf-8');
@@ -429,15 +432,20 @@ export class AmendoimCollectorService {
             await cacheService.init();
             const cacheRecord = await cacheService.getByName(cacheKey);
             
-            if (cacheRecord && cacheRecord.lastHash === fileHash) {
-              console.log(`⏭️  [AmendoimCollector] Arquivo ${arquivoInfo.tipo} já processado (hash idêntico) - pulando`);
-              return { filesProcessed: 0, recordsSaved: 0, errors: [] };
-            }
-            
-            if (cacheRecord) {
-              console.log(`🔄 [AmendoimCollector] Arquivo ${arquivoInfo.tipo} modificado - reprocessando`);
+            if (!cacheRecord) {
+              // Arquivo nunca foi processado
+              console.log(`📌 [AmendoimCollector] Novo arquivo ${arquivoInfo.tipo} detectado: ${cacheKey}`);
+            } else if (cacheRecord.lastHash !== fileHash) {
+              // Arquivo foi modificado
+              console.log(`🔄 [AmendoimCollector] Arquivo ${arquivoInfo.tipo} modificado (hash diferente): ${cacheKey}`);
+              console.log(`   Hash anterior: ${cacheRecord.lastHash?.substring(0, 10)}...`);
+              console.log(`   Hash atual:    ${fileHash.substring(0, 10)}...`);
             } else {
-              console.log(`� [AmendoimCollector] Novo arquivo ${arquivoInfo.tipo} - processando`);
+              // Arquivo idêntico - pular processamento
+              console.log(`⏭️  [AmendoimCollector] Arquivo ${arquivoInfo.tipo} idêntico - PULANDO processamento: ${cacheKey}`);
+              console.log(`   Hash: ${fileHash.substring(0, 10)}...`);
+              console.log(`   Última vez processado: ${cacheRecord.lastProcessedAt || 'N/A'}`);
+              return { filesProcessed: 0, recordsSaved: 0, errors: [] };
             }
           } catch (cacheErr) {
             console.warn(`[AmendoimCollector] Erro ao verificar cache: ${cacheErr}`);
