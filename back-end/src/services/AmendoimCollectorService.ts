@@ -5,7 +5,6 @@ import { AmendoimService } from './AmendoimService';
 import { backupSvc } from './backupService';
 import { IHMService } from './IHMService';
 import { getRuntimeConfig } from '../core/runtimeConfig';
-import { AmendoimConfigService } from './AmendoimConfigService';
 
 interface ChangeDetectionRecord {
   filePath: string;
@@ -86,12 +85,12 @@ export class AmendoimCollectorService {
     const primarySvc = ihmServiceOverride ?? this.getIHMService();
     let result = await tryWithService(primarySvc);
 
-    // If primary failed, and Amendoim has a configured ihm2, try it
+    // If primary failed, and ihm-config has a configured ihm2, try it
     if (!result) {
       try {
-        const amCfg = AmendoimConfigService.getConfig();
-        if ((amCfg as any).duasIHMs && (amCfg as any).ihm2) {
-          const ih2 = (amCfg as any).ihm2;
+        const ihmCfg = getRuntimeConfig('ihm-config') || {};
+        if ((ihmCfg as any).duasIHMs && (ihmCfg as any).ihm2) {
+          const ih2 = (ihmCfg as any).ihm2;
           // Only try IHM2 if it is intended for this tipo OR if primary failed
           try {
             console.log(`[AmendoimCollector] Tentando IHM2 (${ih2.ip}) como fallback para ${fileName}`);
@@ -279,43 +278,77 @@ export class AmendoimCollectorService {
     };
 
     try {
-      // Usar SOMENTE runtime ihm-config para definir quais arquivos coletar
-      const ihmCfg: any = getRuntimeConfig('ihm-config') || {};
-      const ihmService = this.getIHMService();
+      // Usar configuração do ihm-config
+      const ihmCfg = getRuntimeConfig('ihm-config') || {};
       
-      // Helper para gerar nome do arquivo baseado no método
-      const computeFileName = (metodo: string, localFile?: string): string => {
-        const m = String(metodo || '').toLowerCase();
-        if (m === 'mensal') {
-          const now = new Date();
-          const yyyy = now.getFullYear();
-          const mm = String(now.getMonth() + 1).padStart(2, '0');
-          return `Relatorio_${yyyy}_${mm}.csv`;
-        }
-        if (m === 'geral') return 'Relatorio_1.csv';
-        if (m === 'custom' && localFile) return String(localFile);
-        return 'Relatorio_1.csv'; // fallback
-      };
-
-      const arquivoEntrada = computeFileName(ihmCfg.metodoCSV || '', ihmCfg.localCSV);
-      const arquivoSaida = computeFileName(ihmCfg.metodoCSV2 || ihmCfg.metodoCSV || '', ihmCfg.localCSV2 || ihmCfg.localCSV);
-      const caminhoRemoto = ihmCfg.localCSVPath || '/InternalStorage/data/';
-      const duasIHMs = !!ihmCfg.duasIHMs;
-
       console.log('[AmendoimCollector] Configuração (ihm-config):', {
-        arquivoEntrada,
-        arquivoSaida,
-        caminhoRemoto,
-        duasIHMs,
-        metodoCSV: ihmCfg.metodoCSV,
-        metodoCSV2: ihmCfg.metodoCSV2,
+        arquivoEntrada: ihmCfg.arquivoEntrada,
+        arquivoSaida: ihmCfg.arquivoSaida,
+        caminhoRemoto: ihmCfg.caminhoRemoto,
+        duasIHMs: ihmCfg.duasIHMs,
+        ihmEntrada: ihmCfg.ihmEntrada,
+        ihmSaida: ihmCfg.ihmSaida,
+        ip: ihmCfg.ip,
       });
 
-      // Montar lista de arquivos para coletar
-      const arquivosParaColetar = [
-        { tipo: 'entrada' as const, arquivo: arquivoEntrada, caminho: caminhoRemoto },
-        { tipo: 'saida' as const, arquivo: arquivoSaida, caminho: caminhoRemoto },
-      ];
+      // Criar IHM1 (principal)
+      const ihm1Service = new IHMService(
+        ihmCfg.ip || process.env.IHM_IP || '192.168.5.250',
+        ihmCfg.user || process.env.IHM_USER || 'anonymous',
+        ihmCfg.password || process.env.IHM_PASSWORD || ''
+      );
+
+      // Criar IHM2 se configurada
+      let ihm2Service: IHMService | null = null;
+      if (ihmCfg.duasIHMs && ihmCfg.ihm2) {
+        ihm2Service = new IHMService(
+          ihmCfg.ihm2.ip || '192.168.5.251',
+          ihmCfg.ihm2.user || 'anonymous',
+          ihmCfg.ihm2.password || ''
+        );
+      }
+
+      // Determinar quais arquivos coletar e de qual IHM
+      const arquivosParaColetar: Array<{ tipo: 'entrada' | 'saida'; arquivo: string; caminho: string; ihmService: IHMService }> = [];
+
+      // Adicionar arquivo de ENTRADA (se configurado)
+      if (ihmCfg.ihmEntrada) {
+        const ihmParaEntrada = ihmCfg.ihmEntrada === "ihm2" && ihm2Service ? ihm2Service : ihm1Service;
+        const caminhoEntrada = ihmCfg.ihmEntrada === "ihm2" && ihmCfg.ihm2?.caminhoRemoto 
+          ? ihmCfg.ihm2.caminhoRemoto 
+          : (ihmCfg.caminhoRemoto || '/InternalStorage/data/');
+        
+        arquivosParaColetar.push({
+          tipo: 'entrada',
+          arquivo: ihmCfg.arquivoEntrada || 'Relatorio_2025_11.csv',
+          caminho: caminhoEntrada,
+          ihmService: ihmParaEntrada,
+        });
+        console.log(`[AmendoimCollector] ENTRADA será coletada da ${ihmCfg.ihmEntrada === "ihm2" ? "IHM2" : "IHM1"}`);
+      } else {
+        console.log(`[AmendoimCollector] ENTRADA não será coletada (desabilitada)`);
+      }
+
+      // Adicionar arquivo de SAÍDA (se configurado)
+      if (ihmCfg.ihmSaida) {
+        const ihmParaSaida = ihmCfg.ihmSaida === "ihm2" && ihm2Service ? ihm2Service : ihm1Service;
+        const caminhoSaida = ihmCfg.ihmSaida === "ihm2" && ihmCfg.ihm2?.caminhoRemoto 
+          ? ihmCfg.ihm2.caminhoRemoto 
+          : (ihmCfg.caminhoRemoto || '/InternalStorage/data/');
+        
+        arquivosParaColetar.push({
+          tipo: 'saida',
+          arquivo: ihmCfg.arquivoSaida || 'Relatorio_2025_11.csv',
+          caminho: caminhoSaida,
+          ihmService: ihmParaSaida,
+        });
+        console.log(`[AmendoimCollector] SAÍDA será coletada da ${ihmCfg.ihmSaida === "ihm2" ? "IHM2" : "IHM1"}`);
+      } else {
+        console.log(`[AmendoimCollector] SAÍDA não será coletada (desabilitada)`);
+      }
+
+      console.log(`[AmendoimCollector] Total de arquivos para coletar: ${arquivosParaColetar.length}`);
+      arquivosParaColetar.forEach(a => console.log(`  - ${a.tipo}: ${a.arquivo}`));
 
       // Executar downloads e processamento em paralelo para reduzir tempo e isolar falhas por arquivo
       const tasks = arquivosParaColetar.map(async (arquivoInfo) => {
@@ -324,23 +357,6 @@ export class AmendoimCollectorService {
         try {
           console.log(`[AmendoimCollector] (parallel) Buscando arquivo ${arquivoInfo.tipo}: ${arquivoInfo.arquivo}`);
 
-          // Determine which IHM to use for this arquivo (usar ihm-config.ip2/user2/password2 se duasIHMs)
-          let ihmForThis: IHMService | undefined = undefined;
-          try {
-            if (duasIHMs && ihmCfg.ip2) {
-              // Criar IHM2 usando credenciais do ihm-config
-              ihmForThis = new IHMService(
-                ihmCfg.ip2 || ihmCfg.ip || '192.168.5.250', 
-                ihmCfg.user2 || ihmCfg.user || 'anonymous', 
-                ihmCfg.password2 || ihmCfg.password || ''
-              );
-              console.log('[AmendoimCollector] Usando IHM2 (ihm-config.ip2) para tipo', arquivoInfo.tipo, ':', ihmCfg.ip2);
-            }
-          } catch (e) {
-            console.warn('[AmendoimCollector] falha ao inicializar IHM2 override', e);
-            ihmForThis = undefined;
-          }
-
           // Normalize arquivo name defensively (strip garbage after .csv)
           let arquivoNome = String(arquivoInfo.arquivo || '');
           const lower = arquivoNome.toLowerCase();
@@ -348,8 +364,8 @@ export class AmendoimCollectorService {
           if (idx >= 0) arquivoNome = arquivoNome.slice(0, idx + 4);
           arquivoNome = arquivoNome.trim();
 
-          // Tentar baixar via IHM usando findAndDownloadNewFiles (possivelmente override)
-          let downloadedFile = await this.downloadSpecificFile(arquivoNome, this.TMP_DIR, arquivoInfo.tipo, ihmForThis);
+          // Tentar baixar via IHM usando findAndDownloadNewFiles (usar o ihmService específico da configuração)
+          let downloadedFile = await this.downloadSpecificFile(arquivoNome, this.TMP_DIR, arquivoInfo.tipo, arquivoInfo.ihmService);
 
           if (!downloadedFile) {
             // Tentativa de fallback local (útil para desenvolvimento/offline):

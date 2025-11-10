@@ -11,8 +11,16 @@ export interface AmendoimConfig {
   /** Nome do arquivo de saída (pós-debulhamento) */
   arquivoSaida: string;
   
+  /** Dados de conexão da IHM principal */
+  ip: string;
+  user: string;
+  password: string;
+  
   /** Caminho remoto no IHM onde os arquivos estão localizados */
   caminhoRemoto: string;
+  
+  /** Define para que a IHM1 será usada: entrada, saida ou ambos */
+  ihm1UsadaPara: "entrada" | "saida" | "ambos";
   
   /** Usar duas IHMs diferentes (uma para entrada, outra para saída) */
   duasIHMs: boolean;
@@ -26,6 +34,18 @@ export interface AmendoimConfig {
     /** Para qual tipo essa IHM será usada */
     usadaPara: "entrada" | "saida";
   };
+
+  /** Mapeamento de balanças para entrada/saída (opcional) */
+  mapeamentoBalancas?: {
+    entrada: string[];
+    saida: string[];
+  };
+
+  /** NOVA CONFIGURAÇÃO: Qual IHM coleta dados de ENTRADA */
+  ihmEntrada?: "ihm1" | "ihm2";
+  
+  /** NOVA CONFIGURAÇÃO: Qual IHM coleta dados de SAÍDA */
+  ihmSaida?: "ihm1" | "ihm2";
 }
 
 /**
@@ -34,8 +54,18 @@ export interface AmendoimConfig {
 export const AMENDOIM_CONFIG_DEFAULT: AmendoimConfig = {
   arquivoEntrada: "Relatorio_2025_11.csv", // Padrão mensal
   arquivoSaida: "Relatorio_2025_11.csv",   // Mesma IHM por padrão
+  ip: "",
+  user: "anonymous",
+  password: "",
   caminhoRemoto: "/InternalStorage/data/",
+  ihm1UsadaPara: "ambos",
   duasIHMs: false,
+  mapeamentoBalancas: {
+    entrada: [],
+    saida: [],
+  },
+  ihmEntrada: "ihm1", // Por padrão, IHM1 coleta entrada
+  ihmSaida: "ihm1",   // Por padrão, IHM1 coleta saída
 };
 
 /**

@@ -36,7 +36,7 @@ interface AmendoimExportProps {
     dataFim?: string;
     codigoProduto?: string;
     nomeProduto?: string;
-    tipo?: "entrada" | "saida";
+    tipo?: "entrada" | "saida" | "comparativo";
     codigoCaixa?: string;
   };
   // comentários with optional id (to match report ExportDropdown contract)
@@ -222,8 +222,8 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
         setPdfData([...taggedE, ...taggedS]);
       } else {
-        // append tipo for entrada/saida PDFs (comparativo handled above)
-        if (pdfTipo !== "comparativo") params.append("tipo", pdfTipo as string);
+        // append tipo for entrada/saida PDFs (comparativo handled above in if block)
+        params.append("tipo", pdfTipo);
 
         const url = `${base}/api/amendoim/registros?${params.toString()}`;
 

@@ -3772,6 +3772,10 @@ app.get('/api/amendoim/chartdata/entradaSaida', async (req, res) => {
 
     const metricas = await AmendoimService.calcularMetricasRendimento({ dataInicio, dataFim });
 
+    if (!metricas) {
+      return res.json({ chartData: [], total: 0, totalRecords: 0 });
+    }
+
     const entrada = Number(metricas.pesoEntrada || 0);
     const saida = Number(metricas.pesoSaida || 0);
     const chartData = [
@@ -3809,12 +3813,12 @@ app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
 });
 
 // ==================== CONFIGURAÇÃO AMENDOIM ====================
-import { AmendoimConfigService } from './services/AmendoimConfigService';
+// Usa ihm-config diretamente ao invés de amendoim-config
 
 // GET /api/amendoim/config - Obter configuração atual
 app.get('/api/amendoim/config', async (req, res) => {
   try {
-    const config = AmendoimConfigService.getConfig();
+    const config = getRuntimeConfig('ihm-config') || {};
     return res.json(config);
   } catch (e: any) {
     console.error('[api/amendoim/config] error', e);
@@ -3847,10 +3851,10 @@ app.get('/api/amendoim/chartdata/last30', async (req, res) => {
 
 app.post('/api/amendoim/config', async (req, res) => {
   try {
-    // Normalizar configuração (substituir placeholders de data pelo mês atual)
-    const configNormalizada = AmendoimConfigService.normalizarConfig(req.body);
-    await AmendoimConfigService.setConfig(configNormalizada);
-    const config = AmendoimConfigService.getConfig();
+    // Salvar configuração diretamente no ihm-config
+    const configData = req.body;
+    await setRuntimeConfigs({ 'ihm-config': configData });
+    const config = getRuntimeConfig('ihm-config') || {};
     return res.json({ success: true, config });
   } catch (e: any) {
     console.error('[api/amendoim/config] error', e);

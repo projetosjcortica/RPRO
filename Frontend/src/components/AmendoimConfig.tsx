@@ -6,17 +6,23 @@ import toastManager from "../lib/toastManager";
 
 interface AmendoimConfig {
   duasIHMs: boolean;
+  ihm1: {
+    ip: string;
+    user: string;
+    password: string;
+    caminhoRemoto: string;
+    usadaPara: "entrada" | "saida" | "ambos";
+  };
   entrada: {
     tipoRelatorio: "mensal" | "geral";
-    mesAno?: string; // Ex: "2025-11" para mensal
-    nomeArquivo?: string; // Nome customizado
+    mesAno?: string;
+    nomeArquivo?: string;
   };
   saida: {
     tipoRelatorio: "mensal" | "geral";
     mesAno?: string;
     nomeArquivo?: string;
   };
-  caminhoRemoto: string;
   ihm2?: {
     ip: string;
     user: string;
@@ -25,9 +31,12 @@ interface AmendoimConfig {
     usadaPara: "entrada" | "saida";
   };
   mapeamentoBalancas?: {
-    entrada: string[]; // Ex: ["1", "2", "3"]
-    saida: string[]; // Ex: ["9", "10"]
+    entrada: string[];
+    saida: string[];
   };
+  // NOVO: Seleção direta de qual IHM coleta cada tipo
+  ihmEntrada?: "ihm1" | "ihm2";
+  ihmSaida?: "ihm1" | "ihm2";
 }
 
 interface AmendoimConfigProps {
@@ -41,19 +50,27 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState<AmendoimConfig>({
     duasIHMs: false,
+    ihm1: {
+      ip: "",
+      user: "anonymous",
+      password: "",
+      caminhoRemoto: "/InternalStorage/data/",
+      usadaPara: "ambos",
+    },
     entrada: {
       tipoRelatorio: "mensal",
-      mesAno: new Date().toISOString().slice(0, 7), // YYYY-MM
+      mesAno: new Date().toISOString().slice(0, 7),
     },
     saida: {
       tipoRelatorio: "mensal",
       mesAno: new Date().toISOString().slice(0, 7),
     },
-    caminhoRemoto: "/InternalStorage/data/",
     mapeamentoBalancas: {
       entrada: [],
       saida: [],
     },
+    ihmEntrada: "ihm1",
+    ihmSaida: "ihm1",
   });
 
   // Buscar configuração atual
@@ -73,6 +90,13 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
         // Converter configuração do backend para formato do componente
         const newConfig: AmendoimConfig = {
           duasIHMs: data.duasIHMs || false,
+          ihm1: {
+            ip: data.ip || "",
+            user: data.user || "anonymous",
+            password: data.password || "",
+            caminhoRemoto: data.caminhoRemoto || "/InternalStorage/data/",
+            usadaPara: data.ihm1UsadaPara || "ambos",
+          },
           entrada: {
             tipoRelatorio: data.arquivoEntrada?.includes("Relatorio_1") ? "geral" : "mensal",
             mesAno: extractMesAno(data.arquivoEntrada),
@@ -83,11 +107,12 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
             mesAno: extractMesAno(data.arquivoSaida),
             nomeArquivo: data.arquivoSaida,
           },
-          caminhoRemoto: data.caminhoRemoto || "/InternalStorage/data/",
           mapeamentoBalancas: data.mapeamentoBalancas || {
             entrada: [],
             saida: [],
           },
+          ihmEntrada: data.ihmEntrada || "ihm1",
+          ihmSaida: data.ihmSaida || "ihm1",
         };
 
         if (data.ihm2) {
@@ -144,8 +169,14 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
         duasIHMs: config.duasIHMs,
         arquivoEntrada: gerarNomeArquivo("entrada"),
         arquivoSaida: gerarNomeArquivo("saida"),
-        caminhoRemoto: "/InternalStorage/data/",
+        ip: config.ihm1.ip,
+        user: config.ihm1.user,
+        password: config.ihm1.password,
+        caminhoRemoto: config.ihm1.caminhoRemoto,
+        ihm1UsadaPara: config.ihm1.usadaPara,
         mapeamentoBalancas: config.mapeamentoBalancas,
+        ihmEntrada: config.ihmEntrada,
+        ihmSaida: config.ihmSaida,
       };
 
       if (config.duasIHMs && config.ihm2) {
@@ -202,6 +233,146 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Configuração da IHM Principal */}
+              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
+                <h3 className="text-lg font-bold text-blue-800 mb-3">IHM Principal (IHM1)</h3>
+                
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">
+                        IP da IHM:
+                      </label>
+                      <input
+                        type="text"
+                        value={config.ihm1.ip}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            ihm1: { ...config.ihm1, ip: e.target.value },
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        placeholder="Ex: 192.168.1.10"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">
+                        Caminho Remoto:
+                      </label>
+                      <input
+                        type="text"
+                        value={config.ihm1.caminhoRemoto}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            ihm1: { ...config.ihm1, caminhoRemoto: e.target.value },
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        placeholder="/InternalStorage/data/"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">
+                        Usuário FTP:
+                      </label>
+                      <input
+                        type="text"
+                        value={config.ihm1.user}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            ihm1: { ...config.ihm1, user: e.target.value },
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        placeholder="anonymous"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-700 mb-1 block">
+                        Senha FTP:
+                      </label>
+                      <input
+                        type="password"
+                        value={config.ihm1.password}
+                        onChange={(e) =>
+                          setConfig({
+                            ...config,
+                            ihm1: { ...config.ihm1, password: e.target.value },
+                          })
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                        placeholder="••••••"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-gray-700 mb-1 block">
+                      Esta IHM será usada para:
+                    </label>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          setConfig({
+                            ...config,
+                            ihm1: { ...config.ihm1, usadaPara: "entrada" },
+                          })
+                        }
+                        className={cn(
+                          "flex-1",
+                          config.ihm1.usadaPara === "entrada"
+                            ? "bg-green-600 text-white"
+                            : "bg-white text-gray-600 border"
+                        )}
+                      >
+                        Apenas Entrada
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          setConfig({
+                            ...config,
+                            ihm1: { ...config.ihm1, usadaPara: "saida" },
+                          })
+                        }
+                        className={cn(
+                          "flex-1",
+                          config.ihm1.usadaPara === "saida"
+                            ? "bg-blue-600 text-white"
+                            : "bg-white text-gray-600 border"
+                        )}
+                      >
+                        Apenas Saída
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() =>
+                          setConfig({
+                            ...config,
+                            ihm1: { ...config.ihm1, usadaPara: "ambos" },
+                          })
+                        }
+                        className={cn(
+                          "flex-1",
+                          config.ihm1.usadaPara === "ambos"
+                            ? "bg-purple-600 text-white"
+                            : "bg-white text-gray-600 border"
+                        )}
+                      >
+                        Ambos (E + S)
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Configuração de IHMs */}
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <h3 className="text-lg font-bold text-gray-800 mb-3">Sistema de IHMs</h3>
@@ -338,6 +509,115 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
                   </div>
                 )}
               </div>
+
+              {/* Seleção de IHM por Tipo de Dado */}
+              {config.duasIHMs && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-300 rounded-lg p-4">
+                  <h3 className="text-lg font-bold text-purple-800 mb-4 flex items-center gap-2">
+                    <Scale className="h-5 w-5" />
+                    Roteamento de Dados
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Seleção IHM para ENTRADA */}
+                    <div className="bg-white border-2 border-green-300 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <ArrowBigDown className="h-5 w-5 text-green-600" />
+                        <label className="text-sm font-bold text-green-700">
+                          Dados de ENTRADA coletados de:
+                        </label>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => setConfig({ ...config, ihmEntrada: "ihm1" })}
+                          className={cn(
+                            "flex-1",
+                            config.ihmEntrada === "ihm1"
+                              ? "bg-green-600 text-white hover:bg-green-700"
+                              : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+                          )}
+                        >
+                          IHM 1
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setConfig({ ...config, ihmEntrada: "ihm2" })}
+                          className={cn(
+                            "flex-1",
+                            config.ihmEntrada === "ihm2"
+                              ? "bg-green-600 text-white hover:bg-green-700"
+                              : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+                          )}
+                        >
+                          IHM 2
+                        </Button>
+                      </div>
+                      {config.ihmEntrada === "ihm1" && (
+                        <div className="mt-2 text-xs text-green-600 font-medium">
+                          ✓ Usando IP: {config.ihm1.ip || "Não configurado"}
+                        </div>
+                      )}
+                      {config.ihmEntrada === "ihm2" && (
+                        <div className="mt-2 text-xs text-green-600 font-medium">
+                          ✓ Usando IP: {config.ihm2?.ip || "Não configurado"}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Seleção IHM para SAÍDA */}
+                    <div className="bg-white border-2 border-blue-300 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-3">
+                        <ArrowBigUp className="h-5 w-5 text-blue-600" />
+                        <label className="text-sm font-bold text-blue-700">
+                          Dados de SAÍDA coletados de:
+                        </label>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => setConfig({ ...config, ihmSaida: "ihm1" })}
+                          className={cn(
+                            "flex-1",
+                            config.ihmSaida === "ihm1"
+                              ? "bg-blue-600 text-white hover:bg-blue-700"
+                              : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+                          )}
+                        >
+                          IHM 1
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setConfig({ ...config, ihmSaida: "ihm2" })}
+                          className={cn(
+                            "flex-1",
+                            config.ihmSaida === "ihm2"
+                              ? "bg-blue-600 text-white hover:bg-blue-700"
+                              : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+                          )}
+                        >
+                          IHM 2
+                        </Button>
+                      </div>
+                      {config.ihmSaida === "ihm1" && (
+                        <div className="mt-2 text-xs text-blue-600 font-medium">
+                          ✓ Usando IP: {config.ihm1.ip || "Não configurado"}
+                        </div>
+                      )}
+                      {config.ihmSaida === "ihm2" && (
+                        <div className="mt-2 text-xs text-blue-600 font-medium">
+                          ✓ Usando IP: {config.ihm2?.ip || "Não configurado"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-3 bg-purple-100 border border-purple-200 rounded text-xs text-purple-700">
+                    <strong>💡 Dica:</strong> Use esta configuração quando seus dados de entrada e saída 
+                    vêm de IHMs diferentes. Por exemplo: IHM1 na balança de entrada e IHM2 na balança de saída.
+                  </div>
+                </div>
+              )}
 
               {/* Configuração de Entrada */}
               <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
