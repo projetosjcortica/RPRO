@@ -6,26 +6,55 @@ import { AppDataSource } from "./dbService";
  * Service para processar arquivos CSV de amendoim.
  * Formato esperado: Data,Hora,,CódigoProduto,CódigoCaixa,NomeProduto,,,Peso,,Balanca
  * Exemplo: 10/11/25,14:15:03,,,1,456,Amendoim,,,2210,,1
- * Sistema suporta entrada (pré-debulhamento) e saída (pós-debulhamento)
+ * 
+ * REGRA DE NEGÓCIO:
+ * - Balanças 1 e 2 = ENTRADA (pré-debulhamento)
+ * - Balança 3 = SAÍDA (pós-debulhamento)
  */
 export class AmendoimService {
   /**
+   * Determina o tipo (entrada/saida) baseado no número da balança
+   * @param balanca Número da balança (string)
+   * @returns 'entrada' para balanças 1 e 2, 'saida' para balança 3
+   */
+  private static determinarTipoPorBalanca(balanca?: string): "entrada" | "saida" {
+    if (!balanca) return "entrada"; // Fallback: sem balança = entrada
+    
+    const numBalanca = parseInt(balanca.trim(), 10);
+    
+    if (numBalanca === 1 || numBalanca === 2) {
+      return "entrada";
+    } else if (numBalanca === 3) {
+      return "saida";
+    }
+    
+    // Fallback para balanças desconhecidas
+    return "entrada";
+  }
+
+  /**
    * Processa um arquivo CSV de amendoim e salva no banco de dados.
+   * O tipo (entrada/saida) é determinado AUTOMATICAMENTE pela balança:
+   * - Balanças 1 e 2 = entrada
+   * - Balança 3 = saída
+   * 
    * @param csvContent Conteúdo do arquivo CSV como string
-   * @param tipo Tipo de registro: 'entrada' (pré-debulhamento) ou 'saida' (pós-debulhamento)
    * @returns Número de registros processados e salvos
    */
   static async processarCSV(
-    csvContent: string,
-    tipo: "entrada" | "saida" = "entrada"
+    csvContent: string
   ): Promise<{
     processados: number;
     salvos: number;
     erros: string[];
+    entradasSalvas: number;
+    saidasSalvas: number;
   }> {
     const erros: string[] = [];
     let processados = 0;
     let salvos = 0;
+    let entradasSalvas = 0;
+    let saidasSalvas = 0;
 
     try {
       // Parse CSV sem header
@@ -91,7 +120,11 @@ export class AmendoimService {
 
           // Criar registro
           const registro = new Amendoim();
-          registro.tipo = tipo; // Define o tipo (entrada ou saida)
+          
+          // ⚡ DETERMINAR TIPO BASEADO NA BALANÇA
+          const tipoRegistro = this.determinarTipoPorBalanca(balanca ? String(balanca).trim() : undefined);
+          registro.tipo = tipoRegistro;
+          
           registro.dia = diaStr;
           registro.hora = horaStr;
           registro.codigoProduto = codigoProduto ? String(codigoProduto).trim() : "";
@@ -99,7 +132,7 @@ export class AmendoimService {
           
           // Log de debug: formato de data sendo salvo
           if (i === 0) {
-            console.log(`[AmendoimService] 🔍 Formato de data SALVO: "${diaStr}" | Hora: "${horaStr}" | Tipo: ${tipo}`);
+            console.log(`[AmendoimService] 🔍 Formato de data SALVO: "${diaStr}" | Hora: "${horaStr}" | Tipo: ${tipoRegistro} (Balança: ${balanca})`);
           }
           
           // Fallback para nome do produto vazio
@@ -194,27 +227,39 @@ export class AmendoimService {
             if (err.code === 'ER_DUP_ENTRY' || err.message?.includes('unique')) {
               console.log(`[AmendoimService] ⚠️ PROTEÇÃO NÍVEL 3: Detectado conflito unique, salvando individualmente...`);
               
+              let duplicatasConstraint = 0;
+              
               for (const registro of registrosNovos) {
                 try {
                   await repo.save(registro);
                   salvos++;
+                  
+                  // Contar por tipo
+                  if (registro.tipo === 'entrada') {
+                    entradasSalvas++;
+                  } else {
+                    saidasSalvas++;
+                  }
                 } catch (saveErr: any) {
                   if (saveErr.code === 'ER_DUP_ENTRY' || saveErr.message?.includes('unique')) {
-                    // Duplicata detectada, ignorar silenciosamente
+                    // Duplicata detectada - contar silenciosamente
+                    duplicatasConstraint++;
                     continue;
                   }
                   // Outro erro, registrar
+                  console.error(`[AmendoimService] ❌ Erro ao salvar registro:`, saveErr.message);
                   erros.push(`Erro ao salvar registro: ${saveErr.message}`);
                 }
               }
               
-              console.log(`[AmendoimService] ✅ ${salvos} registros salvos individualmente (${registrosNovos.length - salvos} duplicatas bloqueadas por constraint)`);
+              console.log(`[AmendoimService] ✅ ${salvos} registros salvos individualmente (${duplicatasConstraint} duplicatas bloqueadas por constraint)`);
+              console.log(`[AmendoimService]    📥 ENTRADA: ${entradasSalvas} | 📤 SAÍDA: ${saidasSalvas}`);
             } else {
               throw err; // Re-throw se não for erro de duplicata
             }
           }
           
-          const totalDuplicatas = duplicatasInternas + duplicatasDB + (registrosNovos.length - salvos);
+          const totalDuplicatas = duplicatasInternas + duplicatasDB;
           if (totalDuplicatas > 0) {
             console.log(`[AmendoimService] 🛡️ TOTAL DE DUPLICATAS BLOQUEADAS: ${totalDuplicatas}`);
           }
@@ -223,7 +268,8 @@ export class AmendoimService {
         }
       }
 
-      return { processados, salvos, erros };
+      console.log(`[AmendoimService] 📊 RESUMO FINAL - Processados: ${processados} | Salvos: ${salvos} | ENTRADA: ${entradasSalvas} | SAÍDA: ${saidasSalvas}`);
+      return { processados, salvos, erros, entradasSalvas, saidasSalvas };
     } catch (err: any) {
       throw new Error(`Erro ao processar CSV: ${err.message}`);
     }
@@ -424,6 +470,8 @@ export class AmendoimService {
 
       // Verificar se há dados no banco antes de processar
       const totalRegistros = await repo.count();
+      console.log('[AmendoimService.obterDadosAnalise] Total de registros no banco:', totalRegistros);
+      
       if (totalRegistros === 0) {
         console.log('[AmendoimService.obterDadosAnalise] Sem registros no banco, retornando estrutura vazia');
         return this.getEmptyAnaliseStructure();
@@ -436,41 +484,45 @@ export class AmendoimService {
       console.log('[AmendoimService.obterDadosAnalise] Filtros recebidos:', params);
       console.log('[AmendoimService.obterDadosAnalise] Filtros convertidos:', { dataInicioDB, dataFimDB });
 
-    // Query para dados agrupados por hora (compatível MySQL e SQLite)
+    // Query para dados agrupados por hora (extrair apenas HH da hora)
     let qbHora = repo.createQueryBuilder("amendoim")
       .select("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED)", "hora")
       .addSelect("amendoim.tipo", "tipo")
-      .addSelect("SUM(amendoim.peso)", "peso");
+      .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
 
     if (dataInicioDB) qbHora.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     if (dataFimDB) qbHora.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
 
     const dadosHora = await qbHora.groupBy("hora, amendoim.tipo").getRawMany();
     console.log('[AmendoimService.obterDadosAnalise] dadosHora resultado:', dadosHora.length, 'registros');
-    if (dadosHora.length > 0) console.log('[AmendoimService.obterDadosAnalise] dadosHora sample:', dadosHora.slice(0, 3));
+    if (dadosHora.length > 0) {
+      console.log('[AmendoimService.obterDadosAnalise] dadosHora sample:', JSON.stringify(dadosHora.slice(0, 5)));
+    }
 
     // Query para dados agrupados por dia
     let qbDia = repo.createQueryBuilder("amendoim")
       .select("amendoim.dia", "dia")
       .addSelect("amendoim.tipo", "tipo")
-      .addSelect("SUM(amendoim.peso)", "peso");
+      .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
 
     if (dataInicioDB) qbDia.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     if (dataFimDB) qbDia.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
 
     const dadosDia = await qbDia.groupBy("amendoim.dia, amendoim.tipo").orderBy("amendoim.dia", "ASC").getRawMany();
+    console.log('[AmendoimService.obterDadosAnalise] dadosDia resultado:', dadosDia.length, 'registros');
 
-    // Query para dia da semana (MySQL: DAYOFWEEK 1=domingo, 2=segunda, ...)
-    // Converte DD-MM-YY para data válida usando STR_TO_DATE
+    // Query para dia da semana (MySQL: DAYOFWEEK retorna 1=domingo, 2=segunda, etc.)
+    // Subtraímos 1 para obter índice 0-6
     let qbSemana = repo.createQueryBuilder("amendoim")
       .select("DAYOFWEEK(STR_TO_DATE(amendoim.dia, '%d-%m-%y')) - 1", "diaSemana")
       .addSelect("amendoim.tipo", "tipo")
-      .addSelect("SUM(amendoim.peso)", "peso");
+      .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
 
     if (dataInicioDB) qbSemana.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
     if (dataFimDB) qbSemana.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
 
     const dadosSemana = await qbSemana.groupBy("diaSemana, amendoim.tipo").getRawMany();
+    console.log('[AmendoimService.obterDadosAnalise] dadosSemana resultado:', dadosSemana.length, 'registros');
 
     // Processar dados por horário (0-23)
     const entradaSaidaPorHorario: Array<{ hora: number; entrada: number; saida: number }> = [];
@@ -501,10 +553,11 @@ export class AmendoimService {
     const diasSemanaLabels = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
     const fluxoSemanal: Array<{ diaSemana: string; entrada: number; saida: number }> = [];
     for (let d = 0; d < 7; d++) {
-      const entrada = dadosSemana.find((s: any) => s.diaSemana === d && s.tipo === "entrada")?.peso || 0;
-      const saida = dadosSemana.find((s: any) => s.diaSemana === d && s.tipo === "saida")?.peso || 0;
+      const entrada = dadosSemana.find((s: any) => Number(s.diaSemana) === d && s.tipo === "entrada")?.peso || 0;
+      const saida = dadosSemana.find((s: any) => Number(s.diaSemana) === d && s.tipo === "saida")?.peso || 0;
       fluxoSemanal.push({ diaSemana: diasSemanaLabels[d], entrada: Number(entrada), saida: Number(saida) });
     }
+    console.log('[AmendoimService.obterDadosAnalise] fluxoSemanal processado:', fluxoSemanal.filter(f => f.entrada > 0 || f.saida > 0).length, 'dias com dados');
 
     // Processar por turno (baseado na hora)
     const turnos = [
@@ -518,12 +571,13 @@ export class AmendoimService {
     turnos.forEach(({ nome, inicio, fim }) => {
       let entrada = 0, saida = 0;
       for (let h = inicio; h <= fim; h++) {
-        entrada += Number(dadosHora.find((d: any) => d.hora === h && d.tipo === "entrada")?.peso || 0);
-        saida += Number(dadosHora.find((d: any) => d.hora === h && d.tipo === "saida")?.peso || 0);
+        entrada += Number(dadosHora.find((d: any) => Number(d.hora) === h && d.tipo === "entrada")?.peso || 0);
+        saida += Number(dadosHora.find((d: any) => Number(d.hora) === h && d.tipo === "saida")?.peso || 0);
       }
       const rendimento = entrada > 0 ? (saida / entrada) * 100 : 0;
       eficienciaPorTurno.push({ turno: nome, entrada, saida, rendimento: Number(rendimento.toFixed(2)) });
     });
+    console.log('[AmendoimService.obterDadosAnalise] eficienciaPorTurno processado:', eficienciaPorTurno.filter(t => t.entrada > 0 || t.saida > 0).length, 'turnos com dados');
 
       return {
         entradaSaidaPorHorario,

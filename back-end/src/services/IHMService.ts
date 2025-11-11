@@ -201,4 +201,36 @@ export class IHMService extends BaseService {
       client.close();
     }
   }
+
+  /**
+   * Lista TODOS os arquivos CSV no diretório remoto (sem filtrar por cache).
+   * Retorna apenas os nomes dos arquivos.
+   */
+  async listarArquivosCSV(): Promise<string[]> {
+    const client = new Client();
+    try {
+      log(`[IHMService] ${this.cachePrefix} - Listando CSVs no FTP: ${this.ip}`);
+      await client.access({ host: this.ip, user: this.user, password: this.password, secure: false });
+      await client.useDefaultSettings();
+      await client.cd(this.remotePath);
+      
+      const list = await client.list();
+      const csvFiles = list
+        .filter((f: any) => f.isFile && f.name.toLowerCase().endsWith('.csv'))
+        .filter((f: any) => {
+          // Filtrar arquivos _2.csv e _sys
+          const name = f.name.toLowerCase();
+          return !name.endsWith('_2.csv') && !name.includes('_sys');
+        })
+        .map((f: any) => f.name);
+      
+      log(`[IHMService] ${this.cachePrefix} - Encontrados ${csvFiles.length} arquivos CSV`);
+      return csvFiles;
+    } catch (error) {
+      log(`[IHMService] ${this.cachePrefix} - Erro ao listar arquivos: ${error}`);
+      throw error;
+    } finally {
+      client.close();
+    }
+  }
 }

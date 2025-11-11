@@ -219,6 +219,32 @@ export class CacheService extends BaseService {
       this.deletingFile = false;
     }
   }
+
+  /**
+   * Compatibilidade com collector: buscar cache por nome
+   */
+  async getCacheByName(name: string): Promise<{ lastProcessedLine?: number; lastModified?: string } | null> {
+    const cached = await this.getByName(name);
+    if (!cached) return null;
+    
+    return {
+      lastProcessedLine: (cached as any).lastProcessedLine,
+      lastModified: cached.lastMTime || undefined,
+    };
+  }
+
+  /**
+   * Compatibilidade com collector: atualizar cache
+   */
+  async updateCache(name: string, size: number, lastProcessedLine: number): Promise<void> {
+    await this.upsert({
+      originalName: name,
+      lastSize: size,
+      lastMTime: new Date().toISOString(),
+      lastProcessedAt: new Date().toISOString(),
+      ...(lastProcessedLine ? { lastProcessedLine } as any : {}),
+    });
+  }
 }
 
 export const cacheService = new CacheService();

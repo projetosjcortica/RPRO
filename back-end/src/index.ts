@@ -2446,26 +2446,10 @@ app.get("/api/config/:key", async (req, res) => {
       try {
         // Build a base IHM config from the parsed value or known defaults
         const baseIhm = (out && typeof out === 'object') ? { ...(knownDefaults['ihm-config'] || {}), ...out } : { ...(knownDefaults['ihm-config'] || {}) };
-        // Read amendoim-config and map its fields into IHM fields
+        
+        // Read amendoim-config and copy secondary IHM credentials if provided
         try {
           const amCfg = (await Promise.resolve().then(() => require('./services/AmendoimConfigService')).then(m => m.AmendoimConfigService.getConfig()));
-          // Helper: infer method from filename
-          const inferMethod = (name: any) => {
-            if (!name) return '';
-            const s = String(name || '').trim();
-            if (/Relatorio_\d{4}_\d{2}\.csv$/i.test(s)) return 'mensal';
-            if (/Relatorio_1\.csv$/i.test(s)) return 'geral';
-            return 'custom';
-          };
-
-          const entradaMethod = inferMethod(amCfg.arquivoEntrada);
-          const saidaMethod = inferMethod(amCfg.arquivoSaida);
-
-          if (entradaMethod) baseIhm.metodoCSV = entradaMethod;
-          if (entradaMethod === 'custom') baseIhm.localCSV = String(amCfg.arquivoEntrada || baseIhm.localCSV || '');
-
-          if (saidaMethod) baseIhm.metodoCSV2 = saidaMethod;
-          if (saidaMethod === 'custom') baseIhm.localCSV2 = String(amCfg.arquivoSaida || baseIhm.localCSV2 || '');
 
           // Copy secondary IHM creds if provided in amendoim-config
           if (amCfg.duasIHMs && amCfg.ihm2) {
@@ -3600,17 +3584,13 @@ app.post('/api/amendoim/upload', amendoimUpload.single('file'), async (req, res)
       return res.status(400).json({ error: 'Nenhum arquivo enviado' });
     }
 
-    // Obter tipo do body (entrada ou saida)
-    const tipo = (req.body.tipo === 'saida') ? 'saida' : 'entrada';
-
     const csvContent = req.file.buffer.toString('utf-8');
-    const resultado = await AmendoimService.processarCSV(csvContent, tipo);
+    const resultado = await AmendoimService.processarCSV(csvContent);
 
     return res.json({
       ok: true,
       ...resultado,
-      tipo,
-      mensagem: `${resultado.salvos} registros de ${tipo} salvos de ${resultado.processados} processados`,
+      mensagem: `${resultado.salvos} registros salvos (${resultado.entradasSalvas} entradas, ${resultado.saidasSalvas} saídas) de ${resultado.processados} processados`,
     });
   } catch (e: any) {
     console.error('[api/amendoim/upload] error', e);
@@ -3818,27 +3798,6 @@ app.get('/api/amendoim/config', async (req, res) => {
       validation.errors.push('IP da IHM1 é obrigatório.');
     }
     
-    // Se duasIHMs=false (modo IHM única) mas não configurou o modo de coleta
-    if (!config.duasIHMs) {
-      if (!config.modoColeta) {
-        validation.isValid = false;
-        validation.needsIhmSelection = true;
-        validation.errors.push('Modo de coleta não configurado. Selecione como a IHM única irá coletar.');
-      } else if (config.modoColeta === 'entrada-saida' && (!config.arquivoEntrada || !config.arquivoSaida)) {
-        validation.isValid = false;
-        validation.needsIhmSelection = true;
-        validation.errors.push('Especifique os nomes dos arquivos CSV de entrada e saída.');
-      } else if (config.modoColeta === 'apenas-entrada' && !config.arquivoEntrada) {
-        validation.isValid = false;
-        validation.needsIhmSelection = true;
-        validation.errors.push('Especifique o nome do arquivo CSV de entrada.');
-      } else if (config.modoColeta === 'apenas-saida' && !config.arquivoSaida) {
-        validation.isValid = false;
-        validation.needsIhmSelection = true;
-        validation.errors.push('Especifique o nome do arquivo CSV de saída.');
-      }
-    }
-    
     // Se duasIHMs=true mas IHM2 não configurada
     if (config.duasIHMs && (!config.ihm2?.ip || !config.ihm2.ip.trim())) {
       validation.isValid = false;
@@ -4026,7 +3985,7 @@ app.post('/api/amendoim/seed', async (req, res) => {
     }
 
     const csvEntrada = csvLines.join('\n');
-    const resultEntrada = await AmendoimService.processarCSV(csvEntrada, "entrada");
+    const resultEntrada = await AmendoimService.processarCSV(csvEntrada);
 
     // Dados de saída
     const csvLinesSaida: string[] = [];
@@ -4047,7 +4006,7 @@ app.post('/api/amendoim/seed', async (req, res) => {
     }
 
     const csvSaida = csvLinesSaida.join('\n');
-    const resultSaida = await AmendoimService.processarCSV(csvSaida, "saida");
+    const resultSaida = await AmendoimService.processarCSV(csvSaida);
 
     console.log('[api/amendoim/seed] Concluído!', { 
       entrada: resultEntrada,

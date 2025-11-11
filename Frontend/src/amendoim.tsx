@@ -11,7 +11,6 @@ import { cn } from "./lib/utils";
 import { Separator } from "./components/ui/separator";
 import useAuth from "./hooks/useAuth";
 import { resolvePhotoUrl } from "./lib/photoUtils";
-import { RefreshButton } from "./components/RefreshButton";
 import {
   ChartEntradaSaidaPorHorario,
   ChartRendimentoPorDia,
@@ -20,7 +19,6 @@ import {
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
 import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
-import { IhmSelectionModal } from "./components/IhmSelectionModal";
 
 interface AmendoimRecord {
   id: number;
@@ -710,18 +708,6 @@ export default function Amendoim() {
                 <p> Iniciar coleta</p>
               )}
             </Button>
-
-            {/* Botão de busca única na IHM */}
-            <RefreshButton
-              type="amendoim"
-              ihmConfig={ihmConfig || undefined}
-              onRefresh={async () => {
-                await fetchRegistros();
-                await fetchEstatisticas();
-              }}
-              label="Buscar IHM"
-              size="default"
-            />
           </div>
         </div>
       </div>
@@ -1271,98 +1257,6 @@ export default function Amendoim() {
           fetchEstatisticas();
           if (viewMode === 'comparativo') {
             fetchMetricasRendimento();
-          }
-        }}
-      />
-      
-      {/* Modal de Seleção de IHM */}
-      <IhmSelectionModal
-        isOpen={showIhmModal}
-        onSelect={async (config) => {
-          console.log(`[Amendoim] 🔘 Configuração selecionada:`, config);
-          
-          try {
-            console.log('[Amendoim] 📤 Enviando configuração para o backend...');
-            
-            // Salvar configuração com o modo e arquivos selecionados
-            const updatedConfig = {
-              ...ihmConfig,
-              modoColeta: config.modo,
-              arquivoEntrada: config.arquivoEntrada,
-              arquivoSaida: config.arquivoSaida,
-            };
-            
-            console.log('[Amendoim] 📦 Config atualizada:', updatedConfig);
-            
-            const res = await fetch('http://localhost:3000/api/amendoim/config', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(updatedConfig)
-            });
-            
-            console.log('[Amendoim] 📥 Resposta do POST:', res.status);
-            
-            if (!res.ok) {
-              const errorData = await res.json().catch(() => ({}));
-              console.error('[Amendoim] ❌ Erro na resposta:', errorData);
-              throw new Error(errorData.error || 'Erro ao salvar configuração');
-            }
-            
-            const saveResult = await res.json();
-            console.log('[Amendoim] ✅ Configuração salva:', saveResult);
-            
-            // Recarregar configuração
-            console.log('[Amendoim] 🔄 Recarregando configuração...');
-            const reloadRes = await fetch('http://localhost:3000/api/amendoim/config');
-            const reloadData = await reloadRes.json();
-            
-            console.log('[Amendoim] 📥 Config recarregada:', reloadData);
-            
-            if (reloadData.config) {
-              setIhmConfig(reloadData.config);
-            }
-            
-            if (reloadData.validation?.isValid) {
-              console.log('[Amendoim] ✅ Validação passou - fechando modal');
-              setValidationErrors([]);
-              setShowIhmModal(false);
-              
-              const modoTexto = config.modo === "entrada-saida" ? "ENTRADA e SAÍDA"
-                : config.modo === "apenas-entrada" ? "apenas ENTRADA"
-                : "apenas SAÍDA";
-              
-              toastManager.updateSuccess(
-                'ihm-selection',
-                `Configuração salva: Coleta ${modoTexto}`
-              );
-            } else {
-              console.warn('[Amendoim] ⚠️ Validação falhou:', reloadData.validation);
-              toastManager.updateError(
-                'ihm-selection',
-                `Validação falhou: ${reloadData.validation?.errors?.join(', ')}`
-              );
-            }
-          } catch (error: any) {
-            console.error('[Amendoim] ❌ Erro ao salvar configuração:', error);
-            toastManager.updateError(
-              'ihm-selection',
-              error.message || 'Erro ao salvar configuração'
-            );
-          }
-        }}
-        onCancel={() => {
-          console.log('[Amendoim] ❌ Botão Cancelar clicado');
-          
-          // Não permitir fechar sem selecionar se há erros de validação
-          if (validationErrors.length > 0) {
-            console.warn('[Amendoim] ⚠️ Tentativa de cancelar com erros pendentes');
-            toastManager.updateError(
-              'ihm-selection-required',
-              'Você precisa configurar o sistema para continuar'
-            );
-          } else {
-            console.log('[Amendoim] ✅ Fechando modal');
-            setShowIhmModal(false);
           }
         }}
       />

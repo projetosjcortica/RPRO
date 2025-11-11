@@ -147,27 +147,6 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
     return new Date().toISOString().slice(0, 7);
   };
 
-  // Gerar nome de arquivo baseado na configuração
-  const gerarNomeArquivo = (tipo: "entrada" | "saida"): string => {
-    const cfg = config[tipo];
-    
-    if (cfg.nomeArquivo) {
-      return cfg.nomeArquivo;
-    }
-
-    if (cfg.tipoRelatorio === "geral") {
-      return "Relatorio_1.csv";
-    }
-
-    // Mensal
-    if (cfg.mesAno) {
-      const [ano, mes] = cfg.mesAno.split("-");
-      return `Relatorio_${ano}_${mes}.csv`;
-    }
-
-    return "Relatorio_1.csv";
-  };
-
   const handleSave = async () => {
     setSaving(true);
     
@@ -183,50 +162,17 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
         toastManager.updateError("amendoim-config-save", "IP da IHM2 é obrigatório quando usar duas IHMs");
         return;
       }
-
-      // ⚡ VALIDAÇÃO: Se IHM única, validar modo e arquivos
-      if (!config.duasIHMs) {
-        if (!config.modoColeta) {
-          toastManager.updateError("amendoim-config-save", "Selecione o modo de coleta da IHM única");
-          return;
-        }
-        
-        if (config.modoColeta === "entrada-saida") {
-          if (!config.arquivoEntrada || !config.arquivoSaida) {
-            toastManager.updateError("amendoim-config-save", "Especifique os nomes dos arquivos de entrada e saída");
-            return;
-          }
-        } else if (config.modoColeta === "apenas-entrada" && !config.arquivoEntrada) {
-          toastManager.updateError("amendoim-config-save", "Especifique o nome do arquivo de entrada");
-          return;
-        } else if (config.modoColeta === "apenas-saida" && !config.arquivoSaida) {
-          toastManager.updateError("amendoim-config-save", "Especifique o nome do arquivo de saída");
-          return;
-        }
-      }
       
-      // Fixar roteamento automático quando usar duas IHMs
-      const ihmEntradaFinal = config.duasIHMs ? "ihm1" : "ihm1"; // IHM1 sempre é entrada
-      const ihmSaidaFinal = config.duasIHMs ? "ihm2" : "ihm1";   // IHM2 é saída quando há 2 IHMs
-      
-      // Preparar payload para o backend
+      // Preparar payload para o backend (novo formato simplificado)
       const payload: any = {
         duasIHMs: config.duasIHMs,
-        arquivoEntrada: config.duasIHMs ? gerarNomeArquivo("entrada") : config.arquivoEntrada,
-        arquivoSaida: config.duasIHMs ? gerarNomeArquivo("saida") : config.arquivoSaida,
         ip: config.ihm1.ip.trim(),
         user: config.ihm1.user || "anonymous",
         password: config.ihm1.password || "",
         caminhoRemoto: config.ihm1.caminhoRemoto || "/InternalStorage/data/",
-        ihm1UsadaPara: config.ihm1.usadaPara,
-        mapeamentoBalancas: config.mapeamentoBalancas,
-        ihmEntrada: ihmEntradaFinal,
-        ihmSaida: ihmSaidaFinal,
-        // Salvar modo de coleta para IHM única
-        modoColeta: config.modoColeta,
       };
 
-      // ⚡ VALIDAÇÃO: Normalizar ihm2 se usar duas IHMs
+      // ⚡ Adicionar ihm2 se configurada
       if (config.duasIHMs && config.ihm2) {
         payload.ihm2 = {
           ip: (config.ihm2.ip || "").trim(),
@@ -499,183 +445,35 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
                 )}
               </div>
 
-              {/* MODO DE COLETA - Apenas para IHM Única */}
-              {!config.duasIHMs && (() => {
-                console.log('[AmendoimConfig] 🎯 Seção de Modo de Coleta VISÍVEL - duasIHMs:', config.duasIHMs, 'modoColeta:', (config as any).modoColeta);
-                return (
-                <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 rounded-lg p-4">
-                  <h3 className="text-lg font-bold text-orange-800 mb-3 flex items-center gap-2">
-                    <Scale className="h-5 w-5" />
-                    Modo de Coleta da IHM Única
-                  </h3>
+              {/* INFORMAÇÃO SOBRE DETECÇÃO AUTOMÁTICA POR BALANÇA */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg p-4">
+                <h3 className="text-lg font-bold text-blue-800 mb-3 flex items-center gap-2">
+                  <Scale className="h-5 w-5" />
+                  Detecção Automática de Tipo
+                </h3>
+                
+                <div className="text-sm text-blue-700 space-y-2">
+                  <p className="bg-blue-100 border border-blue-200 rounded p-3">
+                    🔍 <strong>Sistema Inteligente:</strong> O tipo de registro (entrada/saída) é determinado automaticamente baseado no campo <strong>balança</strong> do CSV.
+                  </p>
                   
-                  <div className="text-xs text-orange-700 mb-4 bg-orange-100 border border-orange-200 rounded p-2">
-                    ℹ️ Defina como a IHM única irá coletar os dados de pesagem
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3">
-                    {/* Modo: Entrada e Saída em arquivos separados */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        console.log('[AmendoimConfig] Selecionando modo: entrada-saida');
-                        setConfig({ ...config, modoColeta: "entrada-saida" });
-                      }}
-                      className={cn(
-                        "p-4 rounded-lg border-2 text-left transition-all",
-                        (config as any).modoColeta === "entrada-saida"
-                          ? "bg-orange-600 border-orange-700 text-white"
-                          : "bg-white border-orange-300 hover:bg-orange-50"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                          (config as any).modoColeta === "entrada-saida" ? "border-white" : "border-orange-400"
-                        )}>
-                          {(config as any).modoColeta === "entrada-saida" && (
-                            <div className="w-3 h-3 rounded-full bg-white"></div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className={cn(
-                            "font-bold text-sm",
-                            (config as any).modoColeta === "entrada-saida" ? "text-white" : "text-orange-800"
-                          )}>
-                            📂 Dois arquivos CSV (Entrada e Saída separados)
-                          </div>
-                          <div className={cn(
-                            "text-xs mt-1",
-                            (config as any).modoColeta === "entrada-saida" ? "text-orange-100" : "text-orange-600"
-                          )}>
-                            A IHM gera dois arquivos: um para entrada e outro para saída
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* Modo: Apenas Entrada */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        console.log('[AmendoimConfig] Selecionando modo: apenas-entrada');
-                        setConfig({ ...config, modoColeta: "apenas-entrada" });
-                      }}
-                      className={cn(
-                        "p-4 rounded-lg border-2 text-left transition-all",
-                        (config as any).modoColeta === "apenas-entrada"
-                          ? "bg-green-600 border-green-700 text-white"
-                          : "bg-white border-green-300 hover:bg-green-50"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                          (config as any).modoColeta === "apenas-entrada" ? "border-white" : "border-green-400"
-                        )}>
-                          {(config as any).modoColeta === "apenas-entrada" && (
-                            <div className="w-3 h-3 rounded-full bg-white"></div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className={cn(
-                            "font-bold text-sm",
-                            (config as any).modoColeta === "apenas-entrada" ? "text-white" : "text-green-800"
-                          )}>
-                            ⬇️ Apenas ENTRADA
-                          </div>
-                          <div className={cn(
-                            "text-xs mt-1",
-                            (config as any).modoColeta === "apenas-entrada" ? "text-green-100" : "text-green-600"
-                          )}>
-                            A IHM coleta apenas dados de entrada (recebimento)
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-
-                    {/* Modo: Apenas Saída */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        console.log('[AmendoimConfig] Selecionando modo: apenas-saida');
-                        setConfig({ ...config, modoColeta: "apenas-saida" });
-                      }}
-                      className={cn(
-                        "p-4 rounded-lg border-2 text-left transition-all",
-                        (config as any).modoColeta === "apenas-saida"
-                          ? "bg-blue-600 border-blue-700 text-white"
-                          : "bg-white border-blue-300 hover:bg-blue-50"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={cn(
-                          "w-5 h-5 rounded-full border-2 flex items-center justify-center",
-                          (config as any).modoColeta === "apenas-saida" ? "border-white" : "border-blue-400"
-                        )}>
-                          {(config as any).modoColeta === "apenas-saida" && (
-                            <div className="w-3 h-3 rounded-full bg-white"></div>
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className={cn(
-                            "font-bold text-sm",
-                            (config as any).modoColeta === "apenas-saida" ? "text-white" : "text-blue-800"
-                          )}>
-                            ⬆️ Apenas SAÍDA
-                          </div>
-                          <div className={cn(
-                            "text-xs mt-1",
-                            (config as any).modoColeta === "apenas-saida" ? "text-blue-100" : "text-blue-600"
-                          )}>
-                            A IHM coleta apenas dados de saída (expedição)
-                          </div>
-                        </div>
-                      </div>
-                    </button>
-                  </div>
-
-                  {/* Campos de nome de arquivo baseados no modo */}
-                  {(config as any).modoColeta && (
-                    <div className="mt-4 p-4 bg-white border-2 border-orange-200 rounded-lg">
-                      <h4 className="text-sm font-bold text-orange-800 mb-3">
-                        📝 Nomes dos Arquivos CSV
-                      </h4>
-                      
-                      {((config as any).modoColeta === "entrada-saida" || (config as any).modoColeta === "apenas-entrada") && (
-                        <div className="mb-3">
-                          <label className="text-xs font-medium text-gray-700 mb-1 block">
-                            Arquivo de ENTRADA:
-                          </label>
-                          <input
-                            type="text"
-                            value={(config as any).arquivoEntrada || ""}
-                            onChange={(e) => setConfig({ ...config, arquivoEntrada: e.target.value } as any)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                            placeholder="Ex: Relatorio_2025_11.csv"
-                          />
-                        </div>
-                      )}
-                      
-                      {((config as any).modoColeta === "entrada-saida" || (config as any).modoColeta === "apenas-saida") && (
-                        <div>
-                          <label className="text-xs font-medium text-gray-700 mb-1 block">
-                            Arquivo de SAÍDA:
-                          </label>
-                          <input
-                            type="text"
-                            value={(config as any).arquivoSaida || ""}
-                            onChange={(e) => setConfig({ ...config, arquivoSaida: e.target.value } as any)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                            placeholder="Ex: Relatorio_Saida_2025_11.csv"
-                          />
-                        </div>
-                      )}
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div className="bg-white border-2 border-green-300 rounded-lg p-3">
+                      <div className="text-xs font-bold text-green-800 mb-1">⬇️ ENTRADA</div>
+                      <div className="text-xs text-green-600">Balanças <strong>1</strong> e <strong>2</strong></div>
                     </div>
-                  )}
+                    
+                    <div className="bg-white border-2 border-orange-300 rounded-lg p-3">
+                      <div className="text-xs font-bold text-orange-800 mb-1">⬆️ SAÍDA</div>
+                      <div className="text-xs text-orange-600">Balança <strong>3</strong></div>
+                    </div>
+                  </div>
+                  
+                  <p className="text-xs text-blue-600 mt-3 italic">
+                    💡 Todos os arquivos CSV encontrados no diretório FTP serão processados automaticamente.
+                  </p>
                 </div>
-                );
-              })()}
+              </div>
 
               {/* Informação sobre roteamento automático */}
               {config.duasIHMs && (
@@ -720,265 +518,10 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
                   </div>
 
                   <div className="mt-3 p-3 bg-purple-100 border border-purple-200 rounded text-xs text-purple-700">
-                    <strong>ℹ️ Automático:</strong> IHM1 sempre coleta dados de <strong>entrada</strong> e IHM2 sempre coleta dados de <strong>saída</strong>.
+                    <strong>ℹ️ Automático:</strong> O sistema coleta todos os CSVs de ambas IHMs e determina entrada/saída pela balança.
                   </div>
                 </div>
               )}
-
-              {/* Configuração de Entrada */}
-              <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
-                <h3 className="text-lg font-bold text-green-800 mb-3 flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-600 rounded-full"></div>
-                  Arquivo de ENTRADA
-                </h3>
-
-                <div className="space-y-3">
-                  <div className="bg-green-100 border border-green-300 rounded-lg p-3">
-                    <div className="text-xs text-green-700 font-medium mb-2">
-                      ℹ️ A IHM gera automaticamente o relatório mensal
-                    </div>
-                    <div className="text-sm text-green-800">
-                      O arquivo será coletado com base no <strong>mês atual</strong> da data do sistema.
-                    </div>
-                    <div className="mt-2">
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">
-                        Mês/Ano de coleta:
-                      </label>
-                      <input
-                        type="month"
-                        value={config.entrada.mesAno || ""}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            entrada: { ...config.entrada, mesAno: e.target.value },
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded"
-                      />
-                      <div className="text-xs text-gray-500 mt-1">
-                        Padrão: mês atual ({new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })})
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-green-200 rounded p-3">
-                    <div className="text-xs text-gray-500 mb-1">Arquivo que será coletado:</div>
-                    <div className="font-mono text-sm font-bold text-green-700">
-                      {gerarNomeArquivo("entrada")}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Nome customizado (opcional):
-                    </label>
-                    <input
-                      type="text"
-                      value={config.entrada.nomeArquivo || ""}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          entrada: { ...config.entrada, nomeArquivo: e.target.value },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      placeholder="Ex: Relatorio_Entrada_Custom.csv"
-                    />
-                    <div className="text-xs text-gray-500 mt-1">
-                      Se informado, este nome será usado no lugar do gerado automaticamente
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Configuração de Saída */}
-              <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4">
-                <h3 className="text-lg font-bold text-blue-800 mb-3 flex items-center gap-2">
-                  <div className="w-3 h-3 bg-blue-600 rounded-full"></div>
-                  Arquivo de SAÍDA
-                </h3>
-
-                <div className="space-y-3">
-                  <div className="bg-blue-100 border border-blue-300 rounded-lg p-3">
-                    <div className="text-xs text-blue-700 font-medium mb-2">
-                      ℹ️ A IHM gera automaticamente o relatório mensal
-                    </div>
-                    <div className="text-sm text-blue-800">
-                      O arquivo será coletado com base no <strong>mês atual</strong> da data do sistema.
-                    </div>
-                    <div className="mt-2">
-                      <label className="text-sm font-medium text-gray-700 mb-1 block">
-                        Mês/Ano de coleta:
-                      </label>
-                      <input
-                        type="month"
-                        value={config.saida.mesAno || ""}
-                        onChange={(e) =>
-                          setConfig({
-                            ...config,
-                            saida: { ...config.saida, mesAno: e.target.value },
-                          })
-                        }
-                        className="w-full px-3 py-2 border border-gray-300 rounded"
-                      />
-                      <div className="text-xs text-gray-500 mt-1">
-                        Padrão: mês atual ({new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })})
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white border border-blue-200 rounded p-3">
-                    <div className="text-xs text-gray-500 mb-1">Arquivo que será coletado:</div>
-                    <div className="font-mono text-sm font-bold text-blue-700">
-                      {gerarNomeArquivo("saida")}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-gray-700 mb-1 block">
-                      Nome customizado (opcional):
-                    </label>
-                    <input
-                      type="text"
-                      value={config.saida.nomeArquivo || ""}
-                      onChange={(e) =>
-                        setConfig({
-                          ...config,
-                          saida: { ...config.saida, nomeArquivo: e.target.value },
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                      placeholder="Ex: Relatorio_Saida_Custom.csv"
-                    />
-                    <div className="text-xs text-gray-500 mt-1">
-                      Se informado, este nome será usado no lugar do gerado automaticamente
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mapeamento de Balanças - apenas quando usa uma IHM */}
-              {!config.duasIHMs && (
-                <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-4">
-                  <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
-                    <Scale className="h-5 w-5" />
-                    Mapeamento de Balanças
-                  </h3>
-                  
-                  <div className="text-sm text-gray-600 mb-4">
-                    Define quais balanças do CSV correspondem a entrada e saída. Útil para análises comparativas.
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Balanças de Entrada */}
-                    <div className="bg-green-50 border border-green-300 rounded-lg p-3">
-                      <label className="text-sm font-bold text-green-800 mb-2 block flex items-center gap-1">
-                        <ArrowBigDown className="h-4 w-4" />
-                        Balanças de Entrada
-                      </label>
-                      <input
-                        type="text"
-                        value={config.mapeamentoBalancas?.entrada?.join(", ") || ""}
-                        onChange={(e) => {
-                          const valores = e.target.value
-                            .split(",")
-                            .map(v => v.trim())
-                            .filter(v => v !== "");
-                          setConfig({
-                            ...config,
-                            mapeamentoBalancas: {
-                              ...config.mapeamentoBalancas,
-                              entrada: valores,
-                              saida: config.mapeamentoBalancas?.saida || [],
-                            },
-                          });
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                        placeholder="Ex: 1, 2, 3"
-                      />
-                      <div className="text-xs text-gray-500 mt-1">
-                        Separe os IDs por vírgula
-                      </div>
-                    </div>
-
-                    {/* Balanças de Saída */}
-                    <div className="bg-blue-50 border border-blue-300 rounded-lg p-3">
-                      <label className="text-sm font-bold text-blue-800 mb-2 block flex items-center gap-1">
-                        <ArrowBigUp className="h-4 w-4" />
-                        Balanças de Saída
-                      </label>
-                      <input
-                        type="text"
-                        value={config.mapeamentoBalancas?.saida?.join(", ") || ""}
-                        onChange={(e) => {
-                          const valores = e.target.value
-                            .split(",")
-                            .map(v => v.trim())
-                            .filter(v => v !== "");
-                          setConfig({
-                            ...config,
-                            mapeamentoBalancas: {
-                              entrada: config.mapeamentoBalancas?.entrada || [],
-                              saida: valores,
-                            },
-                          });
-                        }}
-                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
-                        placeholder="Ex: 9, 10"
-                      />
-                      <div className="text-xs text-gray-500 mt-1">
-                        Separe os IDs por vírgula
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 p-2 bg-gray-100 border border-gray-200 rounded text-xs text-gray-600">
-                    <strong>ℹ️ Nota:</strong> Este mapeamento será usado nas análises comparativas entre balanças específicas (ex: "entrada balanças 1,2,3 vs saída balanças 9,10").
-                  </div>
-                </div>
-              )}
-
-              {/* Resumo */}
-              <div className="bg-gray-100 border border-gray-300 rounded-lg p-4">
-                <h4 className="text-sm font-bold text-gray-800 mb-3">Resumo da Configuração:</h4>
-                
-                {/* Nota sobre geração automática */}
-                <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
-                  <strong>📅 Geração Automática:</strong> A IHM gera os relatórios mensais automaticamente.
-                  O sistema coletará o arquivo do mês atual ({new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}) ou o mês selecionado.
-                </div>
-
-                <ul className="text-sm text-gray-700 space-y-1">
-                  <li>
-                    • <strong>IHMs:</strong>{" "}
-                    {config.duasIHMs ? "Duas IHMs separadas" : "Uma IHM (mesma fonte)"}
-                  </li>
-                  <li>
-                    • <strong>Entrada:</strong> {gerarNomeArquivo("entrada")}{" "}
-                    <span className="text-green-600 font-medium">(IHM1)</span>
-                  </li>
-                  <li>
-                    • <strong>Saída:</strong> {gerarNomeArquivo("saida")}{" "}
-                    <span className="text-blue-600 font-medium">
-                      ({config.duasIHMs ? "IHM2" : "IHM1"})
-                    </span>
-                  </li>
-                  {!config.duasIHMs && config.mapeamentoBalancas && (
-                    <>
-                      {config.mapeamentoBalancas.entrada && config.mapeamentoBalancas.entrada.length > 0 && (
-                        <li>
-                          • <strong>Balanças Entrada:</strong> {config.mapeamentoBalancas.entrada.join(", ")}
-                        </li>
-                      )}
-                      {config.mapeamentoBalancas.saida && config.mapeamentoBalancas.saida.length > 0 && (
-                        <li>
-                          • <strong>Balanças Saída:</strong> {config.mapeamentoBalancas.saida.join(", ")}
-                        </li>
-                      )}
-                    </>
-                  )}
-                </ul>
-              </div>
             </div>
           )}
         </div>
