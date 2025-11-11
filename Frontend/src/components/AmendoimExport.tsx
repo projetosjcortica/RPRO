@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { FileSpreadsheet, FileText, FileDown } from "lucide-react";
+import { FileSpreadsheet, FileText, FileDown, Settings } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +44,7 @@ interface AmendoimExportProps {
   // add receives the raw text, remove receives the comment id
   onAddComment?: (texto: string) => void;
   onRemoveComment?: (id: string) => void;
+  logoUrl?: string;
 }
 
 interface AmendoimRecord {
@@ -58,7 +59,7 @@ interface AmendoimRecord {
   balanca?: string;
 }
 
-export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment }: AmendoimExportProps) {
+export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, logoUrl }: AmendoimExportProps) {
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
@@ -74,17 +75,21 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   // Estados para PDF
   const [pdfData, setPdfData] = useState<AmendoimRecord[]>([]);
   const [loadingPdf, setLoadingPdf] = useState(false);
-  // PDF tipo: entrada / saida / comparativo
-  const [pdfTipo, setPdfTipo] = useState<"entrada" | "saida" | "comparativo">(
-    filtros.tipo === "entrada" || filtros.tipo === "saida" ? (filtros.tipo as "entrada" | "saida") : "entrada"
-  );
+  // PDF sempre em modo comparativo
+  const pdfTipo = "comparativo";
   // Comentários locais (se o pai passar, preferir o prop). Keep a local copy so user can add/delete even if parent handlers aren't provided.
   const [showCommentsSection, setShowCommentsSection] = useState(true);
   const [showCommentEditor, setShowCommentEditor] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [localComments, setLocalComments] = useState<{ id?: string; texto: string; data?: string }[]>(comentarios || []);
-  // Show/hide detailed report pages in the PDF
-  const [showDetailed, setShowDetailed] = useState(true);
+  // Show/hide detailed report pages in the PDF (padrão: ocultar)
+  const [showDetailed, setShowDetailed] = useState(false);
+  // PDF customization options
+  const [fontSize, setFontSize] = useState<"pequena" | "media" | "grande">("media");
+  const [ordenacao, setOrdenacao] = useState<"data" | "produto" | "peso">("data");
+  const [agruparPorProduto, setAgruparPorProduto] = useState(false);
+  // Modal de configurações
+  const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
 
   // Keep localComments in sync if parent prop changes
   useEffect(() => {
@@ -255,9 +260,9 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
     if (pdfModalOpen) {
       void handleLoadPdfData();
     }
-    // Reload when modal opens or when pdfTipo changes while modal is open
+    // Reload when modal opens (pdfTipo is now constant "comparativo")
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdfModalOpen, pdfTipo]);
+  }, [pdfModalOpen]);
 
   // Prepare comments to pass to PDF: include saved localComments plus the editor's newComment (if any)
   const commentsForPdf = [
@@ -393,39 +398,35 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
       {/* Modal PDF */}
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
-        <DialogContent className="sm:max-w-[580px] 3xl:h-[900px] h-[750px] overflow-auto thin-red-scrollbar">
+        <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto thin-red-scrollbar">
           <DialogHeader>
-            <DialogTitle>Exportar para PDF</DialogTitle>
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle>Exportar para PDF</DialogTitle> 
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPdfSettingsOpen(true)}
+                className="gap-2 mr-5"
+              >
+                <Settings className="h-4 w-4" />
+                Customizar Relatório
+              </Button>
+            </div>
           </DialogHeader>
 
-          <div className="py-4">
-            {/* PDF mode selector: Entrada / Saída / Comparativo */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4 items-end">
-              <div className="col-span-1">
-                <Label htmlFor="pdfTipo" className="p-3">Modo do PDF</Label>
-                <Select value={pdfTipo} onValueChange={(v) => setPdfTipo(v as "entrada" | "saida" | "comparativo") }>
-                  <SelectTrigger id="pdfTipo">
-                    <SelectValue placeholder="Selecione o modo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="entrada">Entrada</SelectItem>
-                    <SelectItem value="saida">Saída</SelectItem>
-                    <SelectItem value="comparativo">Comparativo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
+          <div className="flex-1 overflow-auto py-4">
             {loadingPdf ? (
-              <div className="flex items-center justify-center h-[400px]">
+              <div className="flex items-center justify-center h-[500px]">
                 <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto mb-4"></div>
-                  <p className="text-sm text-gray-600">Carregando dados...</p>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#af1e1e] mx-auto mb-4"></div>
+                  <p className="text-sm text-gray-600">Carregando dados comparativos...</p>
                 </div>
               </div>
             ) : pdfData.length > 0 ? (
-              <div className="h-[698px] rounded justify-center flex">
-                <PDFViewer width="90%" height="100%">
+              <div className="my-4 border rounded-lg overflow-hidden bg-gray-50 min-h-[600px]">
+                <PDFViewer width="100%" height="600px" showToolbar={true}>
                   <AmendoimPDFDocument
                     registros={pdfData}
                     filtros={{
@@ -438,161 +439,248 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     }}
                     comentarios={commentsForPdf}
                     showDetailed={showDetailed}
+                    fontSize={fontSize}
+                    ordenacao={ordenacao}
+                    agruparPorProduto={agruparPorProduto}
+                    logoUrl={logoUrl}
                   />
                 </PDFViewer>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-[400px]">
-                <p className="text-sm text-gray-500">
-                  Clique em "Carregar Dados" para visualizar o relatório
-                </p>
+              <div className="flex items-center justify-center h-[500px] border border-dashed border-gray-300 rounded">
+                <div className="text-center">
+                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-sm text-gray-500 mb-2">
+                    Nenhum dado carregado
+                  </p>
+                  <p className="text-xs text-gray-400">
+                    Clique em "Carregar Dados" para visualizar o relatório
+                  </p>
+                </div>
               </div>
             )}
           </div>
 
-          <DialogFooter className="flex sm:items-center sm:justify-center">
-            {/* <Button variant="outline" onClick={() => setPdfModalOpen(false)}>
+          {/* Seção de Comentários no Modal */}
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium">Comentários do Relatório</h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCommentsSection(!showCommentsSection)}
+                  className="gap-2"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  {showCommentsSection ? "Ocultar" : "Mostrar"}
+                </Button>
+                {showCommentsSection && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => { setShowCommentEditor(!showCommentEditor); setNewComment(""); }}
+                    className="gap-2"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {showCommentEditor ? "Cancelar" : "Adicionar"}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {showCommentsSection && (
+              <>
+                {showCommentEditor && (
+                  <div className="mb-3 border rounded-lg p-3">
+                    <Textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Digite seu comentário sobre este relatório..."
+                      className="w-full resize-none mb-2"
+                      rows={3}
+                    />
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => { setShowCommentEditor(false); setNewComment(""); }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          const texto = newComment.trim();
+                          if (!texto) return;
+                          const c = { id: String(Date.now()), texto, data: new Date().toLocaleString('pt-BR') };
+                          setLocalComments((s) => [c, ...s]);
+                          if (typeof onAddComment === 'function') onAddComment(texto);
+                          setNewComment('');
+                          setShowCommentEditor(false);
+                        }}
+                        disabled={!newComment.trim()}
+                      >
+                        Adicionar Comentário
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {localComments && localComments.length > 0 ? (
+                  <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                    {localComments.map((c) => (
+                      <div key={c.id ?? c.texto} className="border rounded-lg p-3 bg-white relative group">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-700 break-words whitespace-pre-wrap">{c.texto}</p>
+                            <p className="text-xs text-gray-400 mt-1">{c.data}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              if (typeof onRemoveComment === 'function' && c.id) {
+                                onRemoveComment(String(c.id));
+                              } else {
+                                setLocalComments((prev) => prev.filter((x) => x.id !== c.id || x.texto !== c.texto));
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                          >
+                            <X className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 text-center py-4">Nenhum comentário adicionado</p>
+                )}
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="pt-4">
+            <Button variant="outline" onClick={() => setPdfModalOpen(false)}>
               Fechar
-            </Button> */}
+            </Button>
             {pdfData.length === 0 ? (
               <Button onClick={handleLoadPdfData} className="gap-2">
                 <FileText className="h-4 w-4" />
                 Carregar Dados
               </Button>
             ) : (
-              <div className="flex items-center justify-center gap-2">
-                <div className="flex-1 items-center justify-center">
-                  <div className="flex items-center justify-center mb-3">
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" checked={!showDetailed} onChange={() => setShowDetailed((s) => !s)} />
-                        <span className="text-xs text-gray-600">Ocultar relatório detalhado</span>
-                      </label>
-                      <h3 className="text-sm font-medium">Comentários: </h3>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowCommentsSection(!showCommentsSection)}
-                        className="gap-2"
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                        {showCommentsSection ? "Ocultar" : "Mostrar"}
-                      </Button>
-                      {showCommentsSection && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => { setShowCommentEditor(!showCommentEditor); setNewComment(""); }}
-                          className="gap-2"
-                        >
-                          <Plus className="h-4 w-4" />
-                          {showCommentEditor ? "Cancelar" : "Adicionar"}
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-
-                  {showCommentsSection && (
-                    <>
-                      {showCommentEditor && (
-                        <div className="mb-3 border rounded-lg p-3">
-                          <Textarea
-                            value={newComment}
-                            onChange={(e) => setNewComment(e.target.value)}
-                            placeholder="Digite seu comentário sobre este relatório..."
-                            className="w-full resize-none mb-2"
-                            rows={3}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => { setShowCommentEditor(false); setNewComment(""); }}
-                            >
-                              Cancelar
-                            </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => {
-                                const texto = newComment.trim();
-                                if (!texto) return;
-                                const c = { id: String(Date.now()), texto, data: new Date().toLocaleString('pt-BR') };
-                                setLocalComments((s) => [c, ...s]);
-                                if (typeof onAddComment === 'function') onAddComment(texto);
-                                setNewComment('');
-                                setShowCommentEditor(false);
-                              }}
-                              disabled={!newComment.trim()}
-                            >
-                              Adicionar Comentário
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {localComments && localComments.length > 0 ? (
-                        <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                          {localComments.map((c) => (
-                            <div key={c.id ?? c.texto} className="border rounded-lg p-3 bg-white relative group max-w-[400px]">
-                              <div className="flex justify-between items-start gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-gray-700 break-words whitespace-pre-wrap overflow-hidden">{c.texto}</p>
-                                  <p className="text-xs text-gray-400 mt-1">{c.data}</p>
-                                </div>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (typeof onRemoveComment === 'function' && c.id) {
-                                      onRemoveComment(String(c.id));
-                                    } else {
-                                      setLocalComments((prev) => prev.filter((x) => x.id !== c.id || x.texto !== c.texto));
-                                    }
-                                  }}
-                                  className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                                >
-                                  <X className="h-4 w-4 text-red-500" />
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-500 text-center py-4">Nenhum comentário adicionado</p>
-                      )}
-                    </>
-                  )}
-                </div>
-                <PDFDownloadLink
-                  document={
-                    <AmendoimPDFDocument
-                      registros={pdfData}
-                      filtros={{ tipo: pdfTipo, dataInicio, dataFim, codigoProduto, nomeProduto, codigoCaixa }}
-                        comentarios={commentsForPdf}
-                        showDetailed={showDetailed}
-                    />
-                  }
-                  fileName={`amendoim_${Date.now()}.pdf`}
-                >
-                  {/* {({ loading }) => (
-                      <Button className="gap-2" disabled={loading} onClick={() => {
-                        const texto = newComment?.trim();
-                        if (texto) {
-                          const c = { id: String(Date.now()), texto, data: new Date().toLocaleString('pt-BR') };
-                          setLocalComments((s) => [c, ...s]);
-                          if (typeof onAddComment === 'function') onAddComment(texto);
-                          setNewComment('');
-                        }
-                      }}>
-                      <FileText className="h-4 w-4" />
-                      {loading ? "Gerando PDF..." : "Baixar PDF"}
-                    </Button>
-                  )} */}
-                </PDFDownloadLink>
-              </div>
+              <PDFDownloadLink
+                document={
+                  <AmendoimPDFDocument
+                    registros={pdfData}
+                    filtros={{ tipo: pdfTipo, dataInicio, dataFim, codigoProduto, nomeProduto, codigoCaixa }}
+                    comentarios={commentsForPdf}
+                    showDetailed={showDetailed}
+                    fontSize={fontSize}
+                    ordenacao={ordenacao}
+                    agruparPorProduto={agruparPorProduto}
+                    logoUrl={logoUrl}
+                  />
+                }
+                fileName={`amendoim_comparativo_${Date.now()}.pdf`}
+              >
+                {({ loading }) => (
+                  <Button className="gap-2" disabled={loading}>
+                    <FileText className="h-4 w-4" />
+                    {loading ? "Gerando PDF..." : "Baixar PDF"}
+                  </Button>
+                )}
+              </PDFDownloadLink>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Configurações do PDF */}
+      <Dialog open={pdfSettingsOpen} onOpenChange={setPdfSettingsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configurações do Relatório PDF</DialogTitle>
+            <DialogDescription>
+              Customize a aparência e organização do relatório
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Mostrar/Ocultar Detalhado */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Conteúdo</Label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="showDetailed"
+                  checked={!showDetailed}
+                  onChange={() => setShowDetailed((s) => !s)}
+                  className="w-4 h-4 text-[#af1e1e] rounded focus:ring-[#af1e1e]"
+                />
+                <label htmlFor="showDetailed" className="text-sm text-gray-600 cursor-pointer">
+                  Ocultar relatório detalhado (mostrar apenas resumo)
+                </label>
+              </div>
+            </div>
+
+            {/* Tamanho da Fonte */}
+            <div className="space-y-2">
+              <Label htmlFor="fontSize-config" className="text-sm font-medium">Tamanho da Fonte</Label>
+              <Select value={fontSize} onValueChange={(v) => setFontSize(v as "pequena" | "media" | "grande")}>
+                <SelectTrigger id="fontSize-config">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pequena">Pequena (10pt)</SelectItem>
+                  <SelectItem value="media">Média (12pt)</SelectItem>
+                  <SelectItem value="grande">Grande (14pt)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Ordenação */}
+            <div className="space-y-2">
+              <Label htmlFor="ordenacao-config" className="text-sm font-medium">Ordenação dos Registros</Label>
+              <Select value={ordenacao} onValueChange={(v) => setOrdenacao(v as "data" | "produto" | "peso")}>
+                <SelectTrigger id="ordenacao-config">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="data">Por Data (mais recente primeiro)</SelectItem>
+                  <SelectItem value="produto">Por Produto (A-Z)</SelectItem>
+                  <SelectItem value="peso">Por Peso (maior primeiro)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Agrupamento */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Agrupamento</Label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="agruparPorProduto"
+                  checked={agruparPorProduto}
+                  onChange={() => setAgruparPorProduto((s) => !s)}
+                  className="w-4 h-4 text-[#af1e1e] rounded focus:ring-[#af1e1e]"
+                />
+                <label htmlFor="agruparPorProduto" className="text-sm text-gray-600 cursor-pointer">
+                  Agrupar registros por produto
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPdfSettingsOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => setPdfSettingsOpen(false)}>
+              Aplicar Configurações
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

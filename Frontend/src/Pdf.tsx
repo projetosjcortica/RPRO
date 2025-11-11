@@ -60,7 +60,6 @@ const styles = StyleSheet.create({
     width: "100%",
     borderWidth: 1,
     borderColor: "#d1d5db",
-    // keep full border but subtle (neutral gray) to avoid heavy colored bars at page edge
     borderRightWidth: 1,
     borderBottomWidth: 1,
     flexDirection: "column",
@@ -115,10 +114,6 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   legendColorBox: { width: 10, height: 10, borderRadius: 2, marginRight: 6 },
   smallNote: { fontSize: 9, color: '#6b7280' },
-  // fixed table header that will appear on every page so tables spanning pages keep their header
-  // NOTE: removed absolute fixed header because it caused overlap across pages.
-  // If a repeating header is required use a page-level fixed component carefully
-  // positioned per page; for now we render the header as the first row inside each table.
 });
 
 interface Produto {
@@ -728,7 +723,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
             </Text>
           </View>
         </View>
-        
 
         {/* Fórmulas: renderiza um primeiro chunk na página atual e o resto em páginas dedicadas */}
         {formulasOrdenadas.length > 0 && (
