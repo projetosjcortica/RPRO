@@ -67,8 +67,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: "hidden",
     marginBottom: 10,
-    // reserve space under the fixed header so rows are not overlapped on every page
-    paddingTop: 36,
+    // allow rows to flow naturally; header is rendered as the first row inside the table
+    paddingTop: 0,
   },
   tableRow: { flexDirection: "row" },
   tableRowEven: { flexDirection: "row", backgroundColor: "#f9fafb" },
@@ -91,19 +91,21 @@ const styles = StyleSheet.create({
     color: "#af1e1eff",
     textAlign: "right",
   },
-  tableCol: { width: "70%", borderBottomWidth: 1, borderColor: "#d1d5db", padding: 8 },
-  tableColSmall: { width: "30%", borderBottomWidth: 1, borderColor: "#d1d5db", padding: 8, textAlign: "right" },
+  // allow long names to wrap and prevent overflow
+  tableCol: { width: "70%", borderBottomWidth: 1, borderColor: "#d1d5db", padding: 8, flexWrap: 'wrap' },
+  tableColSmall: { width: "30%", borderBottomWidth: 1, borderColor: "#d1d5db", padding: 8, textAlign: "right", minWidth: 60 },
+  tableHeaderRow: { flexDirection: 'row', backgroundColor: '#e2e2e2ff' },
   comentarioContainer: { marginBottom: 10, padding: 12, backgroundColor: "#f8f9fa", borderRadius: 4, border: '1px solid #e5e7eb' },
   comentarioMeta: { fontSize: 10, color: "#666666", marginBottom: 6 },
   comentarioTexto: { fontSize: 11, color: "#333333", lineHeight: 1.4 },
   // Chart styles
   chartSection: { marginBottom: 15 },
   chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4, paddingVertical: 2 },
-  chartLabel: { width: '25%', fontSize: 8, color: '#374151', paddingRight: 4 },
+  chartLabel: { width: '25%', fontSize: 10, color: '#374151', paddingRight: 4 },
   chartBarContainer: { width: '45%', height: 10, backgroundColor: '#e6e7ea', borderRadius: 3, overflow: 'hidden', marginRight: 4 },
   chartBarFill: { height: 10, backgroundColor: '#af1e1eff' },
-  chartValue: { width: '15%', fontSize: 8, textAlign: 'right', color: '#374151', paddingRight: 2 },
-  chartPercent: { width: '15%', fontSize: 8, textAlign: 'right', color: '#6b7280' },
+  chartValue: { width: '20%', fontSize: 10, textAlign: 'right', color: '#374151', paddingRight: 2 },
+  chartPercent: { width: '15%', fontSize: 10, textAlign: 'right', color: '#6b7280' },
   // donut
   donutContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   donutBox: { width: '35%', alignItems: 'center', justifyContent: 'center' },
@@ -114,19 +116,9 @@ const styles = StyleSheet.create({
   legendColorBox: { width: 10, height: 10, borderRadius: 2, marginRight: 6 },
   smallNote: { fontSize: 9, color: '#6b7280' },
   // fixed table header that will appear on every page so tables spanning pages keep their header
-  tableHeaderFixed: {
-    position: 'absolute',
-    left: 30,
-    right: 30,
-    // adjust top to sit below the red section title and document header
-    top: 160,
-    flexDirection: 'row',
-    backgroundColor: '#e2e2e2ff',
-    padding: 8,
-    borderBottomWidth: 1,
-    borderColor: '#d1d5db',
-    zIndex: 20,
-  },
+  // NOTE: removed absolute fixed header because it caused overlap across pages.
+  // If a repeating header is required use a page-level fixed component carefully
+  // positioned per page; for now we render the header as the first row inside each table.
 });
 
 interface Produto {
@@ -216,9 +208,22 @@ export const MyDocument: FC<MyDocumentProps> = ({
   const formatarData = (data: string) => {
     if (!data || data === '-') return '-';
     try {
-      const d = new Date(data);
-      if (isNaN(d.getTime())) return data;
-      return d.toLocaleDateString('pt-BR');
+      // If the input is a plain ISO date (YYYY-MM-DD) the built-in Date parser
+      // treats it as UTC which can shift the day depending on the local timezone.
+      // To avoid the "one day behind" issue, construct a local Date when
+      // the string matches the YYYY-MM-DD pattern.
+      const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
+      if (isoDateOnly.test(data)) {
+        const [y, m, d] = data.split('-').map(Number);
+        const local = new Date(y, m - 1, d); // local midnight
+        if (isNaN(local.getTime())) return data;
+        return local.toLocaleDateString('pt-BR');
+      }
+
+      // Fallback: try normal Date parsing for other formats (datetime strings).
+      const parsed = new Date(data);
+      if (isNaN(parsed.getTime())) return data;
+      return parsed.toLocaleDateString('pt-BR');
     } catch {
       return data;
     }
@@ -255,6 +260,34 @@ export const MyDocument: FC<MyDocumentProps> = ({
     
     return formsCopy;
   })();
+
+  // Paginação simples para a tabela de fórmulas: dividimos em chunks para garantir
+  // que o cabeçalho seja renderizado em cada página quando a tabela quebrar.
+  // Ajuste rowsPerPage conforme o tamanho da fonte para estimar quantas linhas cabem.
+  // Use conservative estimates for rows per page to avoid accidental overflow
+  // when some cells wrap into multiple lines. These values can be tuned if
+  // you know the typical content length.
+  const rowsPerPageByFont: Record<string, number> = {
+    // more conservative defaults to avoid overflow when lines wrap
+    small: 20,
+    medium: 14,
+    large: 10,
+  };
+  const rowsPerPage = rowsPerPageByFont[pdfCustomization.fontSize] || 14;
+
+  // Reserve a slightly larger first chunk reduction to fit the remaining space
+  // on the first page and avoid a near-empty continuation page.
+  const reserveForHeaderAndInfo = 8; // estimated rows taken by header/other content
+  const firstChunkSize = Math.max(11, rowsPerPage - reserveForHeaderAndInfo);
+
+  const formulaChunks: typeof formulasOrdenadas[] = [];
+  if (formulasOrdenadas.length > 0) {
+    // first chunk limited to firstChunkSize
+    formulaChunks.push(formulasOrdenadas.slice(0, firstChunkSize));
+    for (let i = firstChunkSize; i < formulasOrdenadas.length; i += rowsPerPage) {
+      formulaChunks.push(formulasOrdenadas.slice(i, i + rowsPerPage));
+    }
+  }
 
   const produtosPorCategoria: Record<string, Produto[]> = {};
   produtos.forEach((p) => {
@@ -564,12 +597,12 @@ export const MyDocument: FC<MyDocumentProps> = ({
     keyMapper: (row: Produto) => { col1: string; col2: string }
   ) => (
     <>
-      {/* fixed header repeats on every page */}
-      <View style={styles.tableHeaderFixed} fixed>
-        <Text style={[{ width: '70%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151' }]}>Nome</Text>
-        <Text style={[{ width: '30%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151', textAlign: 'right' }]}>Total</Text>
-      </View>
       <View style={styles.table}>
+        {/* header as first row inside the table so it flows with pages */}
+        <View style={[styles.tableRow, styles.tableHeaderRow]}>
+          <Text style={[{ width: '70%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151', padding: 8 }]}>Nome</Text>
+          <Text style={[{ width: '30%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151', textAlign: 'right', padding: 8 }]}>Total</Text>
+        </View>
         {rows.map((row, i) => {
           const { col1, col2 } = keyMapper(row);
           return (
@@ -593,7 +626,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
     <View style={styles.table}>
       <View style={styles.tableRow}>
         <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Cód</Text>
-        <Text style={[{ width: "50%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
+        <Text style={[{ width: "50%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
         <Text style={[{ width: "15%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Batidas</Text>
         <Text style={[{ width: "25%", borderBottomWidth: 1, borderRightWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Total</Text>
       </View>
@@ -603,7 +636,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
           style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
         >
           <Text style={[{ width: "10%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6 }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
-          <Text style={[{ width: "50%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6 }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
+          <Text style={[{ width: "50%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6, flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
           <Text style={[{ width: "15%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6, textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
           <Text style={[{ width: "25%", borderRightWidth: 1, borderColor: "#d1d5db", padding: 6, textAlign: "right" }, { fontSize: currentFontSizes.table }]}>
             {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
@@ -638,7 +671,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
         {/* Informações gerais */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Informações Gerais</Text>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>INFORMAÇÕES GERAIS</Text>
 
           <View style={{ marginBottom: 6 }}>
             <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
@@ -697,11 +730,11 @@ export const MyDocument: FC<MyDocumentProps> = ({
         </View>
         
 
-        {/* Fórmulas */}
+        {/* Fórmulas: renderiza um primeiro chunk na página atual e o resto em páginas dedicadas */}
         {formulasOrdenadas.length > 0 && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>TABELA DE FÓRMULAS</Text>
-            {renderFormulaTable(formulasOrdenadas)}
+            {renderFormulaTable(formulaChunks[0] || [])}
           </View>
         )}
 {/* 
@@ -720,23 +753,32 @@ export const MyDocument: FC<MyDocumentProps> = ({
         )} */}
 
         {renderRodape()}
-      </Page>
+        </Page>
+
+        {/* Páginas dedicadas para a tabela de fórmulas (cada chunk em sua própria página) */}
+        {formulasOrdenadas.length > 0 && formulaChunks.length > 1 && formulaChunks.slice(1).filter(c => c && c.length > 0).map((chunk, idx) => (
+          <Page key={`formulas-dedicated-${idx}`} size="A4" style={styles.page} orientation={orientation} wrap>
+            <View style={styles.section}>
+              {renderFormulaTable(chunk)}
+            </View>
+
+            {renderRodape()}
+          </Page>
+        ))}
 
       {/* Página 2 */}
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>TABELA DE PRODUTOS</Text>
-          {categorias.map((cat, idx) => ( 
+          {categorias.map((cat, idx) => (
             <View key={idx} style={{ marginBottom: 15 }}>
-              {renderTable(produtosPorCategoria[cat], (p) => ({
-                col1: p.nome,
-                col2: ((p.unidade === "kg" 
-                  ? p.qtd 
-                  : p.qtd).toLocaleString("pt-BR", {
-                  minimumFractionDigits: 3,
-                  maximumFractionDigits: 3,
-                })+" kg"),
-              }))}
+              {renderTable(produtosPorCategoria[cat], (p) => {
+                const valueNum = Number(p.qtd) || 0;
+                return {
+                  col1: p.nome,
+                  col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`,
+                };
+              })}
             </View>
           ))}
         </View>
