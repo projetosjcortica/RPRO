@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Button, buttonVariants } from "./components/ui/button";
 import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
@@ -8,10 +8,10 @@ import { AmendoimExport } from "./components/AmendoimExport";
 import toastManager from "./lib/toastManager";
 import { format as formatDateFn } from "date-fns";
 import { cn } from "./lib/utils";
-import { useCallback } from "react";
 import { Separator } from "./components/ui/separator";
 import useAuth from "./hooks/useAuth";
 import { resolvePhotoUrl } from "./lib/photoUtils";
+import { RefreshButton } from "./components/RefreshButton";
 import {
   ChartEntradaSaidaPorHorario,
   ChartRendimentoPorDia,
@@ -20,6 +20,7 @@ import {
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
 import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
+import { IhmSelectionModal } from "./components/IhmSelectionModal";
 
 interface AmendoimRecord {
   id: number;
@@ -146,6 +147,7 @@ interface FiltrosAmendoim {
 export default function Amendoim() {
   const { user } = useAuth();
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
+  const [ihmConfig, setIhmConfig] = useState<{ ip: string; user: string; password: string } | null>(null);
   const [registros, setRegistros] = useState<AmendoimRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -166,8 +168,20 @@ export default function Amendoim() {
   // Tipo para upload
   const [uploadTipo, setUploadTipo] = useState<"entrada" | "saida">("entrada");
 
-  // Filtros ativos
-  const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>({});
+  // Calcular últimos 7 dias para filtros padrão (para garantir que capture dados recentes)
+  const getUltimosDias = () => {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 7); // Últimos 7 dias
+    
+    return {
+      dataInicio: inicio.toISOString().split('T')[0], // YYYY-MM-DD
+      dataFim: hoje.toISOString().split('T')[0],
+    };
+  };
+
+  // Filtros ativos (inicializar com últimos 7 dias)
+  const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>(getUltimosDias());
   
   // Drawer de gráficos
   const [chartsOpen, setChartsOpen] = useState(false);
@@ -178,6 +192,9 @@ export default function Amendoim() {
   // Collector
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
   const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
+  // Modal de seleção de IHM
+  const [showIhmModal, setShowIhmModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
   // Obter logo do usuário
   useEffect(() => {
@@ -204,6 +221,60 @@ export default function Amendoim() {
     loadLogo();
     return () => { mounted = false; };
   }, [user]);
+
+  // Carregar configuração IHM do amendoim
+  useEffect(() => {
+    const loadIhmConfig = async () => {
+      try {
+        console.log('[Amendoim] 🔄 Carregando configuração IHM...');
+        const res = await fetch('http://localhost:3000/api/amendoim/config');
+        if (!res.ok) {
+          console.warn('[Amendoim] ⚠️ Falha ao carregar config:', res.status);
+          return;
+        }
+        const data = await res.json();
+        console.log('[Amendoim] 📦 Config recebida:', data);
+        
+        // Estrutura esperada: { config: {...}, validation: {...} }
+        if (data.config) {
+          setIhmConfig(data.config);
+          console.log('[Amendoim] ✅ IHM Config setada');
+        }
+        
+        // Verificar validação
+        if (data.validation) {
+          const { isValid, errors, needsIhmSelection } = data.validation;
+          console.log('[Amendoim] 🔍 Validação:', { isValid, errors, needsIhmSelection });
+          
+          if (!isValid) {
+            setValidationErrors(errors || []);
+            console.log('[Amendoim] ⚠️ Validação falhou:', errors);
+            
+            // Se precisa selecionar tipo de IHM, mostrar modal
+            if (needsIhmSelection) {
+              console.log('[Amendoim] 🚨 ABRINDO MODAL DE SELEÇÃO');
+              setShowIhmModal(true);
+            } else if (errors?.length > 0) {
+              // Mostrar erros como notificação
+              console.log('[Amendoim] ⚠️ Mostrando erro de validação');
+              toastManager.updateError(
+                'amendoim-config-validation',
+                `Configuração incompleta: ${errors.join(', ')}`
+              );
+            }
+          } else {
+            console.log('[Amendoim] ✅ Validação passou');
+            setValidationErrors([]);
+          }
+        } else {
+          console.warn('[Amendoim] ⚠️ Sem dados de validação na resposta');
+        }
+      } catch (e) {
+        console.error('[Amendoim] ❌ Erro ao carregar config:', e);
+      }
+    };
+    loadIhmConfig();
+  }, []);
 
   console.log(setAnalisesExpanded.name, setUploadTipo.name, uploading);
 
@@ -236,7 +307,7 @@ export default function Amendoim() {
   };
 
   // Buscar registros
-  const fetchRegistros = async () => {
+  const fetchRegistros = useCallback(async () => {
     setLoading(true);
     setError(null);
     
@@ -272,10 +343,10 @@ export default function Amendoim() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, pageSize, filtrosAtivos, viewMode]);
 
   // Buscar estatísticas
-  const fetchEstatisticas = async () => {
+  const fetchEstatisticas = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
@@ -296,7 +367,7 @@ export default function Amendoim() {
     } catch (err) {
       console.error('Erro ao buscar estatísticas:', err);
     }
-  };
+  }, [filtrosAtivos, viewMode]);
 
   // Buscar métricas de rendimento
   const fetchMetricasRendimento = async () => {
@@ -340,13 +411,27 @@ export default function Amendoim() {
 
   // (Resumo por produto agora gerado apenas no PDF; não buscado aqui)
 
+  // Carregar dados iniciais na montagem do componente
   useEffect(() => {
-  fetchRegistros();
-  fetchEstatisticas();
-  fetchDadosAnalise(); // Carregar dados de análise sempre
+    console.log('[Amendoim] 🚀 Montagem inicial - carregando dados...');
+    fetchRegistros();
+    fetchEstatisticas();
+    fetchDadosAnalise();
     if (viewMode === 'comparativo') {
       fetchMetricasRendimento();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Array vazio = apenas na montagem
+
+  // Recarregar dados quando filtros, página ou modo mudarem
+  useEffect(() => {
+    fetchRegistros();
+    fetchEstatisticas();
+    fetchDadosAnalise(); // Carregar dados de análise sempre
+    if (viewMode === 'comparativo') {
+      fetchMetricasRendimento();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, filtrosAtivos, viewMode]);
 
   // resumoTable removed; summary rendering is handled in the PDF component only
@@ -396,6 +481,20 @@ export default function Amendoim() {
     return () => window.clearInterval(id);
   }, [fetchCollectorStatus]);
 
+  // Atualizar dados automaticamente enquanto o coletor estiver rodando
+  useEffect(() => {
+    if (!collectorRunning) return;
+    
+    // Atualizar dados a cada 30 segundos quando o coletor está ativo (para testes com 1min de coleta)
+    const intervalId = setInterval(() => {
+      console.log('[Amendoim] Atualizando dados automaticamente (coletor ativo)');
+      // Força re-fetch fazendo setState nos filtros (triggers o useEffect principal)
+      setFiltrosAtivos(prev => ({ ...prev }));
+    }, 30000); // 30 segundos para capturar mudanças do coletor de 1min
+    
+    return () => clearInterval(intervalId);
+  }, [collectorRunning]);
+
   const handleCollectorToggle = async () => {
     if (collectorLoading) return;
   setCollectorLoading(true);
@@ -410,6 +509,17 @@ export default function Amendoim() {
         await fetchEstatisticas();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch(e){}
       } else {
+        // Verificar se há erros de validação antes de iniciar
+        if (validationErrors.length > 0) {
+          toastManager.updateError(
+            'collector-validation',
+            'Configure o sistema antes de iniciar a coleta'
+          );
+          setShowIhmModal(true);
+          setCollectorLoading(false);
+          return;
+        }
+        
         // Start amendoim collector (will collect both entrada and saida as configured)
         try { toastManager.showLoading('collector-toggle', 'Iniciando coletor Amendoim...'); } catch(e){}
         const res = await fetch("http://localhost:3000/api/amendoim/collector/start", {
@@ -508,6 +618,13 @@ export default function Amendoim() {
     return result;
   })();
 
+  // Log de debug do estado do modal
+  console.log('[Amendoim] 🎯 Estado do modal:', { 
+    showIhmModal, 
+    validationErrors: validationErrors.length,
+    ihmConfig: ihmConfig ? 'presente' : 'ausente'
+  });
+
   return (
     <div className="flex flex-col gap-12.5 w-full h-full justify-start">
       {/* Header */}
@@ -593,6 +710,18 @@ export default function Amendoim() {
                 <p> Iniciar coleta</p>
               )}
             </Button>
+
+            {/* Botão de busca única na IHM */}
+            <RefreshButton
+              type="amendoim"
+              ihmConfig={ihmConfig || undefined}
+              onRefresh={async () => {
+                await fetchRegistros();
+                await fetchEstatisticas();
+              }}
+              label="Buscar IHM"
+              size="default"
+            />
           </div>
         </div>
       </div>
@@ -1142,6 +1271,98 @@ export default function Amendoim() {
           fetchEstatisticas();
           if (viewMode === 'comparativo') {
             fetchMetricasRendimento();
+          }
+        }}
+      />
+      
+      {/* Modal de Seleção de IHM */}
+      <IhmSelectionModal
+        isOpen={showIhmModal}
+        onSelect={async (config) => {
+          console.log(`[Amendoim] 🔘 Configuração selecionada:`, config);
+          
+          try {
+            console.log('[Amendoim] 📤 Enviando configuração para o backend...');
+            
+            // Salvar configuração com o modo e arquivos selecionados
+            const updatedConfig = {
+              ...ihmConfig,
+              modoColeta: config.modo,
+              arquivoEntrada: config.arquivoEntrada,
+              arquivoSaida: config.arquivoSaida,
+            };
+            
+            console.log('[Amendoim] 📦 Config atualizada:', updatedConfig);
+            
+            const res = await fetch('http://localhost:3000/api/amendoim/config', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updatedConfig)
+            });
+            
+            console.log('[Amendoim] 📥 Resposta do POST:', res.status);
+            
+            if (!res.ok) {
+              const errorData = await res.json().catch(() => ({}));
+              console.error('[Amendoim] ❌ Erro na resposta:', errorData);
+              throw new Error(errorData.error || 'Erro ao salvar configuração');
+            }
+            
+            const saveResult = await res.json();
+            console.log('[Amendoim] ✅ Configuração salva:', saveResult);
+            
+            // Recarregar configuração
+            console.log('[Amendoim] 🔄 Recarregando configuração...');
+            const reloadRes = await fetch('http://localhost:3000/api/amendoim/config');
+            const reloadData = await reloadRes.json();
+            
+            console.log('[Amendoim] 📥 Config recarregada:', reloadData);
+            
+            if (reloadData.config) {
+              setIhmConfig(reloadData.config);
+            }
+            
+            if (reloadData.validation?.isValid) {
+              console.log('[Amendoim] ✅ Validação passou - fechando modal');
+              setValidationErrors([]);
+              setShowIhmModal(false);
+              
+              const modoTexto = config.modo === "entrada-saida" ? "ENTRADA e SAÍDA"
+                : config.modo === "apenas-entrada" ? "apenas ENTRADA"
+                : "apenas SAÍDA";
+              
+              toastManager.updateSuccess(
+                'ihm-selection',
+                `Configuração salva: Coleta ${modoTexto}`
+              );
+            } else {
+              console.warn('[Amendoim] ⚠️ Validação falhou:', reloadData.validation);
+              toastManager.updateError(
+                'ihm-selection',
+                `Validação falhou: ${reloadData.validation?.errors?.join(', ')}`
+              );
+            }
+          } catch (error: any) {
+            console.error('[Amendoim] ❌ Erro ao salvar configuração:', error);
+            toastManager.updateError(
+              'ihm-selection',
+              error.message || 'Erro ao salvar configuração'
+            );
+          }
+        }}
+        onCancel={() => {
+          console.log('[Amendoim] ❌ Botão Cancelar clicado');
+          
+          // Não permitir fechar sem selecionar se há erros de validação
+          if (validationErrors.length > 0) {
+            console.warn('[Amendoim] ⚠️ Tentativa de cancelar com erros pendentes');
+            toastManager.updateError(
+              'ihm-selection-required',
+              'Você precisa configurar o sistema para continuar'
+            );
+          } else {
+            console.log('[Amendoim] ✅ Fechando modal');
+            setShowIhmModal(false);
           }
         }}
       />

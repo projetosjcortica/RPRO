@@ -233,6 +233,41 @@ export default function Home() {
 
   console.log(dadosTurnos, comparativo, dadosRendimento30);
 
+  // Função auxiliar para calcular os últimos 30 dias
+  const getUltimos30Dias = () => {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 30);
+    return {
+      dataInicio: formatDate(inicio, 'yyyy-MM-dd'),
+      dataFim: formatDate(hoje, 'yyyy-MM-dd'),
+    };
+  };
+
+  // Garantir que os gráficos sempre iniciem com os últimos 30 dias
+  useEffect(() => {
+    if (tipoHome !== 'amendoim') return;
+    
+    const ultimos30 = getUltimos30Dias();
+    const inicio = new Date(ultimos30.dataInicio + 'T00:00:00');
+    const fim = new Date(ultimos30.dataFim + 'T00:00:00');
+    
+    // Atualizar filtros para últimos 30 dias (exceto produção semanal)
+    setHorariosDateRange({ from: inicio, to: fim });
+    setHorariosFilters(ultimos30);
+    
+    // weeklyFilters mantém seu comportamento original (semana atual)
+    
+    setTurnosDateRange({ from: inicio, to: fim });
+    setTurnosFilters(ultimos30);
+    
+    setEntradaDateRange({ from: inicio, to: fim });
+    setEntradaFilters(ultimos30);
+    
+    setSaidaDateRange({ from: inicio, to: fim });
+    setSaidaFilters(ultimos30);
+  }, [tipoHome]);
+
   // Fetch por gráfico
   const fetchAnaliseFor = async (fi: { dataInicio?: string; dataFim?: string }) => {
     const params = new URLSearchParams({ ...(fi.dataInicio ? { dataInicio: fi.dataInicio } : {}), ...(fi.dataFim ? { dataFim: fi.dataFim } : {}) });

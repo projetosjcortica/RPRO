@@ -97,6 +97,11 @@ export class AmendoimService {
           registro.codigoProduto = codigoProduto ? String(codigoProduto).trim() : "";
           registro.codigoCaixa = codigoCaixa ? String(codigoCaixa).trim() : "";
           
+          // Log de debug: formato de data sendo salvo
+          if (i === 0) {
+            console.log(`[AmendoimService] 🔍 Formato de data SALVO: "${diaStr}" | Hora: "${horaStr}" | Tipo: ${tipo}`);
+          }
+          
           // Fallback para nome do produto vazio
           const nomeProcessado = nomeProduto ? String(nomeProduto).trim() : "";
           registro.nomeProduto = nomeProcessado || "Sem nome";
@@ -110,21 +115,59 @@ export class AmendoimService {
         }
       }
 
-      // Salvar em lote (usando upsert para evitar duplicatas)
+      // Salvar em lote com PROTEÇÃO TRIPLA contra duplicatas
       if (registrosParaSalvar.length > 0) {
-        // Buscar registros existentes para evitar duplicatas
-        // Chave única: dia + hora + tipo + codigoProduto (ou nomeProduto) + peso
-        const existentes = await repo.find({
-          where: registrosParaSalvar.map(r => ({
-            dia: r.dia,
-            hora: r.hora,
-            tipo: r.tipo,
-            peso: r.peso,
-          })),
-        });
+        console.log(`[AmendoimService] 🛡️ Iniciando proteção anti-duplicatas para ${registrosParaSalvar.length} registros...`);
+        
+        // PROTEÇÃO NÍVEL 1: Verificação por hash único composto
+        // Gera hash MD5 de: tipo+dia+hora+codigoProduto+peso
+        const crypto = require('crypto');
+        const hashMap = new Map<string, Amendoim>();
+        
+        for (const registro of registrosParaSalvar) {
+          const hashKey = crypto
+            .createHash('md5')
+            .update(`${registro.tipo}|${registro.dia}|${registro.hora}|${registro.codigoProduto}|${registro.peso}`)
+            .digest('hex');
+          
+          // Só adiciona se não existir hash duplicado no próprio lote
+          if (!hashMap.has(hashKey)) {
+            hashMap.set(hashKey, registro);
+          }
+        }
+        
+        const registrosSemDuplicatasInternas = Array.from(hashMap.values());
+        const duplicatasInternas = registrosParaSalvar.length - registrosSemDuplicatasInternas.length;
+        
+        if (duplicatasInternas > 0) {
+          console.log(`[AmendoimService] ⚠️ PROTEÇÃO NÍVEL 1: ${duplicatasInternas} duplicatas encontradas no próprio lote`);
+        }
 
-        // Filtrar apenas registros novos (não duplicados)
-        const registrosNovos = registrosParaSalvar.filter(novo => {
+        // PROTEÇÃO NÍVEL 2: Verificação no banco de dados
+        // Busca registros que correspondam aos critérios únicos
+        const existentes = await repo
+          .createQueryBuilder("amendoim")
+          .where(
+            registrosSemDuplicatasInternas
+              .map((_, idx) => 
+                `(amendoim.tipo = :tipo${idx} AND amendoim.dia = :dia${idx} AND amendoim.hora = :hora${idx} AND amendoim.codigoProduto = :codigoProduto${idx} AND amendoim.peso = :peso${idx})`
+              )
+              .join(" OR ")
+          )
+          .setParameters(
+            registrosSemDuplicatasInternas.reduce((params, r, idx) => {
+              params[`tipo${idx}`] = r.tipo;
+              params[`dia${idx}`] = r.dia;
+              params[`hora${idx}`] = r.hora;
+              params[`codigoProduto${idx}`] = r.codigoProduto;
+              params[`peso${idx}`] = r.peso;
+              return params;
+            }, {} as any)
+          )
+          .getMany();
+
+        // Filtrar apenas registros verdadeiramente novos
+        const registrosNovos = registrosSemDuplicatasInternas.filter(novo => {
           return !existentes.some(existente => 
             existente.dia === novo.dia &&
             existente.hora === novo.hora &&
@@ -134,16 +177,49 @@ export class AmendoimService {
           );
         });
 
+        const duplicatasDB = registrosSemDuplicatasInternas.length - registrosNovos.length;
+        
+        if (duplicatasDB > 0) {
+          console.log(`[AmendoimService] ⚠️ PROTEÇÃO NÍVEL 2: ${duplicatasDB} duplicatas já existem no banco de dados`);
+        }
+
+        // PROTEÇÃO NÍVEL 3: Save com tratamento de erro de constraint unique
         if (registrosNovos.length > 0) {
-          await repo.save(registrosNovos);
-          salvos = registrosNovos.length;
+          try {
+            await repo.save(registrosNovos);
+            salvos = registrosNovos.length;
+            console.log(`[AmendoimService] ✅ ${salvos} registros salvos com sucesso`);
+          } catch (err: any) {
+            // Se houver erro de constraint unique, tentar salvar um por um
+            if (err.code === 'ER_DUP_ENTRY' || err.message?.includes('unique')) {
+              console.log(`[AmendoimService] ⚠️ PROTEÇÃO NÍVEL 3: Detectado conflito unique, salvando individualmente...`);
+              
+              for (const registro of registrosNovos) {
+                try {
+                  await repo.save(registro);
+                  salvos++;
+                } catch (saveErr: any) {
+                  if (saveErr.code === 'ER_DUP_ENTRY' || saveErr.message?.includes('unique')) {
+                    // Duplicata detectada, ignorar silenciosamente
+                    continue;
+                  }
+                  // Outro erro, registrar
+                  erros.push(`Erro ao salvar registro: ${saveErr.message}`);
+                }
+              }
+              
+              console.log(`[AmendoimService] ✅ ${salvos} registros salvos individualmente (${registrosNovos.length - salvos} duplicatas bloqueadas por constraint)`);
+            } else {
+              throw err; // Re-throw se não for erro de duplicata
+            }
+          }
           
-          if (registrosNovos.length < registrosParaSalvar.length) {
-            const duplicados = registrosParaSalvar.length - registrosNovos.length;
-            console.log(`[AmendoimService] ${duplicados} registros duplicados ignorados`);
+          const totalDuplicatas = duplicatasInternas + duplicatasDB + (registrosNovos.length - salvos);
+          if (totalDuplicatas > 0) {
+            console.log(`[AmendoimService] 🛡️ TOTAL DE DUPLICATAS BLOQUEADAS: ${totalDuplicatas}`);
           }
         } else {
-          console.log(`[AmendoimService] Todos os ${registrosParaSalvar.length} registros já existem (duplicados)`);
+          console.log(`[AmendoimService] ℹ️ Todos os ${registrosParaSalvar.length} registros já existem (100% duplicados)`);
         }
       }
 
