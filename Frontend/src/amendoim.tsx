@@ -10,7 +10,8 @@ import { format as formatDateFn } from "date-fns";
 import { cn } from "./lib/utils";
 import { useCallback } from "react";
 import { Separator } from "./components/ui/separator";
-// import useAuth from "./hooks/useAuth";
+import useAuth from "./hooks/useAuth";
+import { resolvePhotoUrl } from "./lib/photoUtils";
 import {
   ChartEntradaSaidaPorHorario,
   ChartRendimentoPorDia,
@@ -143,6 +144,8 @@ interface FiltrosAmendoim {
 }
 
 export default function Amendoim() {
+  const { user } = useAuth();
+  const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const [registros, setRegistros] = useState<AmendoimRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -175,6 +178,32 @@ export default function Amendoim() {
   // Collector
   const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
   const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
+
+  // Obter logo do usuário
+  useEffect(() => {
+    let mounted = true;
+    const loadLogo = async () => {
+      try {
+        const res = await fetch("http://localhost:3000/api/report/logo");
+        if (!res.ok) return;
+        const js = await res.json().catch(() => ({}));
+        const p = js?.path;
+        if (p && mounted) {
+          const resolved = resolvePhotoUrl(p);
+          setLogoUrl(resolved ? `${resolved}?t=${Date.now()}` : undefined);
+        }
+        // Se não houver logo configurado e o usuário tem foto, usar a foto do usuário
+        if (!p && user && (user as any).photoPath && mounted) {
+          const resolved = resolvePhotoUrl((user as any).photoPath);
+          setLogoUrl(resolved ? `${resolved}?t=${Date.now()}` : undefined);
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    loadLogo();
+    return () => { mounted = false; };
+  }, [user]);
 
   console.log(setAnalisesExpanded.name, setUploadTipo.name, uploading);
 
@@ -1094,6 +1123,7 @@ export default function Amendoim() {
                   const index = parseInt(id as string);
                   if (!isNaN(index)) setComentarios((s) => s.filter((_, i) => i !== index));
                 }}
+                logoUrl={logoUrl}
               />
             );
           })()}

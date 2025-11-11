@@ -60,15 +60,12 @@ const styles = StyleSheet.create({
     width: "100%",
     borderWidth: 1,
     borderColor: "#d1d5db",
-    // keep full border but subtle (neutral gray) to avoid heavy colored bars at page edge
     borderRightWidth: 1,
     borderBottomWidth: 1,
     flexDirection: "column",
     borderRadius: 4,
     overflow: "hidden",
     marginBottom: 10,
-    // reserve space under the fixed header so rows are not overlapped on every page
-    paddingTop: 36,
   },
   tableRow: { flexDirection: "row" },
   tableRowEven: { flexDirection: "row", backgroundColor: "#f9fafb" },
@@ -113,20 +110,6 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   legendColorBox: { width: 10, height: 10, borderRadius: 2, marginRight: 6 },
   smallNote: { fontSize: 9, color: '#6b7280' },
-  // fixed table header that will appear on every page so tables spanning pages keep their header
-  tableHeaderFixed: {
-    position: 'absolute',
-    left: 30,
-    right: 30,
-    // adjust top to sit below the red section title and document header
-    top: 160,
-    flexDirection: 'row',
-    backgroundColor: '#e2e2e2ff',
-    padding: 8,
-    borderBottomWidth: 1,
-    borderColor: '#d1d5db',
-    zIndex: 20,
-  },
 });
 
 interface Produto {
@@ -563,27 +546,24 @@ export const MyDocument: FC<MyDocumentProps> = ({
     rows: Produto[],
     keyMapper: (row: Produto) => { col1: string; col2: string }
   ) => (
-    <>
-      {/* fixed header repeats on every page */}
-      <View style={styles.tableHeaderFixed} fixed>
-        <Text style={[{ width: '70%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151' }]}>Nome</Text>
-        <Text style={[{ width: '30%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151', textAlign: 'right' }]}>Total</Text>
+    <View style={styles.table}>
+      <View style={styles.tableRow}>
+        <Text style={[styles.tableColHeader, { fontSize: currentFontSizes.table }]}>Nome</Text>
+        <Text style={[styles.tableColHeaderSmall, { fontSize: currentFontSizes.table }]}>Total</Text>
       </View>
-      <View style={styles.table}>
-        {rows.map((row, i) => {
-          const { col1, col2 } = keyMapper(row);
-          return (
-            <View
-              key={i}
-              style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
-            >
-              <Text style={[styles.tableCol, { fontSize: currentFontSizes.table }]}>{col1}</Text>
-              <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{col2}</Text>
-            </View>
-          );
-        })}
-      </View>
-    </>
+      {rows.map((row, i) => {
+        const { col1, col2 } = keyMapper(row);
+        return (
+          <View
+            key={i}
+            style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
+          >
+            <Text style={[styles.tableCol, { fontSize: currentFontSizes.table }]}>{col1}</Text>
+            <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{col2}</Text>
+          </View>
+        );
+      })}
+    </View>
   );
   
   // Tabela especial para fórmulas com batidas e códigos
@@ -695,7 +675,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
             </Text>
           </View>
         </View>
-        
 
         {/* Fórmulas */}
         {formulasOrdenadas.length > 0 && (
