@@ -9,6 +9,7 @@ import {
   ChartEficienciaPorTurno,
   ChartPerdaAcumulada,
 } from "./AmendoimCharts";
+import { format as formatDate } from "date-fns";
 
 interface DadosAnalise {
   entradaSaidaPorHorario: Array<{ hora: number; entrada: number; saida: number }>;
@@ -32,18 +33,36 @@ export default function HomeAmendoim() {
   const [metricas, setMetricas] = useState<Metricas | null>(null);
   const [tabelaDados, setTabelaDados] = useState<any[] | null>(null);
 
+  // Função para calcular os últimos 30 dias
+  const getUltimos30Dias = () => {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 30);
+    return {
+      dataInicio: formatDate(inicio, 'yyyy-MM-dd'),
+      dataFim: formatDate(hoje, 'yyyy-MM-dd'),
+    };
+  };
+
   useEffect(() => {
     const carregarDados = async () => {
       try {
         setLoading(true);
 
-        // Carregar dados de análise pré-processados
-        const resAnalise = await fetch("http://localhost:3000/api/amendoim/analise");
+        // Obter filtro de últimos 30 dias
+        const filtro30Dias = getUltimos30Dias();
+        const params = new URLSearchParams({
+          dataInicio: filtro30Dias.dataInicio,
+          dataFim: filtro30Dias.dataFim,
+        });
+
+        // Carregar dados de análise pré-processados com filtro de 30 dias
+        const resAnalise = await fetch(`http://localhost:3000/api/amendoim/analise?${params}`);
         const analise = await resAnalise.json();
         setDadosAnalise(analise);
 
-        // Carregar métricas de rendimento
-        const resMetricas = await fetch("http://localhost:3000/api/amendoim/metricas/rendimento");
+        // Carregar métricas de rendimento com filtro de 30 dias
+        const resMetricas = await fetch(`http://localhost:3000/api/amendoim/metricas/rendimento?${params}`);
         const metricas = await resMetricas.json();
         setMetricas(metricas);
 

@@ -5,6 +5,7 @@ export class CacheFile {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'varchar', length: 255 }) originalName!: string;
   @Column({ type: 'varchar', length: 64, nullable: true }) lastHash!: string | null;
+  @Column({ type: 'varchar', length: 32, nullable: true }) lastLineHash!: string | null; // Hash da última linha processada
   @Column({ type: 'int', nullable: true }) lastSize!: number | null;
   @Column({ type: 'varchar', length: 32, nullable: true }) lastMTime!: string | null;
   @Column({ type: 'varchar', length: 32, nullable: true }) lastRowDia!: string | null;

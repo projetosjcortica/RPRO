@@ -160,5 +160,45 @@ export class IHMService extends BaseService {
       }
     }
   }
-}
 
+  /**
+   * Baixa um arquivo específico do IHM, SEMPRE, ignorando cache de tamanho.
+   * Usado para coleta incremental onde precisamos ler o conteúdo mesmo sem mudança de tamanho.
+   */
+  async forceDownloadFile(fileName: string, localDir: string): Promise<{ name: string; localPath: string; size: number } | null> {
+    const client = new Client();
+    try {
+      log(`[IHMService] ${this.cachePrefix} - [FORCE] Connecting to FTP: ${this.ip}`);
+      await client.access({ host: this.ip, user: this.user, password: this.password, secure: false });
+      await client.useDefaultSettings();
+      await client.cd(this.remotePath);
+      
+      const list = await client.list();
+      const targetFile = list.find((f: any) => f.isFile && f.name === fileName);
+      
+      if (!targetFile) {
+        log(`[IHMService] ${this.cachePrefix} - [FORCE] Arquivo não encontrado: ${fileName}`);
+        return null;
+      }
+
+      const local = path.join(localDir, fileName);
+      log(`[IHMService] ${this.cachePrefix} - [FORCE] Baixando ${fileName} para ${local}`);
+      await client.downloadTo(local, fileName, 0);
+      const stat = fs.statSync(local);
+      
+      // Atualizar cache interno
+      const key = String(fileName).toLowerCase();
+      const sizeNum = typeof targetFile.size === 'number' ? targetFile.size : Number(targetFile.size || 0);
+      this.cache.set(key, sizeNum);
+      this.originalNames.set(key, fileName);
+      
+      log(`[IHMService] ${this.cachePrefix} - [FORCE] Download concluído: ${fileName} (${stat.size} bytes)`);
+      return { name: fileName, localPath: local, size: stat.size };
+    } catch (error) {
+      log(`[IHMService] ${this.cachePrefix} - [FORCE] Erro: ${error}`);
+      throw error;
+    } finally {
+      client.close();
+    }
+  }
+}

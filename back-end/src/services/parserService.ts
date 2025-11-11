@@ -64,8 +64,8 @@ export class ParserService extends BaseService {
     const s = String(dateStr).trim();
     if (!s) return null;
 
-    // Já está no formato correto
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    // Já está no formato DB esperado (DD-MM-YY)
+    if (/^\d{2}-\d{2}-\d{2}$/.test(s)) return s;
 
     // DD/MM/YY ou DD-MM-YY ou DD/MM/YYYY ou DD-MM-YYYY
     const ddmmMatch = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
@@ -74,13 +74,15 @@ export class ParserService extends BaseService {
       dd = dd.padStart(2, '0');
       mm = mm.padStart(2, '0');
       
-      // Converter ano de 2 dígitos para 4
-      if (yy.length === 2) {
-        const yearNum = parseInt(yy, 10);
-        yy = yearNum < 50 ? `20${yy}` : `19${yy}`;
+      // Converter ano de 4 dígitos para 2 (formato do banco)
+      if (yy.length === 4) {
+        yy = yy.slice(-2);
+      } else if (yy.length === 2) {
+        // Já está em 2 dígitos, manter
       }
       
-      return `${yy}-${mm}-${dd}`;
+      // Retornar no formato do banco: DD-MM-YY
+      return `${dd}-${mm}-${yy}`;
     }
 
     return s;

@@ -10,7 +10,6 @@ import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
 import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
 import ExcelJS from "exceljs";
-import { dataPopulationService } from "./services/dataPopulationService"; // Importação do serviço de população de dados
 import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
 import { dumpConverterService } from "./services/dumpConverterService"; // Importação do serviço de conversão de dump
 import {
@@ -1976,23 +1975,6 @@ app.post("/api/unidades/normalizarParaKg", async (req, res) => {
   }
 });
 
-app.post("/api/db/populate", async (req, res) => {
-  try {
-    const { tipo = "relatorio", quantidade = 10, config = {} } = req.body || {};
-    if (tipo === "relatorio") {
-      const result = await dataPopulationService.populateRelatorio(
-        Math.min(Math.max(1, Number(quantidade)), 1000),
-        config
-      );
-      return res.json(result);
-    }
-    return res.status(400).json({ error: "tipo not supported" });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({});
-  }
-});
-
 app.get("/api/collector/start", async (req, res) => {
   try {
     // Accept optional override parameters
@@ -3822,7 +3804,48 @@ app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
 app.get('/api/amendoim/config', async (req, res) => {
   try {
     const config = getRuntimeConfig('ihm-config') || {};
-    return res.json(config);
+    
+    // Validar configuração
+    const validation = {
+      isValid: true,
+      errors: [] as string[],
+      needsIhmSelection: false,
+    };
+    
+    // Se IHM1 não configurada
+    if (!config.ip || !config.ip.trim()) {
+      validation.isValid = false;
+      validation.errors.push('IP da IHM1 é obrigatório.');
+    }
+    
+    // Se duasIHMs=false (modo IHM única) mas não configurou o modo de coleta
+    if (!config.duasIHMs) {
+      if (!config.modoColeta) {
+        validation.isValid = false;
+        validation.needsIhmSelection = true;
+        validation.errors.push('Modo de coleta não configurado. Selecione como a IHM única irá coletar.');
+      } else if (config.modoColeta === 'entrada-saida' && (!config.arquivoEntrada || !config.arquivoSaida)) {
+        validation.isValid = false;
+        validation.needsIhmSelection = true;
+        validation.errors.push('Especifique os nomes dos arquivos CSV de entrada e saída.');
+      } else if (config.modoColeta === 'apenas-entrada' && !config.arquivoEntrada) {
+        validation.isValid = false;
+        validation.needsIhmSelection = true;
+        validation.errors.push('Especifique o nome do arquivo CSV de entrada.');
+      } else if (config.modoColeta === 'apenas-saida' && !config.arquivoSaida) {
+        validation.isValid = false;
+        validation.needsIhmSelection = true;
+        validation.errors.push('Especifique o nome do arquivo CSV de saída.');
+      }
+    }
+    
+    // Se duasIHMs=true mas IHM2 não configurada
+    if (config.duasIHMs && (!config.ihm2?.ip || !config.ihm2.ip.trim())) {
+      validation.isValid = false;
+      validation.errors.push('IHM2 não configurada. Configure o IP da IHM2 ou desmarque "Usar duas IHMs".');
+    }
+    
+    return res.json({ config, validation });
   } catch (e: any) {
     console.error('[api/amendoim/config] error', e);
     return res.status(500).json({ error: e?.message || 'Erro ao obter configuração' });
@@ -3856,6 +3879,14 @@ app.post('/api/amendoim/config', async (req, res) => {
   try {
     // Salvar configuração diretamente no ihm-config
     const configData = req.body;
+    
+    // 🔍 DEBUG: Log da configuração recebida
+    console.log('[api/amendoim/config] Configuração recebida:');
+    console.log('  - arquivoEntrada:', configData.arquivoEntrada);
+    console.log('  - arquivoSaida:', configData.arquivoSaida);
+    console.log('  - duasIHMs:', configData.duasIHMs);
+    console.log('  - ihm2:', configData.ihm2);
+    
     await setRuntimeConfigs({ 'ihm-config': configData });
     const config = getRuntimeConfig('ihm-config') || {};
     return res.json({ success: true, config });
@@ -4041,7 +4072,7 @@ import { AmendoimCollectorService } from './services/AmendoimCollectorService';
 // POST /api/amendoim/collector/start - Inicia o coletor automático
 app.post('/api/amendoim/collector/start', async (req, res) => {
   try {
-    const intervalMinutes = req.body.intervalMinutes || 5;
+    const intervalMinutes = req.body.intervalMinutes || 5; // Padrão 5 minutos
     await AmendoimCollectorService.start(intervalMinutes);
     return res.json({ success: true, message: 'Coletor iniciado com sucesso' });
   } catch (e: any) {
@@ -4359,7 +4390,7 @@ app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
     const { fileName } = req.params;
     const deleted = AmendoimCollectorService.clearFileCache(fileName);
     
-    if (deleted) {
+    if (await deleted) {
       return res.json({ success: true, message: `Cache do arquivo ${fileName} limpo com sucesso` });
     } else {
       return res.status(404).json({ error: 'Arquivo não encontrado no cache' });

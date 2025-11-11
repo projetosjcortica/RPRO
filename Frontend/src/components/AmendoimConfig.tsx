@@ -37,6 +37,10 @@ interface AmendoimConfig {
   // NOVO: Seleção direta de qual IHM coleta cada tipo
   ihmEntrada?: "ihm1" | "ihm2";
   ihmSaida?: "ihm1" | "ihm2";
+  // Modo de coleta para IHM única
+  modoColeta?: "entrada-saida" | "apenas-entrada" | "apenas-saida";
+  arquivoEntrada?: string;
+  arquivoSaida?: string;
 }
 
 interface AmendoimConfigProps {
@@ -89,34 +93,38 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
         
         // Converter configuração do backend para formato do componente
         const newConfig: AmendoimConfig = {
-          duasIHMs: data.duasIHMs || false,
+          duasIHMs: data.config?.duasIHMs || false,
           ihm1: {
-            ip: data.ip || "",
-            user: data.user || "anonymous",
-            password: data.password || "",
-            caminhoRemoto: data.caminhoRemoto || "/InternalStorage/data/",
-            usadaPara: data.ihm1UsadaPara || "ambos",
+            ip: data.config?.ip || "",
+            user: data.config?.user || "anonymous",
+            password: data.config?.password || "",
+            caminhoRemoto: data.config?.caminhoRemoto || "/InternalStorage/data/",
+            usadaPara: data.config?.ihm1UsadaPara || "ambos",
           },
           entrada: {
-            tipoRelatorio: data.arquivoEntrada?.includes("Relatorio_1") ? "geral" : "mensal",
-            mesAno: extractMesAno(data.arquivoEntrada),
-            nomeArquivo: data.arquivoEntrada,
+            tipoRelatorio: data.config?.arquivoEntrada?.includes("Relatorio_1") ? "geral" : "mensal",
+            mesAno: extractMesAno(data.config?.arquivoEntrada),
+            nomeArquivo: data.config?.arquivoEntrada,
           },
           saida: {
-            tipoRelatorio: data.arquivoSaida?.includes("Relatorio_1") ? "geral" : "mensal",
-            mesAno: extractMesAno(data.arquivoSaida),
-            nomeArquivo: data.arquivoSaida,
+            tipoRelatorio: data.config?.arquivoSaida?.includes("Relatorio_1") ? "geral" : "mensal",
+            mesAno: extractMesAno(data.config?.arquivoSaida),
+            nomeArquivo: data.config?.arquivoSaida,
           },
-          mapeamentoBalancas: data.mapeamentoBalancas || {
+          mapeamentoBalancas: data.config?.mapeamentoBalancas || {
             entrada: [],
             saida: [],
           },
-          ihmEntrada: data.ihmEntrada || "ihm1",
-          ihmSaida: data.ihmSaida || "ihm1",
+          ihmEntrada: data.config?.ihmEntrada || "ihm1",
+          ihmSaida: data.config?.ihmSaida || "ihm1",
+          // Carregar modo de coleta e arquivos
+          modoColeta: data.config?.modoColeta,
+          arquivoEntrada: data.config?.arquivoEntrada,
+          arquivoSaida: data.config?.arquivoSaida,
         };
 
-        if (data.ihm2) {
-          newConfig.ihm2 = data.ihm2;
+        if (data.config?.ihm2) {
+          newConfig.ihm2 = data.config.ihm2;
         }
 
         setConfig(newConfig);
@@ -175,6 +183,27 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
         toastManager.updateError("amendoim-config-save", "IP da IHM2 é obrigatório quando usar duas IHMs");
         return;
       }
+
+      // ⚡ VALIDAÇÃO: Se IHM única, validar modo e arquivos
+      if (!config.duasIHMs) {
+        if (!config.modoColeta) {
+          toastManager.updateError("amendoim-config-save", "Selecione o modo de coleta da IHM única");
+          return;
+        }
+        
+        if (config.modoColeta === "entrada-saida") {
+          if (!config.arquivoEntrada || !config.arquivoSaida) {
+            toastManager.updateError("amendoim-config-save", "Especifique os nomes dos arquivos de entrada e saída");
+            return;
+          }
+        } else if (config.modoColeta === "apenas-entrada" && !config.arquivoEntrada) {
+          toastManager.updateError("amendoim-config-save", "Especifique o nome do arquivo de entrada");
+          return;
+        } else if (config.modoColeta === "apenas-saida" && !config.arquivoSaida) {
+          toastManager.updateError("amendoim-config-save", "Especifique o nome do arquivo de saída");
+          return;
+        }
+      }
       
       // Fixar roteamento automático quando usar duas IHMs
       const ihmEntradaFinal = config.duasIHMs ? "ihm1" : "ihm1"; // IHM1 sempre é entrada
@@ -183,8 +212,8 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
       // Preparar payload para o backend
       const payload: any = {
         duasIHMs: config.duasIHMs,
-        arquivoEntrada: gerarNomeArquivo("entrada"),
-        arquivoSaida: gerarNomeArquivo("saida"),
+        arquivoEntrada: config.duasIHMs ? gerarNomeArquivo("entrada") : config.arquivoEntrada,
+        arquivoSaida: config.duasIHMs ? gerarNomeArquivo("saida") : config.arquivoSaida,
         ip: config.ihm1.ip.trim(),
         user: config.ihm1.user || "anonymous",
         password: config.ihm1.password || "",
@@ -193,6 +222,8 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
         mapeamentoBalancas: config.mapeamentoBalancas,
         ihmEntrada: ihmEntradaFinal,
         ihmSaida: ihmSaidaFinal,
+        // Salvar modo de coleta para IHM única
+        modoColeta: config.modoColeta,
       };
 
       // ⚡ VALIDAÇÃO: Normalizar ihm2 se usar duas IHMs
@@ -231,6 +262,8 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
   };
 
   if (!isOpen) return null;
+
+  console.log('[AmendoimConfig] 🔍 Renderizando modal - duasIHMs:', config.duasIHMs, 'modoColeta:', (config as any).modoColeta);
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -465,6 +498,184 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
                   </div>
                 )}
               </div>
+
+              {/* MODO DE COLETA - Apenas para IHM Única */}
+              {!config.duasIHMs && (() => {
+                console.log('[AmendoimConfig] 🎯 Seção de Modo de Coleta VISÍVEL - duasIHMs:', config.duasIHMs, 'modoColeta:', (config as any).modoColeta);
+                return (
+                <div className="bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-300 rounded-lg p-4">
+                  <h3 className="text-lg font-bold text-orange-800 mb-3 flex items-center gap-2">
+                    <Scale className="h-5 w-5" />
+                    Modo de Coleta da IHM Única
+                  </h3>
+                  
+                  <div className="text-xs text-orange-700 mb-4 bg-orange-100 border border-orange-200 rounded p-2">
+                    ℹ️ Defina como a IHM única irá coletar os dados de pesagem
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    {/* Modo: Entrada e Saída em arquivos separados */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log('[AmendoimConfig] Selecionando modo: entrada-saida');
+                        setConfig({ ...config, modoColeta: "entrada-saida" });
+                      }}
+                      className={cn(
+                        "p-4 rounded-lg border-2 text-left transition-all",
+                        (config as any).modoColeta === "entrada-saida"
+                          ? "bg-orange-600 border-orange-700 text-white"
+                          : "bg-white border-orange-300 hover:bg-orange-50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                          (config as any).modoColeta === "entrada-saida" ? "border-white" : "border-orange-400"
+                        )}>
+                          {(config as any).modoColeta === "entrada-saida" && (
+                            <div className="w-3 h-3 rounded-full bg-white"></div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className={cn(
+                            "font-bold text-sm",
+                            (config as any).modoColeta === "entrada-saida" ? "text-white" : "text-orange-800"
+                          )}>
+                            📂 Dois arquivos CSV (Entrada e Saída separados)
+                          </div>
+                          <div className={cn(
+                            "text-xs mt-1",
+                            (config as any).modoColeta === "entrada-saida" ? "text-orange-100" : "text-orange-600"
+                          )}>
+                            A IHM gera dois arquivos: um para entrada e outro para saída
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Modo: Apenas Entrada */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log('[AmendoimConfig] Selecionando modo: apenas-entrada');
+                        setConfig({ ...config, modoColeta: "apenas-entrada" });
+                      }}
+                      className={cn(
+                        "p-4 rounded-lg border-2 text-left transition-all",
+                        (config as any).modoColeta === "apenas-entrada"
+                          ? "bg-green-600 border-green-700 text-white"
+                          : "bg-white border-green-300 hover:bg-green-50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                          (config as any).modoColeta === "apenas-entrada" ? "border-white" : "border-green-400"
+                        )}>
+                          {(config as any).modoColeta === "apenas-entrada" && (
+                            <div className="w-3 h-3 rounded-full bg-white"></div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className={cn(
+                            "font-bold text-sm",
+                            (config as any).modoColeta === "apenas-entrada" ? "text-white" : "text-green-800"
+                          )}>
+                            ⬇️ Apenas ENTRADA
+                          </div>
+                          <div className={cn(
+                            "text-xs mt-1",
+                            (config as any).modoColeta === "apenas-entrada" ? "text-green-100" : "text-green-600"
+                          )}>
+                            A IHM coleta apenas dados de entrada (recebimento)
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Modo: Apenas Saída */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log('[AmendoimConfig] Selecionando modo: apenas-saida');
+                        setConfig({ ...config, modoColeta: "apenas-saida" });
+                      }}
+                      className={cn(
+                        "p-4 rounded-lg border-2 text-left transition-all",
+                        (config as any).modoColeta === "apenas-saida"
+                          ? "bg-blue-600 border-blue-700 text-white"
+                          : "bg-white border-blue-300 hover:bg-blue-50"
+                      )}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-5 h-5 rounded-full border-2 flex items-center justify-center",
+                          (config as any).modoColeta === "apenas-saida" ? "border-white" : "border-blue-400"
+                        )}>
+                          {(config as any).modoColeta === "apenas-saida" && (
+                            <div className="w-3 h-3 rounded-full bg-white"></div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className={cn(
+                            "font-bold text-sm",
+                            (config as any).modoColeta === "apenas-saida" ? "text-white" : "text-blue-800"
+                          )}>
+                            ⬆️ Apenas SAÍDA
+                          </div>
+                          <div className={cn(
+                            "text-xs mt-1",
+                            (config as any).modoColeta === "apenas-saida" ? "text-blue-100" : "text-blue-600"
+                          )}>
+                            A IHM coleta apenas dados de saída (expedição)
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Campos de nome de arquivo baseados no modo */}
+                  {(config as any).modoColeta && (
+                    <div className="mt-4 p-4 bg-white border-2 border-orange-200 rounded-lg">
+                      <h4 className="text-sm font-bold text-orange-800 mb-3">
+                        📝 Nomes dos Arquivos CSV
+                      </h4>
+                      
+                      {((config as any).modoColeta === "entrada-saida" || (config as any).modoColeta === "apenas-entrada") && (
+                        <div className="mb-3">
+                          <label className="text-xs font-medium text-gray-700 mb-1 block">
+                            Arquivo de ENTRADA:
+                          </label>
+                          <input
+                            type="text"
+                            value={(config as any).arquivoEntrada || ""}
+                            onChange={(e) => setConfig({ ...config, arquivoEntrada: e.target.value } as any)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                            placeholder="Ex: Relatorio_2025_11.csv"
+                          />
+                        </div>
+                      )}
+                      
+                      {((config as any).modoColeta === "entrada-saida" || (config as any).modoColeta === "apenas-saida") && (
+                        <div>
+                          <label className="text-xs font-medium text-gray-700 mb-1 block">
+                            Arquivo de SAÍDA:
+                          </label>
+                          <input
+                            type="text"
+                            value={(config as any).arquivoSaida || ""}
+                            onChange={(e) => setConfig({ ...config, arquivoSaida: e.target.value } as any)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                            placeholder="Ex: Relatorio_Saida_2025_11.csv"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                );
+              })()}
 
               {/* Informação sobre roteamento automático */}
               {config.duasIHMs && (

@@ -54,6 +54,7 @@ interface ComentarioRelatorio {
 export default function Report() {
   const { user } = useAuth();
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
+  const [ihmConfig, setIhmConfig] = useState<{ ip: string; user: string; password: string } | null>(null);
   
   // OTIMIZAÇÃO: Log de performance para monitorar inicialização
   const mountTimeRef = useRef(Date.now());
@@ -97,6 +98,24 @@ export default function Report() {
       window.removeEventListener('report-logo-updated', handlePhotoUpdate);
       mounted = false;
     };
+  }, [user]);
+
+  // Carregar configuração IHM
+  useEffect(() => {
+    const loadIhmConfig = async () => {
+      try {
+        const moduleParam = user?.userType === 'amendoim' ? '?module=amendoim' : '';
+        const res = await fetch(`http://localhost:3000/api/config/ihm-config${moduleParam}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.value) {
+          setIhmConfig(data.value);
+        }
+      } catch (e) {
+        console.warn('Failed to load IHM config:', e);
+      }
+    };
+    loadIhmConfig();
   }, [user]);
 
   // ... restante do código permanece igual até handlePrint ...
@@ -1544,6 +1563,8 @@ export default function Report() {
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
               <div className="flex justify-end p-0 m-0">
                 <RefreshButton 
+              type="ihm"
+              ihmConfig={ihmConfig || undefined}
               onRefresh={async () => {
                 try { toastManager.showInfoOnce('manual-refresh', 'Recarregando dados frescos...'); } catch(e){}
                 // Sem cache - sempre busca dados frescos do backend

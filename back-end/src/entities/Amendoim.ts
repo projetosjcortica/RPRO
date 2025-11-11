@@ -17,6 +17,7 @@ import {
 @Index(["codigoCaixa"]) // Índice para busca por caixa
 @Index(["tipo"]) // Índice para filtrar por tipo (entrada/saida)
 @Index(["tipo", "dia"]) // Índice composto para métricas por período
+@Index("unique_record", ["tipo", "dia", "hora", "codigoProduto", "peso"], { unique: true }) // PROTEÇÃO CONTRA DUPLICATAS
 export class Amendoim {
   @PrimaryGeneratedColumn()
   id!: number;
