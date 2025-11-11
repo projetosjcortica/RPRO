@@ -14,7 +14,7 @@ Font.register({
 const styles = StyleSheet.create({
   page: {
     padding: 30,
-    paddingBottom: 60, // espaço para o rodapé
+    paddingBottom: 30, // espaço para o rodapé reduzido
     fontSize: 12,
     fontFamily: "Roboto",
     color: "#333",
@@ -58,21 +58,24 @@ const styles = StyleSheet.create({
   value: { textAlign: "right" },
   table: {
     width: "100%",
-    borderWidth: 2,
-    borderColor: "#af1e1eff",
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    // keep full border but subtle (neutral gray) to avoid heavy colored bars at page edge
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
     flexDirection: "column",
     borderRadius: 4,
     overflow: "hidden",
     marginBottom: 10,
+    // reserve space under the fixed header so rows are not overlapped on every page
+    paddingTop: 36,
   },
   tableRow: { flexDirection: "row" },
   tableRowEven: { flexDirection: "row", backgroundColor: "#f9fafb" },
   tableColHeader: {
     width: "70%",
-    borderBottomWidth: 2,
-    borderColor: "#af1e1eff",
+    borderBottomWidth: 1,
+    borderColor: "#d1d5db",
     backgroundColor: "#e2e2e2ff",
     padding: 8,
     fontWeight: "bold",
@@ -80,8 +83,8 @@ const styles = StyleSheet.create({
   },
   tableColHeaderSmall: {
     width: "30%",
-    borderBottomWidth: 2,
-    borderColor: "#af1e1eff",
+    borderBottomWidth: 1,
+    borderColor: "#d1d5db",
     backgroundColor: "#e5e7eb",
     padding: 8,
     fontWeight: "bold",
@@ -110,11 +113,26 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   legendColorBox: { width: 10, height: 10, borderRadius: 2, marginRight: 6 },
   smallNote: { fontSize: 9, color: '#6b7280' },
+  // fixed table header that will appear on every page so tables spanning pages keep their header
+  tableHeaderFixed: {
+    position: 'absolute',
+    left: 30,
+    right: 30,
+    // adjust top to sit below the red section title and document header
+    top: 160,
+    flexDirection: 'row',
+    backgroundColor: '#e2e2e2ff',
+    padding: 8,
+    borderBottomWidth: 1,
+    borderColor: '#d1d5db',
+    zIndex: 20,
+  },
 });
 
 interface Produto {
   nome: string;
   qtd: number | string;
+  unidade?: string;
   categoria?: string;
 }
 interface ComentarioRelatorio {
@@ -263,7 +281,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
         fixed
         style={{
           position: "absolute",
-          bottom: 20,
+          bottom: 12,
           left: 30,
           fontSize: currentFontSizes.base - 2,
           color: "#bbbbbbff",
@@ -275,7 +293,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
         fixed
         style={{
           position: "absolute",
-          bottom: 20,
+          bottom: 12,
           right: 30,
           fontSize: currentFontSizes.base - 2,
           color: "#bbbbbbff",
@@ -542,27 +560,30 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // };
 
   const renderTable = (
-    rows: any[],
-    keyMapper: (row: any) => { col1: string; col2: string }
+    rows: Produto[],
+    keyMapper: (row: Produto) => { col1: string; col2: string }
   ) => (
-    <View style={styles.table}>
-      <View style={styles.tableRow}>
-        <Text style={[styles.tableColHeader, { fontSize: currentFontSizes.table }]}>Nome</Text>
-        <Text style={[styles.tableColHeaderSmall, { fontSize: currentFontSizes.table }]}>Total</Text>
+    <>
+      {/* fixed header repeats on every page */}
+      <View style={styles.tableHeaderFixed} fixed>
+        <Text style={[{ width: '70%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151' }]}>Nome</Text>
+        <Text style={[{ width: '30%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151', textAlign: 'right' }]}>Total</Text>
       </View>
-      {rows.map((row, i) => {
-        const { col1, col2 } = keyMapper(row);
-        return (
-          <View
-            key={i}
-            style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
-          >
-            <Text style={[styles.tableCol, { fontSize: currentFontSizes.table }]}>{col1}</Text>
-            <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{col2}</Text>
-          </View>
-        );
-      })}
-    </View>
+      <View style={styles.table}>
+        {rows.map((row, i) => {
+          const { col1, col2 } = keyMapper(row);
+          return (
+            <View
+              key={i}
+              style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
+            >
+              <Text style={[styles.tableCol, { fontSize: currentFontSizes.table }]}>{col1}</Text>
+              <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{col2}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </>
   );
   
   // Tabela especial para fórmulas com batidas e códigos
@@ -705,12 +726,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <Page size="A4" style={styles.page} orientation={orientation} wrap>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>TABELA DE PRODUTOS</Text>
-          
           {categorias.map((cat, idx) => ( 
             <View key={idx} style={{ marginBottom: 15 }}>
-              <Text style={{ fontSize: currentFontSizes.base + 1, fontWeight: 'bold', color: '#af1e1eff', marginBottom: 8, paddingLeft: 4 }}>
-                {cat}
-              </Text>
               {renderTable(produtosPorCategoria[cat], (p) => ({
                 col1: p.nome,
                 col2: ((p.unidade === "kg" 
