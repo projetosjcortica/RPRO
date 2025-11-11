@@ -443,11 +443,10 @@ export default function Amendoim() {
             <div className="border-x py-2 flex justify-center" style={{ width: '100px', minWidth: '100px' }}>{formatDate(r.dia)}</div>
             <div className="border-x py-2 flex justify-center" style={{ width: '80px', minWidth: '80px' }}>{r.hora}</div>
             <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{r.codigoProduto}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{r.codigoCaixa}</div>
             <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '80px', minWidth: '80px' }}>{r.balanca ?? '-'}</div>
             <div className="border-x py-2 pl-2 flex justify-start" style={{ width: '250px', minWidth: '250px', overflow: 'hidden' }}>{r.nomeProduto}</div>
             <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
-            <div className="border-x py-2 flex justify-center" style={{ width: '100/px', minWidth: '100px' }}>{r.tipo}</div>
+            <div className="border-x py-2 flex justify-center" style={{ width: '100px', minWidth: '100px' }}>{r.tipo}</div>
           </div>
         ))}
       </div>
@@ -772,9 +771,6 @@ export default function Amendoim() {
                     </div>
                     <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '120px', minWidth: '120px' }}>
                       Cód. Produto
-                    </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '120px', minWidth: '120px' }}>
-                      Cód. Caixa
                     </div>
                     <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '80px', minWidth: '80px' }}>
                       Balança

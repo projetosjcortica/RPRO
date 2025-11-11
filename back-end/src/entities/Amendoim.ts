@@ -8,13 +8,15 @@ import {
 
 /**
  * Entity para registros de pesagem de amendoim.
- * Estrutura do CSV: Dia, Hora, ?, Código Produto, Código Caixa, Nome Produto, ?, ?, Peso
+ * Estrutura do CSV: Dia, Hora, ?, ?, Código Produto, Nome Produto, ?, ?, Peso, ?, Balanca
  * Sistema suporta dois tipos de registro: entrada (pré-debulhamento) e saída (pós-debulhamento)
+ * 
+ * NOTA: Campo codigoCaixa mantido por compatibilidade do banco de dados,
+ * mas o sistema agora usa apenas codigoProduto (código de caixa foi descontinuado).
  */
 @Entity("amendoim")
 @Index(["dia", "hora"]) // Índice composto para busca por data/hora
 @Index(["codigoProduto"]) // Índice para busca por produto
-@Index(["codigoCaixa"]) // Índice para busca por caixa
 @Index(["tipo"]) // Índice para filtrar por tipo (entrada/saida)
 @Index(["tipo", "dia"]) // Índice composto para métricas por período
 @Index("unique_record", ["tipo", "dia", "hora", "codigoProduto", "peso"], { unique: true }) // PROTEÇÃO CONTRA DUPLICATAS
@@ -38,7 +40,7 @@ export class Amendoim {
   @Column({ type: "varchar", length: 50 })
   codigoProduto!: string;
 
-  /** Código da caixa (ex: 1, 2, 3) */
+  /** @deprecated Código da caixa (descontinuado - mantido por compatibilidade DB) */
   @Column({ type: "varchar", length: 50 })
   codigoCaixa!: string;
 

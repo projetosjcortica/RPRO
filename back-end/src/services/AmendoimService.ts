@@ -4,8 +4,11 @@ import { AppDataSource } from "./dbService";
 
 /**
  * Service para processar arquivos CSV de amendoim.
- * Formato esperado: Data,Hora,,CódigoProduto,CódigoCaixa,NomeProduto,,,Peso,,Balanca
- * Exemplo: 10/11/25,14:15:03,,,1,456,Amendoim,,,2210,,1
+ * Formato esperado: Data,Hora,,,CódigoProduto,NomeProduto,,,Peso,,Balanca
+ * Exemplo: 10/11/25,14:15:03,,,456,,Amendoim,,,2210,,1
+ * 
+ * MUDANÇA 2025: Sistema de código de caixa foi descontinuado.
+ * O que antes era "Código de Caixa" (coluna 5) agora é "Código de Produto".
  * 
  * REGRA DE NEGÓCIO:
  * - Balanças 1 e 2 = ENTRADA (pré-debulhamento)
@@ -78,15 +81,16 @@ export class AmendoimService {
             continue;
           }
 
-          // Formato novo: Data,Hora,Col2,Col3,CódigoProduto,CódigoCaixa,NomeProduto,Col7,Col8,Peso,Col10,Balanca
-          // Exemplo: 10/11/25,14:15:03,,,1,456,Amendoim,,,2210,,1
+          // Formato novo: Data,Hora,Col2,Col3,CódigoProduto(antigo CódigoCaixa),CódigoProduto(vazio),NomeProduto,Col7,Col8,Peso,Col10,Balanca
+          // Exemplo: 10/11/25,14:15:03,,,456,1,Amendoim,,,2210,,1
+          // MUDANÇA: Coluna 4 (antiga CódigoCaixa) agora é CódigoProduto
           const [
             data,          // 0: Data (DD/MM/YY)
             hora,          // 1: Hora (HH:MM:SS)
             _col2,         // 2: Vazio
             _col3,         // 3: Vazio
-            codigoProduto, // 4: Código do produto
-            codigoCaixa,   // 5: Código da caixa
+            _obsoleto4,    // 4: Vazio (era código auxiliar)
+            codigoProduto, // 5: Código do produto (ANTES era código da caixa, agora é código do produto)
             nomeProduto,   // 6: Nome do produto
             _col7,         // 7: Vazio
             _col8,         // 8: Vazio
@@ -127,8 +131,10 @@ export class AmendoimService {
           
           registro.dia = diaStr;
           registro.hora = horaStr;
+          // MUDANÇA: codigoProduto agora vem da coluna 5 (antes era codigoCaixa)
           registro.codigoProduto = codigoProduto ? String(codigoProduto).trim() : "";
-          registro.codigoCaixa = codigoCaixa ? String(codigoCaixa).trim() : "";
+          // codigoCaixa mantido por compatibilidade do banco, mas populado com mesmo valor
+          registro.codigoCaixa = codigoProduto ? String(codigoProduto).trim() : "";
           
           // Log de debug: formato de data sendo salvo
           if (i === 0) {
@@ -304,15 +310,25 @@ export class AmendoimService {
     }
 
     if (params.dataInicio) {
-      // Converter formato YYYY-MM-DD para DD-MM-YY antes de comparar
-      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
+      // Normalizar data para YYYY-MM-DD e converter para DD/MM/YY
+      const normData = this.normalizeDateToISOFormat(params.dataInicio);
+      if (normData) {
+        const dbData = this.convertISODateToDBFormat(normData);
+        console.log('[AmendoimService.buscarRegistros] 📅 dataInicio - Original:', params.dataInicio, '→ ISO:', normData, '→ DB:', dbData);
+        qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dbData });
+      }
     }
 
     if (params.dataFim) {
-      // Converter formato YYYY-MM-DD para DD-MM-YY antes de comparar
-      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+      // Normalizar data para YYYY-MM-DD e calcular próximo dia para comparação inclusiva
+      const normData = this.normalizeDateToISOFormat(params.dataFim);
+      if (normData) {
+        // Calcular próximo dia (para fazer comparação inclusiva)
+        const proximoDia = this.calcularProximoDia(normData);
+        const dbProximoDia = this.convertISODateToDBFormat(proximoDia);
+        console.log('[AmendoimService.buscarRegistros] 📅 dataFim - Original:', params.dataFim, '→ ISO:', normData, '→ Próximo dia para compare <:', dbProximoDia);
+        qb.andWhere("amendoim.dia < :dataFim", { dataFim: dbProximoDia });
+      }
     }
 
     if (params.codigoProduto) {
@@ -338,6 +354,11 @@ export class AmendoimService {
       .take(pageSize)
       .getMany();
 
+    console.log('[AmendoimService.buscarRegistros] ✅ Total encontrado:', total, '| Retornando:', rows.length, 'registros (página', page, ')');
+    if (rows.length > 0) {
+      console.log('[AmendoimService.buscarRegistros] 📊 Primeira data:', rows[0].dia, '| Última:', rows[rows.length - 1].dia);
+    }
+
     return { rows, total, page, pageSize };
   }
 
@@ -354,7 +375,6 @@ export class AmendoimService {
     totalRegistros: number;
     pesoTotal: number;
     produtosUnicos: number;
-    caixasUtilizadas: number;
     primeiraData?: string;
     ultimaData?: string;
     primeiraHora?: string;
@@ -368,13 +388,20 @@ export class AmendoimService {
     }
 
     if (params.dataInicio) {
-      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
+      const normData = this.normalizeDateToISOFormat(params.dataInicio);
+      if (normData) {
+        const dbData = this.convertISODateToDBFormat(normData);
+        qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dbData });
+      }
     }
 
     if (params.dataFim) {
-      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+      const normData = this.normalizeDateToISOFormat(params.dataFim);
+      if (normData) {
+        const proximoDia = this.calcularProximoDia(normData);
+        const dbProximoDia = this.convertISODateToDBFormat(proximoDia);
+        qb.andWhere("amendoim.dia < :dataFim", { dataFim: dbProximoDia });
+      }
     }
 
     if (params.codigoProduto) {
@@ -399,10 +426,6 @@ export class AmendoimService {
       .select("COUNT(DISTINCT amendoim.codigoProduto)", "count")
       .getRawOne();
 
-    const caixasResult = await qb
-      .select("COUNT(DISTINCT amendoim.codigoCaixa)", "count")
-      .getRawOne();
-
     // Buscar primeira e última data/hora
     const primeiroRegistro = await qb
       .clone()
@@ -424,7 +447,6 @@ export class AmendoimService {
       totalRegistros,
       pesoTotal: Number(pesoResult?.total || 0),
       produtosUnicos: Number(produtosResult?.count || 0),
-      caixasUtilizadas: Number(caixasResult?.count || 0),
       primeiraData: primeiroRegistro?.dia,
       ultimaData: ultimoRegistro?.dia,
       primeiraHora: primeiroRegistro?.hora,
@@ -433,12 +455,119 @@ export class AmendoimService {
   }
 
   /**
-   * Converte data de YYYY-MM-DD para DD-MM-YY (formato do banco)
+   * Normaliza qualquer formato de data para ISO YYYY-MM-DD
+   * Aceita: YYYY-MM-DD, DD-MM-YYYY, DD/MM/YYYY, DD-MM-YY, DD/MM/YY
+   */
+  private static normalizeDateToISOFormat(dateStr: string): string | null {
+    if (!dateStr) return null;
+    
+    const s = String(dateStr).trim();
+    if (!s) return null;
+    
+    // Se já está em ISO YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      return s;
+    }
+    
+    // Se está em DD-MM-YYYY com hífen
+    if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+      const parts = s.split('-');
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    
+    // Se está em DD/MM/YYYY com barra
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+      const parts = s.split('/');
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    
+    // Se está em DD-MM-YY (2 dígitos) - assume século 20/21
+    if (/^\d{2}-\d{2}-\d{2}$/.test(s)) {
+      const parts = s.split('-');
+      const year = Number(parts[2]);
+      const century = year < 50 ? 2000 : 1900;
+      return `${century + year}-${parts[1]}-${parts[0]}`;
+    }
+    
+    // Se está em DD/MM/YY (2 dígitos com barra)
+    if (/^\d{2}\/\d{2}\/\d{2}$/.test(s)) {
+      const parts = s.split('/');
+      const year = Number(parts[2]);
+      const century = year < 50 ? 2000 : 1900;
+      return `${century + year}-${parts[1]}-${parts[0]}`;
+    }
+    
+    // Tentar Date parser fallback
+    try {
+      const dt = new Date(s);
+      if (!isNaN(dt.getTime())) {
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      }
+    } catch (e) {
+      // Fallback falhou
+    }
+    
+    return null;
+  }
+
+  /**
+   * Converte data ISO YYYY-MM-DD para formato do banco DD/MM/YY
+   */
+  private static convertISODateToDBFormat(isoDate: string): string {
+    if (!isoDate || !isoDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return isoDate;
+    }
+    
+    const parts = isoDate.split('-');
+    const year = parts[0];
+    const month = parts[1];
+    const day = parts[2];
+    const shortYear = year.slice(-2);
+    
+    return `${day}/${month}/${shortYear}`;
+  }
+
+  /**
+   * Calcula o próximo dia a partir de uma data ISO YYYY-MM-DD
+   */
+  private static calcularProximoDia(isoDate: string): string {
+    if (!isoDate || !isoDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return isoDate;
+    }
+    
+    const parts = isoDate.split('-');
+    const year = Number(parts[0]);
+    const month = Number(parts[1]);
+    const day = Number(parts[2]);
+    
+    const dt = new Date(year, month - 1, day);
+    dt.setDate(dt.getDate() + 1);
+    
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    
+    return `${y}-${m}-${d}`;
+  }
+
+  /**
+   * Converte data de qualquer formato para DD-MM-YY (formato do banco para comparação)
+   * Aceita: YYYY-MM-DD, DD-MM-YY, DD/MM/YY
    */
   private static convertDateToDBFormat(dateStr: string): string {
-    // Se já está em formato DD-MM-YY, retornar como está
+    if (!dateStr) return dateStr;
+    
+    // Se já está em formato DD-MM-YY com hífen, retornar como está
     if (/^\d{2}-\d{2}-\d{2}$/.test(dateStr)) {
       return dateStr;
+    }
+    
+    // Se está em formato DD/MM/YY com barra (formato do banco), converter para hífen
+    if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) {
+      return dateStr.replace(/\//g, '-');
     }
     
     // Converter YYYY-MM-DD para DD-MM-YY
@@ -477,9 +606,16 @@ export class AmendoimService {
         return this.getEmptyAnaliseStructure();
       }
 
-      // Converter datas para formato do banco (DD-MM-YY)
-      const dataInicioDB = params.dataInicio ? this.convertDateToDBFormat(params.dataInicio) : undefined;
-      const dataFimDB = params.dataFim ? this.convertDateToDBFormat(params.dataFim) : undefined;
+    // Converter datas para formato do banco (DD/MM/YY)
+    const dataInicioDB = params.dataInicio ? this.convertISODateToDBFormat(this.normalizeDateToISOFormat(params.dataInicio) || '') : undefined;
+    let dataFimDB: string | undefined = undefined;
+    if (params.dataFim) {
+      const normFim = this.normalizeDateToISOFormat(params.dataFim);
+      if (normFim) {
+        const proximoDia = this.calcularProximoDia(normFim);
+        dataFimDB = this.convertISODateToDBFormat(proximoDia);
+      }
+    }
 
       console.log('[AmendoimService.obterDadosAnalise] Filtros recebidos:', params);
       console.log('[AmendoimService.obterDadosAnalise] Filtros convertidos:', { dataInicioDB, dataFimDB });
@@ -490,8 +626,8 @@ export class AmendoimService {
       .addSelect("amendoim.tipo", "tipo")
       .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
 
-    if (dataInicioDB) qbHora.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
-    if (dataFimDB) qbHora.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    if (dataInicioDB) qbHora.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dataInicioDB });
+    if (dataFimDB) qbHora.andWhere("amendoim.dia < :dataFim", { dataFim: dataFimDB });
 
     const dadosHora = await qbHora.groupBy("hora, amendoim.tipo").getRawMany();
     console.log('[AmendoimService.obterDadosAnalise] dadosHora resultado:', dadosHora.length, 'registros');
@@ -505,8 +641,8 @@ export class AmendoimService {
       .addSelect("amendoim.tipo", "tipo")
       .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
 
-    if (dataInicioDB) qbDia.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
-    if (dataFimDB) qbDia.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    if (dataInicioDB) qbDia.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dataInicioDB });
+    if (dataFimDB) qbDia.andWhere("amendoim.dia <= :dataFim", { dataFim: dataFimDB });
 
     const dadosDia = await qbDia.groupBy("amendoim.dia, amendoim.tipo").orderBy("amendoim.dia", "ASC").getRawMany();
     console.log('[AmendoimService.obterDadosAnalise] dadosDia resultado:', dadosDia.length, 'registros');
@@ -514,12 +650,12 @@ export class AmendoimService {
     // Query para dia da semana (MySQL: DAYOFWEEK retorna 1=domingo, 2=segunda, etc.)
     // Subtraímos 1 para obter índice 0-6
     let qbSemana = repo.createQueryBuilder("amendoim")
-      .select("DAYOFWEEK(STR_TO_DATE(amendoim.dia, '%d-%m-%y')) - 1", "diaSemana")
+      .select("DAYOFWEEK(STR_TO_DATE(amendoim.dia, '%d/%m/%y')) - 1", "diaSemana")
       .addSelect("amendoim.tipo", "tipo")
       .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
 
-    if (dataInicioDB) qbSemana.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
-    if (dataFimDB) qbSemana.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    if (dataInicioDB) qbSemana.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dataInicioDB });
+    if (dataFimDB) qbSemana.andWhere("amendoim.dia <= :dataFim", { dataFim: dataFimDB });
 
     const dadosSemana = await qbSemana.groupBy("diaSemana, amendoim.tipo").getRawMany();
     console.log('[AmendoimService.obterDadosAnalise] dadosSemana resultado:', dadosSemana.length, 'registros');
@@ -641,17 +777,19 @@ export class AmendoimService {
   } | null> {
     const repo = AppDataSource.getRepository(Amendoim);
 
+    // Converter datas para formato do banco (DD/MM/YY)
+    const dataInicioDB = params.dataInicio ? this.convertDateToDBFormat(params.dataInicio).replace(/-/g, '/') : undefined;
+    const dataFimDB = params.dataFim ? this.convertDateToDBFormat(params.dataFim).replace(/-/g, '/') : undefined;
+
     // Buscar peso de entrada
     const qbEntrada = repo.createQueryBuilder("amendoim");
     qbEntrada.andWhere("amendoim.tipo = :tipo", { tipo: "entrada" });
     
-    if (params.dataInicio) {
-      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
-      qbEntrada.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
+    if (dataInicioDB) {
+      qbEntrada.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dataInicioDB });
     }
-    if (params.dataFim) {
-      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
-      qbEntrada.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    if (dataFimDB) {
+      qbEntrada.andWhere("amendoim.dia <= :dataFim", { dataFim: dataFimDB });
     }
     if (params.codigoProduto) {
       qbEntrada.andWhere("amendoim.codigoProduto LIKE :codigoProduto", {
@@ -673,13 +811,11 @@ export class AmendoimService {
     const qbSaida = repo.createQueryBuilder("amendoim");
     qbSaida.andWhere("amendoim.tipo = :tipo", { tipo: "saida" });
     
-    if (params.dataInicio) {
-      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
-      qbSaida.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
+    if (dataInicioDB) {
+      qbSaida.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dataInicioDB });
     }
-    if (params.dataFim) {
-      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
-      qbSaida.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    if (dataFimDB) {
+      qbSaida.andWhere("amendoim.dia <= :dataFim", { dataFim: dataFimDB });
     }
     if (params.codigoProduto) {
       qbSaida.andWhere("amendoim.codigoProduto LIKE :codigoProduto", {
@@ -700,13 +836,11 @@ export class AmendoimService {
     // Buscar primeira e última data/hora de TODO o período (entrada + saída)
     const qbPeriodo = repo.createQueryBuilder("amendoim");
     
-    if (params.dataInicio) {
-      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
-      qbPeriodo.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
+    if (dataInicioDB) {
+      qbPeriodo.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dataInicioDB });
     }
-    if (params.dataFim) {
-      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
-      qbPeriodo.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    if (dataFimDB) {
+      qbPeriodo.andWhere("amendoim.dia <= :dataFim", { dataFim: dataFimDB });
     }
     if (params.codigoProduto) {
       qbPeriodo.andWhere("amendoim.codigoProduto LIKE :codigoProduto", {
@@ -775,19 +909,21 @@ export class AmendoimService {
     const repo = AppDataSource.getRepository(Amendoim);
     const qb = repo.createQueryBuilder("amendoim");
 
+    // Converter datas para formato do banco (DD/MM/YY)
+    const dataInicioDB = params.dataInicio ? this.convertDateToDBFormat(params.dataInicio).replace(/-/g, '/') : undefined;
+    const dataFimDB = params.dataFim ? this.convertDateToDBFormat(params.dataFim).replace(/-/g, '/') : undefined;
+
     // Filtros
     if (params.tipo) {
       qb.andWhere("amendoim.tipo = :tipo", { tipo: params.tipo });
     }
 
-    if (params.dataInicio) {
-      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
+    if (dataInicioDB) {
+      qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dataInicioDB });
     }
 
-    if (params.dataFim) {
-      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    if (dataFimDB) {
+      qb.andWhere("amendoim.dia <= :dataFim", { dataFim: dataFimDB });
     }
 
     if (params.codigoProduto) {
@@ -825,7 +961,8 @@ export class AmendoimService {
   }
 
   /**
-   * Retorna dados para gráfico de caixas (distribuição por caixa).
+   * @deprecated Sistema de caixas foi descontinuado. Use getChartDataProdutos() ao invés.
+   * Mantido por compatibilidade temporária - redireciona para produtos.
    */
   static async getChartDataCaixas(params: {
     dataInicio?: string;
@@ -838,56 +975,8 @@ export class AmendoimService {
     total: number;
     totalRecords: number;
   }> {
-    const repo = AppDataSource.getRepository(Amendoim);
-    const qb = repo.createQueryBuilder("amendoim");
-
-    // Filtros
-    if (params.tipo) {
-      qb.andWhere("amendoim.tipo = :tipo", { tipo: params.tipo });
-    }
-
-    if (params.dataInicio) {
-      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
-    }
-
-    if (params.dataFim) {
-      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
-    }
-
-    if (params.codigoProduto) {
-      qb.andWhere("amendoim.codigoProduto = :codigoProduto", {
-        codigoProduto: params.codigoProduto,
-      });
-    }
-
-    // Agregar por caixa
-    const results = await qb
-      .select("amendoim.codigoCaixa", "name")
-      .addSelect("SUM(amendoim.peso)", "value")
-      .addSelect("COUNT(*)", "count")
-      .groupBy("amendoim.codigoCaixa")
-      .orderBy("value", "DESC")
-      .limit(params.limit || 20)
-      .getRawMany();
-
-    // Total geral
-    const totalResult = await repo
-      .createQueryBuilder("amendoim")
-      .select("SUM(amendoim.peso)", "total")
-      .addSelect("COUNT(*)", "count")
-      .getRawOne();
-
-    return {
-      chartData: results.map((r) => ({
-        name: `Caixa ${r.name || "?"}`,
-        value: Number(r.value || 0),
-        count: Number(r.count || 0),
-      })),
-      total: Number(totalResult?.total || 0),
-      totalRecords: Number(totalResult?.count || 0),
-    };
+    // Redirecionar para produtos
+    return this.getChartDataProdutos(params);
   }
 
   /**
@@ -907,19 +996,21 @@ export class AmendoimService {
     const repo = AppDataSource.getRepository(Amendoim);
     const qb = repo.createQueryBuilder("amendoim");
 
+    // Converter datas para formato do banco (DD/MM/YY)
+    const dataInicioDB = params.dataInicio ? this.convertDateToDBFormat(params.dataInicio).replace(/-/g, '/') : undefined;
+    const dataFimDB = params.dataFim ? this.convertDateToDBFormat(params.dataFim).replace(/-/g, '/') : undefined;
+
     // Filtros
     if (params.tipo) {
       qb.andWhere("amendoim.tipo = :tipo", { tipo: params.tipo });
     }
 
-    if (params.dataInicio) {
-      const dataInicioDB = this.convertDateToDBFormat(params.dataInicio);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') >= STR_TO_DATE(:dataInicio, '%d-%m-%y')", { dataInicio: dataInicioDB });
+    if (dataInicioDB) {
+      qb.andWhere("amendoim.dia >= :dataInicio", { dataInicio: dataInicioDB });
     }
 
-    if (params.dataFim) {
-      const dataFimDB = this.convertDateToDBFormat(params.dataFim);
-      qb.andWhere("STR_TO_DATE(amendoim.dia, '%d-%m-%y') <= STR_TO_DATE(:dataFim, '%d-%m-%y')", { dataFim: dataFimDB });
+    if (dataFimDB) {
+      qb.andWhere("amendoim.dia <= :dataFim", { dataFim: dataFimDB });
     }
 
     if (params.codigoProduto) {

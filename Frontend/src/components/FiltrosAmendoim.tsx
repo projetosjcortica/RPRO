@@ -91,27 +91,10 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
       setLoadingFiltros(true);
       try {
         const params = new URLSearchParams();
-        // Backend expects DB date format (DD-MM-YY). Convert from YYYY-MM-DD inputs.
-        const convertToDB = (d?: string) => {
-          if (!d) return undefined;
-          const s = String(d).trim();
-          if (/^\d{2}-\d{2}-\d{2}$/.test(s)) return s;
-          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-            const [y, m, day] = s.split('-');
-            return `${day}-${m}-${y.slice(-2)}`;
-          }
-          if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
-            const [datePart] = s.split('T');
-            const [y, m, day] = datePart.split('-');
-            return `${day}-${m}-${y.slice(-2)}`;
-          }
-          return s;
-        };
-
-        const dInicio = convertToDB(filtrosTemporarios.dataInicio);
-        const dFim = convertToDB(filtrosTemporarios.dataFim);
-        if (dInicio) params.set('dataInicio', dInicio);
-        if (dFim) params.set('dataFim', dFim);
+        // Send dates in YYYY-MM-DD format (backend handles conversion internally)
+        if (filtrosTemporarios.dataInicio) params.set('dataInicio', filtrosTemporarios.dataInicio);
+        if (filtrosTemporarios.dataFim) params.set('dataFim', filtrosTemporarios.dataFim);
+        
         const url = `http://localhost:3000/api/amendoim/filtrosDisponiveis?${params.toString()}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('Failed to fetch filtros disponíveis');

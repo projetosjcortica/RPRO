@@ -1456,7 +1456,7 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=relatorio_${Date.now()}.xlsx`
+      `attachment; filename=relatorio_${dataInicio}-${dataFim}.xlsx`
     );
     await wb.xlsx.write(res as any);
     // signal end
@@ -1570,7 +1570,7 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
     );
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=relatorio_${Date.now()}.xlsx`
+      `attachment; filename=relatorio_${dataInicio}-${dataFim}.xlsx`
     );
     await wb.xlsx.write(res as any);
     res.end();
@@ -3659,11 +3659,33 @@ app.get('/api/amendoim/filtrosDisponiveis', async (req, res) => {
     const repository = AppDataSource.getRepository(Amendoim);
     const qb = repository.createQueryBuilder('a');
 
+    // Convert dates from YYYY-MM-DD to DD/MM/YY format for comparison
+    const convertDateToDBFormat = (dateStr?: string): string | undefined => {
+      if (!dateStr) return undefined;
+      // If already in DD/MM/YY format, return as is
+      if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) {
+        return dateStr;
+      }
+      // If in DD-MM-YY format, convert to DD/MM/YY
+      if (/^\d{2}-\d{2}-\d{2}$/.test(dateStr)) {
+        return dateStr.replace(/-/g, '/');
+      }
+      // Convert YYYY-MM-DD to DD/MM/YY
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [year, month, day] = dateStr.split('-');
+        const shortYear = year.slice(-2);
+        return `${day}/${month}/${shortYear}`;
+      }
+      return dateStr;
+    };
+
     if (dataInicio) {
-      qb.andWhere('a.dia >= :dataInicio', { dataInicio });
+      const dataInicioDB = convertDateToDBFormat(dataInicio);
+      qb.andWhere("a.dia >= :dataInicio", { dataInicio: dataInicioDB });
     }
     if (dataFim) {
-      qb.andWhere('a.dia <= :dataFim', { dataFim });
+      const dataFimDB = convertDateToDBFormat(dataFim);
+      qb.andWhere("a.dia <= :dataFim", { dataFim: dataFimDB });
     }
 
     // Buscar códigos únicos de produtos
@@ -4123,10 +4145,26 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
     // Filtros
     const tipo = req.query.tipo ? String(req.query.tipo) : undefined;
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
-    const codigoCaixa = req.query.codigoCaixa ? String(req.query.codigoCaixa) : undefined;
     const nomeProduto = req.query.nomeProduto ? String(req.query.nomeProduto) : undefined;
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+
+    // Função para converter data de qualquer formato para DD-MM-YY
+    const convertDateToDBFormat = (dateStr: string): string => {
+      if (!dateStr) return dateStr;
+      // Se já está em formato DD-MM-YY com hífen, retornar como está
+      if (/^\d{2}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+      // Se está em formato DD/MM/YY com barra (formato do banco), converter para hífen
+      if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) return dateStr.replace(/\//g, '-');
+      // Converter YYYY-MM-DD para DD-MM-YY
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [year, month, day] = dateStr.split('-');
+        return `${day}-${month}-${year.slice(-2)}`;
+      }
+      return dateStr;
+    };
+
+    console.log('[Excel Export GET] 🔍 Filtros recebidos:', { tipo, codigoProduto, nomeProduto, dataInicio, dataFim });
 
     const repo = AppDataSource.getRepository(Amendoim);
     const qb = repo.createQueryBuilder("a");
@@ -4138,19 +4176,20 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
     if (codigoProduto) {
       qb.andWhere("a.codigoProduto = :codigoProduto", { codigoProduto });
     }
-    if (codigoCaixa) {
-      qb.andWhere("a.codigoCaixa = :codigoCaixa", { codigoCaixa });
-    }
     if (nomeProduto) {
       qb.andWhere("LOWER(a.nomeProduto) LIKE LOWER(:nomeProduto)", { 
         nomeProduto: `%${nomeProduto}%` 
       });
     }
     if (dataInicio) {
-      qb.andWhere("a.dia >= :dataInicio", { dataInicio });
+      const dataInicioDB = convertDateToDBFormat(dataInicio);
+      console.log('[Excel Export GET] 📅 Conversão dataInicio:', { original: dataInicio, convertido: dataInicioDB });
+      qb.andWhere("a.dia >= :dataInicio", { dataInicio: dataInicioDB });
     }
     if (dataFim) {
-      qb.andWhere("a.dia <= :dataFim", { dataFim });
+      const dataFimDB = convertDateToDBFormat(dataFim);
+      console.log('[Excel Export GET] 📅 Conversão dataFim:', { original: dataFim, convertido: dataFimDB });
+      qb.andWhere("a.dia <= :dataFim", { dataFim: dataFimDB });
     }
 
     qb.orderBy("a.dia", "DESC").addOrderBy("a.hora", "DESC");
@@ -4161,13 +4200,12 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Amendoim");
 
-    // Cabeçalho
+    // Cabeçalho (sem Código Caixa)
     ws.addRow([
       "Tipo",
       "Data",
       "Hora",
       "Código Produto",
-      "Código Caixa",
       "Nome Produto",
       "Peso (kg)",
       "Balança"
@@ -4182,22 +4220,21 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
       fgColor: { argb: "FFE0E0E0" },
     };
 
-    // Adicionar dados
+    // Adicionar dados (sem codigoCaixa)
     for (const r of registros) {
       ws.addRow([
         r.tipo === 'entrada' ? 'Entrada' : 'Saída',
         r.dia,
         r.hora,
         r.codigoProduto,
-        r.codigoCaixa,
         r.nomeProduto,
         r.peso,
         r.balanca || ""
       ]);
     }
 
-    // Formatar colunas
-    ws.getColumn(7).numFmt = "#,##0.000"; // Peso com 3 casas decimais
+    // Formatar colunas (peso agora é coluna 6)
+    ws.getColumn(6).numFmt = "#,##0.000"; // Peso com 3 casas decimais
 
     // Auto-ajustar largura das colunas
     ws.columns.forEach((column) => {
@@ -4216,9 +4253,20 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
+    
+    // Generate filename with dataInicio and dataFim if available
+    let filename = 'relatorio';
+    if (dataInicio && dataFim) {
+      filename = `relatorio_${dataInicio}_${dataFim}`;
+    } else if (dataInicio) {
+      filename = `relatorio_${dataInicio}`;
+    } else if (dataFim) {
+      filename = `relatorio_ate_${dataFim}`;
+    }
+    
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=amendoim_${Date.now()}.xlsx`
+      `attachment; filename=${filename}.xlsx`
     );
     
     await wb.xlsx.write(res as any);
@@ -4237,10 +4285,24 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
     // Filtros do body
     const tipo = req.body.tipo || undefined;
     const codigoProduto = req.body.codigoProduto || undefined;
-    const codigoCaixa = req.body.codigoCaixa || undefined;
     const nomeProduto = req.body.nomeProduto || undefined;
     const dataInicio = req.body.dataInicio || undefined;
     const dataFim = req.body.dataFim || undefined;
+
+    // Função para converter data de qualquer formato para DD-MM-YY
+    const convertDateToDBFormat = (dateStr: string): string => {
+      if (!dateStr) return dateStr;
+      // Se já está em formato DD-MM-YY com hífen, retornar como está
+      if (/^\d{2}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+      // Se está em formato DD/MM/YY com barra (formato do banco), converter para hífen
+      if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) return dateStr.replace(/\//g, '-');
+      // Converter YYYY-MM-DD para DD-MM-YY
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [year, month, day] = dateStr.split('-');
+        return `${day}-${month}-${year.slice(-2)}`;
+      }
+      return dateStr;
+    };
 
     const repo = AppDataSource.getRepository(Amendoim);
     const qb = repo.createQueryBuilder("a");
@@ -4252,19 +4314,18 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
     if (codigoProduto) {
       qb.andWhere("a.codigoProduto = :codigoProduto", { codigoProduto });
     }
-    if (codigoCaixa) {
-      qb.andWhere("a.codigoCaixa = :codigoCaixa", { codigoCaixa });
-    }
     if (nomeProduto) {
       qb.andWhere("LOWER(a.nomeProduto) LIKE LOWER(:nomeProduto)", { 
         nomeProduto: `%${nomeProduto}%` 
       });
     }
     if (dataInicio) {
-      qb.andWhere("a.dia >= :dataInicio", { dataInicio });
+      const dataInicioDB = convertDateToDBFormat(dataInicio);
+      qb.andWhere("a.dia >= :dataInicio", { dataInicio: dataInicioDB });
     }
     if (dataFim) {
-      qb.andWhere("a.dia <= :dataFim", { dataFim });
+      const dataFimDB = convertDateToDBFormat(dataFim);
+      qb.andWhere("a.dia <= :dataFim", { dataFim: dataFimDB });
     }
 
     qb.orderBy("a.dia", "DESC").addOrderBy("a.hora", "DESC");
@@ -4275,13 +4336,12 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Amendoim");
 
-    // Cabeçalho
+    // Cabeçalho (sem Código Caixa)
     ws.addRow([
       "Tipo",
       "Data",
       "Hora",
       "Código Produto",
-      "Código Caixa",
       "Nome Produto",
       "Peso (kg)",
       "Balança"
@@ -4296,22 +4356,21 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
       fgColor: { argb: "FFE0E0E0" },
     };
 
-    // Adicionar dados
+    // Adicionar dados (sem codigoCaixa)
     for (const r of registros) {
       ws.addRow([
         r.tipo === 'entrada' ? 'Entrada' : 'Saída',
         r.dia,
         r.hora,
         r.codigoProduto,
-        r.codigoCaixa,
         r.nomeProduto,
         r.peso,
         r.balanca || ""
       ]);
     }
 
-    // Formatar colunas
-    ws.getColumn(7).numFmt = "#,##0.000"; // Peso com 3 casas decimais
+    // Formatar colunas (peso agora é coluna 6)
+    ws.getColumn(6).numFmt = "#,##0.000"; // Peso com 3 casas decimais
 
     // Auto-ajustar largura das colunas
     ws.columns.forEach((column) => {
@@ -4330,9 +4389,20 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
+    
+    // Generate filename with dataInicio and dataFim if available
+    let filename = 'relatorio';
+    if (dataInicio && dataFim) {
+      filename = `relatorio_${dataInicio}_${dataFim}`;
+    } else if (dataInicio) {
+      filename = `relatorio_${dataInicio}`;
+    } else if (dataFim) {
+      filename = `relatorio_ate_${dataFim}`;
+    }
+    
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=amendoim_${Date.now()}.xlsx`
+      `attachment; filename=${filename}.xlsx`
     );
     
     await wb.xlsx.write(res as any);
