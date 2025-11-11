@@ -101,12 +101,12 @@ const styles = StyleSheet.create({
   // Chart styles
   chartSection: { marginBottom: 15 },
   chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingVertical: 4 },
-  chartLabel: { width: '25%', fontSize: 10, color: '#374151', paddingRight: 4 },
+  chartLabel: { width: '25%', fontSize: 10, color: '#000000', paddingRight: 4 },
   // increased container/bar heights so bars are clearly visible when rendered to PDF/print
   chartBarContainer: { width: '50%', height: 16, backgroundColor: '#e6e7ea', borderRadius: 4, overflow: 'hidden', marginRight: 6 },
   chartBarFill: { height: 14, backgroundColor: '#af1e1eff', borderRadius: 4 },
-  chartValue: { width: '20%', fontSize: 10, textAlign: 'right', color: '#374151', paddingRight: 2 },
-  chartPercent: { width: '10%', fontSize: 10, textAlign: 'right', color: '#6b7280' },
+  chartValue: { width: '20%', fontSize: 10, textAlign: 'right', color: '#000000', paddingRight: 2 },
+  chartPercent: { width: '10%', fontSize: 10, textAlign: 'right', color: '#000000' },
   // donut
   donutContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   donutBox: { width: '35%', alignItems: 'center', justifyContent: 'center' },
@@ -627,8 +627,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <View style={styles.table}>
         {/* header as first row inside the table so it flows with pages */}
         <View style={[styles.tableRow, styles.tableHeaderRow]}>
-          <Text style={[{ width: '80%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151', padding: 8 }]}>Nome</Text>
-          <Text style={[{ width: '20%', fontWeight: 'bold',borderLeftWidth: 1, borderColor: "#d1d5db", fontSize: currentFontSizes.table, color: '#374151', textAlign: 'right', padding: 8 }]}>Total</Text>
+          <Text style={[{ width: '80%', fontWeight: 'bold', fontSize: currentFontSizes.table,color: "#af1e1eff", padding: 8 }]}>Nome</Text>
+          <Text style={[{ width: '20%', fontWeight: 'bold',borderLeftWidth: 1, borderColor: "#d1d5db",color: "#af1e1eff", fontSize: currentFontSizes.table, textAlign: 'right', padding: 8 }]}>Total</Text>
         </View>
         {rows.map((row, i) => {
           const { col1, col2 } = keyMapper(row);
