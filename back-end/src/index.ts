@@ -1336,7 +1336,7 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     const normDataInicio = normalizeDateParam(dataInicio) || null;
     const normDataFim = normalizeDateParam(dataFim) || null;
     const sortBy = String(req.query.sortBy || "Dia");
-    const sortDir = String(req.query.sortDir || "DESC");
+    const sortDir = String(req.query.sortDir || "ASC");
 
     await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
@@ -1478,7 +1478,7 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
     const normDataInicio = normalizeDateParam(dataInicio) || null;
     const normDataFim = normalizeDateParam(dataFim) || null;
     const sortBy = String(req.body.sortBy || "Dia");
-    const sortDir = String(req.body.sortDir || "DESC");
+    const sortDir = String(req.body.sortDir || "ASC");
 
     await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
@@ -3608,6 +3608,8 @@ app.get('/api/amendoim/registros', async (req, res) => {
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
     const nomeProduto = req.query.nomeProduto ? String(req.query.nomeProduto) : undefined;
     const tipo = req.query.tipo === 'saida' ? 'saida' : req.query.tipo === 'entrada' ? 'entrada' : undefined;
+    const sortBy = req.query.sortBy ? String(req.query.sortBy) : 'dia';
+    const sortDir = req.query.sortDir === 'ASC' ? 'ASC' : 'DESC';
 
     const resultado = await AmendoimService.buscarRegistros({
       page,
@@ -3617,6 +3619,8 @@ app.get('/api/amendoim/registros', async (req, res) => {
       codigoProduto,
       nomeProduto,
       tipo,
+      sortBy,
+      sortDir,
     });
 
     return res.json(resultado);
@@ -4192,7 +4196,7 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
       qb.andWhere("a.dia <= :dataFim", { dataFim: dataFimDB });
     }
 
-    qb.orderBy("a.dia", "DESC").addOrderBy("a.hora", "DESC");
+    qb.orderBy("STR_TO_DATE(a.dia, '%d/%m/%y')", "ASC").addOrderBy("a.hora", "ASC");
 
     const registros = await qb.getMany();
 
@@ -4328,7 +4332,7 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
       qb.andWhere("a.dia <= :dataFim", { dataFim: dataFimDB });
     }
 
-    qb.orderBy("a.dia", "DESC").addOrderBy("a.hora", "DESC");
+    qb.orderBy("STR_TO_DATE(a.dia, '%d/%m/%y')", "ASC").addOrderBy("a.hora", "ASC");
 
     const registros = await qb.getMany();
 

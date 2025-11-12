@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: "bold",
     color: "#af1e1eff",
-    marginBottom: 5,
+    marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
@@ -184,6 +184,35 @@ export const AmendoimPDFDocument = ({
 }: AmendoimPDFDocumentProps) => {
   const dataGeracao = new Date().toLocaleString("pt-BR");
 
+  // Função para formatar datas no padrão brasileiro (DD/MM/YYYY)
+  const formatDateBR = (dateStr?: string): string => {
+    if (!dateStr) return "";
+    
+    // Se já está no formato DD/MM/YYYY ou DD/MM/YY
+    if (/^\d{2}\/\d{2}\/\d{2,4}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    // Se está no formato YYYY-MM-DD (ISO)
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      const [year, month, day] = dateStr.split("-");
+      return `${day}/${month}/${year}`;
+    }
+    
+    // Tentar converter como Date object
+    try {
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      }
+    } catch {}
+    
+    return dateStr;
+  };
+
   // Aplicar tamanho de fonte dinamicamente
   const baseFontSize = fontSize === "pequena" ? 10 : fontSize === "grande" ? 14 : 12;
   
@@ -238,6 +267,25 @@ export const AmendoimPDFDocument = ({
   const rendimento =
     pesoEntrada > 0 ? formatNumber(((pesoSaida / pesoEntrada) * 100) || 0, 2) : "0.00";
 
+  // Calcular horários de início e fim do período
+  let horarioInicio = "";
+  let horarioFim = "";
+  
+  if (registrosParaExibir.length > 0) {
+    // Ordenar por data/hora para pegar primeiro e último registro
+    const registrosOrdenadosPorTempo = [...registrosParaExibir].sort((a, b) => {
+      const dateA = new Date(`${a.dia} ${a.hora}`).getTime();
+      const dateB = new Date(`${b.dia} ${b.hora}`).getTime();
+      return dateA - dateB; // Mais antigo primeiro
+    });
+    
+    const primeiroRegistro = registrosOrdenadosPorTempo[0];
+    const ultimoRegistro = registrosOrdenadosPorTempo[registrosOrdenadosPorTempo.length - 1];
+    
+    horarioInicio = primeiroRegistro.hora || "";
+    horarioFim = ultimoRegistro.hora || "";
+  }
+
   // Debug: if pesoTotal isn't numeric, warn to help tracing server/client payload shape
   if (!isFinite(Number(stats.pesoTotal))) {
     // eslint-disable-next-line no-console
@@ -255,31 +303,24 @@ export const AmendoimPDFDocument = ({
   });
   const resumoProdutos = Object.values(resumoMap);
 
-  // Construir agregados por balança e por produto (entradas x saídas)
-  const balancaMap: Record<string, { entrada: number; saida: number }> = {};
+  // Construir agregados por produto (entradas x saídas)
   const produtoMap: Record<string, { entrada: number; saida: number }> = {};
   registrosParaExibir.forEach((r) => {
-    const bal = r.balanca || '(sem balança)';
-    if (!balancaMap[bal]) balancaMap[bal] = { entrada: 0, saida: 0 };
     const prodKey = r.nomeProduto || r.codigoProduto || '(sem nome)';
     if (!produtoMap[prodKey]) produtoMap[prodKey] = { entrada: 0, saida: 0 };
     const peso = Number(r.peso || 0);
     if (r.tipo === 'entrada') {
-      balancaMap[bal].entrada += peso;
       produtoMap[prodKey].entrada += peso;
     } else {
-      balancaMap[bal].saida += peso;
       produtoMap[prodKey].saida += peso;
     }
   });
-  const balancas = Object.entries(balancaMap).map(([balanca, v]) => ({ balanca, ...v }));
   const produtosEntrSaida = Object.entries(produtoMap).map(([nome, v]) => ({ nome, ...v }));
   
   // Paginação para a lista detalhada após o resumo
   const registrosPorPagina = 30;
   const numDetailPages = showDetailed ? (registrosParaExibir.length > 0 ? Math.ceil(registrosParaExibir.length / registrosPorPagina) : 0) : 0;
-  const hasCommentsPage = comentarios && comentarios.length > 0 ? 1 : 0;
-  const totalPages = 1 + numDetailPages + hasCommentsPage;
+  const totalPages = 1 + numDetailPages;
 
   // Criar estilos dinâmicos baseados no fontSize
   const dynamicStyles = StyleSheet.create({
@@ -332,10 +373,6 @@ export const AmendoimPDFDocument = ({
           <View style={styles.titleContainer}>
             <Text style={dynamicStyles.title}>Relatório de Amendoim - Cortez</Text>
             <Text style={dynamicStyles.subtitle}>Gerado em: {dataGeracao}</Text>
-            {filtros.dataInicio && (
-              <Text style={dynamicStyles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
-            )}
-            {filtros.tipo && <Text style={dynamicStyles.subtitle}>Tipo: {filtros.tipo}</Text>}
             {filtros.codigoProduto && <Text style={dynamicStyles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
             {filtros.nomeProduto && <Text style={dynamicStyles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
             {filtros.codigoCaixa && <Text style={dynamicStyles.subtitle}>Cód. Caixa: {filtros.codigoCaixa}</Text>}
@@ -344,6 +381,17 @@ export const AmendoimPDFDocument = ({
 
         <View style={styles.section}>
           <Text style={dynamicStyles.sectionTitle}>Informações Gerais</Text>
+          
+          {filtros.dataInicio && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={dynamicStyles.label}>
+                Período:{" "}
+                <Text style={dynamicStyles.value}>
+                  {formatDateBR(filtros.dataInicio)}{horarioInicio ? ` às ${horarioInicio}` : ""} até {formatDateBR(filtros.dataFim) || "hoje"}{horarioFim ? ` às ${horarioFim}` : ""}
+                </Text>
+              </Text>
+            </View>
+          )}
           
           <View style={{ marginBottom: 6 }}>
             <Text style={dynamicStyles.label}>
@@ -388,61 +436,50 @@ export const AmendoimPDFDocument = ({
           </View>
         </View>
 
-        {/* Tabela de balanças (entradas x saídas) */}
-        <View style={styles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Balanças (Entradas / Saídas)</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={[dynamicStyles.tableColHeader, { width: '50%' }]}>Balança</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '25%', textAlign: 'right' }]}>Entrada (kg)</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '25%', textAlign: 'right' }]}>Saída (kg)</Text>
-            </View>
-            {balancas.map((b, i) => (
-              <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                <Text style={[dynamicStyles.tableCol, { width: '50%' }]}>{b.balanca}</Text>
-                <Text style={[dynamicStyles.tableCol, { width: '25%', textAlign: 'right' }]}>{formatNumber(b.entrada, 3)}</Text>
-                <Text style={[dynamicStyles.tableCol, { width: '25%', textAlign: 'right' }]}>{formatNumber(b.saida, 3)}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
+
 
         {/* Tabela de produtos (entradas x saídas) */}
         <View style={styles.section}>
           <Text style={dynamicStyles.sectionTitle}>Produtos (Entradas / Saídas)</Text>
           <View style={styles.table}>
             <View style={styles.tableHeader}>
-              <Text style={[dynamicStyles.tableColHeader, { width: '60%' }]}>Produto</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '20%', textAlign: 'right' }]}>Entrada (kg)</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '20%', textAlign: 'right' }]}>Saída (kg)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '45%' }]}>Produto</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right' }]}>Entrada (kg)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right' }]}>Saída (kg)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '19%', textAlign: 'right' }]}>Rendimento (%)</Text>
             </View>
-            {produtosEntrSaida.map((p, i) => (
-              <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                <Text style={[dynamicStyles.tableCol, { width: '60%' }]}>{p.nome}</Text>
-                <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'right' }]}>{formatNumber(p.entrada, 3)}</Text>
-                <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'right' }]}>{formatNumber(p.saida, 3)}</Text>
-              </View>
-            ))}
+            {produtosEntrSaida.map((p, i) => {
+              const rendimentoProduto = p.entrada > 0 ? ((p.saida / p.entrada) * 100) : 0;
+              return (
+                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                  <Text style={[dynamicStyles.tableCol, { width: '45%' }]}>{p.nome}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' }]}>{formatNumber(p.entrada, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' }]}>{formatNumber(p.saida, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '19%', textAlign: 'right' }]}>{formatNumber(rendimentoProduto, 2)}</Text>
+                </View>
+              );
+            })}
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Resumo por Produto</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={[dynamicStyles.tableColHeader, { width: '60%' }]}>Produto</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '20%', textAlign: 'right' }]}>Registros</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '20%', textAlign: 'right' }]}>Peso (kg)</Text>
-            </View>
-            {resumoProdutos.map((p, i) => (
-              <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                <Text style={[dynamicStyles.tableCol, { width: '60%' }]}>{p.name}</Text>
-                <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'right' }]}>{p.count}</Text>
-                <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'right' }]}>{formatNumber(p.value, 3)}</Text>
+        {/* Comentários no final da primeira página */}
+        {comentarios && comentarios.length > 0 && (
+          <View style={styles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Comentários</Text>
+            {comentarios.map((c, i) => (
+              <View key={i} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: i < comentarios.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                {c.data && (
+                  <Text style={{ fontSize: dynamicStyles.tableCol.fontSize, color: '#6b7280', marginBottom: 2 }}>
+                    {c.data}
+                  </Text>
+                )}
+                <Text style={{ fontSize: dynamicStyles.label.fontSize, color: '#374151' }}>
+                  {c.texto}
+                </Text>
               </View>
             ))}
           </View>
-        </View>
+        )}
 
         <View style={styles.footer}>
           <Text>1 de {totalPages} | Cortez - Sistema de Relatórios | J.Cortiça Automação</Text>
@@ -478,10 +515,8 @@ export const AmendoimPDFDocument = ({
                   <Text style={[dynamicStyles.tableColHeader, styles.col2]}>Data</Text>
                   <Text style={[dynamicStyles.tableColHeader, styles.col3]}>Hora</Text>
                   <Text style={[dynamicStyles.tableColHeader, styles.col4]}>Cód. Produto</Text>
-                  <Text style={[dynamicStyles.tableColHeader, styles.col5]}>Cód. Caixa</Text>
-                  <Text style={[dynamicStyles.tableColHeader, styles.col6]}>Nome Produto</Text>
-                  <Text style={[dynamicStyles.tableColHeader, styles.col7]}>Peso (kg)</Text>
-                  <Text style={[dynamicStyles.tableColHeader, styles.col8]}>Balança</Text>
+                  <Text style={[dynamicStyles.tableColHeader, { width: '28%' }]}>Nome Produto</Text>
+                  <Text style={[dynamicStyles.tableColHeader, { width: '12%', textAlign: 'right' }]}>Peso (kg)</Text>
                 </View>
 
                 {registrosPagina.map((registro, idx) => (
@@ -490,10 +525,8 @@ export const AmendoimPDFDocument = ({
                     <Text style={[dynamicStyles.tableCol, styles.col2]}>{registro.dia}</Text>
                     <Text style={[dynamicStyles.tableCol, styles.col3]}>{registro.hora}</Text>
                     <Text style={[dynamicStyles.tableCol, styles.col4]}>{registro.codigoProduto}</Text>
-                    <Text style={[dynamicStyles.tableCol, styles.col5]}>{registro.codigoCaixa}</Text>
-                    <Text style={[dynamicStyles.tableCol, styles.col6]}>{registro.nomeProduto}</Text>
-                    <Text style={[dynamicStyles.tableCol, styles.col7]}>{formatNumber(registro.peso, 3)}</Text>
-                    <Text style={[dynamicStyles.tableCol, styles.col8]}>{registro.balanca || "-"}</Text>
+                    <Text style={[dynamicStyles.tableCol, { width: '28%' }]}>{registro.nomeProduto}</Text>
+                    <Text style={[dynamicStyles.tableCol, { width: '12%', textAlign: 'right' }]}>{formatNumber(registro.peso, 3)}</Text>
                   </View>
                 ))}
               </View>
@@ -505,37 +538,6 @@ export const AmendoimPDFDocument = ({
           </Page>
         );
       })}
-
-      {/* Página final: comentários (se houver) */}
-      {comentarios && comentarios.length > 0 && (
-        <Page size="A4" orientation="portrait" style={styles.page}>
-          <View style={styles.header}>
-            <Text style={styles.title}>Relatório de Amendoim - Cortez</Text>
-            <Text style={styles.subtitle}>Gerado em: {dataGeracao}</Text>
-            {filtros.dataInicio && (
-              <Text style={styles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
-            )}
-            {filtros.tipo && <Text style={styles.subtitle}>Tipo: {filtros.tipo}</Text>}
-            {filtros.codigoProduto && <Text style={styles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
-            {filtros.nomeProduto && <Text style={styles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
-            {filtros.codigoCaixa && <Text style={styles.subtitle}>Cód. Caixa: {filtros.codigoCaixa}</Text>}
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Comentários</Text>
-            {comentarios.map((c, i) => (
-              <View key={i} style={{ marginBottom: 6 }}>
-                <Text style={{ fontSize: 9, color: '#444' }}>{c.data || ''}</Text>
-                <Text style={{ fontSize: 10, color: '#222' }}>{c.texto}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.footer}>
-            <Text>{totalPages} de {totalPages} | Cortez - Sistema de Relatórios | J.Cortiça Automação</Text>
-          </View>
-        </Page>
-      )}
 
     </Document>
   );

@@ -95,7 +95,7 @@ class Collector {
                 path: f.localPath,
                 mimetype: 'text/csv',
                 size: fs.statSync(f.localPath).size,
-              });
+              }, 'RACAO'); // Prefixo RACAO para diferenciar do coletor de amendoim
               
               console.log(`✅ [Collector] Amendoim processado: ${resultado.salvos} registros salvos`);
               
@@ -110,7 +110,7 @@ class Collector {
                 path: f.localPath,
                 mimetype: 'text/csv',
                 size: fs.statSync(f.localPath).size,
-              });
+              }, 'RACAO'); // Prefixo RACAO para diferenciar do coletor de amendoim
 
               console.log(`✅ [Collector] Ração processada: ${result.parsed.rowsCount} registros`);
               

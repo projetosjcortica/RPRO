@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { FileSpreadsheet, FileText, FileDown, Settings } from "lucide-react";
+import { FileSpreadsheet, FileText, FileDown, Settings, CalendarIcon } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format, parse } from "date-fns";
+import { pt } from "date-fns/locale";
+import { type DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
 import { PDFViewer, PDFDownloadLink } from "@react-pdf/renderer";
 import { AmendoimPDFDocument } from "./AmendoimPDF";
@@ -65,8 +71,18 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
   // Estados para filtros do Excel (simplificados: tipo + período)
   const [tipo, setTipo] = useState(filtros.tipo || "todos");
-  const [dataInicio, setDataInicio] = useState(filtros.dataInicio || "");
-  const [dataFim, setDataFim] = useState(filtros.dataFim || "");
+  
+  // DateRange para Excel modal
+  const [excelDateRange, setExcelDateRange] = useState<DateRange | undefined>(() => {
+    if (filtros.dataInicio || filtros.dataFim) {
+      return {
+        from: filtros.dataInicio ? parse(filtros.dataInicio, "yyyy-MM-dd", new Date()) : undefined,
+        to: filtros.dataFim ? parse(filtros.dataFim, "yyyy-MM-dd", new Date()) : undefined,
+      };
+    }
+    return undefined;
+  });
+  
   const [codigoProduto, setCodigoProduto] = useState(filtros.codigoProduto || "");
   const [nomeProduto, setNomeProduto] = useState(filtros.nomeProduto || "");
   const [codigoCaixa, setCodigoCaixa] = useState(filtros.codigoCaixa || "");
@@ -99,8 +115,16 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   // Keep filter inputs in sync if parent `filtros` prop changes (report applies filters)
   useEffect(() => {
     setTipo(filtros.tipo || "todos");
-    setDataInicio(filtros.dataInicio || "");
-    setDataFim(filtros.dataFim || "");
+    
+    if (filtros.dataInicio || filtros.dataFim) {
+      setExcelDateRange({
+        from: filtros.dataInicio ? parse(filtros.dataInicio, "yyyy-MM-dd", new Date()) : undefined,
+        to: filtros.dataFim ? parse(filtros.dataFim, "yyyy-MM-dd", new Date()) : undefined,
+      });
+    } else {
+      setExcelDateRange(undefined);
+    }
+    
     setCodigoProduto(filtros.codigoProduto || "");
     setNomeProduto(filtros.nomeProduto || "");
     setCodigoCaixa(filtros.codigoCaixa || "");
@@ -112,24 +136,16 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
       const base = `http://localhost:${backendPort}`;
       const params = new URLSearchParams();
 
-      // backend export expects dates in DD-MM-YY (DB format). Convert from YYYY-MM-DD if needed.
-      const convertToDB = (d?: string) => {
-        if (!d) return undefined;
-        // if already in DD-MM-YY, keep
-        if (/^\d{2}-\d{2}-\d{2}$/.test(d)) return d;
-        // YYYY-MM-DD -> DD-MM-YY
-        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-          const [y, m, day] = d.split("-");
-          return `${day}-${m}-${y.slice(-2)}`;
-        }
-        return d;
-      };
-
       if (tipo && tipo !== "todos") params.append("tipo", tipo);
-      const dInicio = convertToDB(dataInicio);
-      const dFim = convertToDB(dataFim);
-      if (dInicio) params.append("dataInicio", dInicio);
-      if (dFim) params.append("dataFim", dFim);
+      
+      // Converter DateRange para formato YYYY-MM-DD para backend
+      if (excelDateRange?.from) {
+        params.append("dataInicio", format(excelDateRange.from, "yyyy-MM-dd"));
+      }
+      if (excelDateRange?.to) {
+        params.append("dataFim", format(excelDateRange.to, "yyyy-MM-dd"));
+      }
+      
       if (codigoProduto) params.append("codigoProduto", codigoProduto);
       if (nomeProduto) params.append("nomeProduto", nomeProduto);
       if (codigoCaixa) params.append("codigoCaixa", codigoCaixa);
@@ -154,7 +170,21 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = `amendoim_${Date.now()}.xlsx`;
+      
+      // Gerar nome do arquivo com datas dos filtros
+      let fileName = "relatorio";
+      if (excelDateRange?.from) {
+        const dataInicio = format(excelDateRange.from, "dd-MM-yyyy");
+        fileName += `_${dataInicio}`;
+        if (excelDateRange?.to) {
+          const dataFim = format(excelDateRange.to, "dd-MM-yyyy");
+          fileName += `_${dataFim}`;
+        }
+      } else {
+        fileName += `_${format(new Date(), "dd-MM-yyyy")}`;
+      }
+      a.download = `${fileName}.xlsx`;
+      
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -177,22 +207,14 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
       const base = `http://localhost:${backendPort}`;
       const params = new URLSearchParams();
 
-      // Build common params
-      // backend expects dates in DD-MM-YY like the Excel export — convert if necessary
-      const convertToDB = (d?: string) => {
-        if (!d) return undefined;
-        if (/^\d{2}-\d{2}-\d{2}$/.test(d)) return d;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-          const [y, m, day] = d.split("-");
-          return `${day}-${m}-${y.slice(-2)}`;
-        }
-        return d;
-      };
-
-      const dInicio = convertToDB(dataInicio);
-      const dFim = convertToDB(dataFim);
-      if (dInicio) params.append("dataInicio", dInicio);
-      if (dFim) params.append("dataFim", dFim);
+      // Converter DateRange para formato YYYY-MM-DD para backend
+      if (excelDateRange?.from) {
+        params.append("dataInicio", format(excelDateRange.from, "yyyy-MM-dd"));
+      }
+      if (excelDateRange?.to) {
+        params.append("dataFim", format(excelDateRange.to, "yyyy-MM-dd"));
+      }
+      
       // advanced filters: include product/box filters so PDF data matches UI filters
       if (codigoProduto) params.append("codigoProduto", codigoProduto);
       if (nomeProduto) params.append("nomeProduto", nomeProduto);
@@ -316,25 +338,44 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="dataInicio">Data Início</Label>
-                <Input
-                  id="dataInicio"
-                  type="date"
-                  value={dataInicio}
-                  onChange={(e) => setDataInicio(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="dataFim">Data Fim</Label>
-                <Input
-                  id="dataFim"
-                  type="date"
-                  value={dataFim}
-                  onChange={(e) => setDataFim(e.target.value)}
-                />
-              </div>
+            <div className="grid gap-2">
+              <Label>Período</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-between text-left font-normal",
+                      !excelDateRange && "text-gray-400"
+                    )}
+                  >
+                    {excelDateRange?.from ? (
+                      excelDateRange.to ? (
+                        <>
+                          {format(excelDateRange.from, "dd/MM/yy")} -{" "}
+                          {format(excelDateRange.to, "dd/MM/yy")}
+                        </>
+                      ) : (
+                        format(excelDateRange.from, "dd/MM/yyyy")
+                      )
+                    ) : (
+                      <span>Selecione o período</span>
+                    )}
+                    <CalendarIcon className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    autoFocus
+                    mode="range"
+                    locale={pt}
+                    defaultMonth={excelDateRange?.from}
+                    selected={excelDateRange}
+                    onSelect={setExcelDateRange}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* apenas Tipo e Período visíveis por padrão; mostrar filtros avançados opcionalmente */}
@@ -369,17 +410,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     value={nomeProduto}
                     onChange={(e) => setNomeProduto(e.target.value)}
                   />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="codigoCaixa">Código Caixa</Label>
-                  <Input
-                    id="codigoCaixa"
-                    type="text"
-                    placeholder="Ex: CX1"
-                    value={codigoCaixa}
-                    onChange={(e) => setCodigoCaixa(e.target.value)}
-                  />
-                </div>
+                </div> 
               </div>
             )}
           </div>
@@ -431,8 +462,8 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     registros={pdfData}
                     filtros={{
                       tipo: pdfTipo,
-                      dataInicio,
-                      dataFim,
+                      dataInicio: excelDateRange?.from ? format(excelDateRange.from, "yyyy-MM-dd") : undefined,
+                      dataFim: excelDateRange?.to ? format(excelDateRange.to, "yyyy-MM-dd") : undefined,
                       codigoProduto,
                       nomeProduto,
                       codigoCaixa,
@@ -575,7 +606,14 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                 document={
                   <AmendoimPDFDocument
                     registros={pdfData}
-                    filtros={{ tipo: pdfTipo, dataInicio, dataFim, codigoProduto, nomeProduto, codigoCaixa }}
+                    filtros={{ 
+                      tipo: pdfTipo, 
+                      dataInicio: excelDateRange?.from ? format(excelDateRange.from, "yyyy-MM-dd") : undefined,
+                      dataFim: excelDateRange?.to ? format(excelDateRange.to, "yyyy-MM-dd") : undefined,
+                      codigoProduto, 
+                      nomeProduto, 
+                      codigoCaixa 
+                    }}
                     comentarios={commentsForPdf}
                     showDetailed={showDetailed}
                     fontSize={fontSize}

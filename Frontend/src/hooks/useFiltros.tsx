@@ -20,7 +20,7 @@ export interface Filtros {
  */
 export const useFiltros = () => {
   const [filtros, setFiltros] = useState<Filtros>(() => {
-    const { dataInicio, dataFim } = getDefaultReportDateRange();
+    const { dataInicio, dataFim } = getDefaultReportDateRange(29);
     return {
       dataInicio,
       dataFim,

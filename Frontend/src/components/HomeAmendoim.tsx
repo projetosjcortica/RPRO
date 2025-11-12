@@ -56,20 +56,29 @@ export default function HomeAmendoim() {
           dataFim: filtro30Dias.dataFim,
         });
 
+        console.log('[HomeAmendoim] 📅 Carregando dados dos últimos 30 dias:', filtro30Dias);
+
         // Carregar dados de análise pré-processados com filtro de 30 dias
         const resAnalise = await fetch(`http://localhost:3000/api/amendoim/analise?${params}`);
         const analise = await resAnalise.json();
+        console.log('[HomeAmendoim] 📊 Dados de análise recebidos:', analise);
         setDadosAnalise(analise);
 
         // Carregar métricas de rendimento com filtro de 30 dias
         const resMetricas = await fetch(`http://localhost:3000/api/amendoim/metricas/rendimento?${params}`);
         const metricas = await resMetricas.json();
+        console.log('[HomeAmendoim] 📈 Métricas de rendimento recebidas:', metricas);
         setMetricas(metricas);
 
         // Carregar amostra de registros para tabela (primeira página)
         try {
-          const params = new URLSearchParams({ page: '1', pageSize: '50' });
-          const resRegs = await fetch(`http://localhost:3000/api/amendoim/registros?${params}`);
+          const tableParams = new URLSearchParams({ 
+            page: '1', 
+            pageSize: '50',
+            dataInicio: filtro30Dias.dataInicio,
+            dataFim: filtro30Dias.dataFim,
+          });
+          const resRegs = await fetch(`http://localhost:3000/api/amendoim/registros?${tableParams}`);
           if (resRegs.ok) {
             const json = await resRegs.json();
             // transformar para colunas esperadas pela TableComponent
@@ -110,7 +119,12 @@ export default function HomeAmendoim() {
 
   return (
     <div className="min-h-screen overflow-auto p-6 bg-gray-50">
-      <div className="max-w-7xl mx-auto space-y-6"> 
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Título com período */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Análise de Amendoim</h1>
+          <p className="text-sm text-gray-600 mt-1">Últimos 30 dias</p>
+        </div>
 
         {/* Cards de Resumo */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -185,13 +199,18 @@ export default function HomeAmendoim() {
               </div>
             </>
           )}
+          {!dadosAnalise && (
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">Nenhum dado disponível para os últimos 30 dias</p>
+            </div>
+          )}
         </div>
         {/* Tabela de análises (apenas amendoim) */}
-        {tabelaDados && (
+        {tabelaDados && tabelaDados.length > 0 && (
           <div className="mt-6">
             <Card>
               <CardHeader>
-                <CardTitle>Tabela de Análises - Amendoim</CardTitle>
+                <CardTitle>Tabela de Análises - Últimos 30 Dias</CardTitle>
               </CardHeader>
               <CardContent>
                 <TableComponent
@@ -203,6 +222,11 @@ export default function HomeAmendoim() {
                 />
               </CardContent>
             </Card>
+          </div>
+        )}
+        {tabelaDados && tabelaDados.length === 0 && (
+          <div className="mt-6 text-center py-12">
+            <p className="text-gray-500 text-lg">Nenhum registro disponível para os últimos 30 dias</p>
           </div>
         )}
       </div>

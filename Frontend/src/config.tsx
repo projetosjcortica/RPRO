@@ -962,7 +962,29 @@ interface Estatisticas {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = `relatorio_${Date.now()}.xlsx`;
+      
+      // Gerar nome do arquivo com datas dos filtros
+      let fileName = "relatorio";
+      if (exportDataInicio) {
+        const dataInicio = exportDataInicio.includes('-')
+          ? exportDataInicio.split('-').reverse().join('-')
+          : exportDataInicio;
+        fileName += `_${dataInicio}`;
+        if (exportDataFim) {
+          const dataFim = exportDataFim.includes('-')
+            ? exportDataFim.split('-').reverse().join('-')
+            : exportDataFim;
+          fileName += `_${dataFim}`;
+        }
+      } else {
+        const hoje = new Date();
+        const dia = String(hoje.getDate()).padStart(2, '0');
+        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+        const ano = hoje.getFullYear();
+        fileName += `_${dia}-${mes}-${ano}`;
+      }
+      a.download = `${fileName}.xlsx`;
+      
       document.body.appendChild(a);
       a.click();
       a.remove();

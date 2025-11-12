@@ -121,8 +121,8 @@ export default function Report() {
   // ... restante do código permanece igual até handlePrint ...
 
   const [filtros, setFiltros] = useState<Filtros>(() => {
-    // Carrega a tela já filtrando o último dia (apenas hoje) para evitar a consulta pesada de todo o histórico
-    const { dataInicio, dataFim } = getDefaultReportDateRange();
+    // Carrega a tela já filtrando os últimos 30 dias por padrão para melhor visualização
+    const { dataInicio, dataFim } = getDefaultReportDateRange(29);
     return {
       dataInicio,
       dataFim,
@@ -1113,7 +1113,30 @@ export default function Report() {
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
-      a.download = `relatorio_${Date.now()}.xlsx`;
+      
+      // Gerar nome do arquivo com datas dos filtros
+      let fileName = "relatorio";
+      if (filters.dataInicio) {
+        // Converter formato se necessário (YYYY-MM-DD -> DD-MM-YYYY)
+        const dataInicio = filters.dataInicio.includes('-') 
+          ? filters.dataInicio.split('-').reverse().join('-')
+          : filters.dataInicio;
+        fileName += `_${dataInicio}`;
+        if (filters.dataFim) {
+          const dataFim = filters.dataFim.includes('-')
+            ? filters.dataFim.split('-').reverse().join('-')
+            : filters.dataFim;
+          fileName += `_${dataFim}`;
+        }
+      } else {
+        const hoje = new Date();
+        const dia = String(hoje.getDate()).padStart(2, '0');
+        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+        const ano = hoje.getFullYear();
+        fileName += `_${dia}-${mes}-${ano}`;
+      }
+      a.download = `${fileName}.xlsx`;
+      
       document.body.appendChild(a);
       a.click();
       a.remove();

@@ -102,7 +102,14 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = `relatorio_${Date.now()}.xlsx`;
+      
+      // Nome do arquivo com data atual (sem filtros em adminConfig)
+      const hoje = new Date();
+      const dia = String(hoje.getDate()).padStart(2, '0');
+      const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+      const ano = hoje.getFullYear();
+      a.download = `relatorio_${dia}-${mes}-${ano}.xlsx`;
+      
       document.body.appendChild(a);
       a.click();
       a.remove();

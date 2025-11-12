@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button, buttonVariants } from "./components/ui/button";
-import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
@@ -166,11 +166,11 @@ export default function Amendoim() {
   // Tipo para upload
   const [uploadTipo, setUploadTipo] = useState<"entrada" | "saida">("entrada");
 
-  // Calcular últimos 7 dias para filtros padrão (para garantir que capture dados recentes)
+  // Calcular últimos 30 dias para filtros padrão (para garantir que capture dados recentes)
   const getUltimosDias = () => {
     const hoje = new Date();
     const inicio = new Date();
-    inicio.setDate(hoje.getDate() - 7); // Últimos 7 dias
+    inicio.setDate(hoje.getDate() - 30); // Últimos 30 dias
     
     return {
       dataInicio: inicio.toISOString().split('T')[0], // YYYY-MM-DD
@@ -178,8 +178,44 @@ export default function Amendoim() {
     };
   };
 
-  // Filtros ativos (inicializar com últimos 7 dias)
+  // Filtros ativos (inicializar com últimos 30 dias)
   const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>(getUltimosDias());
+  
+  // Estados para ordenação de colunas
+  const [sortColumn, setSortColumn] = useState<'dia' | 'hora' | 'codigoProduto' | 'balanca' | 'nomeProduto' | 'peso' | 'tipo' | null>('dia');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  
+  // Estados para redimensionamento de colunas
+  const DEFAULT_WIDTHS = {
+    dia: 100,
+    hora: 80,
+    codigoProduto: 120,
+    balanca: 80,
+    nomeProduto: 250,
+    peso: 120,
+    tipo: 100,
+  };
+  
+  const STORAGE_KEY = "amendoim-table-column-widths";
+  
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object") return { ...DEFAULT_WIDTHS, ...parsed };
+      }
+    } catch (e) {
+      console.warn("Erro ao carregar larguras das colunas:", e);
+    }
+    return DEFAULT_WIDTHS;
+  });
+  
+  const [resizing, setResizing] = useState<{
+    columnKey: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
   
   // Drawer de gráficos
   const [chartsOpen, setChartsOpen] = useState(false);
@@ -276,11 +312,82 @@ export default function Amendoim() {
 
   console.log(setAnalisesExpanded.name, setUploadTipo.name, uploading);
 
+  // Handlers para redimensionamento de colunas
+  const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
+    e.preventDefault();
+    setResizing({
+      columnKey,
+      startX: e.clientX,
+      startWidth: columnWidths[columnKey] || DEFAULT_WIDTHS.dia,
+    });
+  }, [columnWidths]);
+
+  const handleResizeMove = useCallback((e: MouseEvent) => {
+    if (!resizing) return;
+    const diff = e.clientX - resizing.startX;
+    const newWidth = Math.max(50, resizing.startWidth + diff);
+    setColumnWidths((prev) => ({ ...prev, [resizing.columnKey]: newWidth }));
+  }, [resizing]);
+
+  const handleResizeEnd = useCallback(() => {
+    setResizing(null);
+  }, []);
+
+  // Salvar larguras no localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(columnWidths));
+    } catch (e) {
+      console.warn("Erro ao salvar larguras das colunas:", e);
+    }
+  }, [columnWidths]);
+
+  // Event listeners para redimensionamento
+  useEffect(() => {
+    if (resizing) {
+      window.addEventListener("mousemove", handleResizeMove);
+      window.addEventListener("mouseup", handleResizeEnd);
+      return () => {
+        window.removeEventListener("mousemove", handleResizeMove);
+        window.removeEventListener("mouseup", handleResizeEnd);
+      };
+    }
+  }, [resizing, handleResizeMove, handleResizeEnd]);
+
+  // Handler para ordenação
+  const handleSort = useCallback((column: typeof sortColumn) => {
+    console.log('[Amendoim] handleSort - Coluna:', column, '| Atual:', sortColumn, sortDirection);
+    
+    if (sortColumn === column) {
+      // Toggle direction ou reset
+      if (sortDirection === 'asc') {
+        console.log('[Amendoim] Toggle ASC → DESC');
+        setSortDirection('desc');
+      } else {
+        // Reset para padrão (dia desc)
+        console.log('[Amendoim] Reset para Dia DESC');
+        setSortColumn('dia');
+        setSortDirection('desc');
+      }
+    } else {
+      // Nova coluna: começar com DESC (mais recente/maior primeiro)
+      console.log('[Amendoim] Nova coluna:', column, '→ DESC');
+      setSortColumn(column);
+      setSortDirection('desc');
+    }
+  }, [sortColumn, sortDirection]);
+
   // Função para formatar datas
   const formatDate = (raw: string): string => {
     if (!raw) return "";
     const s = String(raw).trim();
     try {
+      // Formato DD/MM/YY (ex: 03/11/25 - DO BANCO)
+      if (/^\d{2}\/\d{2}\/\d{2}$/.test(s)) {
+        const [d, m, y] = s.split("/").map(Number);
+        const fullYear = 2000 + y; // Assumir 20xx
+        return formatDateFn(new Date(fullYear, m - 1, d), "dd/MM/yyyy");
+      }
       // Formato DD-MM-YY (ex: 03-11-25)
       if (/^\d{2}-\d{2}-\d{2}$/.test(s)) {
         const [d, m, y] = s.split("-").map(Number);
@@ -326,7 +433,17 @@ export default function Amendoim() {
         params.set('tipo', viewMode);
       }
 
-      const res = await fetch(`http://localhost:3000/api/amendoim/registros?${params}`);
+      // Adicionar ordenação
+      if (sortColumn) {
+        params.set('sortBy', sortColumn);
+        params.set('sortDir', sortDirection === 'asc' ? 'ASC' : 'DESC');
+        console.log('[Amendoim] fetchRegistros - Ordenando por:', sortColumn, sortDirection === 'asc' ? 'ASC' : 'DESC');
+      }
+
+      const url = `http://localhost:3000/api/amendoim/registros?${params}`;
+      console.log('[Amendoim] Buscando:', url);
+      
+      const res = await fetch(url);
       
       if (!res.ok) {
         throw new Error(`Erro ao buscar registros: ${res.status}`);
@@ -341,7 +458,7 @@ export default function Amendoim() {
     } finally {
       setLoading(false);
     }
-  }, [page, pageSize, filtrosAtivos, viewMode]);
+  }, [page, pageSize, filtrosAtivos, viewMode, sortColumn, sortDirection]);
 
   // Buscar estatísticas
   const fetchEstatisticas = useCallback(async () => {
@@ -421,7 +538,7 @@ export default function Amendoim() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Array vazio = apenas na montagem
 
-  // Recarregar dados quando filtros, página ou modo mudarem
+  // Recarregar dados quando filtros, página, modo ou ordenação mudarem
   useEffect(() => {
     fetchRegistros();
     fetchEstatisticas();
@@ -430,23 +547,23 @@ export default function Amendoim() {
       fetchMetricasRendimento();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, filtrosAtivos, viewMode]);
+  }, [page, filtrosAtivos, viewMode, sortColumn, sortDirection]);
 
   // resumoTable removed; summary rendering is handled in the PDF component only
 
-  // Helper: render detailed rows (original registros)
+  // Helper: render detailed rows com larguras dinâmicas
   function detailedRows(items: AmendoimRecord[]) {
     return (
       <div>
         {items.map((r) => (
           <div key={r.id} className={`flex items-center border-y ${r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-            <div className="border-x py-2 flex justify-center" style={{ width: '100px', minWidth: '100px' }}>{formatDate(r.dia)}</div>
-            <div className="border-x py-2 flex justify-center" style={{ width: '80px', minWidth: '80px' }}>{r.hora}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{r.codigoProduto}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '80px', minWidth: '80px' }}>{r.balanca ?? '-'}</div>
-            <div className="border-x py-2 pl-2 flex justify-start" style={{ width: '250px', minWidth: '250px', overflow: 'hidden' }}>{r.nomeProduto}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: '120px', minWidth: '120px' }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
-            <div className="border-x py-2 flex justify-center" style={{ width: '100px', minWidth: '100px' }}>{r.tipo}</div>
+            <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.dia}px`, minWidth: `${columnWidths.dia}px` }}>{formatDate(r.dia)}</div>
+            <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.hora}px`, minWidth: `${columnWidths.hora}px` }}>{r.hora}</div>
+            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.codigoProduto}px`, minWidth: `${columnWidths.codigoProduto}px` }}>{r.codigoProduto}</div>
+            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.balanca}px`, minWidth: `${columnWidths.balanca}px` }}>{r.balanca ?? '-'}</div>
+            <div className="border-x py-2 pl-2 flex justify-start" style={{ width: `${columnWidths.nomeProduto}px`, minWidth: `${columnWidths.nomeProduto}px`, overflow: 'hidden' }}>{r.nomeProduto}</div>
+            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.peso}px`, minWidth: `${columnWidths.peso}px` }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
+            <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.tipo}px`, minWidth: `${columnWidths.tipo}px` }}>{r.tipo}</div>
           </div>
         ))}
       </div>
@@ -629,60 +746,8 @@ export default function Amendoim() {
         <div className="flex flex-row items-end gap-1 h-[10dvh]">
         </div>
         <div className="flex flex-col items-end justify-end gap-2">
-          <div className="flex flex-row items-end gap-1">
-            {/* Toggle Entrada/Saída/Comparativo */}
-            {/* <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
-              <Button
-                size="sm"
-                onClick={() => setViewMode('entrada')}
-                className={cn(
-                  "h-7 text-xs font-medium transition-all",
-                  viewMode === 'entrada'
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
-                )}
-              >
-                Entrada
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => setViewMode('saida')}
-                className={cn(
-                  "h-7 text-xs font-medium transition-all",
-                  viewMode === 'saida'
-                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                    : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
-                )}
-              >
-                Saída
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => setViewMode('comparativo')}
-                className={cn(
-                  "h-7 text-xs font-medium transition-all",
-                  viewMode === 'comparativo'
-                    ? "bg-purple-600 text-white hover:bg-purple-700"
-                    : "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-800"
-                )}
-              >
-                Comparativo
-              </Button>
-            </div> */}
-            <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} />
-            
-            {/* Botão de Configuração */}
-            {/* {user?.isAdmin && (
-              <Button
-                onClick={() => setConfigModalOpen(true)}
-                className="flex items-center gap-1 bg-gray-700 hover:bg-gray-800"
-                title="Configurar coleta de amendoim"
-              >
-                <Settings className="h-4 w-4" />
-                <p className="hidden 3xl:flex">Configurar</p>
-              </Button>
-            )} */}
-
+          <div className="flex flex-row items-end gap-1"> 
+            <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} /> 
             {/* Collector toggle (mesma UI do Report) */}
             <Button
               onClick={handleCollectorToggle}
@@ -711,8 +776,7 @@ export default function Amendoim() {
         </div>
       </div>
 
-      {/* Seção de Análises Expandível */}
-      {/* Top donuts: Produtos / Caixas / Entrada x Saída (visível apenas na tela Amendoim) */}
+      {/* Seção de Análises Expandível */} 
        
       {analisesExpanded && dadosAnalise && (
         <div className="bg-gray-50 border border-gray-300 rounded-lg p-4 mb-4">
@@ -760,34 +824,180 @@ export default function Amendoim() {
           <div className="w-full h-full flex flex-col relative">
             <div className="overflow-auto flex-1 thin-red-scrollbar">
               <div className="min-w-max w-full">
-                {/* Cabeçalho */}
+                {/* Cabeçalho com ordenação e redimensionamento */}
                 <div className="sticky top-0 z-10 bg-gray-200 border-b border-gray-300">
                   <div className="flex">
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '100px', minWidth: '100px' }}>
-                      Dia
+                    {/* Dia */}
+                    <div 
+                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
+                      style={{ width: `${columnWidths.dia}px`, minWidth: `${columnWidths.dia}px` }}
+                      onClick={() => handleSort('dia')}
+                    >
+                      <span className="flex items-center gap-1 pointer-events-none">
+                        Dia
+                        {sortColumn === 'dia' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </span>
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleResizeStart(e, 'dia');
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '80px', minWidth: '80px' }}>
-                      Hora
+
+                    {/* Hora */}
+                    <div 
+                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
+                      style={{ width: `${columnWidths.hora}px`, minWidth: `${columnWidths.hora}px` }}
+                      onClick={() => handleSort('hora')}
+                    >
+                      <span className="flex items-center gap-1 pointer-events-none">
+                        Hora
+                        {sortColumn === 'hora' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </span>
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleResizeStart(e, 'hora');
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '120px', minWidth: '120px' }}>
-                      Cód. Produto
+
+                    {/* Cód. Produto */}
+                    <div 
+                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
+                      style={{ width: `${columnWidths.codigoProduto}px`, minWidth: `${columnWidths.codigoProduto}px` }}
+                      onClick={() => handleSort('codigoProduto')}
+                    >
+                      <span className="flex items-center gap-1 pointer-events-none">
+                        Cód. Produto
+                        {sortColumn === 'codigoProduto' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </span>
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleResizeStart(e, 'codigoProduto');
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '80px', minWidth: '80px' }}>
-                      Balança
+
+                    {/* Balança */}
+                    <div 
+                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
+                      style={{ width: `${columnWidths.balanca}px`, minWidth: `${columnWidths.balanca}px` }}
+                      onClick={() => handleSort('balanca')}
+                    >
+                      <span className="flex items-center gap-1 pointer-events-none">
+                        Balança
+                        {sortColumn === 'balanca' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </span>
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleResizeStart(e, 'balanca');
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '250px', minWidth: '250px' }}>
-                      Nome do Produto
+
+                    {/* Nome do Produto */}
+                    <div 
+                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
+                      style={{ width: `${columnWidths.nomeProduto}px`, minWidth: `${columnWidths.nomeProduto}px` }}
+                      onClick={() => handleSort('nomeProduto')}
+                    >
+                      <span className="flex items-center gap-1 pointer-events-none">
+                        Nome do Produto
+                        {sortColumn === 'nomeProduto' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </span>
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleResizeStart(e, 'nomeProduto');
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '120px', minWidth: '120px' }}>
-                      Peso (kg)
+
+                    {/* Peso (kg) */}
+                    <div 
+                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
+                      style={{ width: `${columnWidths.peso}px`, minWidth: `${columnWidths.peso}px` }}
+                      onClick={() => handleSort('peso')}
+                    >
+                      <span className="flex items-center gap-1 pointer-events-none">
+                        Peso (kg)
+                        {sortColumn === 'peso' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </span>
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleResizeStart(e, 'peso');
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
-                    <div className="flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200" style={{ width: '100px', minWidth: '100px' }}>
-                      Tipo
+
+                    {/* Tipo */}
+                    <div 
+                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
+                      style={{ width: `${columnWidths.tipo}px`, minWidth: `${columnWidths.tipo}px` }}
+                      onClick={() => handleSort('tipo')}
+                    >
+                      <span className="flex items-center gap-1 pointer-events-none">
+                        Tipo
+                        {sortColumn === 'tipo' ? (
+                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        ) : (
+                          <ArrowUpDown className="h-3 w-3 opacity-40" />
+                        )}
+                      </span>
+                      <div
+                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          handleResizeStart(e, 'tipo');
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </div>
                   </div>
                 </div>
 
-                {/* Corpo da tabela — visão detalhada (resumo disponível apenas no PDF) */}
+                {/* Corpo da tabela — visão detalhada (ordenação aplicada no backend) */}
                 <div>
                   {registros && registros.length > 0 ? (
                     detailedRows(registros)

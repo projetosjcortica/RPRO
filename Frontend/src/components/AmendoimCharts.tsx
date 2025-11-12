@@ -52,8 +52,8 @@ const COLORS = {
 export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPorHorarioProps) {
   const data = dados?.map((d) => ({
     hora: `${String(d.hora).padStart(2, "0")}:00`,
-    entrada: Math.round(d.entrada * 100) / 100,
-    saida: Math.round(d.saida * 100) / 100,
+    entrada: Math.max(0, Math.round(d.entrada * 100) / 100),
+    saida: Math.max(0, Math.round(d.saida * 100) / 100),
   })) || [];
 
   const chart = (
@@ -110,9 +110,9 @@ export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPo
 export function ChartRendimentoPorDia({ dados }: ChartRendimentoPorDiaProps) {
   const data = dados.map((d) => ({
     ...d,
-    entrada: Math.round(d.entrada * 100) / 100,
-    saida: Math.round(d.saida * 100) / 100,
-    rendimento: Math.round(d.rendimento * 100) / 100,
+    entrada: Math.max(0, Math.round(d.entrada * 100) / 100),
+    saida: Math.max(0, Math.round(d.saida * 100) / 100),
+    rendimento: Math.max(0, Math.min(100, Math.round(d.rendimento * 100) / 100)),
   }));
 
   if (data.length === 0) {
@@ -169,8 +169,8 @@ export function ChartRendimentoPorDia({ dados }: ChartRendimentoPorDiaProps) {
 export function ChartFluxoSemanal({ dados, bare }: ChartFluxoSemanalProps) {
   const data = dados?.map((d) => ({
     dia: d.diaSemana,
-    entrada: Math.round(d.entrada * 100) / 100,
-    saida: Math.round(d.saida * 100) / 100,
+    entrada: Math.max(0, Math.round(d.entrada * 100) / 100),
+    saida: Math.max(0, Math.round(d.saida * 100) / 100),
   })) || [];
 
   const chart = (
@@ -213,9 +213,9 @@ export function ChartFluxoSemanal({ dados, bare }: ChartFluxoSemanalProps) {
 export function ChartEficienciaPorTurno({ dados, bare }: ChartEficienciaPorTurnoProps) {
   const data = dados?.map((d) => ({
     turno: d.turno,
-    entrada: Math.round(d.entrada * 100) / 100,
-    saida: Math.round(d.saida * 100) / 100,
-    rendimento: Math.round(d.rendimento * 100) / 100,
+    entrada: Math.max(0, Math.round(d.entrada * 100) / 100),
+    saida: Math.max(0, Math.round(d.saida * 100) / 100),
+    rendimento: Math.max(0, Math.min(100, Math.round(d.rendimento * 100) / 100)),
   })) || [];
 
   const chart = (
@@ -267,8 +267,8 @@ export function ChartEficienciaPorTurno({ dados, bare }: ChartEficienciaPorTurno
 export function ChartPerdaAcumulada({ dados }: ChartPerdaAcumuladaProps) {
   const data = dados.map((d) => ({
     dia: d.dia,
-    perda: Math.round(d.perdaDiaria * 100) / 100,
-    acumulado: Math.round(d.perdaAcumulada * 100) / 100,
+    perda: Math.abs(Math.round(d.perdaDiaria * 100) / 100),
+    acumulado: Math.abs(Math.round(d.perdaAcumulada * 100) / 100),
   }));
 
   if (data.length === 0) {

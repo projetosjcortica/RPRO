@@ -542,6 +542,19 @@ export class AmendoimCollectorService {
           console.log(`  Entradas: ${entradasSalvas}, Saídas: ${saidasSalvas}`);
           console.log(`  Duplicatas bloqueadas: ${deduplicadas}`);
 
+          // 💾 Criar backup com prefixo IHM para evitar conflitos entre IHM1/IHM2
+          try {
+            await backupSvc.backupFile({
+              originalname: downloadedFile.name,
+              path: downloadedFile.localPath,
+              mimetype: 'text/csv',
+              size: downloadedFile.size,
+            }, arquivoInfo.ihmLabel);
+            console.log(`💾 [AmendoimCollector] Backup criado: ${arquivoInfo.ihmLabel}_${downloadedFile.name}`);
+          } catch (backupErr: any) {
+            console.warn(`[AmendoimCollector] ⚠️  Erro ao criar backup: ${backupErr.message}`);
+          }
+
           // Atualizar cache - salvar total de linhas do arquivo ATUAL
           const linhasTotaisAtuais = csvContent.split('\n').filter(l => l.trim() !== '').length;
           await cacheService.updateCache(cacheKey, downloadedFile.size, linhasTotaisAtuais);
