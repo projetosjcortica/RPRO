@@ -444,8 +444,8 @@ export const AmendoimPDFDocument = ({
           <View style={styles.table}>
             <View style={styles.tableHeader}>
               <Text style={[dynamicStyles.tableColHeader, { width: '64%' }]}>Produto</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1 }]}>Entrada (kg)</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1 }]}>Saída (kg)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Entrada (kg)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Saída (kg)</Text>
             </View>
             {produtosEntrSaida.map((p, i) => {
               return (
