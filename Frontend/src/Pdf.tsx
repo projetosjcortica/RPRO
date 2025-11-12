@@ -334,25 +334,16 @@ export const MyDocument: FC<MyDocumentProps> = ({
   const chartChunks: typeof chartDisplay[] = [];
   if (chartDisplay.length > 0) {
     const reservedHeaderRows = 3; // espaço reservado para título e espaçamento
-    // Estimate rows required for comments on the first page so comments stay "aqui em baixo".
-    // Assumption: each comment consumes ~3 rows on average (meta + text wrap). Cap to avoid over-reserving.
-    const estimatedCommentRows = comentarios && comentarios.length > 0 ? Math.min(8, comentarios.length * 3) : 0;
-
-    // First page should reserve space for header + comments. Subsequent pages only reserve header.
-    const firstPageRows = Math.max(4, chartRowsPerPage - reservedHeaderRows - estimatedCommentRows);
-    const subsequentPageRows = Math.max(6, chartRowsPerPage - reservedHeaderRows);
-
-    // push first chunk
-    let offset = 0;
-    chartChunks.push(chartDisplay.slice(offset, offset + firstPageRows));
-    offset += firstPageRows;
-
-    // push remaining chunks using subsequentPageRows
-    while (offset < chartDisplay.length) {
-      chartChunks.push(chartDisplay.slice(offset, offset + subsequentPageRows));
-      offset += subsequentPageRows;
+    const effectiveRowsPerPage = Math.max(6, chartRowsPerPage - reservedHeaderRows);
+    for (let i = 0; i < chartDisplay.length; i += effectiveRowsPerPage) {
+      chartChunks.push(chartDisplay.slice(i, i + effectiveRowsPerPage));
     }
   }
+  // comments will be rendered after the last chart chunk (on the same page)
+
+  // prepare dedicated chunk list for rendering pages (slice(1)) so we can
+  // easily detect the last dedicated page and render comments there
+  const dedicatedChartChunks = chartChunks && chartChunks.length > 1 ? chartChunks.slice(1) : [];
 
   // use shared palette, fallback to an extended local palette if needed
   const renderRodape = () => (
@@ -682,8 +673,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
           key={i}
           style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
         >
-          <Text style={[{ width: "9%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop:9, textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
-          <Text style={[{ width: "56%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
+          <Text style={[{ width: "12%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop:9, textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
+          <Text style={[{ width: "53%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
           <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
           <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,textAlign: "right" }, { fontSize: currentFontSizes.table }]}>
             {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
@@ -871,21 +862,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
           </View>
         )} */}
 
-        {/* Comentários do Relatório - renderizados antes dos gráficos (na mesma página) */}
-        {comentarios && comentarios.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 8 }]}>Comentários do relatório</Text>
-            {comentarios.map((c, i) => (
-              <View key={`coment-${i}`} style={styles.comentarioContainer}>
-                <Text style={styles.comentarioMeta}>
-                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
-                  {c.autor && ` • ${c.autor}`}
-                </Text>
-                <Text style={styles.comentarioTexto}>{c.texto}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+        {/* (Comentários removidos daqui; serão renderizados ao final de todos os gráficos) */}
 
         {/* Gráficos */}
         {showCharts && (
@@ -918,7 +895,23 @@ export const MyDocument: FC<MyDocumentProps> = ({
           </View>
         )}
 
-        {/* Comentários do Relatório (removidos daqui e renderizados em página dedicada abaixo) */}
+        {/* Se não houver páginas dedicadas de continuação dos gráficos, renderize os comentários
+            na mesma página (logo após o primeiro chunk de gráficos) */}
+        {chartChunks && chartChunks.length <= 1 && comentarios && comentarios.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
+            {comentarios.map((c, i) => (
+              <View key={`coment-${i}`} style={styles.comentarioContainer}>
+                <Text style={styles.comentarioMeta}>
+                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
+                  {c.autor && ` • ${c.autor}`}
+                </Text>
+                <Text style={styles.comentarioTexto}>{c.texto}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {observacoes && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Observações</Text>
@@ -929,28 +922,10 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {renderRodape()}
       </Page>
 
-      {/* Página dedicada para comentários (garante que comentários sempre apareçam) */}
-      {comentarios && comentarios.length > 0 && (
-        <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
-            {comentarios.map((c, i) => (
-              <View key={i} style={styles.comentarioContainer}>
-                <Text style={styles.comentarioMeta}>
-                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
-                  {c.autor && ` • ${c.autor}`}
-                </Text>
-                <Text style={styles.comentarioTexto}>{c.texto}</Text>
-              </View>
-            ))}
-          </View>
-
-          {renderRodape()}
-        </Page>
-      )}
+      {/* Comentários serão renderizados após todas as páginas de gráfico (inseridos abaixo). */}
 
       {/* Páginas dedicadas para continuação dos gráficos de barras */}
-      {showCharts && chartChunks && chartChunks.length > 1 && chartChunks.slice(1).map((chunk, idx) => (
+      {showCharts && dedicatedChartChunks && dedicatedChartChunks.length > 0 && dedicatedChartChunks.map((chunk, idx) => (
         <Page key={`charts-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Análise de Produção</Text>
@@ -975,9 +950,24 @@ export const MyDocument: FC<MyDocumentProps> = ({
             </View>
           </View>
 
+          {/* Se for a última página dedicada de gráfico, renderize os comentários aqui */}
+          {idx === (dedicatedChartChunks.length - 1) && comentarios && comentarios.length > 0 && (
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
+              {comentarios.map((c, i) => (
+                <View key={`coment-last-${i}`} style={styles.comentarioContainer}>
+                  <Text style={styles.comentarioMeta}>{c.data ? formatarData(c.data) : new Date().toLocaleDateString('pt-BR')}{c.autor && ` • ${c.autor}`}</Text>
+                  <Text style={styles.comentarioTexto}>{c.texto}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           {renderRodape()}
         </Page>
       ))}
+
+      {/* Comentários serão renderizados inline na última página de gráficos */}
 
     </Document>
   );

@@ -58,6 +58,7 @@ export function ExportDropdown({
   onExcelExport,
   pdfDocument,
   // ...existing code...
+  showComments = true,
   showCharts = false,
   onToggleComments,
   onToggleCharts,
@@ -168,9 +169,9 @@ export function ExportDropdown({
 
           <div className="my-4 border rounded-lg overflow-hidden bg-gray-50 min-h-[600px] thin-red-scrollbar">
             {pdfDocument ? (
-              <PDFViewer width="100%" height="600px" showToolbar={true} >
-                {pdfDocument}
-              </PDFViewer>
+              <PDFViewer key={`${comments.length}-${showComments ? 1 : 0}`} width="100%" height="600px" showToolbar={true} >
+                  {pdfDocument}
+                </PDFViewer>
             ) : (
               <div className="flex items-center justify-center h-[600px] text-gray-500">
                 <div className="text-center">

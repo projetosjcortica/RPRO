@@ -1066,7 +1066,8 @@ export default function Report() {
         produtos={produtosOrdenados}
         data={new Date().toLocaleDateString("pt-BR")}
         empresa={sideInfo.proprietario || "Relatório RPRO"}
-        comentarios={comentariosComId}
+  // only pass comments to the PDF when the user enabled them in the UI
+  comentarios={showPdfComments ? comentariosComId : []}
         chartData={pdfChartData}
         formulaSums={formulaSums}
         usuario={user.username}
