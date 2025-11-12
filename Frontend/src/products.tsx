@@ -382,7 +382,10 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
           
           {experimentalEnabled && (
             <div className="flex gap-2 mr-4">
-              <Button
+              
+              {/* botao reseta todos para kg */}
+
+              {/* <Button
                 onClick={handleResetUnitsToKg}
                 disabled={resettingUnits}
                 variant="outline"
@@ -399,9 +402,11 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                     Resetar Unidades para KG
                   </>
                 )}
-              </Button>
+              </Button> */}
 
-              <Button
+                {/* botao reseta todos para visivel */}
+
+              {/* <Button
                 onClick={handleResetAll}
                 disabled={resettingAll}
                 variant="outline"
@@ -418,7 +423,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                     Reativar Todos os Produtos
                   </>
                 )}
-              </Button>
+              </Button> */}
             </div>
           )}
         </div>

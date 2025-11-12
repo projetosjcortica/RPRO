@@ -45,6 +45,7 @@ export function useReportData(
     setReloadFlag((flag) => flag + 1);
   }, []);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Não buscar se não permitido
     if (!allowFetch) {
@@ -54,9 +55,18 @@ export function useReportData(
     // Criar chave única dos parâmetros atuais
     const currentParams = JSON.stringify(fetchParams);
     
-    // Se parâmetros não mudaram, não fazer nova busca
+    // Se parâmetros não mudaram, evitar busca apenas quando já temos resultados
+    // Caso contrário, permitir re-fetch (ex: primeira montagem com filtros padrão)
     if (currentParams === lastFetchParamsRef.current) {
-      return;
+      // se já temos dados (rows) ou total conhecido, podemos pular a requisição
+      // caso contrário (dados vazios), seguir com a busca para aplicar filtros iniciais
+      if (Array.isArray(dados) && dados.length > 0) {
+        return;
+      }
+      if (typeof total === 'number' && total > 0) {
+        return;
+      }
+      // else: continue to fetch (we had same params but no data yet)
     }
     
     lastFetchParamsRef.current = currentParams;
@@ -161,7 +171,7 @@ export function useReportData(
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchParams, reloadFlag, allowFetch]);
+  }, [fetchParams, reloadFlag, allowFetch, dados, total]);
 
   return { dados, loading, error, total, refetch };
 }
