@@ -54,26 +54,26 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   section: {
-    marginBottom: 20,
+    marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "bold",
     backgroundColor: "#af1e1eff",
     color: "#ffffff",
-    padding: 8,
+    padding: 4,
     borderRadius: 4,
-    marginBottom: 12,
+    marginBottom: 10,
     textAlign: "center",
   },
   label: {
     fontWeight: "bold",
-    color: "#374151",
     fontSize: 12,
   },
   value: {
     textAlign: "right",
     fontSize: 12,
+    fontWeight: "normal",
   },
   table: {
     display: "flex",
@@ -443,19 +443,16 @@ export const AmendoimPDFDocument = ({
           <Text style={dynamicStyles.sectionTitle}>Produtos (Entradas / Saídas)</Text>
           <View style={styles.table}>
             <View style={styles.tableHeader}>
-              <Text style={[dynamicStyles.tableColHeader, { width: '45%' }]}>Produto</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right' }]}>Entrada (kg)</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right' }]}>Saída (kg)</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '19%', textAlign: 'right' }]}>Rendimento (%)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '64%' }]}>Produto</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1 }]}>Entrada (kg)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1 }]}>Saída (kg)</Text>
             </View>
             {produtosEntrSaida.map((p, i) => {
-              const rendimentoProduto = p.entrada > 0 ? ((p.saida / p.entrada) * 100) : 0;
               return (
                 <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                  <Text style={[dynamicStyles.tableCol, { width: '45%' }]}>{p.nome}</Text>
-                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' }]}>{formatNumber(p.entrada, 3)}</Text>
-                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' }]}>{formatNumber(p.saida, 3)}</Text>
-                  <Text style={[dynamicStyles.tableCol, { width: '19%', textAlign: 'right' }]}>{formatNumber(rendimentoProduto, 2)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '64%' }]}>{p.nome}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' ,borderLeftWidth:1, borderLeftColor:'#d1d5db'  }]}>{formatNumber(p.entrada, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' ,borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{formatNumber(p.saida, 3)}</Text>
                 </View>
               );
             })}
