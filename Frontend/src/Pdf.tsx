@@ -104,12 +104,12 @@ const styles = StyleSheet.create({
   // Chart styles
   chartSection: { marginBottom: 15 },
   chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingVertical: 4 },
-  chartLabel: { width: '25%', fontSize: 10, paddingRight: 4 },
+  chartLabel: { marginTop:6 ,width: '25%', fontSize: 10, paddingRight: 4 },
   // increased container/bar heights so bars are clearly visible when rendered to PDF/print
   chartBarContainer: { width: '52%', height: 16, backgroundColor: '#e6e7ea', borderRadius: 4, overflow: 'hidden', marginRight: 6 },
-  chartBarFill: { height: 14, backgroundColor: '#af1e1eff', borderRadius: 4 },
-  chartValue: { width: '20%', fontSize: 10, textAlign: 'right', paddingRight: 2 },
-  chartPercent: { width: '7%', fontSize: 10, textAlign: 'right', color: '#6b7280' },
+  chartBarFill: { height: 15, backgroundColor: '#af1e1eff', borderRadius: 4 },
+  chartValue: { marginTop:6 ,width: '20%', fontSize: 10, textAlign: 'right', paddingRight: 2 },
+  chartPercent: {marginTop:6 ,width: '7%', fontSize: 10, textAlign: 'right', color: '#6b7280' },
   // donut
   donutContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   donutBox: { width: '35%', alignItems: 'center', justifyContent: 'center' },

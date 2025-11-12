@@ -465,7 +465,7 @@ export default function Report() {
         periodoInicio: resumo.periodoInicio || "--/--/--",
         periodoFim: resumo.periodoFim || "--/--/--",
         horaInicial: resumo.horaInicial || "--:--:--",
-        horaFinal: resumo.horaFinal || "--:--:--",
+        horaFinal: resumo.lastDayRange.lastTime || "--:--:--",
         formulas: formulasFromResumo,
         produtos: (() => {
           const items = Object.entries(resumo.usosPorProduto).map(
@@ -1563,17 +1563,17 @@ export default function Report() {
             <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
               <div className="flex justify-end p-0 m-0">
                 <RefreshButton 
-              type="ihm"
-              ihmConfig={ihmConfig || undefined}
-              onRefresh={async () => {
-                try { toastManager.showInfoOnce('manual-refresh', 'Recarregando dados frescos...'); } catch(e){}
-                // Sem cache - sempre busca dados frescos do backend
-                try { refetch(); } catch (err) {}
-                refreshResumo();
-              }}
-              label=""
-              size="default"
-            />
+                  type="ihm"
+                  ihmConfig={ihmConfig || undefined}
+                  onRefresh={async () => {
+                    try { toastManager.showInfoOnce('manual-refresh', 'Recarregando dados frescos...'); } catch(e){}
+                    // Sem cache - sempre busca dados frescos do backend
+                    try { refetch(); } catch (err) {}
+                    refreshResumo();
+                  }}
+                  label=""
+                  size="default"
+                />
               </div>
               <p className="text-center text-lg font-bold">
                 Total: {""}
