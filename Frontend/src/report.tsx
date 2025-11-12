@@ -754,6 +754,7 @@ export default function Report() {
             nome: val.produto || `Produto ${num}`,
             unidade: medida === 0 ? "g" : "kg",
             num,
+            ativo: val.ativo ?? true, // ⚠️ Incluir status ativo
           };
         });
 
@@ -803,6 +804,25 @@ export default function Report() {
 
     window.addEventListener('click', handleClickOutside as EventListener);
 
+    // Listener para quando produtos são ativados/desativados
+    const handleProdutoToggle = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      console.log('[Report] Produto toggle detectado:', detail);
+      
+      // Limpar resumo para forçar refetch
+      setResumo(null);
+      
+      // Recarregar produtos info para pegar novo status ativo
+      loadFromBackend();
+      
+      // Recarregar dados para refletir mudanças
+      setTimeout(() => {
+        refetch();
+        refreshResumo();
+      }, 500);
+    };
+    window.addEventListener('produtos-updated', handleProdutoToggle as EventListener);
+
     // When leaving the report view (unmount), if there's a pending update, apply it
     const handleBeforeUnload = () => {
       try {
@@ -817,6 +837,7 @@ export default function Report() {
 
     return () => {
       window.removeEventListener('produtos-updated', onProdutosUpdated as EventListener);
+      window.removeEventListener('produtos-updated', handleProdutoToggle as EventListener);
       window.removeEventListener('click', handleClickOutside as EventListener);
       window.removeEventListener('beforeunload', handleBeforeUnload as EventListener);
       mounted = false;
@@ -1170,9 +1191,14 @@ export default function Report() {
           // Buscar unidade do resumo ou do produtosInfo
           const unidade = String(v?.["unidade"] || produtosInfo[produtoId]?.unidade || "kg");
           const idx = Number(String(produtoId).replace(/^col/, "")) || 0;
-          return { colKey: produtoId, nome, qtd, unidade, idx };
+          
+          // ⚠️ FILTRO: Verificar se produto está ativo
+          const isAtivo = produtosInfo[produtoId]?.ativo !== false;
+          
+          return { colKey: produtoId, nome, qtd, unidade, idx, isAtivo };
         }
-      );
+      )
+      .filter(item => item.isAtivo); // ⚠️ Remover produtos inativos
 
       // Sort by the numeric part of the column key (col6, col7, ...)
       items.sort((a, b) => a.idx - b.idx);

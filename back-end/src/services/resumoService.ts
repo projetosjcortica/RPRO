@@ -149,7 +149,8 @@ export class ResumoService {
         const infosProdutos: Record<string, { label: string; materia: MateriaPrima }> = {};
         
         for (const mp of materiasPrimas) {
-            if (mp.num && mp.produto) {
+            // ⚠️ Ignorar produtos desativados nos cálculos
+            if (mp.num && mp.produto && mp.ativo !== false) {
                 infosProdutos[`Produto_${mp.num}`] = {
                     label: mp.produto,
                     materia: mp
@@ -188,6 +189,11 @@ export class ResumoService {
                 if (valueOriginal > 0) {
                     const prodKey = `Produto_${i}`;
                     const info = infosProdutos[prodKey];
+                    
+                    // ⚠️ FILTRO: Se produto não está em infosProdutos, significa que está inativo - pular
+                    if (!info) {
+                        continue;
+                    }
                     
                     // Converter valor baseado na configuração do produto
                     // Keep display quantity in the product's original unit (g or kg)
@@ -390,7 +396,8 @@ export class ResumoService {
         const materiasPrimas = await materiaPrimaService.getAll();
         const infosProdutos: Record<string, { label: string; materia: MateriaPrima }> = {};
         for (const mp of materiasPrimas) {
-            if (mp.num && mp.produto) {
+            // ⚠️ Ignorar produtos desativados nos cálculos
+            if (mp.num && mp.produto && mp.ativo !== false) {
                 infosProdutos[`Produto_${mp.num}`] = { label: mp.produto, materia: mp };
             }
         }
@@ -445,6 +452,12 @@ export class ResumoService {
                 if (rawValue > 0) {
                     const prodKey = `Produto_${i}`;
                     const info = infosProdutos[prodKey];
+                    
+                    // ⚠️ FILTRO: Se produto não está em infosProdutos, significa que está inativo - pular
+                    if (!info) {
+                        continue;
+                    }
+                    
                     const label = info ? info.label : `Produto ${i}`;
                     let unidade = 'kg';
                     let valueForTotalKg = rawValue;
