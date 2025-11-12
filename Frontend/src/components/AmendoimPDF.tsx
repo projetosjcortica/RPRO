@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   section: {
-    marginBottom: 4,
+    marginBottom: 2,
   },
   sectionTitle: {
     fontSize: 12,
@@ -88,19 +88,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: "#ffffff",
     borderBottom: "1px solid #d1d5db",
-    paddingVertical: 6,
   },
   tableRowEven: {
     flexDirection: "row",
     backgroundColor: "#f9fafb",
     borderBottom: "1px solid #d1d5db",
-    paddingVertical: 6,
   },
   tableHeader: {
     flexDirection: "row",
     backgroundColor: "#e2e2e2ff",
     borderBottom: "1px solid #d1d5db",
-    paddingVertical: 8,
     fontWeight: "bold",
   },
   tableCol: {
@@ -110,9 +107,11 @@ const styles = StyleSheet.create({
   },
   tableColHeader: {
     fontSize: 10,
-    paddingHorizontal: 4,
+    padding: 4,
     fontWeight: "bold",
     color: "#af1e1eff",
+    borderLeftWidth: 1,
+    borderLeftColor: "#d1d5db",
   },
   col1: { width: "10%" },
   col2: { width: "12%" },
@@ -164,6 +163,8 @@ interface AmendoimPDFDocumentProps {
     produtosUnicos: number;
     caixasUtilizadas: number;
   };
+  empresa?: string;
+  proprietario?: string;
   showDetailed?: boolean;
   fontSize?: "pequena" | "media" | "grande";
   ordenacao?: "data" | "produto" | "peso";
@@ -181,7 +182,10 @@ export const AmendoimPDFDocument = ({
   ordenacao = "data",
   agruparPorProduto = false,
   logoUrl,
+  empresa = "Relatório Cortez",
+  proprietario,
 }: AmendoimPDFDocumentProps) => {
+  const reportTitle = proprietario || empresa;
   const dataGeracao = new Date().toLocaleString("pt-BR");
 
   // Função para formatar datas no padrão brasileiro (DD/MM/YYYY)
@@ -320,7 +324,10 @@ export const AmendoimPDFDocument = ({
   // Paginação para a lista detalhada após o resumo
   const registrosPorPagina = 30;
   const numDetailPages = showDetailed ? (registrosParaExibir.length > 0 ? Math.ceil(registrosParaExibir.length / registrosPorPagina) : 0) : 0;
-  const totalPages = 1 + numDetailPages;
+  const hasComentarios = comentarios && comentarios.length > 0;
+  const totalPages = 1 + (hasComentarios ? 1 : 0) + numDetailPages;
+  // Página inicial dos registros detalhados (2 se não houver comentários, 3 se houver)
+  const detalhePageStart = hasComentarios ? 3 : 2;
 
   // Criar estilos dinâmicos baseados no fontSize
   const dynamicStyles = StyleSheet.create({
@@ -371,7 +378,7 @@ export const AmendoimPDFDocument = ({
             />
           )}
           <View style={styles.titleContainer}>
-            <Text style={dynamicStyles.title}>Relatório de Amendoim - Cortez</Text>
+            <Text style={dynamicStyles.title}>{reportTitle}</Text>
             <Text style={dynamicStyles.subtitle}>Gerado em: {dataGeracao}</Text>
             {filtros.codigoProduto && <Text style={dynamicStyles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
             {filtros.nomeProduto && <Text style={dynamicStyles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
@@ -444,15 +451,15 @@ export const AmendoimPDFDocument = ({
           <View style={styles.table}>
             <View style={styles.tableHeader}>
               <Text style={[dynamicStyles.tableColHeader, { width: '64%' }]}>Produto</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1 }]}>Entrada (kg)</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1 }]}>Saída (kg)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Entrada (kg)</Text>
+              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Saída (kg)</Text>
             </View>
             {produtosEntrSaida.map((p, i) => {
               return (
                 <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                  <Text style={[dynamicStyles.tableCol, { width: '64%' }]}>{p.nome}</Text>
-                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' ,borderLeftWidth:1, borderLeftColor:'#d1d5db'  }]}>{formatNumber(p.entrada, 3)}</Text>
-                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' ,borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{formatNumber(p.saida, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '64%',borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.nome}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' ,borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6}]}>{formatNumber(p.entrada, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' ,borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6}]}>{formatNumber(p.saida, 3)}</Text>
                 </View>
               );
             })}
@@ -460,7 +467,32 @@ export const AmendoimPDFDocument = ({
         </View>
 
         {/* Comentários no final da primeira página */}
-        {comentarios && comentarios.length > 0 && (
+        {/* {comentarios && comentarios.length > 0 && (
+          <View style={styles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Comentários</Text>
+            {comentarios.map((c, i) => (
+              <View key={i} style={{ marginBottom: 8, paddingBottom: 8,borderBottom: i < comentarios.length - 1 ? '1px solid #e5e7eb' : 'none' }}>
+                {c.data && (
+                  <Text style={{ fontSize: dynamicStyles.tableCol.fontSize, color: '#6b7280', marginBottom: 2 }}>
+                    {c.data}
+                  </Text>
+                )}
+                <Text style={{ fontSize: dynamicStyles.label.fontSize, color: '#374151' }}>
+                  {c.texto}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )} */}
+
+        <View style={styles.footer}>
+          <Text>1 de {totalPages} | Cortez - Sistema de Relatórios | J.Cortiça Automação</Text>
+        </View>
+      </Page>
+
+      {hasComentarios && (
+        <Page size="A4" orientation="portrait" style={dynamicStyles.page}>
+          {/* Comentários */}
           <View style={styles.section}>
             <Text style={dynamicStyles.sectionTitle}>Comentários</Text>
             {comentarios.map((c, i) => (
@@ -476,12 +508,12 @@ export const AmendoimPDFDocument = ({
               </View>
             ))}
           </View>
-        )}
 
-        <View style={styles.footer}>
-          <Text>1 de {totalPages} | Cortez - Sistema de Relatórios | J.Cortiça Automação</Text>
-        </View>
-      </Page>
+          <View style={styles.footer}>
+            <Text>2 de {totalPages} | Cortez - Sistema de Relatórios | J.Cortiça Automação</Text>
+          </View>
+        </Page>
+      )}
 
       {/* Detailed registros pages */}
       {Array.from({ length: numDetailPages }, (_, pageIdx) => {
@@ -492,7 +524,7 @@ export const AmendoimPDFDocument = ({
           <Page key={pageIdx} size="A4" orientation="portrait" style={dynamicStyles.page}>
             <View style={styles.header}>
               <View style={styles.titleContainer}>
-                <Text style={dynamicStyles.title}>Relatório de Amendoim - Cortez</Text>
+                <Text style={dynamicStyles.title}>{reportTitle}</Text>
                 <Text style={dynamicStyles.subtitle}>Gerado em: {dataGeracao}</Text>
                 {filtros.dataInicio && (
                   <Text style={dynamicStyles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
@@ -530,7 +562,7 @@ export const AmendoimPDFDocument = ({
             </View>
 
             <View style={styles.footer}>
-              <Text>{pageIdx + 2} de {totalPages} | Cortez - Sistema de Relatórios | J.Cortiça Automação</Text>
+              <Text>{detalhePageStart + pageIdx} de {totalPages} | Cortez - Sistema de Relatórios | J.Cortiça Automação</Text>
             </View>
           </Page>
         );

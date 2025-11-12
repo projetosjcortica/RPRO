@@ -290,7 +290,7 @@ const App = () => {
               path="/report" 
               element={
                 <RequireAuth>
-                  {user?.userType === 'amendoim' ? <Amendoim /> : <Report />}
+                  {user?.userType === 'amendoim' ? <Amendoim proprietario={sideInfo.proprietario} /> : <Report />}
                 </RequireAuth>
               } 
             />
