@@ -326,14 +326,31 @@ export const MyDocument: FC<MyDocumentProps> = ({
     large: 12,
   };
   const chartRowsPerPage = chartRowsPerPageByFont[pdfCustomization.fontSize] || 18;
-
   // Use uma cópia ordenada para dividir em páginas mantendo consistência com a
-  // apresentação (maiores valores primeiro).
+  // apresentação (maiores valores primeiro). Reserve algumas linhas por página
+  // para o cabeçalho/espacamento para evitar que a última linha ultrapasse a
+  // margem da página (comportamento observado em PDFs com quebras automáticas).
   const chartDisplay = chartSource.slice().sort((a, b) => b.value - a.value);
   const chartChunks: typeof chartDisplay[] = [];
   if (chartDisplay.length > 0) {
-    for (let i = 0; i < chartDisplay.length; i += chartRowsPerPage) {
-      chartChunks.push(chartDisplay.slice(i, i + chartRowsPerPage));
+    const reservedHeaderRows = 3; // espaço reservado para título e espaçamento
+    // Estimate rows required for comments on the first page so comments stay "aqui em baixo".
+    // Assumption: each comment consumes ~3 rows on average (meta + text wrap). Cap to avoid over-reserving.
+    const estimatedCommentRows = comentarios && comentarios.length > 0 ? Math.min(8, comentarios.length * 3) : 0;
+
+    // First page should reserve space for header + comments. Subsequent pages only reserve header.
+    const firstPageRows = Math.max(4, chartRowsPerPage - reservedHeaderRows - estimatedCommentRows);
+    const subsequentPageRows = Math.max(6, chartRowsPerPage - reservedHeaderRows);
+
+    // push first chunk
+    let offset = 0;
+    chartChunks.push(chartDisplay.slice(offset, offset + firstPageRows));
+    offset += firstPageRows;
+
+    // push remaining chunks using subsequentPageRows
+    while (offset < chartDisplay.length) {
+      chartChunks.push(chartDisplay.slice(offset, offset + subsequentPageRows));
+      offset += subsequentPageRows;
     }
   }
 
@@ -655,8 +672,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
   ) => (
     <View style={styles.table}>
       <View style={styles.tableRow}>
-        <Text style={[{ width: "6%" , borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Cód</Text>
-        <Text style={[{ width: "59%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
+        <Text style={[{ width: "12%" , borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>Código</Text>
+        <Text style={[{ width: "53%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
         <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Batidas</Text>
         <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", textAlign:"right" }, { fontSize: currentFontSizes.table }]}>Total</Text>
       </View>
@@ -665,8 +682,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
           key={i}
           style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
         >
-          <Text style={[{ width: "6%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop:9,}, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
-          <Text style={[{ width: "59%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
+          <Text style={[{ width: "9%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop:9, textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
+          <Text style={[{ width: "56%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
           <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
           <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,textAlign: "right" }, { fontSize: currentFontSizes.table }]}>
             {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
@@ -789,7 +806,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {formulasOrdenadas.length > 0 && formulaChunks.length > 1 && formulaChunks.slice(1).filter(c => c && c.length > 0).map((chunk, idx) => (
           <Page key={`formulas-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>TABELA DE FÓRMULAS (continuação)</Text>
+              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Tabela de fórmulas</Text>
               {renderFormulaTable(chunk)}
             </View>
 
@@ -818,23 +835,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
       </Page>
       {/* Página 3 */}
   <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
-        {/* Comentários do Relatório */}
-        {comentarios && comentarios.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>
-              COMENTÁRIOS DO RELATÓRIO
-            </Text>
-            {comentarios.map((c, i) => (
-              <View key={i} style={styles.comentarioContainer}>
-                <Text style={styles.comentarioMeta}>
-                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
-                  {c.autor && ` • ${c.autor}`}
-                </Text>
-                <Text style={styles.comentarioTexto}>{c.texto}</Text>
-              </View>
-            ))}
-          </View>
-        )}
 
         {/* Gráficos de Donut - Produtos */}
         {/* {showCharts && produtosChartData && produtosChartData.length > 0 && (
@@ -871,6 +871,22 @@ export const MyDocument: FC<MyDocumentProps> = ({
           </View>
         )} */}
 
+        {/* Comentários do Relatório - renderizados antes dos gráficos (na mesma página) */}
+        {comentarios && comentarios.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 8 }]}>Comentários do relatório</Text>
+            {comentarios.map((c, i) => (
+              <View key={`coment-${i}`} style={styles.comentarioContainer}>
+                <Text style={styles.comentarioMeta}>
+                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
+                  {c.autor && ` • ${c.autor}`}
+                </Text>
+                <Text style={styles.comentarioTexto}>{c.texto}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         {/* Gráficos */}
         {showCharts && (
           <View style={styles.section}>
@@ -902,6 +918,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
           </View>
         )}
 
+        {/* Comentários do Relatório (removidos daqui e renderizados em página dedicada abaixo) */}
         {observacoes && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Observações</Text>
@@ -912,11 +929,31 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {renderRodape()}
       </Page>
 
+      {/* Página dedicada para comentários (garante que comentários sempre apareçam) */}
+      {comentarios && comentarios.length > 0 && (
+        <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
+            {comentarios.map((c, i) => (
+              <View key={i} style={styles.comentarioContainer}>
+                <Text style={styles.comentarioMeta}>
+                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
+                  {c.autor && ` • ${c.autor}`}
+                </Text>
+                <Text style={styles.comentarioTexto}>{c.texto}</Text>
+              </View>
+            ))}
+          </View>
+
+          {renderRodape()}
+        </Page>
+      )}
+
       {/* Páginas dedicadas para continuação dos gráficos de barras */}
       {showCharts && chartChunks && chartChunks.length > 1 && chartChunks.slice(1).map((chunk, idx) => (
         <Page key={`charts-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Análise de Produção (continuação)</Text>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Análise de Produção</Text>
             <View style={[styles.chartSection, { flexDirection: 'column' }]}>
               <View style={{ marginTop: 4 }}>
                 {chunk.map((row, i) => {

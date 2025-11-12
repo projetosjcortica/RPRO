@@ -51,6 +51,7 @@ interface AmendoimExportProps {
   onAddComment?: (texto: string) => void;
   onRemoveComment?: (id: string) => void;
   logoUrl?: string;
+  proprietario?: string;
 }
 
 interface AmendoimRecord {
@@ -65,7 +66,7 @@ interface AmendoimRecord {
   balanca?: string;
 }
 
-export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, logoUrl }: AmendoimExportProps) {
+export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, logoUrl, proprietario }: AmendoimExportProps) {
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
@@ -474,6 +475,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     ordenacao={ordenacao}
                     agruparPorProduto={agruparPorProduto}
                     logoUrl={logoUrl}
+                    proprietario={proprietario}
                   />
                 </PDFViewer>
               </div>
@@ -620,6 +622,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     ordenacao={ordenacao}
                     agruparPorProduto={agruparPorProduto}
                     logoUrl={logoUrl}
+                    proprietario={proprietario}
                   />
                 }
                 fileName={`amendoim_comparativo_${Date.now()}.pdf`}

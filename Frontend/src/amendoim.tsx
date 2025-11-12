@@ -142,7 +142,7 @@ interface FiltrosAmendoim {
   tipo?: "entrada" | "saida";
 }
 
-export default function Amendoim() {
+export default function Amendoim({ proprietario }: { proprietario?: string } = {}) {
   const { user } = useAuth();
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const [ihmConfig, setIhmConfig] = useState<{ ip: string; user: string; password: string } | null>(null);
@@ -1479,6 +1479,7 @@ export default function Amendoim() {
                   if (!isNaN(index)) setComentarios((s) => s.filter((_, i) => i !== index));
                 }}
                 logoUrl={logoUrl}
+                proprietario={proprietario}
               />
             );
           })()}
