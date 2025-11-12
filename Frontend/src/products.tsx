@@ -18,7 +18,6 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   const [togglingProduct, setTogglingProduct] = useState<string | null>(null);
   const [resettingAll, setResettingAll] = useState(false);
   const [resettingUnits, setResettingUnits] = useState(false);
-  const [experimentalEnabled, setExperimentalEnabled] = useState(false);
 
   // Constantes
   const START_COL = 6;
@@ -114,22 +113,6 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     initializeProdutosInfo();
     loadFromStorage();
     loadProdutosAtivos();
-    
-    // Carregar estado das features experimentais
-    const expFeaturesStr = localStorage.getItem('experimental-features');
-    setExperimentalEnabled(expFeaturesStr === 'true');
-    
-    // Listener para mudanças nas features experimentais
-    const handleExperimentalChange = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      setExperimentalEnabled(customEvent.detail.enabled);
-    };
-    
-    window.addEventListener('experimental-features-changed', handleExperimentalChange);
-    
-    return () => {
-      window.removeEventListener('experimental-features-changed', handleExperimentalChange);
-    };
   }, []);
 
   const handleLabelChange = (colKey: string, newName: string, unidade: string = "kg") => {
@@ -380,25 +363,24 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
         <div className="flex justify-between items-center ml-4 mb-6 mt-3">
           <h2 className="text-2xl md:text-3xl font-semibold">Editar Produtos</h2>
           
-          {experimentalEnabled && (
-            <div className="flex gap-2 mr-4">
-              <Button
-                onClick={handleResetUnitsToKg}
-                disabled={resettingUnits}
-                variant="outline"
-                className="border-blue-600 text-blue-700 hover:bg-blue-50 hover:border-blue-700"
-              >
-                {resettingUnits ? (
-                  <>
-                    <span className="animate-spin mr-2">⏳</span>
-                    Resetando...
-                  </>
-                ) : (
-                  <>
-                    <Scale className="mr-2 h-4 w-4" />
-                    Resetar Unidades para KG
-                  </>
-                )}
+          <div className="flex gap-2 mr-4">
+            <Button
+              onClick={handleResetUnitsToKg}
+              disabled={resettingUnits}
+              variant="outline"
+              className="border-blue-600 text-blue-700 hover:bg-blue-50 hover:border-blue-700"
+            >
+              {resettingUnits ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Resetando...
+                </>
+              ) : (
+                <>
+                  <Scale className="mr-2 h-4 w-4" />
+                  Resetar Unidades para KG
+                </>
+              )}
               </Button>
 
               <Button
@@ -415,12 +397,11 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                 ) : (
                   <>
                     <Eye className="mr-2 h-4 w-4" />
-                    Reativar Todos os Produtos
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+                  Reativar Todos os Produtos
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       
       <div className="overflow-auto flex-1 min-h-0 thin-red-scrollbar">
@@ -474,24 +455,22 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                       </RadioGroup>
                     </div>
 
-                    {experimentalEnabled && (
-                      <Button
-                        size="sm"
-                        variant={isAtivo ? "outline" : "secondary"}
-                        onClick={() => handleToggleAtivo(col)}
-                        className="h-9 px-2"
-                        title={isAtivo ? "Desativar produto (ignorar nos cálculos)" : "Ativar produto"}
-                        disabled={togglingProduct === col}
-                      >
-                        {togglingProduct === col ? (
-                          <span className="animate-spin">⏳</span>
-                        ) : isAtivo ? (
-                          <Eye className="h-4 w-4" />
-                        ) : (
-                          <EyeOff className="h-4 w-4" />
-                        )}
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant={isAtivo ? "outline" : "secondary"}
+                      onClick={() => handleToggleAtivo(col)}
+                      className="h-9 px-2"
+                      title={isAtivo ? "Desativar produto (ignorar nos cálculos)" : "Ativar produto"}
+                      disabled={togglingProduct === col}
+                    >
+                      {togglingProduct === col ? (
+                        <span className="animate-spin">⏳</span>
+                      ) : isAtivo ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeOff className="h-4 w-4" />
+                      )}
+                    </Button>
                   </div> 
                 </div>
               </div>

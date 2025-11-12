@@ -99,8 +99,8 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   const [showCommentEditor, setShowCommentEditor] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [localComments, setLocalComments] = useState<{ id?: string; texto: string; data?: string }[]>(comentarios || []);
-  // Show/hide detailed report pages in the PDF (padrão: ocultar)
-  const [showDetailed, setShowDetailed] = useState(false);
+  // Opção para separar tabelas de entrada/saída
+  const [tabelasSeparadas, setTabelasSeparadas] = useState(false);
   // PDF customization options
   const [fontSize, setFontSize] = useState<"pequena" | "media" | "grande">("media");
   const [ordenacao, setOrdenacao] = useState<"data" | "produto" | "peso">("data");
@@ -470,7 +470,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                       codigoCaixa,
                     }}
                     comentarios={commentsForPdf}
-                    showDetailed={showDetailed}
+                    tabelasSeparadas={tabelasSeparadas}
                     fontSize={fontSize}
                     ordenacao={ordenacao}
                     agruparPorProduto={agruparPorProduto}
@@ -617,7 +617,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                       codigoCaixa 
                     }}
                     comentarios={commentsForPdf}
-                    showDetailed={showDetailed}
+                    tabelasSeparadas={tabelasSeparadas}
                     fontSize={fontSize}
                     ordenacao={ordenacao}
                     agruparPorProduto={agruparPorProduto}
@@ -650,19 +650,19 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
           </DialogHeader>
 
           <div className="space-y-4 py-4">
-            {/* Mostrar/Ocultar Detalhado */}
+            {/* Opção de Tabelas Separadas */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Conteúdo</Label>
+              <Label className="text-sm font-medium">Estrutura da Tabela</Label>
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
-                  id="showDetailed"
-                  checked={!showDetailed}
-                  onChange={() => setShowDetailed((s) => !s)}
+                  id="tabelasSeparadas"
+                  checked={tabelasSeparadas}
+                  onChange={() => setTabelasSeparadas((s) => !s)}
                   className="w-4 h-4 text-[#af1e1e] rounded focus:ring-[#af1e1e]"
                 />
-                <label htmlFor="showDetailed" className="text-sm text-gray-600 cursor-pointer">
-                  Ocultar relatório detalhado (mostrar apenas resumo)
+                <label htmlFor="tabelasSeparadas" className="text-sm text-gray-600 cursor-pointer">
+                  Separar tabelas de Entrada e Saída
                 </label>
               </div>
             </div>

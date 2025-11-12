@@ -66,6 +66,18 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     textAlign: "center",
   },
+  highlightBox: {
+    fontSize: 14,
+    fontWeight: "bold",
+    backgroundColor: "#af1e1eff",
+    color: "#ffffff",
+    padding: 6,
+    borderRadius: 4,
+    marginBottom: 10,
+    textAlign: "center",
+    width: "40%",
+    alignSelf: "center",
+  },
   label: {
     fontWeight: "bold",
     fontSize: 12,
@@ -165,7 +177,7 @@ interface AmendoimPDFDocumentProps {
   };
   empresa?: string;
   proprietario?: string;
-  showDetailed?: boolean;
+  tabelasSeparadas?: boolean;
   fontSize?: "pequena" | "media" | "grande";
   ordenacao?: "data" | "produto" | "peso";
   agruparPorProduto?: boolean;
@@ -177,7 +189,7 @@ export const AmendoimPDFDocument = ({
   filtros = {},
   estatisticas,
   comentarios = [],
-  showDetailed = true,
+  tabelasSeparadas = false,
   fontSize = "media",
   ordenacao = "data",
   agruparPorProduto = false,
@@ -296,38 +308,24 @@ export const AmendoimPDFDocument = ({
     console.warn("AmendoimPDF: stats.pesoTotal is not a finite number", stats.pesoTotal, stats);
   }
 
-  // Paginar registros (máximo 30 por página)
-  // Construir resumo por produto (para exibir SOMENTE no PDF)
-  const resumoMap: Record<string, { name: string; count: number; value: number }> = {};
-  registrosParaExibir.forEach((r) => {
-    const key = r.nomeProduto || r.codigoProduto || "(sem nome)";
-    if (!resumoMap[key]) resumoMap[key] = { name: key, count: 0, value: 0 };
-    resumoMap[key].count += 1;
-    resumoMap[key].value += Number(r.peso || 0);
-  });
-  const resumoProdutos = Object.values(resumoMap);
-
   // Construir agregados por produto (entradas x saídas)
-  const produtoMap: Record<string, { entrada: number; saida: number }> = {};
+  const produtoMap: Record<string, { entrada: number; saida: number; entradaCount: number; saidaCount: number }> = {};
   registrosParaExibir.forEach((r) => {
     const prodKey = r.nomeProduto || r.codigoProduto || '(sem nome)';
-    if (!produtoMap[prodKey]) produtoMap[prodKey] = { entrada: 0, saida: 0 };
+    if (!produtoMap[prodKey]) produtoMap[prodKey] = { entrada: 0, saida: 0, entradaCount: 0, saidaCount: 0 };
     const peso = Number(r.peso || 0);
     if (r.tipo === 'entrada') {
       produtoMap[prodKey].entrada += peso;
+      produtoMap[prodKey].entradaCount += 1;
     } else {
       produtoMap[prodKey].saida += peso;
+      produtoMap[prodKey].saidaCount += 1;
     }
   });
   const produtosEntrSaida = Object.entries(produtoMap).map(([nome, v]) => ({ nome, ...v }));
   
-  // Paginação para a lista detalhada após o resumo
-  const registrosPorPagina = 30;
-  const numDetailPages = showDetailed ? (registrosParaExibir.length > 0 ? Math.ceil(registrosParaExibir.length / registrosPorPagina) : 0) : 0;
   const hasComentarios = comentarios && comentarios.length > 0;
-  const totalPages = 1 + (hasComentarios ? 1 : 0) + numDetailPages;
-  // Página inicial dos registros detalhados (2 se não houver comentários, 3 se houver)
-  const detalhePageStart = hasComentarios ? 3 : 2;
+  const totalPages = 1 + (hasComentarios ? 1 : 0);
 
   // Criar estilos dinâmicos baseados no fontSize
   const dynamicStyles = StyleSheet.create({
@@ -346,6 +344,10 @@ export const AmendoimPDFDocument = ({
     sectionTitle: {
       ...styles.sectionTitle,
       fontSize: baseFontSize + 4,
+    },
+    highlightBox: {
+      ...styles.highlightBox,
+      fontSize: baseFontSize + 2,
     },
     label: {
       ...styles.label,
@@ -386,84 +388,138 @@ export const AmendoimPDFDocument = ({
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Informações Gerais</Text>
-          
-          {filtros.dataInicio && (
+        {!tabelasSeparadas && (
+          <View style={styles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Informações Gerais</Text>
+            
+            {filtros.dataInicio && (
+              <View style={{ marginBottom: 6 }}>
+                <Text style={dynamicStyles.label}>
+                  Período:{" "}
+                  <Text style={dynamicStyles.value}>
+                    {formatDateBR(filtros.dataInicio)}{horarioInicio ? ` às ${horarioInicio}` : ""} até {formatDateBR(filtros.dataFim) || "hoje"}{horarioFim ? ` às ${horarioFim}` : ""}
+                  </Text>
+                </Text>
+              </View>
+            )}
+            
             <View style={{ marginBottom: 6 }}>
               <Text style={dynamicStyles.label}>
-                Período:{" "}
-                <Text style={dynamicStyles.value}>
-                  {formatDateBR(filtros.dataInicio)}{horarioInicio ? ` às ${horarioInicio}` : ""} até {formatDateBR(filtros.dataFim) || "hoje"}{horarioFim ? ` às ${horarioFim}` : ""}
-                </Text>
+                Total de Registros:{" "}
+                <Text style={dynamicStyles.value}>{stats.totalRegistros}</Text>
               </Text>
             </View>
-          )}
-          
-          <View style={{ marginBottom: 6 }}>
-            <Text style={dynamicStyles.label}>
-              Total de Registros:{" "}
-              <Text style={dynamicStyles.value}>{stats.totalRegistros}</Text>
-            </Text>
-          </View>
 
-          <View style={{ marginBottom: 6 }}>
-            <Text style={dynamicStyles.label}>
-              Peso Total:{" "}
-              <Text style={dynamicStyles.value}>{formatNumber(stats.pesoTotal, 3)} kg</Text>
-            </Text>
-          </View>
+            <View style={{ marginBottom: 6 }}>
+              <Text style={dynamicStyles.label}>
+                Peso Entrada:{" "}
+                <Text style={dynamicStyles.value}>{formatNumber(pesoEntrada, 3)} kg</Text>
+              </Text>
+            </View>
 
-          <View style={{ marginBottom: 6 }}>
-            <Text style={dynamicStyles.label}>
-              Peso Entrada:{" "}
-              <Text style={dynamicStyles.value}>{formatNumber(pesoEntrada, 3)} kg</Text>
-            </Text>
-          </View>
+            <View style={{ marginBottom: 6 }}>
+              <Text style={dynamicStyles.label}>
+                Peso Saída:{" "}
+                <Text style={dynamicStyles.value}>{formatNumber(pesoSaida, 3)} kg</Text>
+              </Text>
+            </View>
 
-          <View style={{ marginBottom: 6 }}>
-            <Text style={dynamicStyles.label}>
-              Peso Saída:{" "}
-              <Text style={dynamicStyles.value}>{formatNumber(pesoSaida, 3)} kg</Text>
-            </Text>
+            <View style={{ marginBottom: 6 }}>
+              <Text style={dynamicStyles.label}>
+                Produtos Únicos:{" "}
+                <Text style={dynamicStyles.value}>{stats.produtosUnicos}</Text>
+              </Text>
+            </View>
           </View>
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={dynamicStyles.label}>
-              Rendimento:{" "}
-              <Text style={dynamicStyles.value}>{rendimento}%</Text>
-            </Text>
-          </View>
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={dynamicStyles.label}>
-              Produtos Únicos:{" "}
-              <Text style={dynamicStyles.value}>{stats.produtosUnicos}</Text>
-            </Text>
-          </View>
-        </View>
+        )}
 
 
 
         {/* Tabela de produtos (entradas x saídas) */}
-        <View style={styles.section}>
-          <Text style={dynamicStyles.sectionTitle}>Produtos (Entradas / Saídas)</Text>
-          <View style={styles.table}>
-            <View style={styles.tableHeader}>
-              <Text style={[dynamicStyles.tableColHeader, { width: '64%' }]}>Produto</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Entrada (kg)</Text>
-              <Text style={[dynamicStyles.tableColHeader, { width: '18%', textAlign: 'right',borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Saída (kg)</Text>
-            </View>
-            {produtosEntrSaida.map((p, i) => {
-              return (
+        {!tabelasSeparadas ? (
+          <View style={styles.section}>
+            <Text style={dynamicStyles.sectionTitle}>Produtos (Entradas / Saídas)</Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader}>
+                <Text style={[dynamicStyles.tableColHeader, { width: '48%' }]}>Produto</Text>
+                <Text style={[dynamicStyles.tableColHeader, { width: '14%', textAlign: 'right', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Entrada (kg)</Text>
+                <Text style={[dynamicStyles.tableColHeader, { width: '14%', textAlign: 'right', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Saída (kg)</Text>
+                <Text style={[dynamicStyles.tableColHeader, { width: '12%', textAlign: 'center', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Reg. Ent.</Text>
+                <Text style={[dynamicStyles.tableColHeader, { width: '12%', textAlign: 'center', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Reg. Saí.</Text>
+              </View>
+              {produtosEntrSaida.map((p, i) => (
                 <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                  <Text style={[dynamicStyles.tableCol, { width: '64%',borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.nome}</Text>
-                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' ,borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6}]}>{formatNumber(p.entrada, 3)}</Text>
-                  <Text style={[dynamicStyles.tableCol, { width: '18%', textAlign: 'right' ,borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6}]}>{formatNumber(p.saida, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '48%', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.nome}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '14%', textAlign: 'right', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{formatNumber(p.entrada, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '14%', textAlign: 'right', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{formatNumber(p.saida, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '12%', textAlign: 'center', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.entradaCount}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '12%', textAlign: 'center', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.saidaCount}</Text>
                 </View>
-              );
-            })}
+              ))}
+              <View style={{ backgroundColor: '#f3f4f6', borderTopWidth: 2, borderTopColor: '#1f2937', paddingVertical: 8, flexDirection: 'row' }}>
+                <Text style={[dynamicStyles.tableCol, { width: '48%', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>TOTAL</Text>
+                <Text style={[dynamicStyles.tableCol, { width: '14%', textAlign: 'right', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{formatNumber(pesoEntrada, 3)}</Text>
+                <Text style={[dynamicStyles.tableCol, { width: '14%', textAlign: 'right', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{formatNumber(pesoSaida, 3)}</Text>
+                <Text style={[dynamicStyles.tableCol, { width: '12%', textAlign: 'center', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{produtosEntrSaida.reduce((sum, p) => sum + p.entradaCount, 0)}</Text>
+                <Text style={[dynamicStyles.tableCol, { width: '12%', textAlign: 'center', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{produtosEntrSaida.reduce((sum, p) => sum + p.saidaCount, 0)}</Text>
+              </View>
+            </View>
           </View>
+        ) : (
+          <>
+            {/* Tabela de Entradas */}
+            <View style={styles.section}>
+              <Text style={dynamicStyles.sectionTitle}>Produtos - Entradas</Text>
+              <View style={styles.table}>
+                <View style={styles.tableHeader}>
+                  <Text style={[dynamicStyles.tableColHeader, { width: '60%' }]}>Produto</Text>
+                  <Text style={[dynamicStyles.tableColHeader, { width: '20%', textAlign: 'right', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Peso (kg)</Text>
+                  <Text style={[dynamicStyles.tableColHeader, { width: '20%', textAlign: 'center', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Registros</Text>
+                </View>
+                {produtosEntrSaida.filter(p => p.entradaCount > 0).map((p, i) => (
+                  <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                    <Text style={[dynamicStyles.tableCol, { width: '60%', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.nome}</Text>
+                    <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'right', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{formatNumber(p.entrada, 3)}</Text>
+                    <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'center', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.entradaCount}</Text>
+                  </View>
+                ))}
+                <View style={{ backgroundColor: '#f3f4f6', borderTopWidth: 2, borderTopColor: '#1f2937', paddingVertical: 8, flexDirection: 'row' }}>
+                  <Text style={[dynamicStyles.tableCol, { width: '60%', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>TOTAL</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'right', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{formatNumber(pesoEntrada, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'center', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{produtosEntrSaida.reduce((sum, p) => sum + p.entradaCount, 0)}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Tabela de Saídas */}
+            <View style={{ ...styles.section, marginTop: 20 }}>
+              <Text style={dynamicStyles.sectionTitle}>Produtos - Saídas</Text>
+              <View style={styles.table}>
+                <View style={styles.tableHeader}>
+                  <Text style={[dynamicStyles.tableColHeader, { width: '60%' }]}>Produto</Text>
+                  <Text style={[dynamicStyles.tableColHeader, { width: '20%', textAlign: 'right', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Peso (kg)</Text>
+                  <Text style={[dynamicStyles.tableColHeader, { width: '20%', textAlign: 'center', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>Registros</Text>
+                </View>
+                {produtosEntrSaida.filter(p => p.saidaCount > 0).map((p, i) => (
+                  <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                    <Text style={[dynamicStyles.tableCol, { width: '60%', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.nome}</Text>
+                    <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'right', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{formatNumber(p.saida, 3)}</Text>
+                    <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'center', borderLeftWidth:1, borderLeftColor:'#d1d5db', paddingVertical:6 }]}>{p.saidaCount}</Text>
+                  </View>
+                ))}
+                <View style={{ backgroundColor: '#f3f4f6', borderTopWidth: 2, borderTopColor: '#1f2937', paddingVertical: 8, flexDirection: 'row' }}>
+                  <Text style={[dynamicStyles.tableCol, { width: '60%', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>TOTAL</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'right', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{formatNumber(pesoSaida, 3)}</Text>
+                  <Text style={[dynamicStyles.tableCol, { width: '20%', textAlign: 'center', fontWeight: 'bold', borderLeftWidth:1, borderLeftColor:'#d1d5db' }]}>{produtosEntrSaida.reduce((sum, p) => sum + p.saidaCount, 0)}</Text>
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+
+        {/* Caixa de destaque do Rendimento */}
+        <View style={{ marginTop: 20, marginBottom: 12 }}>
+          <Text style={dynamicStyles.highlightBox}>Rendimento: {rendimento}%</Text>
         </View>
 
         {/* Comentários no final da primeira página */}
@@ -515,58 +571,7 @@ export const AmendoimPDFDocument = ({
         </Page>
       )}
 
-      {/* Detailed registros pages */}
-      {Array.from({ length: numDetailPages }, (_, pageIdx) => {
-        const inicio = pageIdx * registrosPorPagina;
-        const fim = Math.min(inicio + registrosPorPagina, registrosParaExibir.length);
-        const registrosPagina = registrosParaExibir.slice(inicio, fim);
-        return (
-          <Page key={pageIdx} size="A4" orientation="portrait" style={dynamicStyles.page}>
-            <View style={styles.header}>
-              <View style={styles.titleContainer}>
-                <Text style={dynamicStyles.title}>{reportTitle}</Text>
-                <Text style={dynamicStyles.subtitle}>Gerado em: {dataGeracao}</Text>
-                {filtros.dataInicio && (
-                  <Text style={dynamicStyles.subtitle}>Período: {filtros.dataInicio} até {filtros.dataFim || "hoje"}</Text>
-                )}
-                {filtros.tipo && <Text style={dynamicStyles.subtitle}>Tipo: {filtros.tipo}</Text>}
-                {filtros.codigoProduto && <Text style={dynamicStyles.subtitle}>Cód. Produto: {filtros.codigoProduto}</Text>}
-                {filtros.nomeProduto && <Text style={dynamicStyles.subtitle}>Produto: {filtros.nomeProduto}</Text>}
-                {filtros.codigoCaixa && <Text style={dynamicStyles.subtitle}>Cód. Caixa: {filtros.codigoCaixa}</Text>}
-              </View>
-            </View>
 
-            <View style={styles.section}>
-              <Text style={dynamicStyles.sectionTitle}>Registros (detalhado)</Text>
-              <View style={styles.table}>
-                <View style={styles.tableHeader}>
-                  <Text style={[dynamicStyles.tableColHeader, styles.col1]}>Tipo</Text>
-                  <Text style={[dynamicStyles.tableColHeader, styles.col2]}>Data</Text>
-                  <Text style={[dynamicStyles.tableColHeader, styles.col3]}>Hora</Text>
-                  <Text style={[dynamicStyles.tableColHeader, styles.col4]}>Cód. Produto</Text>
-                  <Text style={[dynamicStyles.tableColHeader, { width: '28%' }]}>Nome Produto</Text>
-                  <Text style={[dynamicStyles.tableColHeader, { width: '12%', textAlign: 'right' }]}>Peso (kg)</Text>
-                </View>
-
-                {registrosPagina.map((registro, idx) => (
-                  <View key={idx} style={idx % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
-                    <Text style={[dynamicStyles.tableCol, styles.col1]}>{registro.tipo === "entrada" ? "Entrada" : "Saída"}</Text>
-                    <Text style={[dynamicStyles.tableCol, styles.col2]}>{registro.dia}</Text>
-                    <Text style={[dynamicStyles.tableCol, styles.col3]}>{registro.hora}</Text>
-                    <Text style={[dynamicStyles.tableCol, styles.col4]}>{registro.codigoProduto}</Text>
-                    <Text style={[dynamicStyles.tableCol, { width: '28%' }]}>{registro.nomeProduto}</Text>
-                    <Text style={[dynamicStyles.tableCol, { width: '12%', textAlign: 'right' }]}>{formatNumber(registro.peso, 3)}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.footer}>
-              <Text>{detalhePageStart + pageIdx} de {totalPages} | Cortez - Sistema de Relatórios | J.Cortiça Automação</Text>
-            </View>
-          </Page>
-        );
-      })}
 
     </Document>
   );

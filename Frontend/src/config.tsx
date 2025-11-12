@@ -3,7 +3,6 @@ import { toast } from "react-toastify";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
-import { Switch } from "./components/ui/switch";
 import { FileUp, Loader2, Plus, Upload } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
@@ -850,32 +849,6 @@ interface Estatisticas {
 
   const [, setEstatisticas] = useState<Estatisticas | null>(null);
 
-  // Estado para features experimentais
-  const [experimentalFeatures, setExperimentalFeatures] = useState(false);
-
-  // Carregar estado das features experimentais
-  useEffect(() => {
-    const expFeaturesStr = localStorage.getItem('experimental-features');
-    if (expFeaturesStr) {
-      setExperimentalFeatures(expFeaturesStr === 'true');
-    }
-  }, []);
-
-  const handleToggleExperimental = (checked: boolean) => {
-    setExperimentalFeatures(checked);
-    localStorage.setItem('experimental-features', String(checked));
-    
-    // Disparar evento para notificar outras telas
-    window.dispatchEvent(new CustomEvent('experimental-features-changed', { 
-      detail: { enabled: checked } 
-    }));
-    
-    toast.info(checked 
-      ? '🧪 Funcionalidades experimentais ATIVADAS' 
-      : '🔒 Funcionalidades experimentais DESATIVADAS'
-    );
-  };
-
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
@@ -1067,24 +1040,6 @@ interface Estatisticas {
       </h2>
 
       {/* Funcionalidades Experimentais - TOPO */}
-      <div className="mb-6 p-4 border-2 border-red-600 rounded-lg bg-red-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <Label className="font-medium text-gray-900 text-base">
-              🧪 Funcionalidades Experimentais
-            </Label>
-            <p className="text-sm text-gray-600 mt-1">
-              Habilita recursos em teste (ignorar produtos, botões de reset)
-            </p>
-          </div>
-          <Switch
-            checked={experimentalFeatures}
-            onCheckedChange={handleToggleExperimental}
-            className="data-[state=checked]:bg-red-600"
-          />
-        </div>
-      </div>
-
       <div id="CfgAdvancedDB" className="my-4">
         <div className="dir flex flex-col gap-5">
           {/* <div className="flex-col">
