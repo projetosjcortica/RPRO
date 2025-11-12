@@ -563,13 +563,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     return (
       <div>
         {items.map((r) => {
-          // No modo comparativo, destacar entrada (verde claro) e saída (azul claro)
-          let bgColor = r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-          if (viewMode === 'comparativo') {
-            bgColor = r.tipo === 'entrada' 
-              ? (r.id % 2 === 0 ? 'bg-green-50' : 'bg-green-100')
-              : (r.id % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100');
-          }
+          // Manter padrão zebrado independente do modo
+          const bgColor = r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50';
           
           return (
             <div key={r.id} className={`flex items-center border-y ${bgColor}`}>
@@ -824,21 +819,6 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg">
               {error}
-            </div>
-          )}
-
-          {/* Legenda para modo comparativo */}
-          {viewMode === 'comparativo' && registros.length > 0 && (
-            <div className="flex items-center justify-center gap-4 py-2 px-4 bg-gray-100 border border-gray-300 rounded-lg">
-              <span className="text-xs font-medium text-gray-600">Legenda:</span>
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-4 bg-green-100 border border-green-300 rounded"></div>
-                <span className="text-xs font-medium">Entrada</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-4 bg-blue-100 border border-blue-300 rounded"></div>
-                <span className="text-xs font-medium">Saída</span>
-              </div>
             </div>
           )}
 
@@ -1128,7 +1108,11 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       <div className="flex items-center gap-1 h-9 w-fit bg-white rounded-lg border border-black p-1 shadow-sm">
         <Button
           size="sm"
-          onClick={() => setViewMode('entrada')}
+          onClick={() => {
+            setViewMode('entrada');
+            // Resetar para página 1 ao mudar de modo
+            setPage(1);
+          }}
           className={cn(
             "h-7 text-xs font-medium transition-all",
             viewMode === 'entrada'
@@ -1140,7 +1124,11 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         </Button>
         <Button
           size="sm"
-          onClick={() => setViewMode('saida')}
+          onClick={() => {
+            setViewMode('saida');
+            // Resetar para página 1 ao mudar de modo
+            setPage(1);
+          }}
           className={cn(
             "h-7 text-xs font-medium transition-all",
             viewMode === 'saida'
@@ -1152,7 +1140,13 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         </Button>
         <Button
           size="sm"
-          onClick={() => setViewMode('comparativo')}
+          onClick={() => {
+            setViewMode('comparativo');
+            // Resetar para página 1 ao mudar de modo
+            setPage(1);
+            // Limpar filtros ao entrar no modo comparativo
+            setFiltrosAtivos({});
+          }}
           className={cn(
             "h-7 text-xs font-medium transition-all",
             viewMode === 'comparativo'

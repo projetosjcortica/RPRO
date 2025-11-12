@@ -280,6 +280,53 @@ async function ensureDatabaseConnection() {
   }
 }
 
+// Helper: Obter lista de produtos ativos (para filtrar produtos inativos)
+async function getProdutosAtivos(): Promise<Set<number>> {
+  try {
+    // 🔄 SEMPRE buscar direto do banco para garantir dados atualizados
+    // (não usar cache pois pode estar desatualizado após toggle)
+    const materias = await materiaPrimaService.getAll();
+    const ativosSet = new Set<number>();
+    
+    for (const mp of materias) {
+      // Se ativo não está definido (null/undefined) ou é true, considerar ativo
+      if (mp.ativo !== false && mp.num) {
+        ativosSet.add(mp.num);
+      }
+    }
+    
+    console.log(`[getProdutosAtivos] ${ativosSet.size} produtos ativos:`, Array.from(ativosSet).sort((a,b) => a-b));
+    
+    return ativosSet;
+  } catch (e) {
+    console.error('[getProdutosAtivos] Erro:', e);
+    // Em caso de erro, retornar set vazio (não filtra nada)
+    return new Set<number>();
+  }
+}
+
+// Helper: Filtrar colunas de produtos inativos de um objeto de relatório
+async function filtrarProdutosInativos(obj: any): Promise<any> {
+  const produtosAtivos = await getProdutosAtivos();
+  
+  // Se set vazio (erro), retornar objeto original
+  if (produtosAtivos.size === 0) return obj;
+  
+  const filtered = { ...obj };
+  
+  // Zerar produtos inativos (Prod_1 até Prod_40)
+  for (let i = 1; i <= 40; i++) {
+    if (!produtosAtivos.has(i)) {
+      const key = `Prod_${i}`;
+      if (key in filtered) {
+        filtered[key] = 0;
+      }
+    }
+  }
+  
+  return filtered;
+}
+
 const app = express();
 
 // Compressão gzip para otimizar transferência de dados
@@ -373,7 +420,11 @@ function normalizeDateParam(d: any): string | null {
 app.get("/api/materiaprima/labels", async (req, res) => {
   try {
     await ensureDatabaseConnection();
+    
+    // 🔄 Sempre buscar dados frescos do banco (não usar cache)
+    // pois esta API é chamada ao carregar produtos e precisa estar atualizada
     const materias = await materiaPrimaService.getAll();
+    
     // Map MateriaPrima records to frontend-friendly keys.
     // Assumes `num` is the product index (1..n) and product columns in table start at col6 = Prod_1.
     const mapping: any = {};
@@ -391,12 +442,97 @@ app.get("/api/materiaprima/labels", async (req, res) => {
             : m.medida
             ? Number(m.medida)
             : 1,
+        ativo: m.ativo ?? true,
       };
     }
     return res.json(mapping);
   } catch (e) {
     console.error("Failed to get materia prima labels", e);
     return res.status(500).json({});
+  }
+});
+
+// Alternar status ativo/inativo de um produto
+app.patch("/api/materiaprima/:num/toggle", async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const num = parseInt(req.params.num);
+    
+    console.log(`[MateriaPrima Toggle] Recebido request para produto num=${num}`);
+    
+    if (isNaN(num)) {
+      console.error(`[MateriaPrima Toggle] Número inválido: ${req.params.num}`);
+      return res.status(400).json({ error: "Número de produto inválido" });
+    }
+    
+    const repo = AppDataSource.getRepository(MateriaPrima);
+    const produto = await repo.findOne({ where: { num } });
+    
+    console.log(`[MateriaPrima Toggle] Produto encontrado:`, produto);
+    
+    if (!produto) {
+      console.error(`[MateriaPrima Toggle] Produto ${num} não encontrado no banco`);
+      return res.status(404).json({ error: "Produto não encontrado" });
+    }
+    
+    const antigoStatus = produto.ativo;
+    produto.ativo = !produto.ativo;
+    
+    console.log(`[MateriaPrima Toggle] Alterando status: ${antigoStatus} → ${produto.ativo}`);
+    
+    await repo.save(produto);
+    
+    // 🔄 Invalidar cache para forçar reload nos próximos requests
+    invalidateMateriaPrimaCache();
+    
+    // Verificar se salvou corretamente
+    const verificacao = await repo.findOne({ where: { num } });
+    console.log(`[MateriaPrima Toggle] Verificação pós-save:`, verificacao);
+    
+    console.log(`[MateriaPrima Toggle] ✅ Produto ${num} (${produto.produto}) ${produto.ativo ? 'ATIVADO' : 'DESATIVADO'}`);
+    
+    return res.json({ 
+      success: true, 
+      num: produto.num,
+      produto: produto.produto,
+      ativo: produto.ativo 
+    });
+  } catch (e: any) {
+    console.error("Failed to toggle materia prima status", e);
+    return res.status(500).json({ error: e?.message || "Erro ao alternar status" });
+  }
+});
+
+// Reativar todos os produtos (resetar para padrão)
+app.post("/api/materiaprima/reset-all", async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    
+    console.log('[MateriaPrima Reset] Reativando todos os produtos...');
+    
+    const repo = AppDataSource.getRepository(MateriaPrima);
+    
+    // Buscar todos os produtos e atualizar um por um
+    const allProducts = await repo.find();
+    
+    for (const product of allProducts) {
+      product.ativo = true;
+      await repo.save(product);
+    }
+    
+    // Invalidar cache
+    invalidateMateriaPrimaCache();
+    
+    console.log(`[MateriaPrima Reset] ✅ ${allProducts.length} produtos reativados`);
+    
+    return res.json({ 
+      success: true, 
+      total: allProducts.length,
+      message: `${allProducts.length} produtos reativados com sucesso` 
+    });
+  } catch (e: any) {
+    console.error("Failed to reset products", e);
+    return res.status(500).json({ error: e?.message || "Erro ao resetar produtos" });
   }
 });
 
@@ -430,6 +566,39 @@ app.get("/api/db/status", async (req, res) => {
       isInitialized: AppDataSource.isInitialized,
       ts: new Date().toISOString(),
     });
+  }
+});
+
+// Synchronize database schema (add missing columns)
+app.post("/api/db/sync-schema", async (req, res) => {
+  try {
+    await dbService.init();
+    
+    // Forçar adição da coluna 'ativo' na tabela materia_prima se não existir
+    const queryRunner = AppDataSource.createQueryRunner();
+    await queryRunner.connect();
+    
+    try {
+      // Verificar se a coluna existe
+      const table = await queryRunner.getTable('materia_prima');
+      const ativoColumn = table?.columns.find(col => col.name === 'ativo');
+      
+      if (!ativoColumn) {
+        console.log('[sync-schema] Coluna "ativo" não existe, adicionando...');
+        await queryRunner.query(`ALTER TABLE materia_prima ADD COLUMN ativo TINYINT(1) DEFAULT 1`);
+        console.log('[sync-schema] ✅ Coluna "ativo" adicionada com sucesso');
+      } else {
+        console.log('[sync-schema] Coluna "ativo" já existe');
+      }
+    } finally {
+      await queryRunner.release();
+    }
+    
+    await dbService.synchronizeSchema();
+    return res.json({ ok: true, message: "Schema synchronized successfully" });
+  } catch (e: any) {
+    console.error("[api/db/sync-schema] error", e);
+    return res.status(500).json({ error: e?.message || "internal" });
   }
 });
 
@@ -1077,6 +1246,9 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     // Normalize product values according to MateriaPrima.measure (grams->kg)
     // OTIMIZAÇÃO: Usar cache em vez de consultar banco a cada request
     const materiasByNum = await getMateriaPrimaCache();
+    
+    // 🔍 Obter produtos ativos para filtrar inativos
+    const produtosAtivos = await getProdutosAtivos();
 
     // OTIMIZAÇÃO: Pré-alocar arrays com tamanho fixo
     const mappedRows = rows.map((row: any) => {
@@ -1093,6 +1265,11 @@ app.get("/api/relatorio/paginate", async (req, res) => {
             ? Number(prodValue)
             : 0;
         const materia = materiasByNum[i];
+        
+        // ⚠️ FILTRO: Se produto está inativo, zerar valor
+        if (!produtosAtivos.has(i)) {
+          v = 0;
+        }
         
         // Garantir que não há valores negativos (dados corrompidos)
         if (v < 0) v = 0;
@@ -2662,6 +2839,10 @@ app.get("/api/chartdata/formulas", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
+    // Filtrar produtos inativos
+    const produtosAtivos = await getProdutosAtivos();
+    console.log(`[chartdata/formulas] Produtos ativos: ${produtosAtivos.size}`);
+
     // Agregar por fórmula (Nome) using per-row normalized total (kg)
     const sums: Record<string, number> = {};
     const validCount: Record<string, number> = {};
@@ -2673,6 +2854,9 @@ app.get("/api/chartdata/formulas", async (req, res) => {
       // compute row total normalized to kg
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
+        // Ignorar produtos inativos
+        if (!produtosAtivos.has(i)) continue;
+
         let raw =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
@@ -2780,12 +2964,19 @@ app.get("/api/chartdata/produtos", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
+    // Filtrar produtos inativos
+    const produtosAtivos = await getProdutosAtivos();
+    console.log(`[chartdata/produtos] Produtos ativos: ${produtosAtivos.size}`);
+
     // Agregar por produto (Prod_1, Prod_2, etc.)
     const productSums: Record<string, number> = {};
     const productUnits: Record<string, string> = {};
 
     for (const r of rows) {
       for (let i = 1; i <= 40; i++) {
+        // Ignorar produtos inativos
+        if (!produtosAtivos.has(i)) continue;
+
         let v =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
@@ -2896,6 +3087,10 @@ app.get("/api/chartdata/horarios", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
+    // Filtrar produtos inativos
+    const produtosAtivos = await getProdutosAtivos();
+    console.log(`[chartdata/horarios] Produtos ativos: ${produtosAtivos.size}`);
+
     // Agregar por hora (0h-23h) using normalized per-row total (kg)
     const hourSums: Record<string, number> = {};
     const hourCounts: Record<string, number> = {};
@@ -2908,6 +3103,9 @@ app.get("/api/chartdata/horarios", async (req, res) => {
       // compute row total normalized to kg
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
+        // Ignorar produtos inativos
+        if (!produtosAtivos.has(i)) continue;
+
         const raw =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
@@ -3009,6 +3207,10 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
+    // Filtrar produtos inativos
+    const produtosAtivos = await getProdutosAtivos();
+    console.log(`[chartdata/diasSemana] Produtos ativos: ${produtosAtivos.size}`);
+
     // Helper para parsear datas
     const parseDia = (dia?: string): Date | null => {
       if (!dia) return null;
@@ -3048,6 +3250,9 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
       // compute row total normalized to kg
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
+        // Ignorar produtos inativos
+        if (!produtosAtivos.has(i)) continue;
+
         const raw =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
@@ -4482,6 +4687,28 @@ fileProcessorService.addObserver({
 (async () => {
   try {
     await ensureDatabaseConnection();
+    
+    // 🔧 Garantir que a coluna 'ativo' existe na tabela materia_prima
+    try {
+      const queryRunner = AppDataSource.createQueryRunner();
+      await queryRunner.connect();
+      
+      try {
+        const table = await queryRunner.getTable('materia_prima');
+        const ativoColumn = table?.columns.find(col => col.name === 'ativo');
+        
+        if (!ativoColumn) {
+          console.log('[Startup] Adicionando coluna "ativo" na tabela materia_prima...');
+          await queryRunner.query(`ALTER TABLE materia_prima ADD COLUMN ativo TINYINT(1) DEFAULT 1`);
+          console.log('[Startup] ✅ Coluna "ativo" adicionada');
+        }
+      } finally {
+        await queryRunner.release();
+      }
+    } catch (e) {
+      console.warn('[Startup] Erro ao verificar/adicionar coluna "ativo":', e);
+    }
+    
     const all = await configService.getAllSettings();
     setRuntimeConfigs(all);
     console.log(

@@ -16,7 +16,7 @@ interface TableComponentProps {
   error?: string | null;
   page?: number;
   pageSize?: number;
-  produtosInfo?: Record<string, { nome?: string; unidade?: string; num?: number }>;
+  produtosInfo?: Record<string, { nome?: string; unidade?: string; num?: number; ativo?: boolean }>;
   useExternalData?: boolean;
   onResetColumnsReady?: (resetFn: () => void) => void;
   sortBy?: string;
@@ -256,8 +256,15 @@ export function TableComponent({
   const dynamicColumns = React.useMemo(() => {
     if (!dados?.length) return [];
     const maxValues = Math.max(...dados.map((row) => row.values?.length || 0));
-    return Array.from({ length: maxValues }, (_, i) => `col${6 + i}`);
-  }, [dados]);
+    const allCols = Array.from({ length: maxValues }, (_, i) => `col${6 + i}`);
+    
+    // ⚠️ FILTRO: Remover produtos inativos
+    return allCols.filter(colKey => {
+      const info = produtosInfo[colKey];
+      // Se ativo é undefined ou true, mostrar. Se false, ocultar
+      return info?.ativo !== false;
+    });
+  }, [dados, produtosInfo]);
 
   // ================
   // FORMATAÇÃO

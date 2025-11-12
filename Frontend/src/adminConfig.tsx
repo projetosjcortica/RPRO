@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
+import { Switch } from "./components/ui/switch";
 import {
   AlertDialog,
   AlertDialogTrigger,
@@ -27,6 +28,9 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
   });
   // Estado para controlar se o formulário está em modo de edição
   const [isEditing, setIsEditing] = useState(false);
+  
+  // Estado para features experimentais
+  const [experimentalFeatures, setExperimentalFeatures] = useState(false);
 
   // Local alias to the Electron preload API. Typed as any so callers don't error when optional.
   const electronAPI: any = (window as any).electronAPI;
@@ -41,6 +45,11 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
           setFormData(savedData);
         }
         
+        // Carregar estado das features experimentais
+        const expFeaturesStr = localStorage.getItem('experimental-features');
+        if (expFeaturesStr) {
+          setExperimentalFeatures(expFeaturesStr === 'true');
+        }
 
       } catch (error) {
         console.error("Erro ao carregar dados:", error);
@@ -86,6 +95,21 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
     setIsEditing(false);
   };
 
+  const handleToggleExperimental = (checked: boolean) => {
+    setExperimentalFeatures(checked);
+    localStorage.setItem('experimental-features', String(checked));
+    
+    // Disparar evento para notificar outras telas
+    window.dispatchEvent(new CustomEvent('experimental-features-changed', { 
+      detail: { enabled: checked } 
+    }));
+    
+    toast.info(checked 
+      ? '🧪 Funcionalidades experimentais ATIVADAS' 
+      : '🔒 Funcionalidades experimentais DESATIVADAS'
+    );
+  };
+
   // Export handler: triggers XLSX download from backend (no prompts)
   const handleExportExcel = async () => {
     try {
@@ -125,6 +149,25 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
   return (
     <div id="adm" className="flex flex-col gap-4 bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">Configurações Administrativas</h2>
+
+      {/* Funcionalidades Experimentais - TOPO */}
+      <div className="mb-6 p-4 border-2 border-yellow-400 rounded-lg bg-yellow-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="font-medium text-gray-900 text-base">
+              🧪 Funcionalidades Experimentais
+            </Label>
+            <p className="text-sm text-gray-600 mt-1">
+              Habilita recursos em teste (ignorar produtos, botões de reset)
+            </p>
+          </div>
+          <Switch
+            checked={experimentalFeatures}
+            onCheckedChange={handleToggleExperimental}
+            className="data-[state=checked]:bg-yellow-600"
+          />
+        </div>
+      </div>
 
       <div id="CfgAdvancedDB" className="my-4">
         <div className="dir flex flex-col gap-5">
