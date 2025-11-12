@@ -362,28 +362,33 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
       <div className="w-full h-full flex flex-col">
         <div className="flex justify-between items-center ml-4 mb-6 mt-3">
           <h2 className="text-2xl md:text-3xl font-semibold">Editar Produtos</h2>
-          
-          <div className="flex gap-2 mr-4">
-            <Button
-              onClick={handleResetUnitsToKg}
-              disabled={resettingUnits}
-              variant="outline"
-              className="border-blue-600 text-blue-700 hover:bg-blue-50 hover:border-blue-700"
-            >
-              {resettingUnits ? (
-                <>
-                  <span className="animate-spin mr-2">⏳</span>
-                  Resetando...
-                </>
-              ) : (
-                <>
-                  <Scale className="mr-2 h-4 w-4" />
-                  Resetar Unidades para KG
-                </>
-              )}
-              </Button>
+           
+            <div className="flex gap-2 mr-4">
+              
+              {/* botao reseta todos para kg */}
 
-              <Button
+              {/* <Button
+                onClick={handleResetUnitsToKg}
+                disabled={resettingUnits}
+                variant="outline"
+                className="border-blue-600 text-blue-700 hover:bg-blue-50 hover:border-blue-700"
+              >
+                {resettingUnits ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Resetando...
+                  </>
+                ) : (
+                  <>
+                    <Scale className="mr-2 h-4 w-4" />
+                    Resetar Unidades para KG
+                  </>
+                )}
+              </Button> */}
+
+                {/* botao reseta todos para visivel */}
+
+              {/* <Button
                 onClick={handleResetAll}
                 disabled={resettingAll}
                 variant="outline"
@@ -397,11 +402,11 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                 ) : (
                   <>
                     <Eye className="mr-2 h-4 w-4" />
-                  Reativar Todos os Produtos
-                </>
-              )}
-            </Button>
-          </div>
+                    Reativar Todos os Produtos
+                  </>
+                )}
+              </Button> */}
+            </div> 
         </div>
       
       <div className="overflow-auto flex-1 min-h-0 thin-red-scrollbar">
