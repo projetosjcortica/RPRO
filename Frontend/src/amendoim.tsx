@@ -429,9 +429,12 @@ export default function Amendoim() {
       if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
       
       // Adicionar tipo se não estiver no modo comparativo
+      // No modo comparativo, não enviamos o tipo para buscar entrada E saída
       if (viewMode !== 'comparativo') {
         params.set('tipo', viewMode);
       }
+      
+      console.log('[Amendoim] fetchRegistros - ViewMode:', viewMode, '| Tipo enviado:', viewMode !== 'comparativo' ? viewMode : 'ambos');
 
       // Adicionar ordenação
       if (sortColumn) {
@@ -540,11 +543,15 @@ export default function Amendoim() {
 
   // Recarregar dados quando filtros, página, modo ou ordenação mudarem
   useEffect(() => {
+    console.log('[Amendoim] useEffect triggered - ViewMode:', viewMode, '| Page:', page);
     fetchRegistros();
     fetchEstatisticas();
     fetchDadosAnalise(); // Carregar dados de análise sempre
     if (viewMode === 'comparativo') {
+      console.log('[Amendoim] Modo comparativo - buscando métricas de rendimento');
       fetchMetricasRendimento();
+    } else {
+      console.log('[Amendoim] Modo', viewMode, '- não busca métricas de rendimento');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, filtrosAtivos, viewMode, sortColumn, sortDirection]);
@@ -555,17 +562,35 @@ export default function Amendoim() {
   function detailedRows(items: AmendoimRecord[]) {
     return (
       <div>
-        {items.map((r) => (
-          <div key={r.id} className={`flex items-center border-y ${r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-            <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.dia}px`, minWidth: `${columnWidths.dia}px` }}>{formatDate(r.dia)}</div>
-            <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.hora}px`, minWidth: `${columnWidths.hora}px` }}>{r.hora}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.codigoProduto}px`, minWidth: `${columnWidths.codigoProduto}px` }}>{r.codigoProduto}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.balanca}px`, minWidth: `${columnWidths.balanca}px` }}>{r.balanca ?? '-'}</div>
-            <div className="border-x py-2 pl-2 flex justify-start" style={{ width: `${columnWidths.nomeProduto}px`, minWidth: `${columnWidths.nomeProduto}px`, overflow: 'hidden' }}>{r.nomeProduto}</div>
-            <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.peso}px`, minWidth: `${columnWidths.peso}px` }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
-            <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.tipo}px`, minWidth: `${columnWidths.tipo}px` }}>{r.tipo}</div>
-          </div>
-        ))}
+        {items.map((r) => {
+          // No modo comparativo, destacar entrada (verde claro) e saída (azul claro)
+          let bgColor = r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+          if (viewMode === 'comparativo') {
+            bgColor = r.tipo === 'entrada' 
+              ? (r.id % 2 === 0 ? 'bg-green-50' : 'bg-green-100')
+              : (r.id % 2 === 0 ? 'bg-blue-50' : 'bg-blue-100');
+          }
+          
+          return (
+            <div key={r.id} className={`flex items-center border-y ${bgColor}`}>
+              <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.dia}px`, minWidth: `${columnWidths.dia}px` }}>{formatDate(r.dia)}</div>
+              <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.hora}px`, minWidth: `${columnWidths.hora}px` }}>{r.hora}</div>
+              <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.codigoProduto}px`, minWidth: `${columnWidths.codigoProduto}px` }}>{r.codigoProduto}</div>
+              <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.balanca}px`, minWidth: `${columnWidths.balanca}px` }}>{r.balanca ?? '-'}</div>
+              <div className="border-x py-2 pl-2 flex justify-start" style={{ width: `${columnWidths.nomeProduto}px`, minWidth: `${columnWidths.nomeProduto}px`, overflow: 'hidden' }}>{r.nomeProduto}</div>
+              <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.peso}px`, minWidth: `${columnWidths.peso}px` }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
+              <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.tipo}px`, minWidth: `${columnWidths.tipo}px` }}>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  r.tipo === 'entrada' 
+                    ? 'bg-green-600 text-white' 
+                    : 'bg-blue-600 text-white'
+                }`}>
+                  {r.tipo}
+                </span>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -799,6 +824,21 @@ export default function Amendoim() {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg">
               {error}
+            </div>
+          )}
+
+          {/* Legenda para modo comparativo */}
+          {viewMode === 'comparativo' && registros.length > 0 && (
+            <div className="flex items-center justify-center gap-4 py-2 px-4 bg-gray-100 border border-gray-300 rounded-lg">
+              <span className="text-xs font-medium text-gray-600">Legenda:</span>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-4 bg-green-100 border border-green-300 rounded"></div>
+                <span className="text-xs font-medium">Entrada</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-4 bg-blue-100 border border-blue-300 rounded"></div>
+                <span className="text-xs font-medium">Saída</span>
+              </div>
             </div>
           )}
 

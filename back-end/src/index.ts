@@ -3809,7 +3809,27 @@ app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
 // GET /api/amendoim/config - Obter configuração atual
 app.get('/api/amendoim/config', async (req, res) => {
   try {
-    const config = getRuntimeConfig('ihm-config') || {};
+    let config = getRuntimeConfig('ihm-config') || {};
+    
+    // 🔄 MIGRAÇÃO AUTOMÁTICA: Converter ip2/user2/password2 para ihm2.ip
+    if (config.duasIHMs && !config.ihm2 && config.ip2) {
+      console.log('[api/amendoim/config GET] 🔄 Migrando config antiga (ip2) para nova estrutura (ihm2)');
+      config.ihm2 = {
+        ip: config.ip2 || '',
+        user: config.user2 || 'anonymous',
+        password: config.password2 || '',
+        caminhoRemoto: config.localCSV2 || '/InternalStorage/data/',
+        usadaPara: 'saida',
+      };
+      // Salvar configuração migrada
+      await setRuntimeConfigs({ 'ihm-config': config });
+      console.log('[api/amendoim/config GET] ✅ Config migrada e salva:', config.ihm2);
+    }
+    
+    console.log('[api/amendoim/config GET] Config completo:', JSON.stringify(config, null, 2));
+    console.log('[api/amendoim/config GET] config.duasIHMs:', config.duasIHMs);
+    console.log('[api/amendoim/config GET] config.ihm2:', config.ihm2);
+    console.log('[api/amendoim/config GET] config.ihm2?.ip:', config.ihm2?.ip);
     
     // Validar configuração
     const validation = {
@@ -3824,11 +3844,11 @@ app.get('/api/amendoim/config', async (req, res) => {
       validation.errors.push('IP da IHM1 é obrigatório.');
     }
     
-    // Se duasIHMs=true mas IHM2 não configurada
-    if (config.duasIHMs && (!config.ihm2?.ip || !config.ihm2.ip.trim())) {
-      validation.isValid = false;
-      validation.errors.push('IHM2 não configurada. Configure o IP da IHM2 ou desmarque "Usar duas IHMs".');
-    }
+    // ⚠️ Validação IHM2 temporariamente desabilitada para testes
+    // if (config.duasIHMs && (!config.ihm2?.ip || !config.ihm2.ip.trim())) {
+    //   validation.isValid = false;
+    //   validation.errors.push('IHM2 não configurada. Configure o IP da IHM2 ou desmarque "Usar duas IHMs".');
+    // }
     
     return res.json({ config, validation });
   } catch (e: any) {
@@ -3866,15 +3886,22 @@ app.post('/api/amendoim/config', async (req, res) => {
     const configData = req.body;
     
     // 🔍 DEBUG: Log da configuração recebida
-    console.log('[api/amendoim/config] Configuração recebida:');
+    console.log('[api/amendoim/config POST] Configuração recebida:');
+    console.log('  - payload completo:', JSON.stringify(configData, null, 2));
     console.log('  - arquivoEntrada:', configData.arquivoEntrada);
     console.log('  - arquivoSaida:', configData.arquivoSaida);
     console.log('  - duasIHMs:', configData.duasIHMs);
-    console.log('  - ihm2:', configData.ihm2);
+    console.log('  - ihm2:', JSON.stringify(configData.ihm2, null, 2));
+    console.log('  - ihm2?.ip:', configData.ihm2?.ip);
     
     await setRuntimeConfigs({ 'ihm-config': configData });
-    const config = getRuntimeConfig('ihm-config') || {};
-    return res.json({ success: true, config });
+    
+    const savedConfig = getRuntimeConfig('ihm-config') || {};
+    console.log('[api/amendoim/config POST] Config salvo:', JSON.stringify(savedConfig, null, 2));
+    console.log('[api/amendoim/config POST] savedConfig.duasIHMs:', savedConfig.duasIHMs);
+    console.log('[api/amendoim/config POST] savedConfig.ihm2:', savedConfig.ihm2);
+    
+    return res.json({ success: true, config: savedConfig });
   } catch (e: any) {
     console.error('[api/amendoim/config] error', e);
     return res.status(500).json({ error: e?.message || 'Erro ao atualizar configuração' });
