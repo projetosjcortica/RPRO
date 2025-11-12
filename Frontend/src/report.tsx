@@ -1675,7 +1675,7 @@ export default function Report() {
                         onMouseLeave={() => setHighlightProduto(null)}
                         className="hover:bg-gray-50 cursor-default border-b even:bg-gray-100/100"
                       >
-                        <TableCell className="px-3 text-xs text-gray-700 text-md text-right textborder-r">
+                        <TableCell className="px-3 text-xs text-gray-700 text-md text-right border textborder-r">
                           <div
                             className="truncate"
                             title={produto.nome}

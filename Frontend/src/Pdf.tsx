@@ -14,7 +14,7 @@ Font.register({
 const styles = StyleSheet.create({
   page: {
     padding: 18,
-    paddingBottom: 18, // espaço para o rodapé reduzido
+    paddingBottom: 18,
     fontSize: 12,
     fontFamily: "Roboto",
     color: "#333",
@@ -22,8 +22,11 @@ const styles = StyleSheet.create({
     flexDirection: "column",
   },
   header: {
+    
+    display: "flex",
     flexDirection: "row",
-    alignItems: "flex-start",
+    justifyContent:"center",
+    alignItems: "center",
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: 20,
@@ -39,7 +42,7 @@ const styles = StyleSheet.create({
   },
   titleContainer: { flex: 1 },
   // ensure title can wrap under logo when space is constrained
-  titleWrapper: { flexGrow: 1, minWidth: 100, display:"flex", justifyContent:"center", marginTop:25 },
+  titleWrapper: { flexGrow: 1, minWidth: 100, display:"flex", justifyContent:"center"},
   title: { fontSize: 24, fontWeight: "bold", color: "#af1e1eff", marginBottom: 4 },
   subtitle: { fontSize: 14, color: "#6f6f6fff", marginTop: 4, marginBottom: 5 },
   section: { marginBottom: 0, flexDirection: "column" },
@@ -101,12 +104,12 @@ const styles = StyleSheet.create({
   // Chart styles
   chartSection: { marginBottom: 15 },
   chartRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, paddingVertical: 4 },
-  chartLabel: { width: '25%', fontSize: 10, color: '#374151', paddingRight: 4 },
+  chartLabel: { width: '25%', fontSize: 10, paddingRight: 4 },
   // increased container/bar heights so bars are clearly visible when rendered to PDF/print
-  chartBarContainer: { width: '45%', height: 16, backgroundColor: '#e6e7ea', borderRadius: 4, overflow: 'hidden', marginRight: 6 },
+  chartBarContainer: { width: '52%', height: 16, backgroundColor: '#e6e7ea', borderRadius: 4, overflow: 'hidden', marginRight: 6 },
   chartBarFill: { height: 14, backgroundColor: '#af1e1eff', borderRadius: 4 },
-  chartValue: { width: '20%', fontSize: 10, textAlign: 'right', color: '#374151', paddingRight: 2 },
-  chartPercent: { width: '15%', fontSize: 10, textAlign: 'right', color: '#6b7280' },
+  chartValue: { width: '20%', fontSize: 10, textAlign: 'right', paddingRight: 2 },
+  chartPercent: { width: '7%', fontSize: 10, textAlign: 'right', color: '#6b7280' },
   // donut
   donutContainer: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   donutBox: { width: '35%', alignItems: 'center', justifyContent: 'center' },
@@ -285,7 +288,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // Reserve a modest space on the first page for header/metadata so the
   // first chunk is larger than before and continuations are fuller.
   const reserveForHeaderAndInfo = 20; // estimated rows taken by header/other content
-  const firstChunkSize = Math.max(12, rowsPerPage - reserveForHeaderAndInfo);
+  const firstChunkSize = Math.max(11, rowsPerPage - reserveForHeaderAndInfo);
 
   const formulaChunks: typeof formulasOrdenadas[] = [];
   if (formulasOrdenadas.length > 0) {
@@ -627,8 +630,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <View style={styles.table}>
         {/* header as first row inside the table so it flows with pages */}
         <View style={[styles.tableRow, styles.tableHeaderRow]}>
-          <Text style={[{ width: '70%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151', padding: 8 }]}>Nome</Text>
-          <Text style={[{ width: '30%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#374151', textAlign: 'right', padding: 8 }]}>Total</Text>
+          <Text style={[{ width: '80%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#af1e1eff', padding: 8, paddingTop: 14 }]}>Nome</Text>
+          <Text style={[{ width: '20%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#af1e1eff', textAlign: 'right', padding: 8,paddingTop: 14, borderLeftWidth:1, borderLeftColor: '#d1d5db' }]}>Total</Text>
         </View>
         {rows.map((row, i) => {
           const { col1, col2 } = keyMapper(row);
@@ -636,9 +639,9 @@ export const MyDocument: FC<MyDocumentProps> = ({
             <View
               key={i}
               style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
-            >
-              <Text style={[styles.tableCol, { fontSize: currentFontSizes.table }]}>{col1}</Text>
-              <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{col2}</Text>
+     >
+              <Text style={[styles.tableCol,  { width: '80%',paddingTop:8,fontSize: currentFontSizes.table }]}>{col1}</Text>
+              <Text style={[styles.tableColSmall,  { width: '20%',paddingTop:8, borderLeftColor:'#d1d5db', borderLeftWidth:1, fontSize: currentFontSizes.table }]}>{col2}</Text>
             </View>
           );
         })}
@@ -655,17 +658,17 @@ export const MyDocument: FC<MyDocumentProps> = ({
         <Text style={[{ width: "6%" , borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Cód</Text>
         <Text style={[{ width: "59%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
         <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Batidas</Text>
-        <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Total</Text>
+        <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", textAlign:"right" }, { fontSize: currentFontSizes.table }]}>Total</Text>
       </View>
       {formulas.map((f, i) => (
         <View
           key={i}
           style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
         >
-          <Text style={[{ width: "6%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6 }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
-          <Text style={[{ width: "59%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
-          <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
-          <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, textAlign: "right" }, { fontSize: currentFontSizes.table }]}>
+          <Text style={[{ width: "6%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop:9,}, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
+          <Text style={[{ width: "59%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
+          <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
+          <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,textAlign: "right" }, { fontSize: currentFontSizes.table }]}>
             {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
           </Text>
         </View>
