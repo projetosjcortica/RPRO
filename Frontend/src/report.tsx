@@ -1288,8 +1288,8 @@ export default function Report() {
             Produtos
           </Button>
         </div>
-        <div className="flex flex-col items-end justify-end gap-2">
-          <div className="flex flex-row items-end gap-1">
+        <div className="flex flex-col items-end justify-end gap-1">
+          <div className="flex flex-row items-end gap-1 3xl:gap-0">
             <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
             <Button
               onClick={handleCollectorToggle}
@@ -1309,11 +1309,11 @@ export default function Report() {
                 <Play className="h-4 w-4" />
               )}
               {collectorLoading ? (
-                <p className="hidden 3xl:flex">Processando...</p>
+                <p className="md:flex 2xl:hidden 3xl:flex">Processando...</p>
               ) : collectorRunning ? (
-                <p className="hidden 3xl:flex"> Parar coleta</p>
+                <p className="md:flex 2xl:hidden 3xl:flex"> Parar coleta</p>
               ) : (
-                <p className="hidden 3xl:flex">Iniciar coleta</p>
+                <p className="md:flex 2xl:hidden 3xl:flex">Iniciar coleta</p>
               )}
             </Button>
           </div>
@@ -1733,7 +1733,7 @@ export default function Report() {
                             {produto.nome}
                           </div>
                         </TableCell>
-                        <TableCell className="px-3  text-xs text-gray-700 text-md text-right">
+                        <TableCell className="px-3  text-xs text-gray-700 text-md text-right border">
                           <div
                             className="truncate"
                           >
@@ -1807,7 +1807,7 @@ export default function Report() {
                       onMouseLeave={() => setHighlightFormula(null)}
                       className="hover:bg-gray-50 cursor-default border-b even:bg-gray-50/50"
                     >
-                      <TableCell className="px-3 text-md text-gray-700 border-r text-right">
+                      <TableCell className="px-3 text-md text-gray-700 border-r text-right border">
                         <div
                           className="truncate"
                           title={f.nome}
@@ -1815,7 +1815,7 @@ export default function Report() {
                           {f.nome}
                         </div>
                       </TableCell>
-                      <TableCell className="px-3 text-md text-gray-700 text-right">
+                      <TableCell className="px-3 text-md text-gray-700 text-right border">
                         <div
                           className="truncate"
                         >
