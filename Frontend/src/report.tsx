@@ -134,7 +134,7 @@ export default function Report() {
 
   const [colLabels, setColLabels] = useState<{ [key: string]: string }>({});
   const [produtosInfo, setProdutosInfo] = useState<
-    Record<string, { nome?: string; unidade?: string; num?: number }>
+    Record<string, { nome?: string; unidade?: string; num?: number; ativo?: boolean }>
   >({});
   const [view, setView] = useState<"table" | "product">("table");
   // Drawer de gráficos (atrás do sideinfo)

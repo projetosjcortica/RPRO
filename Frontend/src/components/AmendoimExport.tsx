@@ -70,8 +70,8 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
-  // Estados para filtros do Excel (simplificados: tipo + período)
-  const [tipo, setTipo] = useState(filtros.tipo || "todos");
+  // Estados para filtros do Excel - tipo sempre é "todos" (sem seleção)
+  const tipo = "todos";
   
   // DateRange para Excel modal
   const [excelDateRange, setExcelDateRange] = useState<DateRange | undefined>(() => {
@@ -115,8 +115,6 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
   // Keep filter inputs in sync if parent `filtros` prop changes (report applies filters)
   useEffect(() => {
-    setTipo(filtros.tipo || "todos");
-    
     if (filtros.dataInicio || filtros.dataFim) {
       setExcelDateRange({
         from: filtros.dataInicio ? parse(filtros.dataInicio, "yyyy-MM-dd", new Date()) : undefined,
@@ -152,6 +150,8 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
       if (codigoCaixa) params.append("codigoCaixa", codigoCaixa);
 
       const url = `${base}/api/amendoim/exportExcel?${params.toString()}`;
+      console.log('[AmendoimExport] 🔍 URL Exportação:', url);
+      console.log('[AmendoimExport] 📅 Período:', { dataInicio: excelDateRange?.from, dataFim: excelDateRange?.to });
 
       toast.loading("Exportando para Excel...");
 
@@ -325,19 +325,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select value={tipo} onValueChange={setTipo}>
-                <SelectTrigger id="tipo">
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="entrada">Entrada</SelectItem>
-                  <SelectItem value="saida">Saída</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Tipo sempre é "todos" - não há seletor */}
 
             <div className="grid gap-2">
               <Label>Período</Label>

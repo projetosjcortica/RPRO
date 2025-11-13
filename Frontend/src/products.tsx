@@ -3,7 +3,7 @@ import { Input } from "./components/ui/input";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
 import { Button } from "./components/ui/button";
-import { Eye, EyeOff, Scale } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 
 interface ProductsProps {
   colLabels: { [key: string]: string };
@@ -16,8 +16,8 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   const [unidades, setUnidades] = useState<{ [key: string]: string }>({});
   const [produtosAtivos, setProdutosAtivos] = useState<{ [key: string]: boolean }>({});
   const [togglingProduct, setTogglingProduct] = useState<string | null>(null);
-  const [resettingAll, setResettingAll] = useState(false);
-  const [resettingUnits, setResettingUnits] = useState(false);
+  // const [resettingAll, setResettingAll] = useState(false);
+  // const [resettingUnits, setResettingUnits] = useState(false);
 
   // Constantes
   const START_COL = 6;
@@ -231,130 +231,130 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     }
   };
 
-  const handleResetAll = async () => {
-    if (!confirm('Deseja realmente REATIVAR todos os produtos? Esta ação não pode ser desfeita.')) {
-      return;
-    }
+  // const handleResetAll = async () => {
+  //   if (!confirm('Deseja realmente REATIVAR todos os produtos? Esta ação não pode ser desfeita.')) {
+  //     return;
+  //   }
 
-    setResettingAll(true);
+  //   setResettingAll(true);
     
-    try {
-      console.log('[products] Reativando todos os produtos...');
+  //   try {
+  //     console.log('[products] Reativando todos os produtos...');
       
-      const response = await fetch('http://localhost:3000/api/materiaprima/reset-all', {
-        method: 'POST',
-      });
+  //     const response = await fetch('http://localhost:3000/api/materiaprima/reset-all', {
+  //       method: 'POST',
+  //     });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao reativar produtos');
-      }
+  //     if (!response.ok) {
+  //       const error = await response.json();
+  //       throw new Error(error.error || 'Erro ao reativar produtos');
+  //     }
 
-      const result = await response.json();
-      console.log('[products] Resultado do reset:', result);
+  //     const result = await response.json();
+  //     console.log('[products] Resultado do reset:', result);
 
-      // Atualizar estado local - todos como ativos
-      const todosAtivos: { [key: string]: boolean } = {};
-      for (let i = START_COL; i <= END_COL; i++) {
-        todosAtivos[`col${i}`] = true;
-      }
-      setProdutosAtivos(todosAtivos);
+  //     // Atualizar estado local - todos como ativos
+  //     const todosAtivos: { [key: string]: boolean } = {};
+  //     for (let i = START_COL; i <= END_COL; i++) {
+  //       todosAtivos[`col${i}`] = true;
+  //     }
+  //     setProdutosAtivos(todosAtivos);
 
-      // Notificar listeners
-      window.dispatchEvent(new CustomEvent('produtos-updated', { 
-        detail: { resetAll: true, immediate: true } 
-      }));
+  //     // Notificar listeners
+  //     window.dispatchEvent(new CustomEvent('produtos-updated', { 
+  //       detail: { resetAll: true, immediate: true } 
+  //     }));
 
-      alert(`✅ ${result.total} produtos reativados com sucesso!`);
-      console.log(`[products] ✅ Reset completo: ${result.total} produtos reativados`);
+  //     alert(`✅ ${result.total} produtos reativados com sucesso!`);
+  //     console.log(`[products] ✅ Reset completo: ${result.total} produtos reativados`);
 
-    } catch (e) {
-      console.error('[products] Erro ao reativar produtos:', e);
-      alert(`Erro ao reativar: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setResettingAll(false);
-    }
-  };
+  //   } catch (e) {
+  //     console.error('[products] Erro ao reativar produtos:', e);
+  //     alert(`Erro ao reativar: ${e instanceof Error ? e.message : String(e)}`);
+  //   } finally {
+  //     setResettingAll(false);
+  //   }
+  // };
 
-  const handleResetUnitsToKg = async () => {
-    if (!confirm('Deseja realmente RESETAR todas as unidades para KG? Esta ação não pode ser desfeita.')) {
-      return;
-    }
+  // const handleResetUnitsToKg = async () => {
+  //   if (!confirm('Deseja realmente RESETAR todas as unidades para KG? Esta ação não pode ser desfeita.')) {
+  //     return;
+  //   }
 
-    setResettingUnits(true);
+  //   setResettingUnits(true);
     
-    try {
-      console.log('[products] Resetando todas as unidades para kg...');
+  //   try {
+  //     console.log('[products] Resetando todas as unidades para kg...');
       
-      // Atualizar localStorage
-      if (typeof window !== "undefined") {
-        const raw = localStorage.getItem("produtosInfo");
-        let parsed: { [key: string]: { nome: string; unidade: string } } = {};
+  //     // Atualizar localStorage
+  //     if (typeof window !== "undefined") {
+  //       const raw = localStorage.getItem("produtosInfo");
+  //       let parsed: { [key: string]: { nome: string; unidade: string } } = {};
         
-        if (raw) {
-          try {
-            const p = JSON.parse(raw);
-            if (p && typeof p === 'object' && !Array.isArray(p)) {
-              parsed = p as any;
-            }
-          } catch (e) {
-            console.warn('[products] Erro ao parsear produtosInfo', e);
-          }
-        }
+  //       if (raw) {
+  //         try {
+  //           const p = JSON.parse(raw);
+  //           if (p && typeof p === 'object' && !Array.isArray(p)) {
+  //             parsed = p as any;
+  //           }
+  //         } catch (e) {
+  //           console.warn('[products] Erro ao parsear produtosInfo', e);
+  //         }
+  //       }
 
-        // Atualizar todas as unidades para kg
-        for (let i = START_COL; i <= END_COL; i++) {
-          const key = `col${i}`;
-          if (parsed[key]) {
-            parsed[key].unidade = 'kg';
-          } else {
-            parsed[key] = {
-              nome: `Produto ${i - 5}`,
-              unidade: 'kg'
-            };
-          }
-        }
+  //       // Atualizar todas as unidades para kg
+  //       for (let i = START_COL; i <= END_COL; i++) {
+  //         const key = `col${i}`;
+  //         if (parsed[key]) {
+  //           parsed[key].unidade = 'kg';
+  //         } else {
+  //           parsed[key] = {
+  //             nome: `Produto ${i - 5}`,
+  //             unidade: 'kg'
+  //           };
+  //         }
+  //       }
 
-        localStorage.setItem("produtosInfo", JSON.stringify(parsed));
-        console.log('[products] localStorage atualizado com unidades em kg');
+  //       localStorage.setItem("produtosInfo", JSON.stringify(parsed));
+  //       console.log('[products] localStorage atualizado com unidades em kg');
 
-        // Atualizar estado local
-        const novasUnidades: { [key: string]: string } = {};
-        for (let i = START_COL; i <= END_COL; i++) {
-          novasUnidades[`col${i}`] = 'kg';
-        }
-        setUnidades(novasUnidades);
+  //       // Atualizar estado local
+  //       const novasUnidades: { [key: string]: string } = {};
+  //       for (let i = START_COL; i <= END_COL; i++) {
+  //         novasUnidades[`col${i}`] = 'kg';
+  //       }
+  //       setUnidades(novasUnidades);
 
-        // Salvar no backend
-        const requests = [];
-        for (let i = START_COL; i <= END_COL; i++) {
-          const key = `col${i}`;
-          const num = i - 5;
-          const nome = parsed[key]?.nome || `Produto ${num}`;
+  //       // Salvar no backend
+  //       const requests = [];
+  //       for (let i = START_COL; i <= END_COL; i++) {
+  //         const key = `col${i}`;
+  //         const num = i - 5;
+  //         const nome = parsed[key]?.nome || `Produto ${num}`;
           
-          requests.push(
-            fetch(`http://localhost:3000/api/materiaprima/${num}`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ produto: nome, medida: 1 }), // medida 1 = kg
-            })
-          );
-        }
+  //         requests.push(
+  //           fetch(`http://localhost:3000/api/materiaprima/${num}`, {
+  //             method: "PATCH",
+  //             headers: { "Content-Type": "application/json" },
+  //             body: JSON.stringify({ produto: nome, medida: 1 }), // medida 1 = kg
+  //           })
+  //         );
+  //       }
 
-        await Promise.all(requests);
-        console.log('[products] Todas as unidades atualizadas no backend');
-      }
+  //       await Promise.all(requests);
+  //       console.log('[products] Todas as unidades atualizadas no backend');
+  //     }
 
-      alert(`✅ Todas as unidades resetadas para KG com sucesso!`);
-      console.log(`[products] ✅ Reset de unidades completo`);
+  //     alert(`✅ Todas as unidades resetadas para KG com sucesso!`);
+  //     console.log(`[products] ✅ Reset de unidades completo`);
 
-    } catch (e) {
-      console.error('[products] Erro ao resetar unidades:', e);
-      alert(`Erro ao resetar unidades: ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setResettingUnits(false);
-    }
-  };
+  //   } catch (e) {
+  //     console.error('[products] Erro ao resetar unidades:', e);
+  //     alert(`Erro ao resetar unidades: ${e instanceof Error ? e.message : String(e)}`);
+  //   } finally {
+  //     setResettingUnits(false);
+  //   }
+  // };
 
   const editableColumns = Array.from({ length: END_COL - START_COL + 1 }, (_, i) => `col${i + START_COL}`);
 

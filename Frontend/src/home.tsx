@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
 import { Popover, PopoverTrigger, PopoverContent } from "./components/ui/popover";
 import { Calendar } from "./components/ui/calendar";
 import { Button } from "./components/ui/button";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { pt } from "date-fns/locale";
 import {
@@ -133,6 +133,67 @@ export default function Home() {
     setWeeklyFilters({ dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd') });
   };
   const clearWeeklyFilters = () => handleWeeklyDateChange(undefined);
+
+  // Saídas por Produto: usar DatePicker shadcn com padrão últimos 30 dias
+  const [produtosDateRange, setProdutosDateRange] = useState<any>(() => {
+    const hoje = new Date();
+    const inicio = new Date();
+    // últimos 30 dias (inclui hoje)
+    inicio.setDate(hoje.getDate() - 29);
+    return { from: inicio, to: hoje };
+  });
+
+  const [produtosFilters, setProdutosFilters] = useState<any>(() => {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 29);
+    const fmt = (d: Date) => formatDate(d, 'yyyy-MM-dd');
+    return { dataInicio: fmt(inicio), dataFim: fmt(hoje) };
+  });
+
+  const handleProdutosDateChange = (range: any) => {
+    // Calendar onSelect can return a single Date, a range { from, to }, or undefined
+    if (!range) {
+      const hoje = new Date();
+      const inicio = new Date();
+      inicio.setDate(hoje.getDate() - 29);
+      setProdutosDateRange({ from: inicio, to: hoje });
+      return;
+    }
+
+    // If user clicked a single day, DayPicker may pass a Date object
+    if (range instanceof Date) {
+      setProdutosDateRange({ from: range, to: range });
+      return;
+    }
+
+    // If it's a range-like object, normalize to { from, to }
+    const from = range?.from || range?.start || null;
+    const to = range?.to || range?.end || null;
+    if (from && !to) {
+      setProdutosDateRange({ from, to: from });
+      return;
+    }
+    setProdutosDateRange({ from, to });
+  };
+
+  const applyProdutosFilters = () => {
+    if (produtosDateRange?.from) {
+      const start = formatDate(produtosDateRange.from, 'yyyy-MM-dd');
+      const end = produtosDateRange.to ? formatDate(produtosDateRange.to, 'yyyy-MM-dd') : start;
+      setProdutosFilters({ dataInicio: start, dataFim: end });
+    } else {
+      setProdutosFilters({ dataInicio: '', dataFim: '' });
+    }
+  };
+
+  const clearProdutosFilters = () => {
+    const hoje = new Date();
+    const inicio = new Date();
+    inicio.setDate(hoje.getDate() - 29);
+    setProdutosDateRange({ from: inicio, to: hoje });
+    setProdutosFilters({ dataInicio: formatDate(inicio, 'yyyy-MM-dd'), dataFim: formatDate(hoje, 'yyyy-MM-dd') });
+  };
 
   // Turnos (range simples: usar mesma lógica do horários por padrão)
   const [turnosDateRange, setTurnosDateRange] = useState<any>(() => {
@@ -754,7 +815,7 @@ export default function Home() {
                         }}
                         className="h-8 px-1.5"
                       >
-                        ←
+                         <ChevronLeft/>
                       </Button>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -806,7 +867,7 @@ export default function Home() {
                         }}
                         className="h-8 px-1.5"
                       >
-                           →
+                           <ChevronRight/>
                       </Button>
                     </div>
                   </div>
@@ -820,11 +881,74 @@ export default function Home() {
 
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
                 <CardHeader className="border-b border-gray-100 h-18 pt-2">
-                  <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto</CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto</CardTitle>
+                    <div className="flex items-center gap-1">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={"w-44 justify-start text-left font-normal " + (!produtosDateRange && "text-gray-400")}>
+                            {produtosDateRange?.from ? (
+                              produtosDateRange.to ? (
+                                <>{formatDate(produtosDateRange.from, 'dd/MM/yy')} - {formatDate(produtosDateRange.to, 'dd/MM/yy')}</>
+                              ) : (
+                                formatDate(produtosDateRange.from, 'dd/MM/yy')
+                              )
+                            ) : (
+                              <span>Período</span>
+                            )}
+                            <CalendarIcon className="ml-2 h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45}>
+                          <Calendar
+                            mode="range"
+                            locale={pt}
+                            defaultMonth={produtosDateRange?.from}
+                            selected={produtosDateRange}
+                            onSelect={handleProdutosDateChange}
+                            numberOfMonths={1}
+                          />
+                          <div className="flex gap-2 mt-2 px-1">
+                            <Button variant="outline" onClick={clearProdutosFilters} size="sm" className="flex-1">
+                              Limpar
+                            </Button>
+                            <Button onClick={applyProdutosFilters} size="sm" className="flex-1">
+                              Aplicar
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="pt-4 h-[calc(100%-60px)]">
                   <DonutChartWidget
-                    fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({ ...(weeklyFilters?.dataInicio && { dataInicio: weeklyFilters.dataInicio }), ...(weeklyFilters?.dataFim && { dataFim: weeklyFilters.dataFim }), tipo: 'saida' })}`}
+                    fetchUrl={(() => {
+                      // Build params but ensure single-day ranges include that day by expanding dataFim by +1 day
+                      const paramsObj: any = {};
+                      if (produtosFilters?.dataInicio) paramsObj.dataInicio = produtosFilters.dataInicio;
+                      if (produtosFilters?.dataFim) {
+                        // If same day, expand to next day to be inclusive in backend queries that treat end as exclusive
+                        if (produtosFilters.dataInicio && produtosFilters.dataInicio === produtosFilters.dataFim) {
+                          const parts = produtosFilters.dataFim.split('-').map(Number);
+                          if (parts.length === 3) {
+                            const d = new Date(parts[0], parts[1] - 1, parts[2]);
+                            d.setDate(d.getDate() + 1);
+                            const y = d.getFullYear();
+                            const m = String(d.getMonth() + 1).padStart(2, '0');
+                            const day = String(d.getDate()).padStart(2, '0');
+                            paramsObj.dataFim = `${y}-${m}-${day}`;
+                          } else {
+                            paramsObj.dataFim = produtosFilters.dataFim;
+                          }
+                        } else {
+                          paramsObj.dataFim = produtosFilters.dataFim;
+                        }
+                      }
+                      paramsObj.tipo = 'saida';
+                      const url = `http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams(paramsObj).toString()}`;
+                      return url;
+                    })()}
                     compact
                     unit="kg"
                   />

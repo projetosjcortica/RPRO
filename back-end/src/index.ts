@@ -4385,17 +4385,15 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
 
-    // Função para converter data de qualquer formato para DD-MM-YY
+    // Função para converter data YYYY-MM-DD para DD/MM/YY (formato do banco)
     const convertDateToDBFormat = (dateStr: string): string => {
       if (!dateStr) return dateStr;
-      // Se já está em formato DD-MM-YY com hífen, retornar como está
-      if (/^\d{2}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-      // Se está em formato DD/MM/YY com barra (formato do banco), converter para hífen
-      if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) return dateStr.replace(/\//g, '-');
-      // Converter YYYY-MM-DD para DD-MM-YY
+      // Se já está em formato DD/MM/YY com barra, retornar como está
+      if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) return dateStr;
+      // Converter YYYY-MM-DD para DD/MM/YY
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         const [year, month, day] = dateStr.split('-');
-        return `${day}-${month}-${year.slice(-2)}`;
+        return `${day}/${month}/${year.slice(-2)}`;
       }
       return dateStr;
     };
@@ -4420,17 +4418,25 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
     if (dataInicio) {
       const dataInicioDB = convertDateToDBFormat(dataInicio);
       console.log('[Excel Export GET] 📅 Conversão dataInicio:', { original: dataInicio, convertido: dataInicioDB });
-      qb.andWhere("a.dia >= :dataInicio", { dataInicio: dataInicioDB });
+      // Usar STR_TO_DATE para comparação cronológica, não lexicográfica
+      qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicioDB, '%d/%m/%y')", { dataInicioDB });
     }
     if (dataFim) {
       const dataFimDB = convertDateToDBFormat(dataFim);
       console.log('[Excel Export GET] 📅 Conversão dataFim:', { original: dataFim, convertido: dataFimDB });
-      qb.andWhere("a.dia <= :dataFim", { dataFim: dataFimDB });
+      // Usar STR_TO_DATE com < (exclusive) - comparar com próximo dia (dataFim + 1)
+      // DATE_ADD retorna DATE, então não precisa STR_TO_DATE depois
+      qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') < DATE_ADD(STR_TO_DATE(:dataFimDB, '%d/%m/%y'), INTERVAL 1 DAY)", { dataFimDB });
     }
 
     qb.orderBy("STR_TO_DATE(a.dia, '%d/%m/%y')", "ASC").addOrderBy("a.hora", "ASC");
 
+    // Log da SQL gerada para debug
+    const sql = qb.getSql();
+    console.log('[Excel Export GET] 📋 SQL Gerada:', sql);
+
     const registros = await qb.getMany();
+    console.log('[Excel Export GET] ✅ Registros encontrados:', registros.length);
 
     // Criar workbook Excel
     const wb = new ExcelJS.Workbook();
@@ -4525,17 +4531,15 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
     const dataInicio = req.body.dataInicio || undefined;
     const dataFim = req.body.dataFim || undefined;
 
-    // Função para converter data de qualquer formato para DD-MM-YY
+    // Função para converter data YYYY-MM-DD para DD/MM/YY (formato do banco)
     const convertDateToDBFormat = (dateStr: string): string => {
       if (!dateStr) return dateStr;
-      // Se já está em formato DD-MM-YY com hífen, retornar como está
-      if (/^\d{2}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-      // Se está em formato DD/MM/YY com barra (formato do banco), converter para hífen
-      if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) return dateStr.replace(/\//g, '-');
-      // Converter YYYY-MM-DD para DD-MM-YY
+      // Se já está em formato DD/MM/YY com barra, retornar como está
+      if (/^\d{2}\/\d{2}\/\d{2}$/.test(dateStr)) return dateStr;
+      // Converter YYYY-MM-DD para DD/MM/YY
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
         const [year, month, day] = dateStr.split('-');
-        return `${day}-${month}-${year.slice(-2)}`;
+        return `${day}/${month}/${year.slice(-2)}`;
       }
       return dateStr;
     };
@@ -4557,16 +4561,24 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
     }
     if (dataInicio) {
       const dataInicioDB = convertDateToDBFormat(dataInicio);
-      qb.andWhere("a.dia >= :dataInicio", { dataInicio: dataInicioDB });
+      // Usar STR_TO_DATE para comparação cronológica, não lexicográfica
+      qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicioDB, '%d/%m/%y')", { dataInicioDB });
     }
     if (dataFim) {
       const dataFimDB = convertDateToDBFormat(dataFim);
-      qb.andWhere("a.dia <= :dataFim", { dataFim: dataFimDB });
+      // Usar STR_TO_DATE com < (exclusive) - comparar com próximo dia (dataFim + 1)
+      // DATE_ADD retorna DATE, então não precisa STR_TO_DATE depois
+      qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') < DATE_ADD(STR_TO_DATE(:dataFimDB, '%d/%m/%y'), INTERVAL 1 DAY)", { dataFimDB });
     }
 
     qb.orderBy("STR_TO_DATE(a.dia, '%d/%m/%y')", "ASC").addOrderBy("a.hora", "ASC");
 
+    // Log da SQL gerada para debug
+    const sql = qb.getSql();
+    console.log('[Excel Export POST] 📋 SQL Gerada:', sql);
+
     const registros = await qb.getMany();
+    console.log('[Excel Export POST] ✅ Registros encontrados:', registros.length);
 
     // Criar workbook Excel
     const wb = new ExcelJS.Workbook();
