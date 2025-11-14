@@ -26,13 +26,7 @@ import { format as formatDate } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+
 
 interface Comment {
   id: string;
@@ -84,7 +78,7 @@ export function AmendoimExportDropdown({
   const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
   
   // Filtros Excel
-  const [tipo, setTipo] = useState("todos");
+  // tipo sempre é "todos" - sem seletor no UI
   const [codigoProduto, setCodigoProduto] = useState("");
   const [nomeProduto, setNomeProduto] = useState("");
   const [codigoCaixa, setCodigoCaixa] = useState("");
@@ -122,7 +116,7 @@ export function AmendoimExportDropdown({
     const exportedDataInicio = dataInicio || (excelDateRange?.from ? formatDate(excelDateRange.from, 'yyyy-MM-dd') : undefined);
     const exportedDataFim = dataFim || (excelDateRange?.to ? formatDate(excelDateRange.to, 'yyyy-MM-dd') : undefined);
     onExcelExport({
-      tipo: tipo && tipo !== "todos" ? tipo : undefined,
+      tipo: undefined, // Sempre "todos" (sem filtro de tipo)
       dataInicio: exportedDataInicio || undefined,
       dataFim: exportedDataFim || undefined,
       codigoProduto: codigoProduto || undefined,
@@ -131,7 +125,6 @@ export function AmendoimExportDropdown({
     });
     setExcelModalOpen(false);
     // Limpar filtros
-    setTipo("todos");
     setCodigoProduto("");
     setNomeProduto("");
     setCodigoCaixa("");
@@ -327,19 +320,7 @@ export function AmendoimExportDropdown({
           </DialogHeader>
 
           <div className="flex flex-col gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select value={tipo} onValueChange={setTipo}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todos">Todos</SelectItem>
-                  <SelectItem value="ENTRADA">Entrada</SelectItem>
-                  <SelectItem value="SAIDA">Saída</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Tipo sempre é "todos" - não há seletor */}
 
             <div className="grid gap-2">
               <Label htmlFor="codigoProduto">Código do Produto</Label>
