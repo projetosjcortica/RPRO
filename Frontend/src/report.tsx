@@ -45,6 +45,7 @@ import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import { RefreshButton } from "./components/RefreshButton";
 import toastManager from './lib/toastManager';
 import { getDefaultReportDateRange } from "./lib/reportDefaults";
+import useAdvancedFilters from './hooks/useAdvancedFilters';
 
 interface ComentarioRelatorio {
   texto: string;
@@ -241,14 +242,24 @@ export default function Report() {
   // OTIMIZAÇÃO: Buscar dados imediatamente (paralelo com produtos)
   const [allowDataFetch] = useState(true); // Sempre true para busca paralela
   
+  const { filters: advancedFilters, setFiltersState } = useAdvancedFilters();
+
   const { dados, loading, error, total, refetch} = useReportData(
     filtros,
     page,
     pageSize,
     sortBy,
     sortDir,
-    allowDataFetch // Sempre true
+    allowDataFetch, // Sempre true
+    advancedFilters
   );
+
+  // Fallback: quando filtros avançados mudarem, forçar refetch
+  useEffect(() => {
+    const handler = () => { try { refetch(); } catch (e) {} };
+    window.addEventListener('advancedFiltersChanged', handler);
+    return () => window.removeEventListener('advancedFiltersChanged', handler);
+  }, [refetch]);
   const { formData: profileConfigData } = usePersistentForm("profile-config");
   const autoRefreshTimer = useRef<number | null>(null);
   const prevCollectorRunning = useRef<boolean>(false);
@@ -314,6 +325,26 @@ export default function Report() {
     proprietario: "Proprietario",
   });
 
+  // Labels for formulas (to display friendly names in side info)
+  const [formulaLabels, setFormulaLabels] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/formulas/labels');
+        if (!res.ok) return;
+        const js = await res.json();
+        if (!mounted) return;
+        setFormulaLabels(js || {});
+      } catch (e) {
+        // ignore
+      }
+    };
+    void load();
+    return () => { mounted = false; };
+  }, []);
+
   // Consolidar atualização de sideInfo - evitar múltiplas atualizações
   useEffect(() => {
     let newInfo = { granja: "Granja", proprietario: "Proprietario" };
@@ -336,6 +367,98 @@ export default function Report() {
     setSideInfo(newInfo);
   }, [profileConfigData, runtime]);
 
+  // Derived view: chips for active advanced filters to show in side info
+  type FilterChip = { id: string; label: string; type: string; value: any };
+
+  const truncate = (s: string, n = 32) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+  const activeFilterChips = useMemo(() => {
+    if (!advancedFilters) return [] as FilterChip[];
+    const chips: FilterChip[] = [];
+
+    // formulas include
+    (advancedFilters.includeFormulas || []).forEach((f: number) => {
+      const name = formulaLabels[String(f)];
+      const label = name ? `${f} — ${name}` : `Formula ${f}`;
+      chips.push({ id: `includeFormula:${f}`, label, type: 'includeFormula', value: f });
+    });
+    // formulas exclude
+    (advancedFilters.excludeFormulas || []).forEach((f: number) => {
+      const name = formulaLabels[String(f)];
+      const label = `Excluir: ${name ? `${f} — ${name}` : `Formula ${f}`}`;
+      chips.push({ id: `excludeFormula:${f}`, label, type: 'excludeFormula', value: f });
+    });
+
+    // product codes include
+    (advancedFilters.includeProductCodes || []).forEach((p: number) => {
+      const colKey = `col${p + 5}`;
+      const label = colLabels[colKey] || `Produto ${p}`;
+      chips.push({ id: `includeProdCode:${p}`, label: `${label} (${p})`, type: 'includeProductCode', value: p });
+    });
+    // product codes exclude
+    (advancedFilters.excludeProductCodes || []).forEach((p: number) => {
+      const colKey = `col${p + 5}`;
+      const label = colLabels[colKey] || `Produto ${p}`;
+      chips.push({ id: `excludeProdCode:${p}`, label: `Excluir: ${label} (${p})`, type: 'excludeProductCode', value: p });
+    });
+
+    // product names
+    (advancedFilters.includeProductNames || []).forEach((n: string) => chips.push({ id: `includeProdName:${n}`, label: String(n), type: 'includeProductName', value: n }));
+    (advancedFilters.excludeProductNames || []).forEach((n: string) => chips.push({ id: `excludeProdName:${n}`, label: `Excluir: ${n}`, type: 'excludeProductName', value: n }));
+
+    // date range
+    if (advancedFilters.dateFrom || (filtros && (filtros as any).dataInicio)) {
+      const from = advancedFilters.dateFrom || (filtros as any).dataInicio;
+      chips.push({ id: `dateFrom:${from}`, label: `De: ${from}`, type: 'dateFrom', value: from });
+    }
+    if (advancedFilters.dateTo || (filtros && (filtros as any).dataFim)) {
+      const to = advancedFilters.dateTo || (filtros as any).dataFim;
+      chips.push({ id: `dateTo:${to}`, label: `Até: ${to}`, type: 'dateTo', value: to });
+    }
+
+    return chips.slice(0, 20); // limit display
+  }, [advancedFilters, formulaLabels, colLabels, filtros]);
+
+  const removeChip = useCallback((chip: { type: string; value: any }) => {
+    try {
+      if (!advancedFilters || !setFiltersState) return;
+      const next = { ...advancedFilters } as any;
+      switch (chip.type) {
+        case 'includeFormula':
+          next.includeFormulas = (next.includeFormulas || []).filter((x: number) => x !== Number(chip.value));
+          break;
+        case 'excludeFormula':
+          next.excludeFormulas = (next.excludeFormulas || []).filter((x: number) => x !== Number(chip.value));
+          break;
+        case 'includeProductCode':
+          next.includeProductCodes = (next.includeProductCodes || []).filter((x: number) => x !== Number(chip.value));
+          break;
+        case 'excludeProductCode':
+          next.excludeProductCodes = (next.excludeProductCodes || []).filter((x: number) => x !== Number(chip.value));
+          break;
+        case 'includeProductName':
+          next.includeProductNames = (next.includeProductNames || []).filter((x: string) => String(x) !== String(chip.value));
+          break;
+        case 'excludeProductName':
+          next.excludeProductNames = (next.excludeProductNames || []).filter((x: string) => String(x) !== String(chip.value));
+          break;
+        case 'dateFrom':
+          next.dateFrom = undefined;
+          break;
+        case 'dateTo':
+          next.dateTo = undefined;
+          break;
+        default:
+          break;
+      }
+      setFiltersState(next);
+      // notify listeners to refetch
+      try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: next })); } catch (e) {}
+    } catch (e) {
+      console.warn('Failed to remove chip', e);
+    }
+  }, [advancedFilters, setFiltersState]);
+
   // Listener para eventos explícitos de atualização de configuração
   useEffect(() => {
     const onCfg = (e: any) => {
@@ -354,7 +477,7 @@ export default function Report() {
   }, []);
 
   // Memoizar configuração dos gráficos para evitar recriações desnecessárias
-  const chartConfig = useMemo(() => ({ filters: filtros }), [filtros]);
+  const chartConfig = useMemo(() => ({ filters: filtros, advancedFilters }), [filtros, advancedFilters]);
 
   // Fetch resumo sempre que os filtros mudarem
   // Estados para controle de resumo
@@ -381,7 +504,8 @@ export default function Report() {
         const formula = filtros.nomeFormula || undefined;
         const areaId = (filtros as any).areaId || undefined;
 
-        console.log(`[resumo] Buscando dados com filtros`, filtros);
+  console.log(`[resumo] Buscando dados com filtros`, filtros);
+  console.log(`[resumo] advancedFilters payload:`, advancedFilters);
 
         // OTIMIZAÇÃO: Remover AbortController que causava cancelamentos em cascata
         const result = await processador.getResumo(
@@ -394,7 +518,8 @@ export default function Report() {
             : undefined,
           filtros && filtros.numero !== undefined && filtros.numero !== ""
             ? filtros.numero
-            : undefined
+            : undefined,
+          advancedFilters
         );
 
         if (!mounted) return;
@@ -432,7 +557,7 @@ export default function Report() {
       mounted = false;
       if (retryTimeout) clearTimeout(retryTimeout);
     };
-  }, [filtros, resumoReloadFlag, resumoRetryCount]);
+  }, [filtros, resumoReloadFlag, resumoRetryCount, advancedFilters]);
 
   useEffect(() => {
     void fetchCollectorStatus();
@@ -1715,6 +1840,36 @@ export default function Report() {
               </div>
               </div>
             </div>
+
+          {/* Active advanced filters preview */}
+          <div className="w-83 rounded-lg p-2 shadow-md/16 bg-white">
+            <p className="text-sm font-semibold text-center">Filtros Avançados</p>
+            <div className="mt-2 flex flex-wrap gap-2 justify-center">
+              {activeFilterChips.length === 0 && (
+                <span className="text-xs text-gray-400">Nenhum filtro avançado ativo</span>
+              )}
+              {activeFilterChips.map((c, idx) => (
+                <div
+                  key={c.id || `chip-${idx}`}
+                  className="inline-flex items-center px-2 py-1 bg-gray-100 rounded-full text-xs text-gray-700 border"
+                  title={String(c.label)}
+                >
+                  <span className="max-w-[220px] block truncate">{truncate(String(c.label), 32)}</span>
+                  <button
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
+                      removeChip({ type: c.type, value: c.value });
+                    }}
+                    className="ml-2 text-xs text-gray-500 hover:text-gray-800 font-semibold"
+                    aria-label={`Remover filtro ${c.label}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
           </div>
 
           {/* Produtos */}

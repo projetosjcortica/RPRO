@@ -120,13 +120,95 @@ export class ResumoService {
         dateStart?: string | null;
         dateEnd?: string | null;
         areaId?: string | null;
-    }): Promise<ResumoTotal | ResumoAreaSelecionada> {
+    }, advancedFilters?: any): Promise<ResumoTotal | ResumoAreaSelecionada> {
         await dbService.init();
         const repo = AppDataSource.getRepository(Relatorio);
         
+        // Buscar materias para permitir mapeamento nomes->nums quando aplicarmos advancedFilters
+        const materiasPrimasAll = await materiaPrimaService.getAll();
+        const materiasByNum: Record<number, any> = {};
+        materiasPrimasAll.forEach((m) => { if (m && m.num) materiasByNum[Number(m.num)] = m; });
+
         // Criar query builder base para estatísticas
         const qb = repo.createQueryBuilder('r');
         this.applyFilters(qb, filtros);
+
+        // Aplicar filtros avançados (include/exclude produtos e fórmulas) se fornecidos
+        if (advancedFilters && typeof advancedFilters === 'object') {
+            const asNums = (arr: any[]) => Array.from(
+                new Set((arr || []).map((x: any) => Number(x)).filter(n => Number.isFinite(n) && n >= 1 && n <= 40))
+            ).slice(0, 200);
+
+            const excludeCodes = asNums(advancedFilters.excludeProductCodes || []);
+            if (excludeCodes.length) {
+                const conditions = excludeCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+                qb.andWhere(`NOT (${conditions})`);
+            }
+
+            const includeCodes = asNums(advancedFilters.includeProductCodes || []);
+            if (includeCodes.length) {
+                const conditions = includeCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+                qb.andWhere(`(${conditions})`);
+            }
+
+            const matchMode = advancedFilters.matchMode === 'exact' ? 'exact' : 'contains';
+            const mapNamesToNums = (names: any[]) => {
+                if (!names || !names.length) return [] as number[];
+                const searchTerms = names.map((s: any) => String(s).toLowerCase().trim());
+                const nums: number[] = [];
+                Object.entries(materiasByNum).forEach(([k, v]: any) => {
+                    const prodName = String(v.produto || v.nome || '').toLowerCase();
+                    for (const term of searchTerms) {
+                        if (!term) continue;
+                        if (matchMode === 'exact') {
+                            if (prodName === term) nums.push(Number(k));
+                        } else {
+                            if (prodName.includes(term)) nums.push(Number(k));
+                        }
+                    }
+                });
+                return Array.from(new Set(nums)).slice(0, 200);
+            };
+
+            const includeNameCodes = mapNamesToNums(advancedFilters.includeProductNames || []);
+            if (includeNameCodes.length) {
+                const conditions = includeNameCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+                qb.andWhere(`(${conditions})`);
+            }
+
+            const excludeNameCodes = mapNamesToNums(advancedFilters.excludeProductNames || []);
+            if (excludeNameCodes.length) {
+                const conditions = excludeNameCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+                qb.andWhere(`NOT (${conditions})`);
+            }
+
+            if (Array.isArray(advancedFilters.includeFormulas) && advancedFilters.includeFormulas.length) {
+                const formulas = advancedFilters.includeFormulas.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n));
+                if (formulas.length) qb.andWhere('r.Form1 IN (:...arrIncludeFormulas)', { arrIncludeFormulas: formulas });
+            }
+            if (Array.isArray(advancedFilters.excludeFormulas) && advancedFilters.excludeFormulas.length) {
+                const formulas = advancedFilters.excludeFormulas.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n));
+                if (formulas.length) qb.andWhere('r.Form1 NOT IN (:...arrExcludeFormulas)', { arrExcludeFormulas: formulas });
+            }
+
+            if (Array.isArray(advancedFilters.includeFormulaNames) && advancedFilters.includeFormulaNames.length) {
+                const formulaNames = (advancedFilters.includeFormulaNames || []).map((s: any) => String(s).toLowerCase().trim()).filter(Boolean);
+                if (formulaNames.length) {
+                    const conditions = formulaNames.map((_: string, i: number) => `LOWER(r.Nome) LIKE :includeFormulaName${i}`).join(' OR ');
+                    qb.andWhere(`(${conditions})`);
+                    formulaNames.forEach((name: string, i: number) => qb.setParameter(`includeFormulaName${i}`, `%${name}%`));
+                }
+            }
+
+            if (Array.isArray(advancedFilters.excludeFormulaNames) && advancedFilters.excludeFormulaNames.length) {
+                const formulaNames = (advancedFilters.excludeFormulaNames || []).map((s: any) => String(s).toLowerCase().trim()).filter(Boolean);
+                if (formulaNames.length) {
+                    const conditions = formulaNames.map((_: string, i: number) => `LOWER(r.Nome) NOT LIKE :excludeFormulaName${i}`).join(' AND ');
+                    qb.andWhere(`(${conditions})`);
+                    formulaNames.forEach((name: string, i: number) => qb.setParameter(`excludeFormulaName${i}`, `%${name}%`));
+                }
+            }
+        }
         
         // Selecionar dados para o resumo
         const result = await qb

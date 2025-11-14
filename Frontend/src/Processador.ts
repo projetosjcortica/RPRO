@@ -311,7 +311,7 @@ export class Processador {
     }
   }
 
-  public getResumo(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string) {
+  public getResumo(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string, advancedFilters?: any) {
     const params: any = {};
     if (areaId) params.areaId = areaId;
     if (nomeFormula) params.nomeFormula = nomeFormula;
@@ -320,11 +320,16 @@ export class Processador {
     if (codigo !== undefined && codigo !== null && String(codigo) !== '') params.codigo = codigo;
     if (numero !== undefined && numero !== null && String(numero) !== '') params.numero = numero;
 
+    // If advancedFilters provided, prefer POST body to avoid long URLs
+    if (advancedFilters && typeof advancedFilters === 'object') {
+      return this.makeRequest('/api/resumo', 'POST', { params, advancedFilters });
+    }
+
     return this.makeRequest('/api/resumo', 'GET', params);
   }
   
   // Nova versão com suporte a AbortSignal
-  public getResumoWithSignal(signal: AbortSignal, areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string) {
+  public getResumoWithSignal(signal: AbortSignal, areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string, advancedFilters?: any) {
     const params: any = {};
     if (areaId) params.areaId = areaId;
     if (nomeFormula) params.nomeFormula = nomeFormula;
@@ -332,6 +337,10 @@ export class Processador {
     if (dataFim) params.dataFim = dataFim;
     if (codigo !== undefined && codigo !== null && String(codigo) !== '') params.codigo = codigo;
     if (numero !== undefined && numero !== null && String(numero) !== '') params.numero = numero;
+
+    if (advancedFilters && typeof advancedFilters === 'object') {
+      return this.makeRequestWithSignal('/api/resumo', signal, 'POST', { params, advancedFilters });
+    }
 
     return this.makeRequestWithSignal('/api/resumo', signal, 'GET', params);
   }

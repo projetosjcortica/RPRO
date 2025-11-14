@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
 export interface AdvancedFilters {
   includeFormulas: number[];
@@ -43,6 +43,34 @@ export default function useAdvancedFilters() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Sincronizar entre abas/componentes via localStorage event e custom event
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed && typeof parsed === 'object') setFilters((f) => ({ ...f, ...parsed }));
+        } catch (err) {
+          console.warn('Erro ao parsear advancedFilters do storage:', err);
+        }
+      }
+    };
+
+    const handleCustomEvent = (e: any) => {
+      if (e?.detail && typeof e.detail === 'object') {
+        setFilters((f) => ({ ...f, ...e.detail }));
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('advancedFiltersStorageUpdated', handleCustomEvent as EventListener);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('advancedFiltersStorageUpdated', handleCustomEvent as EventListener);
+    };
+  }, []);
+
   function loadFilters() {
     if (typeof window === 'undefined') return;
     try {
@@ -55,36 +83,38 @@ export default function useAdvancedFilters() {
     }
   }
 
-  function saveFilters(next: AdvancedFilters) {
+  const saveFilters = useCallback((next: AdvancedFilters) => {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      // notify other tabs/components
+      try { window.dispatchEvent(new CustomEvent('advancedFiltersStorageUpdated', { detail: next })); } catch (e) {}
     } catch (e) {
       console.warn('[useAdvancedFilters] failed to save', e);
     }
-  }
+  }, []);
 
-  function setFilter<K extends keyof AdvancedFilters>(field: K, value: AdvancedFilters[K]) {
+  const setFilter = useCallback(<K extends keyof AdvancedFilters>(field: K, value: AdvancedFilters[K]) => {
     setFilters((prev) => {
       const next = { ...prev, [field]: value } as AdvancedFilters;
       saveFilters(next);
       return next;
     });
-  }
+  }, [saveFilters]);
 
-  function clearFilters() {
+  const clearFilters = useCallback(() => {
     const next = { ...initialFilters } as AdvancedFilters;
     saveFilters(next);
     setFilters(next);
-  }
+  }, [saveFilters]);
 
-  function toggleFixed() {
+  const toggleFixed = useCallback(() => {
     setFilters((prev) => {
       const next = { ...prev, isFixed: !prev.isFixed };
       saveFilters(next);
       return next;
     });
-  }
+  }, [saveFilters]);
 
   function getActiveFiltersCount() {
     let c = 0;

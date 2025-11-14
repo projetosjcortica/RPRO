@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState, useRef, useMemo } from "react";
 import { FilterOptions, ReportRow } from "../components/types";
 
 export function useReportData(
-  filtros: FilterOptions, 
-  page: number, 
+  filtros: FilterOptions,
+  page: number,
   pageSize: number,
   sortBy: string,
   sortDir: 'ASC' | 'DESC',
-  allowFetch: boolean = true
+  allowFetch: boolean = true,
+  advancedFilters?: any
 ) {
   
   const [dados, setDados] = useState<ReportRow[]>([]);
@@ -20,26 +21,14 @@ export function useReportData(
   
   // OTIMIZAÇÃO: Memoizar parametros para evitar fetches duplicados
   const fetchParams = useMemo(() => ({
-    nomeFormula: (filtros as any).nomeFormula || '',
-    dataInicio: (filtros as any).dataInicio || '',
-    dataFim: (filtros as any).dataFim || '',
-    codigo: (filtros as any).codigo || '',
-    numero: (filtros as any).numero || '',
+    filtros,
     page,
     pageSize,
     sortBy,
     sortDir,
-  }), [
-    (filtros as any).nomeFormula,
-    (filtros as any).dataInicio,
-    (filtros as any).dataFim,
-    (filtros as any).codigo,
-    (filtros as any).numero,
-    page,
-    pageSize,
-    sortBy,
-    sortDir
-  ]);
+    allowFetch,
+    advancedFilters: advancedFilters ? JSON.stringify(advancedFilters) : ''
+  }), [filtros, page, pageSize, sortBy, sortDir, allowFetch, advancedFilters ? JSON.stringify(advancedFilters) : '']);
 
   const refetch = useCallback(() => {
     setReloadFlag((flag) => flag + 1);
@@ -121,6 +110,15 @@ export function useReportData(
       setError(null);
 
       try {
+        // Incluir advancedFilters se forem passados (Aplicar agora deve enviar mesmo que não esteja fixado)
+        if (advancedFilters) {
+          try {
+            params.set('advancedFilters', encodeURIComponent(JSON.stringify(advancedFilters)));
+          } catch (e) {
+            console.warn('Erro ao serializar advancedFilters:', e);
+          }
+        }
+
         const url = `http://localhost:3000/api/relatorio/paginate?${params.toString()}`;
         
         const timeoutId = setTimeout(() => controller.abort(), 15000);
