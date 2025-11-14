@@ -281,22 +281,24 @@ async function ensureDatabaseConnection() {
 }
 
 // Helper: Obter lista de produtos ativos (para filtrar produtos inativos)
-async function getProdutosAtivos(): Promise<Set<number>> {
+// if excludeIgnorarCalculos=true, also exclude products where materia.ignorarCalculos === true
+async function getProdutosAtivos(excludeIgnorarCalculos = false): Promise<Set<number>> {
   try {
     // 🔄 SEMPRE buscar direto do banco para garantir dados atualizados
     // (não usar cache pois pode estar desatualizado após toggle)
-    const materias = await materiaPrimaService.getAll();
+  const materias = await materiaPrimaService.getAll();
     const ativosSet = new Set<number>();
     
     for (const mp of materias) {
       // Se ativo não está definido (null/undefined) ou é true, considerar ativo
-      if (mp.ativo !== false && mp.num) {
-        ativosSet.add(mp.num);
-      }
+      if (mp.ativo === false) continue; // explicit inactive
+      if (mp.num == null) continue;
+      // Se solicitado, também excluir produtos marcados para ignorar cálculos
+      if (excludeIgnorarCalculos && mp.ignorarCalculos === true) continue;
+      ativosSet.add(mp.num);
     }
     
-    console.log(`[getProdutosAtivos] ${ativosSet.size} produtos ativos:`, Array.from(ativosSet).sort((a,b) => a-b));
-    
+  console.log(`[getProdutosAtivos] ${ativosSet.size} produtos ativos (excludeIgnorar=${excludeIgnorarCalculos}):`, Array.from(ativosSet).sort((a,b) => a-b));
     return ativosSet;
   } catch (e) {
     console.error('[getProdutosAtivos] Erro:', e);
@@ -500,6 +502,57 @@ app.patch("/api/materiaprima/:num/toggle", async (req, res) => {
   } catch (e: any) {
     console.error("Failed to toggle materia prima status", e);
     return res.status(500).json({ error: e?.message || "Erro ao alternar status" });
+  }
+});
+
+// Alternar status ignorar cálculos de um produto
+app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const num = parseInt(req.params.num);
+    
+    console.log(`[MateriaPrima ToggleIgnorarCalculos] Recebido request para produto num=${num}`);
+    
+    if (isNaN(num)) {
+      console.error(`[MateriaPrima ToggleIgnorarCalculos] Número inválido: ${req.params.num}`);
+      return res.status(400).json({ error: "Número de produto inválido" });
+    }
+    
+    const repo = AppDataSource.getRepository(MateriaPrima);
+    const produto = await repo.findOne({ where: { num } });
+    
+    console.log(`[MateriaPrima ToggleIgnorarCalculos] Produto encontrado:`, produto);
+    
+    if (!produto) {
+      console.error(`[MateriaPrima ToggleIgnorarCalculos] Produto ${num} não encontrado no banco`);
+      return res.status(404).json({ error: "Produto não encontrado" });
+    }
+    
+    const antigoStatus = produto.ignorarCalculos;
+    produto.ignorarCalculos = !produto.ignorarCalculos;
+    
+    console.log(`[MateriaPrima ToggleIgnorarCalculos] Alterando status: ${antigoStatus} → ${produto.ignorarCalculos}`);
+    
+    await repo.save(produto);
+    
+    // 🔄 Invalidar cache para forçar reload nos próximos requests
+    invalidateMateriaPrimaCache();
+    
+    // Verificar se salvou corretamente
+    const verificacao = await repo.findOne({ where: { num } });
+    console.log(`[MateriaPrima ToggleIgnorarCalculos] Verificação pós-save:`, verificacao);
+    
+    console.log(`[MateriaPrima ToggleIgnorarCalculos] ✅ Produto ${num} (${produto.produto}) ${produto.ignorarCalculos ? 'REMOVIDO dos CÁLCULOS' : 'INCLUÍDO nos CÁLCULOS'}`);
+    
+    return res.json({ 
+      success: true, 
+      num: produto.num,
+      produto: produto.produto,
+      ignorarCalculos: produto.ignorarCalculos 
+    });
+  } catch (e: any) {
+    console.error("Failed to toggle ignorar calculos status", e);
+    return res.status(500).json({ error: e?.message || "Erro ao alternar status de cálculos" });
   }
 });
 
@@ -1133,6 +1186,8 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     const sortDir = String(req.query.sortDir || "DESC");
     const includeProducts =
       String(req.query.includeProducts || "true") === "true"; // Default to true for values
+    // If includeIgnored=true, include products even if they are deactivated or marked ignorarCalculos
+    const includeIgnored = String(req.query.includeIgnored || "").toLowerCase() === "true";
 
     try {
       await dbService.init();
@@ -1247,8 +1302,8 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     // OTIMIZAÇÃO: Usar cache em vez de consultar banco a cada request
     const materiasByNum = await getMateriaPrimaCache();
     
-    // 🔍 Obter produtos ativos para filtrar inativos
-    const produtosAtivos = await getProdutosAtivos();
+  // 🔍 Obter produtos ativos para filtrar inativos (a menos que client peça incluir todos via includeIgnored)
+  const produtosAtivos = includeIgnored ? null : await getProdutosAtivos();
 
     // OTIMIZAÇÃO: Pré-alocar arrays com tamanho fixo
     const mappedRows = rows.map((row: any) => {
@@ -1266,8 +1321,8 @@ app.get("/api/relatorio/paginate", async (req, res) => {
             : 0;
         const materia = materiasByNum[i];
         
-        // ⚠️ FILTRO: Se produto está inativo, zerar valor
-        if (!produtosAtivos.has(i)) {
+        // ⚠️ FILTRO: Se produto está inativo, zerar valor (aplica somente quando produtosAtivos foi carregado)
+        if (produtosAtivos && !produtosAtivos.has(i)) {
           v = 0;
         }
         
@@ -1402,6 +1457,12 @@ app.get("/api/relatorio/pdf-data", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
+    // Filtrar produtos inativos e produtos marcados para ignorar cálculos (semana charts devem respeitar ignorarCalculos)
+    const produtosAtivos = await getProdutosAtivos(true);
+    console.log(`[api/chartdata/semana] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
+
+  // 🔁 manter comportamento antigo: não excluir produtos marcados como ignorarCalculos para relatórios/PDF
+
     // PROCESSAR DADOS PARA PDF: Calcular totais, formatar valores, gráficos
     const produtos: Array<{ nome: string; qtd: number; unidade: string; valorFormatado: string }> = [];
     
@@ -1420,33 +1481,38 @@ app.get("/api/relatorio/pdf-data", async (req, res) => {
     }
 
     // Gerar array de produtos com totais calculados e formatados
+    // Importante: para o PDF queremos os cálculos como se o flag `ignorarCalculos` não existisse,
+    // porém devemos excluir produtos que estejam explicitamente desativados (materia.ativo === false).
     for (let i = 1; i <= 40; i++) {
       const total = produtoTotals[i] || 0;
       if (total === 0) continue; // Skip produtos sem uso
-      
+
       const materia = materiasByNum[i];
+      // Se a matéria-prima existe e está desativada, não deve entrar nos cálculos/relatório PDF
+      if (materia && materia.ativo === false) continue;
+
       const nome = materia?.produto || `Produto ${i}`;
-      
+
       let unidade = 'kg';
       let valorKg = total;
       let valorFormatado = '';
-      
+
       if (materia && Number(materia.medida) === 0) {
         // Gramas: converter para kg
         unidade = 'g';
         valorKg = total / 1000;
       }
-      
-      valorFormatado = `${valorKg.toLocaleString('pt-BR', { 
-        minimumFractionDigits: 3, 
-        maximumFractionDigits: 3 
+
+      valorFormatado = `${valorKg.toLocaleString('pt-BR', {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
       })} kg`;
-      
+
       produtos.push({
         nome,
         qtd: valorKg, // SEMPRE em kg
         unidade,
-        valorFormatado
+        valorFormatado,
       });
     }
 
@@ -2748,6 +2814,9 @@ app.get("/api/chartdata", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
+    // Filtrar produtos inativos e produtos marcados para ignorar cálculos (usado por dashboards/home)
+    const produtosAtivos = await getProdutosAtivos(true);
+
     const mapped = rows.map((r: any) => {
       const values: number[] = [];
       const units: Record<string, string> = {};
@@ -2758,10 +2827,14 @@ app.get("/api/chartdata", async (req, res) => {
             : r[`Prod_${i}`] != null
             ? Number(r[`Prod_${i}`])
             : 0;
+        // If product is inactive for charts (including ignorarCalculos), hide its value (0)
+        const showInCharts = produtosAtivos.has(i);
+        const valueToPush = showInCharts ? v : 0;
+
         // Provide units per product (g or kg). Use medida==0 => 'g', else 'kg'
         const mp = materiasByNum[i];
         const unidade = mp && Number(mp.medida) === 0 ? "g" : "kg";
-        values.push(v);
+        values.push(valueToPush);
         units[`Unidade_${i}`] = unidade;
       }
 
@@ -2839,9 +2912,9 @@ app.get("/api/chartdata/formulas", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
-    // Filtrar produtos inativos
-    const produtosAtivos = await getProdutosAtivos();
-    console.log(`[chartdata/formulas] Produtos ativos: ${produtosAtivos.size}`);
+  // Filtrar produtos inativos e produtos marcados para ignorar cálculos
+  const produtosAtivos = await getProdutosAtivos(true);
+  console.log(`[chartdata/formulas] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
 
     // Agregar por fórmula (Nome) using per-row normalized total (kg)
     const sums: Record<string, number> = {};
@@ -2964,9 +3037,9 @@ app.get("/api/chartdata/produtos", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
-    // Filtrar produtos inativos
-    const produtosAtivos = await getProdutosAtivos();
-    console.log(`[chartdata/produtos] Produtos ativos: ${produtosAtivos.size}`);
+  // Filtrar produtos inativos e também produtos marcados para ignorar cálculos
+  const produtosAtivos = await getProdutosAtivos(true);
+  console.log(`[chartdata/produtos] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
 
     // Agregar por produto (Prod_1, Prod_2, etc.)
     const productSums: Record<string, number> = {};
@@ -3087,9 +3160,9 @@ app.get("/api/chartdata/horarios", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
-    // Filtrar produtos inativos
-    const produtosAtivos = await getProdutosAtivos();
-    console.log(`[chartdata/horarios] Produtos ativos: ${produtosAtivos.size}`);
+    // Filtrar produtos inativos e produtos marcados para ignorar cálculos
+    const produtosAtivos = await getProdutosAtivos(true);
+    console.log(`[chartdata/horarios] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
 
     // Agregar por hora (0h-23h) using normalized per-row total (kg)
     const hourSums: Record<string, number> = {};
@@ -3207,9 +3280,9 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
-    // Filtrar produtos inativos
-    const produtosAtivos = await getProdutosAtivos();
-    console.log(`[chartdata/diasSemana] Produtos ativos: ${produtosAtivos.size}`);
+  // Filtrar produtos inativos e produtos marcados para ignorar cálculos
+  const produtosAtivos = await getProdutosAtivos(true);
+  console.log(`[chartdata/diasSemana] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
 
     // Helper para parsear datas
     const parseDia = (dia?: string): Date | null => {
@@ -3356,11 +3429,17 @@ app.get("/api/chartdata/stats", async (req, res) => {
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
 
-    // Calcular estatísticas gerais normalizadas para kg
+    // Filtrar produtos inativos e produtos marcados para ignorar cálculos
+    const produtosAtivos = await getProdutosAtivos(true);
+
+    // Calcular estatísticas gerais normalizadas para kg (exclui produtos marcados para ignorar cálculos)
     let totalGeralKg = 0;
     for (const r of rows) {
       let rowTotalKg = 0;
       for (let i = 1; i <= 40; i++) {
+        // Ignorar produtos que não devem entrar em cálculos
+        if (!produtosAtivos.has(i)) continue;
+
         const raw =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
@@ -3370,7 +3449,8 @@ app.get("/api/chartdata/stats", async (req, res) => {
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
-          rowTotalKg += raw * 1000; // Converter gramas para kg
+          // stored in grams -> convert to kg
+          rowTotalKg += raw / 1000;
         } else {
           rowTotalKg += raw;
         }
@@ -3481,8 +3561,12 @@ app.get("/api/chartdata/semana", async (req, res) => {
     const weekdayTotals = Array(7).fill(0);
     const weekdayCounts = Array(7).fill(0);
 
-    // Also build a per-date total map (YYYY-MM-DD) so callers can get totals for specific dates
-    const perDateTotals: Record<string, number> = {};
+  // Also build a per-date total map (YYYY-MM-DD) so callers can get totals for specific dates
+  const perDateTotals: Record<string, number> = {};
+
+  // Produtos ativos para esta rota (exclui os marcados como ignorarCalculos)
+  const produtosAtivosSemana = await getProdutosAtivos(true);
+  console.log(`[api/chartdata/semana] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivosSemana.size}`);
 
     for (const r of rows) {
       if (!r.Dia) continue;
@@ -3496,6 +3580,8 @@ app.get("/api/chartdata/semana", async (req, res) => {
       let rowTotalKg = 0;
       
       for (let i = 1; i <= 40; i++) {
+        // Ignorar produtos que não devem entrar em cálculos
+        if (!produtosAtivosSemana.has(i)) continue;
         // Sempre lê do Prod_N no banco
         let raw = 0;
         const prodKey = `Prod_${i}`;
@@ -3647,6 +3733,10 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
         if (!Number.isNaN(n)) materiasByNum[n] = m;
       }
 
+      // Filtrar produtos inativos e produtos marcados para ignorar cálculos (usado por gráficos semanais em lote)
+      const produtosAtivos = await getProdutosAtivos(true);
+      console.log(`[api/chartdata/semana/bulk] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
+
       const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
       const weekdayTotals = Array(7).fill(0);
       const weekdayCounts = Array(7).fill(0);
@@ -3660,6 +3750,9 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
         // Calcular total da linha normalizado para kg
         let rowTotalKg = 0;
         for (let i = 1; i <= 40; i++) {
+          // Ignorar produtos que não devem entrar em cálculos
+          if (!produtosAtivos.has(i)) continue;
+
           const raw =
             typeof r[`Prod_${i}`] === "number"
               ? r[`Prod_${i}`]
@@ -3669,7 +3762,8 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
           if (!raw || raw <= 0) continue;
           const mp = materiasByNum[i];
           if (mp && Number(mp.medida) === 0) {
-            rowTotalKg += raw * 1000; // Converter gramas para kg
+            // stored in grams -> convert to kg
+            rowTotalKg += raw / 1000;
           } else {
             rowTotalKg += raw;
           }
@@ -3929,7 +4023,22 @@ app.get('/api/amendoim/chartdata/produtos', async (req, res) => {
       limit,
     });
 
-    return res.json(chartData);
+    // ⚠️ Filtrar produtos ignorarCalculos=true
+    const materiaPrimaCache = await getMateriaPrimaCache();
+    const produtosIgnorados = new Set(
+      Object.values(materiaPrimaCache)
+        .filter((mp: any) => mp.ignorarCalculos === true)
+        .map((mp: any) => mp.nomeProduto)
+    );
+
+    return res.json({
+      ...chartData,
+      chartData: chartData.chartData.filter((d: any) => !produtosIgnorados.has(d.name)),
+      total: chartData.chartData
+        .filter((d: any) => !produtosIgnorados.has(d.name))
+        .reduce((sum: number, d: any) => sum + d.value, 0),
+      totalRecords: chartData.chartData.filter((d: any) => !produtosIgnorados.has(d.name)).length,
+    });
   } catch (e: any) {
     console.error('[api/amendoim/chartdata/produtos] error', e);
     return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
@@ -3953,7 +4062,22 @@ app.get('/api/amendoim/chartdata/caixas', async (req, res) => {
       limit,
     });
 
-    return res.json(chartData);
+    // ⚠️ Filtrar produtos ignorarCalculos=true
+    const materiaPrimaCache = await getMateriaPrimaCache();
+    const produtosIgnorados = new Set(
+      Object.values(materiaPrimaCache)
+        .filter((mp: any) => mp.ignorarCalculos === true)
+        .map((mp: any) => mp.nomeProduto)
+    );
+
+    return res.json({
+      ...chartData,
+      chartData: chartData.chartData.filter((d: any) => !produtosIgnorados.has(d.name)),
+      total: chartData.chartData
+        .filter((d: any) => !produtosIgnorados.has(d.name))
+        .reduce((sum: number, d: any) => sum + d.value, 0),
+      totalRecords: chartData.chartData.filter((d: any) => !produtosIgnorados.has(d.name)).length,
+    });
   } catch (e: any) {
     console.error('[api/amendoim/chartdata/caixas] error', e);
     return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
@@ -3969,6 +4093,17 @@ app.get('/api/amendoim/chartdata/entradaSaida', async (req, res) => {
     const metricas = await AmendoimService.calcularMetricasRendimento({ dataInicio, dataFim });
 
     if (!metricas) {
+      return res.json({ chartData: [], total: 0, totalRecords: 0 });
+    }
+
+    // ⚠️ Filtrar produtos ignorarCalculos=true para cálculo de métricas
+    const materiaPrimaCache = await getMateriaPrimaCache();
+    const produtosAtivos = Object.values(materiaPrimaCache).filter(
+      (mp: any) => mp.ativo !== false && mp.ignorarCalculos !== true
+    );
+
+    // Se não há produtos ativos, retornar vazio
+    if (produtosAtivos.length === 0) {
       return res.json({ chartData: [], total: 0, totalRecords: 0 });
     }
 
@@ -4001,7 +4136,23 @@ app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
       tipo,
     });
 
-    return res.json(chartData);
+    // ⚠️ Filtrar produtos ignorarCalculos=true
+    const materiaPrimaCache = await getMateriaPrimaCache();
+    const produtosIgnorados = new Set(
+      Object.values(materiaPrimaCache)
+        .filter((mp: any) => mp.ignorarCalculos === true)
+        .map((mp: any) => mp.nomeProduto)
+    );
+
+    const chartDataFiltrado = chartData.chartData.filter((d: any) => !produtosIgnorados.has(d.name));
+    const totalFiltrado = chartDataFiltrado.reduce((sum: number, d: any) => sum + d.value, 0);
+
+    return res.json({
+      ...chartData,
+      chartData: chartDataFiltrado,
+      total: totalFiltrado,
+      totalRecords: chartDataFiltrado.length,
+    });
   } catch (e: any) {
     console.error('[api/amendoim/chartdata/horarios] error', e);
     return res.status(500).json({ error: e?.message || 'Erro ao obter dados do gráfico' });
@@ -4074,6 +4225,14 @@ app.get('/api/amendoim/chartdata/last30', async (req, res) => {
     const fmt = (d: Date) => `${d.getFullYear().toString().padStart(4,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
     const dados = await AmendoimService.obterDadosAnalise({ dataInicio: fmt(prev), dataFim: fmt(today) });
+
+    // ⚠️ Filtrar produtos ignorarCalculos=true
+    const materiaPrimaCache = await getMateriaPrimaCache();
+    const produtosIgnorados = new Set(
+      Object.values(materiaPrimaCache)
+        .filter((mp: any) => mp.ignorarCalculos === true)
+        .map((mp: any) => mp.nomeProduto)
+    );
 
     // Map rendimentoPorDia to chart friendly shape
     const chartData = (dados.rendimentoPorDia || []).map((d: any) => ({ name: d.dia, entrada: d.entrada, saida: d.saida }));

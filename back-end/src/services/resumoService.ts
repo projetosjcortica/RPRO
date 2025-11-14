@@ -149,8 +149,8 @@ export class ResumoService {
         const infosProdutos: Record<string, { label: string; materia: MateriaPrima }> = {};
         
         for (const mp of materiasPrimas) {
-            // ⚠️ Ignorar produtos desativados nos cálculos
-            if (mp.num && mp.produto && mp.ativo !== false) {
+            // ⚠️ Ignorar produtos desativados ou marcados para ignorar cálculos
+            if (mp.num && mp.produto && mp.ativo !== false && mp.ignorarCalculos !== true) {
                 infosProdutos[`Produto_${mp.num}`] = {
                     label: mp.produto,
                     materia: mp
@@ -396,8 +396,8 @@ export class ResumoService {
         const materiasPrimas = await materiaPrimaService.getAll();
         const infosProdutos: Record<string, { label: string; materia: MateriaPrima }> = {};
         for (const mp of materiasPrimas) {
-            // ⚠️ Ignorar produtos desativados nos cálculos
-            if (mp.num && mp.produto && mp.ativo !== false) {
+            // ⚠️ Ignorar produtos desativados ou marcados para ignorar cálculos
+            if (mp.num && mp.produto && mp.ativo !== false && mp.ignorarCalculos !== true) {
                 infosProdutos[`Produto_${mp.num}`] = { label: mp.produto, materia: mp };
             }
         }
@@ -458,6 +458,10 @@ export class ResumoService {
                         continue;
                     }
                     
+                    // Skip products marked to ignore calculations
+                    if (info && info.materia && info.materia.ignorarCalculos) {
+                        continue; // Skip products marked to ignore calculations
+                    }
                     const label = info ? info.label : `Produto ${i}`;
                     let unidade = 'kg';
                     let valueForTotalKg = rawValue;

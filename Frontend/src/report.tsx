@@ -860,6 +860,35 @@ export default function Report() {
   };
 
   // Função para gerar o documento PDF para preview
+  // Prefetch server-side PDF data (includes products marked ignorarCalculos)
+  const [pdfServerData, setPdfServerData] = useState<any | null>(null);
+  useEffect(() => {
+    let mounted = true;
+    const fetchPdfData = async () => {
+      try {
+        const params = new URLSearchParams();
+        if (filtros?.dataInicio) params.set('dataInicio', String(filtros.dataInicio));
+        if (filtros?.dataFim) params.set('dataFim', String(filtros.dataFim));
+        if (filtros?.nomeFormula) params.set('formula', String(filtros.nomeFormula));
+        if (filtros?.codigo) params.set('codigo', String(filtros.codigo));
+        if (filtros?.numero) params.set('numero', String(filtros.numero));
+        // ask server for full data including ignorarCalculos
+        params.set('includeIgnored', 'true');
+        const url = `http://localhost:3000/api/relatorio/pdf-data?${params.toString()}`;
+        const res = await fetch(url, { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!mounted) return;
+        setPdfServerData(body);
+      } catch (e) {
+        // ignore fetch errors for preview
+        console.error('[report] Failed to fetch pdf-data for preview', e);
+      }
+    };
+    void fetchPdfData();
+    return () => { mounted = false; };
+  }, [filtros?.dataInicio, filtros?.dataFim, filtros?.nomeFormula, filtros?.codigo, filtros?.numero]);
+
   const createPdfDocument = () => {
     // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
     const formulaSums: Record<string, number> = (() => {
@@ -1048,7 +1077,9 @@ export default function Report() {
 
     // Aplicar ordenação aos produtos baseada em pdfCustomization.sortOrder
     const produtosOrdenados = (() => {
-      const prods = [...tableSelection.produtos];
+      // Prefer server-provided produtos (includes ignorarCalculos). Fallback to tableSelection.
+      const serverProds = Array.isArray(pdfServerData?.produtos) ? pdfServerData.produtos.map((p: any) => ({ nome: p.nome, qtd: p.qtd, unidade: p.unidade })) : null;
+      const prods = serverProds ? [...serverProds] : [...tableSelection.produtos];
       
       if (pdfCustomization.sortOrder === 'alphabetic') {
         return prods.sort((a, b) => a.nome.localeCompare(b.nome));

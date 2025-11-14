@@ -3,7 +3,7 @@ import { Input } from "./components/ui/input";
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
 import { Button } from "./components/ui/button";
-import { Eye, EyeOff, Scale } from "lucide-react";
+import { Eye, EyeOff, Scale, Calculator } from "lucide-react";
 
 interface ProductsProps {
   colLabels: { [key: string]: string };
@@ -15,6 +15,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   const [savingProduct, setSavingProduct] = useState<string | null>(null);
   const [unidades, setUnidades] = useState<{ [key: string]: string }>({});
   const [produtosAtivos, setProdutosAtivos] = useState<{ [key: string]: boolean }>({});
+  const [produtosIgnorarCalculos, setProdutosIgnorarCalculos] = useState<{ [key: string]: boolean }>({});
   const [togglingProduct, setTogglingProduct] = useState<string | null>(null);
   const [resettingAll, setResettingAll] = useState(false);
   const [resettingUnits, setResettingUnits] = useState(false);
@@ -79,11 +80,14 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
       const data = await response.json();
       
       const ativosObj: { [key: string]: boolean } = {};
+      const ignorarCalculosObj: { [key: string]: boolean } = {};
       Object.entries(data).forEach(([colKey, info]: [string, any]) => {
         ativosObj[colKey] = info.ativo ?? true;
+        ignorarCalculosObj[colKey] = info.ignorarCalculos ?? false;
       });
       
       setProdutosAtivos(ativosObj);
+      setProdutosIgnorarCalculos(ignorarCalculosObj);
     } catch (e) {
       console.error('[products] Erro ao carregar status dos produtos:', e);
     }
@@ -231,6 +235,62 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     }
   };
 
+  const handleToggleIgnorarCalculos = async (colKey: string) => {
+    setTogglingProduct(colKey);
+    
+    try {
+      const match = colKey.match(/^col(\d+)$/);
+      if (!match) return;
+      
+      const colIndex = Number(match[1]);
+      const num = colIndex - 5;
+      
+      if (Number.isNaN(num) || num <= 0) return;
+
+      console.log(`[products] Toggle ignorar cálculos produto ${num} (${colKey})`);
+
+      const response = await fetch(`http://localhost:3000/api/materiaprima/${num}/toggle-ignorar-calculos`, {
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('[products] Erro na resposta:', error);
+        throw new Error(error.error || "Erro ao alternar status de cálculos");
+      }
+
+      const result = await response.json();
+      console.log('[products] Resposta do servidor:', result);
+      
+      // Atualizar estado local
+      setProdutosIgnorarCalculos(prev => {
+        const novo = {
+          ...prev,
+          [colKey]: result.ignorarCalculos
+        };
+        console.log('[products] Novo estado ignorarCalculos:', novo);
+        return novo;
+      });
+
+      // Notificar listeners para atualizar relatórios
+      try {
+        window.dispatchEvent(new CustomEvent('produtos-updated', { 
+          detail: { colKey, ignorarCalculos: result.ignorarCalculos, immediate: true } 
+        }));
+      } catch (e) {
+        console.warn('[products] Erro ao disparar evento:', e);
+      }
+
+      console.log(`[products] ✅ Produto ${num} ${result.ignorarCalculos ? 'REMOVIDO dos CÁLCULOS' : 'INCLUÍDO nos CÁLCULOS'}`);
+
+    } catch (e) {
+      console.error('[products] Erro ao alternar cálculos:', e);
+      alert(`Erro ao alternar cálculos: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setTogglingProduct(null);
+    }
+  };
+
   const handleResetAll = async () => {
     if (!confirm('Deseja realmente REATIVAR todos os produtos? Esta ação não pode ser desfeita.')) {
       return;
@@ -361,54 +421,8 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   return (
       <div className="w-full h-full flex flex-col">
         <div className="flex justify-between items-center ml-4 mb-6 mt-3">
-          <h2 className="text-2xl md:text-3xl font-semibold">Editar Produtos</h2>
-           
-            <div className="flex gap-2 mr-4">
-              
-              {/* botao reseta todos para kg */}
-
-              {/* <Button
-                onClick={handleResetUnitsToKg}
-                disabled={resettingUnits}
-                variant="outline"
-                className="border-blue-600 text-blue-700 hover:bg-blue-50 hover:border-blue-700"
-              >
-                {resettingUnits ? (
-                  <>
-                    <span className="animate-spin mr-2">⏳</span>
-                    Resetando...
-                  </>
-                ) : (
-                  <>
-                    <Scale className="mr-2 h-4 w-4" />
-                    Resetar Unidades para KG
-                  </>
-                )}
-              </Button> */}
-
-                {/* botao reseta todos para visivel */}
-
-              {/* <Button
-                onClick={handleResetAll}
-                disabled={resettingAll}
-                variant="outline"
-                className="border-green-600 text-green-700 hover:bg-green-50 hover:border-green-700"
-              >
-                {resettingAll ? (
-                  <>
-                    <span className="animate-spin mr-2">⏳</span>
-                    Reativando...
-                  </>
-                ) : (
-                  <>
-                    <Eye className="mr-2 h-4 w-4" />
-                    Reativar Todos os Produtos
-                  </>
-                )}
-              </Button> */}
-            </div> 
+          <h2 className="text-2xl md:text-3xl font-semibold">Editar Produtos</h2> 
         </div>
-      
       <div className="overflow-auto flex-1 min-h-0 thin-red-scrollbar">
         <div className="rounded p-3 w-full grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-7 shadow-xl/20 pb-8">
           {editableColumns.map((col) => {
@@ -474,6 +488,21 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                         <Eye className="h-4 w-4" />
                       ) : (
                         <EyeOff className="h-4 w-4" />
+                      )}
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant={produtosIgnorarCalculos[col] ? "secondary" : "outline"}
+                      onClick={() => handleToggleIgnorarCalculos(col)}
+                      className="h-9 px-2"
+                      title={produtosIgnorarCalculos[col] ? "Incluir nos cálculos" : "Remover dos cálculos (mantém no relatório)"}
+                      disabled={togglingProduct === col || !isAtivo}
+                    >
+                      {togglingProduct === col ? (
+                        <span className="animate-spin">⏳</span>
+                      ) : (
+                        <Calculator className={`h-4 w-4 ${produtosIgnorarCalculos[col] ? 'text-amber-600' : ''}`} />
                       )}
                     </Button>
                   </div> 
