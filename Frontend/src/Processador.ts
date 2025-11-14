@@ -169,7 +169,7 @@ export class Processador {
   public async relatorioPaginate(
     page = 1,
     pageSize = 100,
-    filters: FilterOptions = {}
+    filters: FilterOptions & { advancedFilters?: any } = {}
   ): Promise<any> {
     const params: any = { 
       page, 
@@ -193,7 +193,10 @@ export class Processador {
     }
 
     console.log("[relatorioPaginate] Parâmetros para API:", params);
-    return this.makeRequest('/api/relatorio/paginate', 'POST', { params });
+    // Forward advancedFilters in the POST body when provided
+    const body: any = { params };
+    if ((filters as any).advancedFilters) body.advancedFilters = (filters as any).advancedFilters;
+    return this.makeRequest('/api/relatorio/paginate', 'POST', body);
   }
 
   /**

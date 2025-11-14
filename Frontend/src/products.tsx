@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Input } from "./components/ui/input";
+import AdvancedFilterPanel from './components/AdvancedFilterPanel';
+import useAdvancedFilters from './hooks/useAdvancedFilters';
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
 import { Button } from "./components/ui/button";
-import { Eye, EyeOff, Scale, Calculator } from "lucide-react";
+import { Eye, EyeOff, Calculator } from "lucide-react";
 
 interface ProductsProps {
   colLabels: { [key: string]: string };
@@ -291,10 +293,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     }
   };
 
-  const handleResetAll = async () => {
-    if (!confirm('Deseja realmente REATIVAR todos os produtos? Esta ação não pode ser desfeita.')) {
-      return;
-    }
+  
 
   //   setResettingAll(true);
     
@@ -418,101 +417,115 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
 
   const editableColumns = Array.from({ length: END_COL - START_COL + 1 }, (_, i) => `col${i + START_COL}`);
 
+  // Advanced filters hook (persistent)
+  const adv = useAdvancedFilters();
+  const { filters: advancedFilters, setFiltersState: setAdvancedFiltersState, clearFilters: clearAdvancedFilters } = adv;
   return (
-      <div className="w-full h-full flex flex-col">
+    <div className="w-full h-full flex">
+      <div className="flex-1 flex flex-col">
         <div className="flex justify-between items-center ml-4 mb-6 mt-3">
-          <h2 className="text-2xl md:text-3xl font-semibold">Editar Produtos</h2> 
+          <h2 className="text-2xl md:text-3xl font-semibold">Editar Produtos</h2>
         </div>
-      <div className="overflow-auto flex-1 min-h-0 thin-red-scrollbar">
-        <div className="rounded p-3 w-full grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-7 shadow-xl/20 pb-8">
-          {editableColumns.map((col) => {
-            const colNumber = parseInt(col.replace("col", ""), 10);
-            const produtoNumber = colNumber - 5;
-            const unidadeAtual = unidades[col] || "kg";
-            const labelValue = colLabels[col] || "";
-            const isAtivo = produtosAtivos[col] ?? true;
+        <div className="overflow-auto flex-1 min-h-0 thin-red-scrollbar">
+          <div className="rounded p-3 w-full grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-7 shadow-xl/20 pb-8">
+            {editableColumns.map((col) => {
+              const colNumber = parseInt(col.replace("col", ""), 10);
+              const produtoNumber = colNumber - 5;
+              const unidadeAtual = unidades[col] || "kg";
+              const labelValue = colLabels[col] || "";
+              const isAtivo = produtosAtivos[col] ?? true;
 
-            return (
-              <div key={col}>
-                <div className={`flex flex-col justify-center items-start gap-2 shadow-xl/6 rounded-lg px-1 py-1 w-120 transition-opacity ${!isAtivo ? 'opacity-50' : 'opacity-100'}`}>
-                  <div className="flex w-full gap-2">
-                    <div className="relative flex-1">
-                      <Input
-                        id={`input-${col}`}
-                        className={`peer h-9 px-2 pt-4 text-sm border-b border-gray-400 rounded-lg focus:border-black focus:ring-0 ${savingProduct === col ? 'bg-gray-100' : ''}`}
-                        type="text"
-                        value={labelValue}
-                        onChange={(e) => handleLabelChange(col, e.target.value, unidadeAtual)}
-                        placeholder=" "
-                        disabled={savingProduct === col}
-                      />
-                      <Label
-                        htmlFor={`input-${col}`}
-                        className="absolute left-2 px-1 transition-all text-gray-500 text-xs 
-                          peer-placeholder-shown:top-2.5 peer-placeholder-shown:text-sm 
-                          peer-focus:top-[-0.6rem] peer-focus:text-base peer-focus:text-black peer-focus:bg-white 
-                          peer-not-placeholder-shown:top-[-0.6rem] peer-not-placeholder-shown:text-sm peer-not-placeholder-shown:text-black peer-not-placeholder-shown:bg-white"
+              return (
+                <div key={col}>
+                  <div className={`flex flex-col justify-center items-start gap-2 shadow-xl/6 rounded-lg px-1 py-1 w-120 transition-opacity ${!isAtivo ? 'opacity-50' : 'opacity-100'}`}>
+                    <div className="flex w-full gap-2">
+                      <div className="relative flex-1">
+                        <Input
+                          id={`input-${col}`}
+                          className={`peer h-9 px-2 pt-4 text-sm border-b border-gray-400 rounded-lg focus:border-black focus:ring-0 ${savingProduct === col ? 'bg-gray-100' : ''}`}
+                          type="text"
+                          value={labelValue}
+                          onChange={(e) => handleLabelChange(col, e.target.value, unidadeAtual)}
+                          placeholder=" "
+                          disabled={savingProduct === col}
+                        />
+                        <Label
+                          htmlFor={`input-${col}`}
+                          className="absolute left-2 px-1 transition-all text-gray-500 text-xs 
+                            peer-placeholder-shown:top-2.5 peer-placeholder-shown:text-sm 
+                            peer-focus:top-[-0.6rem] peer-focus:text-base peer-focus:text-black peer-focus:bg-white 
+                            peer-not-placeholder-shown:top-[-0.6rem] peer-not-placeholder-shown:text-sm peer-not-placeholder-shown:text-black peer-not-placeholder-shown:bg-white"
+                        >
+                           {`Produto ${produtoNumber}`}
+                        </Label>
+                      </div>
+
+                      <div className="flex items-center justify-center border border-gray-400 rounded-lg px-2 min-w-24">
+                        <RadioGroup
+                          className="flex flex-row gap-3"
+                          value={unidadeAtual === "g" ? "0" : "1"}
+                          onValueChange={(value) => handleUnidadeChange(col, value)}
+                        >
+                          <div className="flex flex-row items-center">
+                            <RadioGroupItem value="0" id={`${col}-g`} className="border-gray-500" />
+                            <Label htmlFor={`${col}-g`} className="text-sm cursor-pointer ml-1">g</Label>
+                          </div>
+                          <div className="flex flex-row items-center">
+                            <RadioGroupItem value="1" id={`${col}-kg`} className="border-gray-500" />
+                            <Label htmlFor={`${col}-kg`} className="text-sm cursor-pointer ml-1">kg</Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        variant={isAtivo ? "outline" : "secondary"}
+                        onClick={() => handleToggleAtivo(col)}
+                        className="h-9 px-2"
+                        title={isAtivo ? "Desativar produto (ignorar nos cálculos)" : "Ativar produto"}
+                        disabled={togglingProduct === col}
                       >
-                         {`Produto ${produtoNumber}`}
-                      </Label>
-                    </div>
+                        {togglingProduct === col ? (
+                          <span className="animate-spin">⏳</span>
+                        ) : isAtivo ? (
+                          <Eye className="h-4 w-4" />
+                        ) : (
+                          <EyeOff className="h-4 w-4" />
+                        )}
+                      </Button>
 
-                    <div className="flex items-center justify-center border border-gray-400 rounded-lg px-2 min-w-24">
-                      <RadioGroup
-                        className="flex flex-row gap-3"
-                        value={unidadeAtual === "g" ? "0" : "1"}
-                        onValueChange={(value) => handleUnidadeChange(col, value)}
+                      <Button
+                        size="sm"
+                        variant={produtosIgnorarCalculos[col] ? "secondary" : "outline"}
+                        onClick={() => handleToggleIgnorarCalculos(col)}
+                        className="h-9 px-2"
+                        title={produtosIgnorarCalculos[col] ? "Incluir nos cálculos" : "Remover dos cálculos (mantém no relatório)"}
+                        disabled={togglingProduct === col || !isAtivo}
                       >
-                        <div className="flex flex-row items-center">
-                          <RadioGroupItem value="0" id={`${col}-g`} className="border-gray-500" />
-                          <Label htmlFor={`${col}-g`} className="text-sm cursor-pointer ml-1">g</Label>
-                        </div>
-                        <div className="flex flex-row items-center">
-                          <RadioGroupItem value="1" id={`${col}-kg`} className="border-gray-500" />
-                          <Label htmlFor={`${col}-kg`} className="text-sm cursor-pointer ml-1">kg</Label>
-                        </div>
-                      </RadioGroup>
+                        {togglingProduct === col ? (
+                          <span className="animate-spin">⏳</span>
+                        ) : (
+                          <Calculator className={`h-4 w-4 ${produtosIgnorarCalculos[col] ? 'text-amber-600' : ''}`} />
+                        )}
+                      </Button>
                     </div>
-
-                    <Button
-                      size="sm"
-                      variant={isAtivo ? "outline" : "secondary"}
-                      onClick={() => handleToggleAtivo(col)}
-                      className="h-9 px-2"
-                      title={isAtivo ? "Desativar produto (ignorar nos cálculos)" : "Ativar produto"}
-                      disabled={togglingProduct === col}
-                    >
-                      {togglingProduct === col ? (
-                        <span className="animate-spin">⏳</span>
-                      ) : isAtivo ? (
-                        <Eye className="h-4 w-4" />
-                      ) : (
-                        <EyeOff className="h-4 w-4" />
-                      )}
-                    </Button>
-
-                    <Button
-                      size="sm"
-                      variant={produtosIgnorarCalculos[col] ? "secondary" : "outline"}
-                      onClick={() => handleToggleIgnorarCalculos(col)}
-                      className="h-9 px-2"
-                      title={produtosIgnorarCalculos[col] ? "Incluir nos cálculos" : "Remover dos cálculos (mantém no relatório)"}
-                      disabled={togglingProduct === col || !isAtivo}
-                    >
-                      {togglingProduct === col ? (
-                        <span className="animate-spin">⏳</span>
-                      ) : (
-                        <Calculator className={`h-4 w-4 ${produtosIgnorarCalculos[col] ? 'text-amber-600' : ''}`} />
-                      )}
-                    </Button>
-                  </div> 
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
+      </div>
+
+      <AdvancedFilterPanel
+        filters={advancedFilters}
+        onChange={(f) => setAdvancedFiltersState(f)}
+        onApply={() => {
+          try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: advancedFilters })); } catch (e) {}
+        }}
+        onClear={() => { clearAdvancedFilters(); try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: {} })); } catch (e) {} }}
+      />
     </div>
-  </div>
   );
 }
 
