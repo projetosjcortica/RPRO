@@ -397,8 +397,9 @@ export function ProfileConfig({
           });
           if (defaultRes.ok) {
             toast.success("Foto atualizada para todos os usuários");
-            // Trigger an event so other components know to refresh
-            window.dispatchEvent(new Event('user-photos-updated'));
+            const dd = await defaultRes.json().catch(() => ({}));
+            // trigger event with the new default path so other components can update
+            window.dispatchEvent(new CustomEvent('user-photos-updated', { detail: { path: dd.path || (data as any).photoPath } }));
           }
         }
       } catch (err) {

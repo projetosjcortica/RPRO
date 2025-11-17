@@ -61,8 +61,12 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
         console.error("Erro ao carregar dados:", error);
       }
     };
-    
+    // When user photos change globally, refresh the users list
+  const onPhotosUpdated = () => { fetchUsers(); };
+    window.addEventListener('user-photos-updated', onPhotosUpdated);
+
     loadData();
+    return () => window.removeEventListener('user-photos-updated', onPhotosUpdated);
   }, [configKey]);
 
   // Funções para manipular o formulário

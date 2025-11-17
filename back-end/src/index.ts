@@ -4850,7 +4850,22 @@ app.get('/api/amendoim/config', async (req, res) => {
     //   validation.errors.push('IHM2 não configurada. Configure o IP da IHM2 ou desmarque "Usar duas IHMs".');
     // }
       
-    return res.json({ config, validation });
+    // Backwards-compat: return top-level keys for legacy scripts/tools
+    // e.g. scripts/check-amendoim-config.ps1 expects fields at root
+    const flat: Record<string, any> = { ...(config || {}) };
+
+    // If duasIHMs is true but ihm2 not present, provide a placeholder so tools show a consistent shape
+    if (flat.duasIHMs && !flat.ihm2) {
+      flat.ihm2 = {
+        ip: '',
+        user: 'anonymous',
+        password: '',
+        caminhoRemoto: '/InternalStorage/data/',
+        usadaPara: 'saida',
+      };
+    }
+
+    return res.json({ config, validation, ...flat });
   } catch (e: any) {
     console.error('[api/amendoim/config] error', e);
     return res.status(500).json({ error: e?.message || 'Erro ao obter configuração' });

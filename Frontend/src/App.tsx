@@ -103,7 +103,16 @@ const App = () => {
       }
     };
 
-    const onPhotoUpdate = () => {
+    const onPhotoUpdate = (e?: any) => {
+      try {
+        const path = e?.detail?.path;
+        if (path && user) {
+          // Update current user with new default photo
+          updateUser({ ...user, photoPath: path });
+          return;
+        }
+      } catch (err) {}
+      // fall back to forcing an update (useful when event had no detail)
       if (user) {
         updateUser({ ...user });
       }
