@@ -22,6 +22,7 @@ import { CheckIcon } from "lucide-react";
 import { Drawer, DrawerContent, DrawerTrigger } from "./ui/drawer";
 import AdvancedFilterPanel from './AdvancedFilterPanel'
 import useAdvancedFilters from '../hooks/useAdvancedFilters';
+import { Label } from "./ui/label";
 
 interface FiltrosBarProps {
   onAplicarFiltros?: (filtros: Filtros) => void;
@@ -251,6 +252,42 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
   const { filters: advancedFilters, setFiltersState: setAdvancedFiltersState, clearFilters: clearAdvancedFilters } = adv;
   return (
     <div className="flex flex-row items-end justify-end gap-1">
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className={cn(
+              "justify-between text-left font-normal border border-gray-300",
+              !dateRange && "text-gray-400"
+            )}
+          >
+            {dateRange?.from ? (
+              dateRange.to ? (
+                <>
+                  {format(dateRange.from, "dd/MM/yy")} -{" "}
+                  {format(dateRange.to, "dd/MM/yy")}
+                </>
+              ) : (
+                format(dateRange.from, "dd/MM/yyyy")
+              )
+            ) : (
+              <span>Selecione a data</span>
+            )}
+            <CalendarIcon className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" onInteractOutside={handleBuscar}>
+          <Calendar
+            autoFocus
+            mode="range"
+            locale={pt}
+            defaultMonth={dateRange?.from}
+            selected={dateRange} 
+            onSelect={handleDateChange}
+            numberOfMonths={1}
+          />
+        </PopoverContent>
+      </Popover>
       <Drawer direction="right">
         <DrawerTrigger asChild>
           <Button variant="outline">
@@ -258,10 +295,16 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             Filtros
           </Button>
         </DrawerTrigger>
-        <DrawerContent>
+        <DrawerContent className="p-5">
+
+          <h3 className="mb-2 font-bold">Filtros</h3>
+          
           <div className="flex flex-col gap-1 ">
             {/* Nome da Fórmula - Input comum (ou pode virar combobox se quiser sugestões) */}
-            <div className="w-50">
+            <Label>
+              Nome de fórmula
+            </Label>
+            <div className="mb-4">
               <input
                 type="text"
                 placeholder="Digite o nome da fórmula"
@@ -269,55 +312,20 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBuscar}
-                className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-9 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
-            {/* DatePicker */}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className={cn(
-                    "w-50 justify-between text-left font-normal border border-black",
-                    !dateRange && "text-gray-400"
-                  )}
-                >
-                  {dateRange?.from ? (
-                    dateRange.to ? (
-                      <>
-                        {format(dateRange.from, "dd/MM/yy")} -{" "}
-                        {format(dateRange.to, "dd/MM/yy")}
-                      </>
-                    ) : (
-                      format(dateRange.from, "dd/MM/yyyy")
-                    )
-                  ) : (
-                    <span>Selecione a data</span>
-                  )}
-                  <CalendarIcon className="h-4 w-4" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" onInteractOutside={handleBuscar}>
-                <Calendar
-                  autoFocus
-                  mode="range"
-                  locale={pt}
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange} 
-                  onSelect={handleDateChange}
-                  numberOfMonths={1}
-                />
-              </PopoverContent>
-            </Popover>
-            
             {/* Combobox Código */}
+            <Label>
+              Código do programa
+            </Label>
             <Popover open={openCodigoDesktop} onOpenChange={setOpenCodigoDesktop}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   role="combobox"
                   aria-expanded={openCodigoDesktop}
-                  className="w-52 justify-between border-black font-normal text-gray-400 "
+                  className=" justify-between border-gray-300 font-normal text-gray-400 mb-4"
                 >
                   {filtrosTemporarios.codigo
                     ? filtrosTemporarios.codigo === '__all'
@@ -387,13 +395,16 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             </Popover>
 
             {/* Combobox Número */}
+            <Label>
+              Código do cliente
+            </Label>
             <Popover open={openNumeroDesktop} onOpenChange={setOpenNumeroDesktop}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   role="combobox"
                   aria-expanded={openNumeroDesktop}
-                  className="w-52 justify-between border-black font-normal text-gray-400"
+                  className=" justify-between border-gray-300 font-normal text-gray-400 mb-4"
                 >
                   {filtrosTemporarios.numero 
                     ? filtrosTemporarios.numero === '__all'
@@ -497,7 +508,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBuscar}
-                className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-9 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             {/* DatePicker */}
@@ -508,7 +519,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   className={cn(
-                    "w-52 justify-between text-left font-normal border border-black",
+                    "w-52 justify-between text-left font-normal border border-gray-300",
                     !dateRange && "text-gray-400"
                   )}
                 >
@@ -549,7 +560,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   onMouseDown={(e) => { e.stopPropagation(); e.stopImmediatePropagation(); }}
                   role="combobox"
                   aria-expanded={openCodigoMobile}
-                  className="w-52 justify-between border-black font-normal text-gray-400 "
+                  className="w-52 justify-between border-gray-300 font-normal text-gray-400 "
                 >
                   {filtrosTemporarios.codigo
                     ? filtrosTemporarios.codigo === '__all'
