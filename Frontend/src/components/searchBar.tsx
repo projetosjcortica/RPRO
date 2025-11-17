@@ -19,6 +19,9 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { CheckIcon } from "lucide-react";
+import { Drawer, DrawerContent, DrawerTrigger } from "./ui/drawer";
+import AdvancedFilterPanel from './AdvancedFilterPanel'
+import useAdvancedFilters from '../hooks/useAdvancedFilters';
 
 interface FiltrosBarProps {
   onAplicarFiltros?: (filtros: Filtros) => void;
@@ -242,225 +245,244 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
     console.debug('[FiltrosBar] state', { openMobileFilters, openCodigoMobile, openNumeroMobile });
   }, [openMobileFilters, openCodigoMobile, openNumeroMobile]);
 
+
+
+  const adv = useAdvancedFilters();
+  const { filters: advancedFilters, setFiltersState: setAdvancedFiltersState, clearFilters: clearAdvancedFilters } = adv;
   return (
     <div className="flex flex-row items-end justify-end gap-1">
-      <div className="flex flex-row gap-1 hidden 2xl:flex">
-        {/* Nome da Fórmula - Input comum (ou pode virar combobox se quiser sugestões) */}
-        <div className="w-50">
-          <input
-            type="text"
-            placeholder="Digite o nome da fórmula"
-            value={filtrosTemporarios.nomeFormula}
-            onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
-            onKeyDown={handleKeyDown}
-            onBlur={handleBuscar}
-            className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          />
-        </div>
-        {/* DatePicker */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "w-50 justify-between text-left font-normal border border-black",
-                !dateRange && "text-gray-400"
-              )}
-            >
-              {dateRange?.from ? (
-                dateRange.to ? (
-                  <>
-                    {format(dateRange.from, "dd/MM/yy")} -{" "}
-                    {format(dateRange.to, "dd/MM/yy")}
-                  </>
-                ) : (
-                  format(dateRange.from, "dd/MM/yyyy")
-                )
-              ) : (
-                <span>Selecione a data</span>
-              )}
-              <CalendarIcon className="h-4 w-4" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" onInteractOutside={handleBuscar}>
-            <Calendar
-              autoFocus
-              mode="range"
-              locale={pt}
-              defaultMonth={dateRange?.from}
-              selected={dateRange} 
-              onSelect={handleDateChange}
-              numberOfMonths={1}
-            />
-          </PopoverContent>
-        </Popover>
-        
-        {/* Combobox Código */}
-        <Popover open={openCodigoDesktop} onOpenChange={setOpenCodigoDesktop}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={openCodigoDesktop}
-              className="w-52 justify-between border-black font-normal text-gray-400 "
-            >
-              {filtrosTemporarios.codigo
-                ? filtrosTemporarios.codigo === '__all'
-                  ? 'Todos'
-                  : filtrosTemporarios.codigo
-                : loadingFiltros
-                ? 'Carregando...'
-                : 'Selecionar código do prog.'}
-              <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}>
-            <Command>
-              <CommandInput
-                placeholder="Selecionar códg. do prog..."
-                value={filtrosTemporarios.codigo === '__all' ? '' : filtrosTemporarios.codigo}
-                onValueChange={(value) => {
-                  if (value === '') {
-                    setFiltrosTemporarios(prev => ({ ...prev, codigo: '' }));
-                  } else {
-                    setFiltrosTemporarios(prev => ({ ...prev, codigo: value }));
-                  }
-                }}
+      <Drawer direction="right">
+        <DrawerTrigger asChild>
+          <Button variant="outline">
+            <Funnel className=" h-4 w-4" />
+            Filtros
+          </Button>
+        </DrawerTrigger>
+        <DrawerContent>
+          <div className="flex flex-col gap-1 ">
+            {/* Nome da Fórmula - Input comum (ou pode virar combobox se quiser sugestões) */}
+            <div className="w-50">
+              <input
+                type="text"
+                placeholder="Digite o nome da fórmula"
+                value={filtrosTemporarios.nomeFormula}
+                onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
                 onKeyDown={handleKeyDown}
-                disabled={loadingFiltros}
+                onBlur={handleBuscar}
+                className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
-              <CommandList>
-                <CommandEmpty>{loadingFiltros ? 'Carregando...' : 'Nenhum código encontrado.'}</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem
-                    key="__all"
-                    value="__all"
-                    onSelect={() => {
-                      applyFiltrosImmediate({ codigo: '__all' }, () => setOpenCodigoDesktop(false));
+            </div>
+            {/* DatePicker */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-50 justify-between text-left font-normal border border-black",
+                    !dateRange && "text-gray-400"
+                  )}
+                >
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "dd/MM/yy")} -{" "}
+                        {format(dateRange.to, "dd/MM/yy")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "dd/MM/yyyy")
+                    )
+                  ) : (
+                    <span>Selecione a data</span>
+                  )}
+                  <CalendarIcon className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" onInteractOutside={handleBuscar}>
+                <Calendar
+                  autoFocus
+                  mode="range"
+                  locale={pt}
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange} 
+                  onSelect={handleDateChange}
+                  numberOfMonths={1}
+                />
+              </PopoverContent>
+            </Popover>
+            
+            {/* Combobox Código */}
+            <Popover open={openCodigoDesktop} onOpenChange={setOpenCodigoDesktop}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCodigoDesktop}
+                  className="w-52 justify-between border-black font-normal text-gray-400 "
+                >
+                  {filtrosTemporarios.codigo
+                    ? filtrosTemporarios.codigo === '__all'
+                      ? 'Todos'
+                      : filtrosTemporarios.codigo
+                    : loadingFiltros
+                    ? 'Carregando...'
+                    : 'Selecionar código do prog.'}
+                  <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}>
+                <Command>
+                  <CommandInput
+                    placeholder="Selecionar códg. do prog..."
+                    value={filtrosTemporarios.codigo === '__all' ? '' : filtrosTemporarios.codigo}
+                    onValueChange={(value) => {
+                      if (value === '') {
+                        setFiltrosTemporarios(prev => ({ ...prev, codigo: '' }));
+                      } else {
+                        setFiltrosTemporarios(prev => ({ ...prev, codigo: value }));
+                      }
                     }}
-                  >
-                    <CheckIcon
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        filtrosTemporarios.codigo === '__all' ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    Todos
-                  </CommandItem>
-                  {filteredCodigos.map((codigo) => (
-                    <CommandItem
-                      key={codigo}
-                      value={codigo}
-                      onSelect={(currentValue) => {
-                        const novo = filtrosTemporarios.codigo === currentValue ? '' : currentValue;
-                        applyFiltrosImmediate({ codigo: novo }, () => setOpenCodigoDesktop(false));
-                      }}
-                    >
-                      <CheckIcon
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          filtrosTemporarios.codigo === codigo ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {codigo}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+                    onKeyDown={handleKeyDown}
+                    disabled={loadingFiltros}
+                  />
+                  <CommandList>
+                    <CommandEmpty>{loadingFiltros ? 'Carregando...' : 'Nenhum código encontrado.'}</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        key="__all"
+                        value="__all"
+                        onSelect={() => {
+                          applyFiltrosImmediate({ codigo: '__all' }, () => setOpenCodigoDesktop(false));
+                        }}
+                      >
+                        <CheckIcon
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            filtrosTemporarios.codigo === '__all' ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        Todos
+                      </CommandItem>
+                      {filteredCodigos.map((codigo) => (
+                        <CommandItem
+                          key={codigo}
+                          value={codigo}
+                          onSelect={(currentValue) => {
+                            const novo = filtrosTemporarios.codigo === currentValue ? '' : currentValue;
+                            applyFiltrosImmediate({ codigo: novo }, () => setOpenCodigoDesktop(false));
+                          }}
+                        >
+                          <CheckIcon
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              filtrosTemporarios.codigo === codigo ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {codigo}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
-        {/* Combobox Número */}
-        <Popover open={openNumeroDesktop} onOpenChange={setOpenNumeroDesktop}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={openNumeroDesktop}
-              className="w-52 justify-between border-black font-normal text-gray-400"
-            >
-              {filtrosTemporarios.numero 
-                ? filtrosTemporarios.numero === '__all'
-                  ? 'Todos'
-                  : String(filtrosTemporarios.numero).padStart(3, '0')
-                : loadingFiltros
-                ? 'Carregando...'
-                : 'Selecionar códg. do cliente'}
-              <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
+            {/* Combobox Número */}
+            <Popover open={openNumeroDesktop} onOpenChange={setOpenNumeroDesktop}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openNumeroDesktop}
+                  className="w-52 justify-between border-black font-normal text-gray-400"
+                >
+                  {filtrosTemporarios.numero 
+                    ? filtrosTemporarios.numero === '__all'
+                      ? 'Todos'
+                      : String(filtrosTemporarios.numero).padStart(3, '0')
+                    : loadingFiltros
+                    ? 'Carregando...'
+                    : 'Selecionar códg. do cliente'}
+                  <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}> 
+                <Command>
+                  <CommandInput
+                    placeholder="Pesquisar número..."
+                    value={filtrosTemporarios.numero === '__all' ? '' : String(filtrosTemporarios.numero)}
+                    onValueChange={(value) => {
+                      if (value === '') {
+                        setFiltrosTemporarios(prev => ({ ...prev, numero: '' }));
+                      } else {
+                        setFiltrosTemporarios(prev => ({ ...prev, numero: value }));
+                      }
+                    }}
+                    onKeyDown={handleKeyDown}
+                    disabled={loadingFiltros}
+                  />
+                  <CommandList>
+                    <CommandEmpty>{loadingFiltros ? 'Carregando...' : 'Nenhum número encontrado.'}</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        key="__all"
+                        value="__all"
+                        onSelect={() => {
+                          applyFiltrosImmediate({ numero: '__all' }, () => setOpenNumeroDesktop(false));
+                        }}
+                      >
+                        <CheckIcon
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            filtrosTemporarios.numero === '__all' ? "opacity-100" : "opacity-0"
+                          )}
+                        />
+                        Todos
+                      </CommandItem>
+                      {filteredNumeros.map((numero) => (
+                        <CommandItem
+                          key={numero}
+                          value={numero}
+                          onSelect={(currentValue) => {
+                            const novo = filtrosTemporarios.numero === currentValue ? '' : currentValue;
+                            applyFiltrosImmediate({ numero: novo }, () => setOpenNumeroMobile(false));
+                          }}
+                        >
+                          <CheckIcon
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              filtrosTemporarios.numero === numero ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {String(numero).padStart(3, '0')}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
+          <AdvancedFilterPanel
+                  filters={advancedFilters}
+                  onChange={(f) => setAdvancedFiltersState(f)}
+                  onApply={() => {
+                    try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: advancedFilters })); } catch (e) {}
+                  }}
+                  onClear={() => { clearAdvancedFilters(); try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: {} })); } catch (e) {} }}
+                />
+          <div className="flex flex-row gap-1 hidden 2xl:flex">
+            <Button variant="outline" onClick={handleBuscar} className="text-black">
+              <p>Buscar</p>
             </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}> 
-            <Command>
-              <CommandInput
-                placeholder="Pesquisar número..."
-                value={filtrosTemporarios.numero === '__all' ? '' : String(filtrosTemporarios.numero)}
-                onValueChange={(value) => {
-                  if (value === '') {
-                    setFiltrosTemporarios(prev => ({ ...prev, numero: '' }));
-                  } else {
-                    setFiltrosTemporarios(prev => ({ ...prev, numero: value }));
-                  }
-                }}
-                onKeyDown={handleKeyDown}
-                disabled={loadingFiltros}
-              />
-              <CommandList>
-                <CommandEmpty>{loadingFiltros ? 'Carregando...' : 'Nenhum número encontrado.'}</CommandEmpty>
-                <CommandGroup>
-                  <CommandItem
-                    key="__all"
-                    value="__all"
-                    onSelect={() => {
-                      applyFiltrosImmediate({ numero: '__all' }, () => setOpenNumeroDesktop(false));
-                    }}
-                  >
-                    <CheckIcon
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        filtrosTemporarios.numero === '__all' ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    Todos
-                  </CommandItem>
-                  {filteredNumeros.map((numero) => (
-                    <CommandItem
-                      key={numero}
-                      value={numero}
-                      onSelect={(currentValue) => {
-                        const novo = filtrosTemporarios.numero === currentValue ? '' : currentValue;
-                        applyFiltrosImmediate({ numero: novo }, () => setOpenNumeroMobile(false));
-                      }}
-                    >
-                      <CheckIcon
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          filtrosTemporarios.numero === numero ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      {String(numero).padStart(3, '0')}
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
-      </div>
-      <div className="flex flex-row gap-1 hidden 2xl:flex">
-        <Button variant="outline" onClick={handleBuscar} className="text-black">
-          <p>Buscar</p>
-        </Button>
-        <Button onClick={handleLimpar} variant="outline">
-          <p>Limpar</p>
-        </Button>
-      </div>
-
-
-
-      <Popover open={openMobileFilters} onOpenChange={handleMobileOpenChange}>
+            <Button onClick={handleLimpar} variant="outline">
+              <p>Limpar</p>
+            </Button>
+          </div>
+          </DrawerContent>
+      </Drawer>
+       <Popover open={openMobileFilters} onOpenChange={handleMobileOpenChange}>
         <PopoverTrigger>
-          <Button className="2xl:hidden">
+          <Button className=" hidden">
             <Funnel/>
             <p>Filtros</p>
           </Button>
@@ -686,7 +708,6 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           </>  
         </PopoverContent>
       </Popover>
-
     </div>
   );
 }
