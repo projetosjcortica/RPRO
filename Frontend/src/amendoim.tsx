@@ -633,8 +633,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     if (collectorLoading) return;
   setCollectorLoading(true);
     try {
-      try { toastManager.showInfoOnce('collector-toggle', collectorRunning ? 'Parando coleta...' : 'Iniciando coleta...'); } catch(e){}
-      if (collectorRunning) {
+  if (collectorRunning) {
         const res = await fetch("http://localhost:3000/api/amendoim/collector/stop", { method: "POST" });
         if (!res.ok) throw new Error("Falha ao interromper o coletor.");
         await res.json().catch(() => ({}));
@@ -642,7 +641,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         await fetchRegistros();
         await fetchEstatisticas();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch(e){}
-      } else {
+  } else {
         // Verificar se há erros de validação antes de iniciar
         if (validationErrors.length > 0) {
           toastManager.updateError(
@@ -654,8 +653,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           return;
         }
         
-        // Start amendoim collector (will collect both entrada and saida as configured)
-        try { toastManager.showLoading('collector-toggle', 'Iniciando coletor Amendoim...'); } catch(e){}
+  // Start amendoim collector (will collect both entrada and saida as configured)
+  try { toastManager.showLoading('collector-toggle', 'Iniciando coletor Amendoim...'); } catch(e){}
         const res = await fetch("http://localhost:3000/api/amendoim/collector/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -815,12 +814,6 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       <div className="flex flex-row gap-2 justify-start w-full">
           {/* Conteúdo principal */}
           <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-206 w-[68px]">
-          {/* Error message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 p-4 rounded-lg">
-              {error}
-            </div>
-          )}
 
           {/* Table */}
           <div className="flex w-full h-[74vh] 3xl:h-[74.90vh] overflow-hidden shadow-xl rounded flex border border-gray-300">

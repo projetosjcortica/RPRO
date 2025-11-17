@@ -148,6 +148,22 @@ export async function startCollector(overrideConfig?: {
   const finalPassword =
     overrideConfig?.password ?? runtimeIhm.password ?? getRuntimeConfig("pass");
 
+  // If no IHM configuration is present at all, do not start the collector.
+  // This avoids throwing low-level errors when the collector runs without any config.
+  if (
+    (!finalIp || String(finalIp).trim() === "") &&
+    (!finalUser || String(finalUser).trim() === "") &&
+    (!finalPassword || String(finalPassword).trim() === "")
+  ) {
+    console.log('[collector] IHM configuration missing; not starting collector.');
+    return {
+      started: false,
+      message:
+        'IHM config not provided; collector not started. Configure IHM via /api/config or provide overrideConfig.',
+      status: getCollectorStatus(),
+    };
+  }
+
   // If we have override config, update the runtime config for future use
   if (overrideConfig) {
     const updatedIhmConfig = { ...runtimeIhm };
@@ -2579,7 +2595,17 @@ app.get("/api/collector/stop", async (req, res) => {
 
 app.get("/api/collector/status", async (_req, res) => {
   try {
-    return res.json(getCollectorStatus());
+    // Determine if a default IHM IP is configured (runtime config or legacy 'ip' key or env)
+    const runtimeIhm = getRuntimeConfig('ihm-config') || {};
+    const defaultIp = (runtimeIhm && runtimeIhm.ip) || getRuntimeConfig('ip') || process.env.IHM_IP || process.env.IP || null;
+    const configMissing = !defaultIp || String(defaultIp).trim() === '';
+
+    const status = getCollectorStatus();
+    // Only expose lastError to the client when there is no default IP configured.
+    // This prevents spurious toasts when an old error exists but a default IP is set.
+    const out = { ...status, configMissing } as any;
+    if (!configMissing) out.lastError = null;
+    return res.json(out);
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "internal" });
@@ -3591,6 +3617,97 @@ app.get("/api/chartdata/horarios", async (req, res) => {
   }
 });
 
+// About: expose releases derived from posted release notes (READMES)
+app.get('/api/about/releases', async (req, res) => {
+  try {
+    const repoRoot = path.resolve(process.cwd(), '..');
+    const readmesDir = path.join(repoRoot, 'READMES');
+    if (!fs.existsSync(readmesDir)) return res.json({ releases: [] });
+    const files = await fs.promises.readdir(readmesDir);
+    const releaseFiles = files.filter(f => /^release[_\-]/i.test(f));
+    const out: Array<{ filename: string; version: string; date: string; excerpt: string; content: string }> = [];
+    for (const f of releaseFiles) {
+      try {
+        const full = path.join(readmesDir, f);
+        const stat = await fs.promises.stat(full);
+        if (!stat.isFile()) continue;
+        const content = await fs.promises.readFile(full, 'utf8');
+        const firstNonEmpty = (content || '').split(/\r?\n/).map(l => l.trim()).find(l => l.length > 0) || '';
+        const version = f.replace(/\.[^/.]+$/, '');
+        out.push({ filename: f, version, date: new Date(stat.mtimeMs).toISOString(), excerpt: firstNonEmpty.slice(0, 240), content });
+      } catch (e) {
+        // ignore single file failures
+      }
+    }
+    // sort by date desc
+    out.sort((a, b) => (a.date < b.date ? 1 : -1));
+    return res.json({ releases: out });
+  } catch (e) {
+    console.error('[/api/about/releases] error', e);
+    return res.status(500).json({ error: 'internal' });
+  }
+});
+
+app.get('/api/about/features', async (req, res) => {
+  try {
+    const repoRoot = path.resolve(process.cwd(), '..');
+    const readmesDir = path.join(repoRoot, 'READMES');
+    if (!fs.existsSync(readmesDir)) return res.json({ files: [] });
+    const files = await fs.promises.readdir(readmesDir);
+    const out: Array<{ filename: string; content: string }> = [];
+    for (const f of files) {
+      try {
+        const full = path.join(readmesDir, f);
+        const stat = await fs.promises.stat(full);
+        if (!stat.isFile()) continue;
+        const content = await fs.promises.readFile(full, 'utf8');
+        out.push({ filename: f, content });
+      } catch (e) {
+        // ignore single file failures
+      }
+    }
+    return res.json({ files: out });
+  } catch (e) {
+    console.error('[/api/about/features] error', e);
+    return res.status(500).json({ error: 'internal' });
+  }
+});
+
+// Consolidated about/info endpoint: latest release note + other READMES
+app.get('/api/about/info', async (req, res) => {
+  try {
+    const repoRoot = path.resolve(process.cwd(), '..');
+    const readmesDir = path.join(repoRoot, 'READMES');
+    const filesOut: Array<{ filename: string; content: string }> = [];
+    if (fs.existsSync(readmesDir)) {
+      const files = await fs.promises.readdir(readmesDir);
+      for (const f of files) {
+        try {
+          const full = path.join(readmesDir, f);
+          const stat = await fs.promises.stat(full);
+          if (!stat.isFile()) continue;
+          const content = await fs.promises.readFile(full, 'utf8');
+          filesOut.push({ filename: f, content });
+        } catch (e) {}
+      }
+    }
+
+    // Find latest release notes file if any
+    const releaseCandidates = filesOut.filter(x => x.filename.toLowerCase().startsWith('release_notes') || x.filename.toLowerCase().startsWith('release-notes'));
+    let latestRelease: { filename: string; content: string } | null = null;
+    if (releaseCandidates.length > 0) {
+      // choose by filename descending or fallback to first
+      releaseCandidates.sort((a, b) => b.filename.localeCompare(a.filename));
+      latestRelease = releaseCandidates[0];
+    }
+
+    return res.json({ releaseNote: latestRelease, readmes: filesOut });
+  } catch (e) {
+    console.error('[/api/about/info] error', e);
+    return res.status(500).json({ error: 'internal' });
+  }
+});
+
 // Endpoint especializado: Agregação por Dia da Semana
 app.get("/api/chartdata/diasSemana", async (req, res) => {
   try {
@@ -4599,18 +4716,18 @@ app.get('/api/amendoim/config', async (req, res) => {
       needsIhmSelection: false,
     };
     
-    // Se IHM1 não configurada
-    if (!config.ip || !config.ip.trim()) {
-      validation.isValid = false;
-      validation.errors.push('IP da IHM1 é obrigatório.');
-    }
+    // // Se IHM1 não configurada
+    // if (!config.ip || !config.ip.trim()) {
+    //   validation.isValid = false;
+    //   validation.errors.push('IP da IHM1 é obrigatório.');
+    // }
     
     // ⚠️ Validação IHM2 temporariamente desabilitada para testes
     // if (config.duasIHMs && (!config.ihm2?.ip || !config.ihm2.ip.trim())) {
     //   validation.isValid = false;
     //   validation.errors.push('IHM2 não configurada. Configure o IP da IHM2 ou desmarque "Usar duas IHMs".');
     // }
-    
+      
     return res.json({ config, validation });
   } catch (e: any) {
     console.error('[api/amendoim/config] error', e);
