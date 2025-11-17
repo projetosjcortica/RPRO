@@ -27,9 +27,9 @@ const Login: React.FC = () => {
     } catch (err: any) {
       let msg = String(err?.message || err);
       // Map common English errors to Portuguese
-      if (msg.includes('Invalid credentials')) {
+      if (msg.includes('Credenciais inválidas')) {
         msg = 'Credenciais inválidas. Verifique usuário e senha.';
-      } else if (msg.includes('username taken') || msg.includes('username')) {
+      } else if (msg.includes('usuário já existe') || msg.includes('username')) {
         msg = 'Nome de usuário já existe. Escolha outro.';
       }
       setError(msg);
