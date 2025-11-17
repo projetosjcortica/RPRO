@@ -2059,20 +2059,20 @@ rules$1.getRules = getRules$1;
 var applicability$1 = {};
 Object.defineProperty(applicability$1, "__esModule", { value: true });
 applicability$1.shouldUseRule = applicability$1.shouldUseGroup = applicability$1.schemaHasRulesForType = void 0;
-function schemaHasRulesForType({ schema, self }, type2) {
+function schemaHasRulesForType$1({ schema, self }, type2) {
   const group = self.RULES.types[type2];
-  return group && group !== true && shouldUseGroup(schema, group);
+  return group && group !== true && shouldUseGroup$1(schema, group);
 }
-applicability$1.schemaHasRulesForType = schemaHasRulesForType;
-function shouldUseGroup(schema, group) {
-  return group.rules.some((rule) => shouldUseRule(schema, rule));
+applicability$1.schemaHasRulesForType = schemaHasRulesForType$1;
+function shouldUseGroup$1(schema, group) {
+  return group.rules.some((rule) => shouldUseRule$1(schema, rule));
 }
-applicability$1.shouldUseGroup = shouldUseGroup;
-function shouldUseRule(schema, rule) {
+applicability$1.shouldUseGroup = shouldUseGroup$1;
+function shouldUseRule$1(schema, rule) {
   var _a;
   return schema[rule.keyword] !== void 0 || ((_a = rule.definition.implements) === null || _a === void 0 ? void 0 : _a.some((kwd) => schema[kwd] !== void 0));
 }
-applicability$1.shouldUseRule = shouldUseRule;
+applicability$1.shouldUseRule = shouldUseRule$1;
 Object.defineProperty(dataType$1, "__esModule", { value: true });
 dataType$1.reportTypeError = dataType$1.checkDataTypes = dataType$1.checkDataType = dataType$1.coerceAndCheckDataType = dataType$1.getJSONTypes = dataType$1.getSchemaTypes = dataType$1.DataType = void 0;
 const rules_1$1 = rules$1;
@@ -2869,7 +2869,7 @@ const keyword_1 = keyword$1;
 const subschema_1 = subschema$1;
 const codegen_1$S = codegen$1;
 const names_1$a = names$3;
-const resolve_1$3 = resolve$4;
+const resolve_1$4 = resolve$4;
 const util_1$N = util$1;
 const errors_1$1 = errors$1;
 function validateFunctionCode(it) {
@@ -2996,7 +2996,7 @@ function checkNoDefault(it) {
 function updateContext(it) {
   const schId = it.schema[it.opts.schemaId];
   if (schId)
-    it.baseId = (0, resolve_1$3.resolveUrl)(it.opts.uriResolver, it.baseId, schId);
+    it.baseId = (0, resolve_1$4.resolveUrl)(it.opts.uriResolver, it.baseId, schId);
 }
 function checkAsyncSchema(it) {
   if (it.schema.$async && !it.schemaEnv.$async)
@@ -3370,22 +3370,22 @@ class ValidationError extends Error {
 validation_error$1.default = ValidationError;
 var ref_error$1 = {};
 Object.defineProperty(ref_error$1, "__esModule", { value: true });
-const resolve_1$2 = resolve$4;
-class MissingRefError extends Error {
+const resolve_1$3 = resolve$4;
+let MissingRefError$1 = class MissingRefError extends Error {
   constructor(resolver, baseId, ref2, msg) {
     super(msg || `can't resolve reference ${ref2} from id ${baseId}`);
-    this.missingRef = (0, resolve_1$2.resolveUrl)(resolver, baseId, ref2);
-    this.missingSchema = (0, resolve_1$2.normalizeId)((0, resolve_1$2.getFullPath)(resolver, this.missingRef));
+    this.missingRef = (0, resolve_1$3.resolveUrl)(resolver, baseId, ref2);
+    this.missingSchema = (0, resolve_1$3.normalizeId)((0, resolve_1$3.getFullPath)(resolver, this.missingRef));
   }
-}
-ref_error$1.default = MissingRefError;
+};
+ref_error$1.default = MissingRefError$1;
 var compile$1 = {};
 Object.defineProperty(compile$1, "__esModule", { value: true });
 compile$1.resolveSchema = compile$1.getCompilingSchema = compile$1.resolveRef = compile$1.compileSchema = compile$1.SchemaEnv = void 0;
 const codegen_1$R = codegen$1;
 const validation_error_1$1 = validation_error$1;
 const names_1$9 = names$3;
-const resolve_1$1 = resolve$4;
+const resolve_1$2 = resolve$4;
 const util_1$M = util$1;
 const validate_1$3 = validate$1;
 let SchemaEnv$1 = class SchemaEnv {
@@ -3399,7 +3399,7 @@ let SchemaEnv$1 = class SchemaEnv {
     this.schema = env2.schema;
     this.schemaId = env2.schemaId;
     this.root = env2.root || this;
-    this.baseId = (_a = env2.baseId) !== null && _a !== void 0 ? _a : (0, resolve_1$1.normalizeId)(schema === null || schema === void 0 ? void 0 : schema[env2.schemaId || "$id"]);
+    this.baseId = (_a = env2.baseId) !== null && _a !== void 0 ? _a : (0, resolve_1$2.normalizeId)(schema === null || schema === void 0 ? void 0 : schema[env2.schemaId || "$id"]);
     this.schemaPath = env2.schemaPath;
     this.localRefs = env2.localRefs;
     this.meta = env2.meta;
@@ -3412,7 +3412,7 @@ function compileSchema$1(sch) {
   const _sch = getCompilingSchema$1.call(this, sch);
   if (_sch)
     return _sch;
-  const rootId = (0, resolve_1$1.getFullPath)(this.opts.uriResolver, sch.root.baseId);
+  const rootId = (0, resolve_1$2.getFullPath)(this.opts.uriResolver, sch.root.baseId);
   const { es5, lines } = this.opts.code;
   const { ownProperties } = this.opts;
   const gen = new codegen_1$R.CodeGen(this.scope, { es5, lines, ownProperties });
@@ -3496,7 +3496,7 @@ function compileSchema$1(sch) {
 compile$1.compileSchema = compileSchema$1;
 function resolveRef$1(root, baseId, ref2) {
   var _a;
-  ref2 = (0, resolve_1$1.resolveUrl)(this.opts.uriResolver, baseId, ref2);
+  ref2 = (0, resolve_1$2.resolveUrl)(this.opts.uriResolver, baseId, ref2);
   const schOrFunc = root.refs[ref2];
   if (schOrFunc)
     return schOrFunc;
@@ -3513,7 +3513,7 @@ function resolveRef$1(root, baseId, ref2) {
 }
 compile$1.resolveRef = resolveRef$1;
 function inlineOrCompile$1(sch) {
-  if ((0, resolve_1$1.inlineRef)(sch.schema, this.opts.inlineRefs))
+  if ((0, resolve_1$2.inlineRef)(sch.schema, this.opts.inlineRefs))
     return sch.schema;
   return sch.validate ? sch : compileSchema$1.call(this, sch);
 }
@@ -3535,12 +3535,12 @@ function resolve$3(root, ref2) {
 }
 function resolveSchema$1(root, ref2) {
   const p = this.opts.uriResolver.parse(ref2);
-  const refPath = (0, resolve_1$1._getFullPath)(this.opts.uriResolver, p);
-  let baseId = (0, resolve_1$1.getFullPath)(this.opts.uriResolver, root.baseId, void 0);
+  const refPath = (0, resolve_1$2._getFullPath)(this.opts.uriResolver, p);
+  let baseId = (0, resolve_1$2.getFullPath)(this.opts.uriResolver, root.baseId, void 0);
   if (Object.keys(root.schema).length > 0 && refPath === baseId) {
     return getJsonPointer$1.call(this, p, root);
   }
-  const id2 = (0, resolve_1$1.normalizeId)(refPath);
+  const id2 = (0, resolve_1$2.normalizeId)(refPath);
   const schOrRef = this.refs[id2] || this.schemas[id2];
   if (typeof schOrRef == "string") {
     const sch = resolveSchema$1.call(this, root, schOrRef);
@@ -3552,12 +3552,12 @@ function resolveSchema$1(root, ref2) {
     return;
   if (!schOrRef.validate)
     compileSchema$1.call(this, schOrRef);
-  if (id2 === (0, resolve_1$1.normalizeId)(ref2)) {
+  if (id2 === (0, resolve_1$2.normalizeId)(ref2)) {
     const { schema } = schOrRef;
     const { schemaId } = this.opts;
     const schId = schema[schemaId];
     if (schId)
-      baseId = (0, resolve_1$1.resolveUrl)(this.opts.uriResolver, baseId, schId);
+      baseId = (0, resolve_1$2.resolveUrl)(this.opts.uriResolver, baseId, schId);
     return new SchemaEnv$1({ schema, schemaId, root, baseId });
   }
   return getJsonPointer$1.call(this, p, schOrRef);
@@ -3583,12 +3583,12 @@ function getJsonPointer$1(parsedRef, { baseId, schema, root }) {
     schema = partSchema;
     const schId = typeof schema === "object" && schema[this.opts.schemaId];
     if (!PREVENT_SCOPE_CHANGE$1.has(part) && schId) {
-      baseId = (0, resolve_1$1.resolveUrl)(this.opts.uriResolver, baseId, schId);
+      baseId = (0, resolve_1$2.resolveUrl)(this.opts.uriResolver, baseId, schId);
     }
   }
   let env2;
   if (typeof schema != "boolean" && schema.$ref && !(0, util_1$M.schemaHasRulesButRef)(schema, this.RULES)) {
-    const $ref = (0, resolve_1$1.resolveUrl)(this.opts.uriResolver, baseId, schema.$ref);
+    const $ref = (0, resolve_1$2.resolveUrl)(this.opts.uriResolver, baseId, schema.$ref);
     env2 = resolveSchema$1.call(this, root, $ref);
   }
   const { schemaId } = this.opts;
@@ -8959,32 +8959,26 @@ function getRules() {
 }
 rules.getRules = getRules;
 var applicability = {};
-var hasRequiredApplicability;
-function requireApplicability() {
-  if (hasRequiredApplicability) return applicability;
-  hasRequiredApplicability = 1;
-  Object.defineProperty(applicability, "__esModule", { value: true });
-  applicability.shouldUseRule = applicability.shouldUseGroup = applicability.schemaHasRulesForType = void 0;
-  function schemaHasRulesForType2({ schema, self }, type2) {
-    const group = self.RULES.types[type2];
-    return group && group !== true && shouldUseGroup2(schema, group);
-  }
-  applicability.schemaHasRulesForType = schemaHasRulesForType2;
-  function shouldUseGroup2(schema, group) {
-    return group.rules.some((rule) => shouldUseRule2(schema, rule));
-  }
-  applicability.shouldUseGroup = shouldUseGroup2;
-  function shouldUseRule2(schema, rule) {
-    var _a;
-    return schema[rule.keyword] !== void 0 || ((_a = rule.definition.implements) === null || _a === void 0 ? void 0 : _a.some((kwd) => schema[kwd] !== void 0));
-  }
-  applicability.shouldUseRule = shouldUseRule2;
-  return applicability;
+Object.defineProperty(applicability, "__esModule", { value: true });
+applicability.shouldUseRule = applicability.shouldUseGroup = applicability.schemaHasRulesForType = void 0;
+function schemaHasRulesForType({ schema, self }, type2) {
+  const group = self.RULES.types[type2];
+  return group && group !== true && shouldUseGroup(schema, group);
 }
+applicability.schemaHasRulesForType = schemaHasRulesForType;
+function shouldUseGroup(schema, group) {
+  return group.rules.some((rule) => shouldUseRule(schema, rule));
+}
+applicability.shouldUseGroup = shouldUseGroup;
+function shouldUseRule(schema, rule) {
+  var _a;
+  return schema[rule.keyword] !== void 0 || ((_a = rule.definition.implements) === null || _a === void 0 ? void 0 : _a.some((kwd) => schema[kwd] !== void 0));
+}
+applicability.shouldUseRule = shouldUseRule;
 Object.defineProperty(dataType, "__esModule", { value: true });
 dataType.reportTypeError = dataType.checkDataTypes = dataType.checkDataType = dataType.coerceAndCheckDataType = dataType.getJSONTypes = dataType.getSchemaTypes = dataType.DataType = void 0;
 const rules_1 = rules;
-const applicability_1 = requireApplicability();
+const applicability_1 = applicability;
 const errors_1 = errors;
 const codegen_1$o = codegen;
 const util_1$n = util;
@@ -9764,7 +9758,7 @@ function requireValidate() {
   validate.getData = validate.KeywordCxt = validate.validateFunctionCode = void 0;
   const boolSchema_12 = requireBoolSchema();
   const dataType_12 = dataType;
-  const applicability_12 = requireApplicability();
+  const applicability_12 = applicability;
   const dataType_22 = dataType;
   const defaults_12 = requireDefaults();
   const keyword_12 = requireKeyword();
@@ -10279,22 +10273,16 @@ function requireValidation_error() {
   return validation_error;
 }
 var ref_error = {};
-var hasRequiredRef_error;
-function requireRef_error() {
-  if (hasRequiredRef_error) return ref_error;
-  hasRequiredRef_error = 1;
-  Object.defineProperty(ref_error, "__esModule", { value: true });
-  const resolve_12 = resolve$1;
-  class MissingRefError2 extends Error {
-    constructor(resolver, baseId, ref2, msg) {
-      super(msg || `can't resolve reference ${ref2} from id ${baseId}`);
-      this.missingRef = (0, resolve_12.resolveUrl)(resolver, baseId, ref2);
-      this.missingSchema = (0, resolve_12.normalizeId)((0, resolve_12.getFullPath)(resolver, this.missingRef));
-    }
+Object.defineProperty(ref_error, "__esModule", { value: true });
+const resolve_1$1 = resolve$1;
+class MissingRefError2 extends Error {
+  constructor(resolver, baseId, ref2, msg) {
+    super(msg || `can't resolve reference ${ref2} from id ${baseId}`);
+    this.missingRef = (0, resolve_1$1.resolveUrl)(resolver, baseId, ref2);
+    this.missingSchema = (0, resolve_1$1.normalizeId)((0, resolve_1$1.getFullPath)(resolver, this.missingRef));
   }
-  ref_error.default = MissingRefError2;
-  return ref_error;
 }
+ref_error.default = MissingRefError2;
 var compile = {};
 Object.defineProperty(compile, "__esModule", { value: true });
 compile.resolveSchema = compile.getCompilingSchema = compile.resolveRef = compile.compileSchema = compile.SchemaEnv = void 0;
@@ -10573,7 +10561,7 @@ uri$1.default = uri;
     return codegen_12.CodeGen;
   } });
   const validation_error_12 = requireValidation_error();
-  const ref_error_12 = requireRef_error();
+  const ref_error_12 = ref_error;
   const rules_12 = rules;
   const compile_12 = compile;
   const codegen_2 = codegen;
@@ -11166,7 +11154,7 @@ id.default = def$s;
 var ref = {};
 Object.defineProperty(ref, "__esModule", { value: true });
 ref.callRef = ref.getValidate = void 0;
-const ref_error_1$1 = requireRef_error();
+const ref_error_1$1 = ref_error;
 const code_1$8 = code;
 const codegen_1$l = codegen;
 const names_1$1 = names$1;
@@ -12628,7 +12616,7 @@ Object.defineProperty(discriminator, "__esModule", { value: true });
 const codegen_1 = codegen;
 const types_1 = types;
 const compile_1 = compile;
-const ref_error_1 = requireRef_error();
+const ref_error_1 = ref_error;
 const util_1 = util;
 const error = {
   message: ({ params: { discrError, tagName } }) => discrError === types_1.DiscrError.Tag ? `tag "${tagName}" must be string` : `value of tag "${tagName}" must be in oneOf`,
@@ -13029,7 +13017,7 @@ const require$$3 = {
   Object.defineProperty(exports, "ValidationError", { enumerable: true, get: function() {
     return validation_error_12.default;
   } });
-  var ref_error_12 = requireRef_error();
+  var ref_error_12 = ref_error;
   Object.defineProperty(exports, "MissingRefError", { enumerable: true, get: function() {
     return ref_error_12.default;
   } });
@@ -15745,7 +15733,6 @@ function createWindow() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
   } else {
-    win.setMenu(null);
     try {
       const packagedIndex = path.join(
         process.resourcesPath,

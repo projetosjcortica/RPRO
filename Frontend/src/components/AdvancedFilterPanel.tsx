@@ -12,7 +12,7 @@ interface AdvancedFilterPanelProps {
   colLabels?: { [key: string]: string };
 }
 
-export default function AdvancedFilterPanel({ filters, onChange, onApply, onClear, colLabels }: AdvancedFilterPanelProps) {
+export default function AdvancedFilterPanel({ filters, onChange, colLabels }: AdvancedFilterPanelProps) {
   const [productCodeInput, setProductCodeInput] = useState('');
   const [productNameInput, setProductNameInput] = useState('');
   const [formulaCodeInput, setFormulaCodeInput] = useState('');
@@ -31,8 +31,8 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
             const fJs = await fRes.json();
             if (mounted) setFormulaLabels(fJs);
           }
-        } catch (e) {
-          // ignore formula label failure
+        } catch (err) {
+          console.warn('[AdvancedFilterPanel] failed to load formula labels', err);
         }
 
         // Load materia labels
@@ -42,20 +42,19 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
         if (!mounted) return;
         // js is keyed by colKey like col6 -> { num, produto }
         const map: Record<number, string> = {};
-        Object.entries(js).forEach(([colKey, info]: [string, any]) => {
+        Object.entries(js).forEach(([colKey, info]: [string, unknown]) => {
+          const infoObj = info as { produto?: string; nome?: string } | undefined;
           const match = colKey.match(/^col(\d+)$/);
           if (!match) return;
           const colIndex = Number(match[1]);
           const num = colIndex - 5;
-          if (!Number.isNaN(num) && info && (info.produto || info.nome)) {
-            map[num] = info.produto || info.nome || String(num);
+          if (!Number.isNaN(num) && infoObj && (infoObj.produto || infoObj.nome)) {
+            map[num] = infoObj.produto || infoObj.nome || String(num);
           }
         });
         setMateriaLabels(map);
-      } catch (e) {
-        // ignore
-      } finally {
-        if (!mounted) return;
+      } catch (err) {
+        console.warn('[AdvancedFilterPanel] failed to load materia labels', err);
       }
     };
     void load();
@@ -64,13 +63,13 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
 
   const onChangeWithEvent = useCallback((nextFilters: AdvancedFilters) => {
     onChange(nextFilters);
-    try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: nextFilters })); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: nextFilters })); } catch (err) { console.warn('[AdvancedFilterPanel] failed to dispatch advancedFiltersChanged', err); }
     // Persist to localStorage and notify other listeners so side-info updates immediately
     try {
       localStorage.setItem('cortez:advancedFilters:products', JSON.stringify(nextFilters));
-      try { window.dispatchEvent(new CustomEvent('advancedFiltersStorageUpdated', { detail: nextFilters })); } catch (e) {}
-    } catch (e) {
-      // ignore storage failures
+      try { window.dispatchEvent(new CustomEvent('advancedFiltersStorageUpdated', { detail: nextFilters })); } catch (err) { console.warn('[AdvancedFilterPanel] failed to dispatch advancedFiltersStorageUpdated', err); }
+    } catch (err) {
+      console.warn('[AdvancedFilterPanel] failed to persist advanced filters to localStorage', err);
     }
   }, [onChange]);
 
@@ -165,7 +164,7 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
   };
 
   return (
-    <aside style={{ width: 320, maxWidth: 360, height: '100%', overflowY: 'auto', background: 'var(--surface)', borderLeft: '1px solid var(--muted)' }}>
+    <aside style={{ width: 320, maxWidth: 360, marginBottom: 10, background: 'var(--surface)', borderLeft: '1px solid var(--muted)' }}>
       <div style={{ marginBottom: 12 }}>
         <strong>{filters.isFixed ? 'Filtros fixos' : 'Filtros avançados'}</strong>
         <div style={{ fontSize: 12, color: "black" }}>{`${filters.includeProductCodes.length + filters.excludeProductCodes.length} produtos configurados — ${filters.includeProductNames.length + filters.excludeProductNames.length} nomes`}</div>
@@ -228,7 +227,7 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
       <section style={{ marginBottom: 12 }}>
         <Label> Códigos de Produto (1-40) </Label>
         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-          <Input value={productCodeInput} onChange={(e: any) => setProductCodeInput(e.target.value)} placeholder="ex: 1,2,10" />
+          <Input value={productCodeInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProductCodeInput(e.target.value)} placeholder="ex: 1,2,10" />
           <Button size="sm" onClick={addProductCode}>Incluir</Button>
           <Button size="sm" onClick={addExcludeProductCode}>Excluir</Button>
         </div>
@@ -245,7 +244,7 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
       <section style={{ marginBottom: 12 }}>
         <Label> Nomes de Produto </Label>
         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-          <Input value={productNameInput} onChange={(e: any) => setProductNameInput(e.target.value)} placeholder="Adicionar nome" />
+          <Input value={productNameInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProductNameInput(e.target.value)} placeholder="Adicionar nome" />
           <Button size="sm" onClick={addProductName}>Incluir</Button>
           <Button size="sm" onClick={addExcludeProductName}>Excluir</Button>
         </div>
@@ -262,7 +261,7 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
       <section style={{ marginBottom: 12 }}>
         <Label> Códigos de Fórmula </Label>
         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-          <Input value={formulaCodeInput} onChange={(e: any) => setFormulaCodeInput(e.target.value)} placeholder="ex: 1,2" />
+          <Input value={formulaCodeInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormulaCodeInput(e.target.value)} placeholder="ex: 1,2" />
           <Button size="sm" onClick={() => {
             const nums = formulaCodeInput.split(/[,;\s]+/).map(s => Number(s)).filter(n => !Number.isNaN(n));
             if (!nums.length) { setFormulaCodeInput(''); return; }
@@ -287,10 +286,10 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
         </label>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+      {/* <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
         <Button onClick={onApply}>Aplicar agora</Button>
         <Button variant="secondary" onClick={onClear}>Limpar filtros</Button>
-      </div>
+      </div> */}
     </aside>
   );
 }

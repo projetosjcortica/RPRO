@@ -24,6 +24,17 @@ import AdvancedFilterPanel from './AdvancedFilterPanel'
 import useAdvancedFilters from '../hooks/useAdvancedFilters';
 import { Label } from "./ui/label";
 
+// Utility: safely call stopImmediatePropagation on native event if available
+function safeStopImmediate(e: React.SyntheticEvent) {
+  e.stopPropagation();
+  try {
+    const ne = (e.nativeEvent as unknown as { stopImmediatePropagation?: () => void });
+    if (typeof ne.stopImmediatePropagation === 'function') ne.stopImmediatePropagation();
+  } catch (err) {
+    // ignore
+  }
+}
+
 interface FiltrosBarProps {
   onAplicarFiltros?: (filtros: Filtros) => void;
 }
@@ -65,8 +76,8 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
 
         if (!mounted) return;
 
-        const cods = Array.isArray(body.codigos) ? body.codigos.map((c: any) => String(c)) : [];
-        const nums = Array.isArray(body.numeros) ? body.numeros.map((n: any) => String(n)) : [];
+        const cods = Array.isArray(body.codigos) ? body.codigos.map((c: unknown) => String(c)) : [];
+        const nums = Array.isArray(body.numeros) ? body.numeros.map((n: unknown) => String(n)) : [];
 
         setCodigosOptions(cods);
         setNumerosOptions(nums);
@@ -251,7 +262,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
   const adv = useAdvancedFilters();
   const { filters: advancedFilters, setFiltersState: setAdvancedFiltersState, clearFilters: clearAdvancedFilters } = adv;
   return (
-    <div className="flex flex-row items-end justify-end gap-1">
+    <div className="flex flex-row items-end justify-start gap-1">
       <Popover>
         <PopoverTrigger asChild>
           <Button
@@ -295,7 +306,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
             Filtros
           </Button>
         </DrawerTrigger>
-        <DrawerContent className="p-5">
+        <DrawerContent className="p-5 thin-red-scrollbar">
 
           <h3 className="mb-2 font-bold">Filtros</h3>
           
@@ -477,11 +488,11 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   filters={advancedFilters}
                   onChange={(f) => setAdvancedFiltersState(f)}
                   onApply={() => {
-                    try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: advancedFilters })); } catch (e) {}
+                    try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: advancedFilters })); } catch (err) { console.warn('[FiltrosBar] failed to dispatch advancedFiltersChanged', err); }
                   }}
-                  onClear={() => { clearAdvancedFilters(); try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: {} })); } catch (e) {} }}
+                  onClear={() => { clearAdvancedFilters(); try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: {} })); } catch (err) { console.warn('[FiltrosBar] failed to dispatch advancedFiltersChanged', err); } }}
                 />
-          <div className="flex flex-row gap-1 hidden 2xl:flex">
+          <div className="flex flex-row gap-1">
             <Button variant="outline" onClick={handleBuscar} className="text-black">
               <p>Buscar</p>
             </Button>
@@ -556,8 +567,8 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  onPointerDown={(e) => { e.stopPropagation(); e.stopImmediatePropagation(); }}
-                  onMouseDown={(e) => { e.stopPropagation(); e.stopImmediatePropagation(); }}
+                  onPointerDown={(e) => safeStopImmediate(e)}
+                  onMouseDown={(e) => safeStopImmediate(e)}
                   role="combobox"
                   aria-expanded={openCodigoMobile}
                   className="w-52 justify-between border-gray-300 font-normal text-gray-400 "
@@ -634,8 +645,8 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  onPointerDown={(e) => { e.stopPropagation(); e.stopImmediatePropagation(); }}
-                  onMouseDown={(e) => { e.stopPropagation(); e.stopImmediatePropagation(); }}
+                  onPointerDown={(e) => safeStopImmediate(e)}
+                  onMouseDown={(e) => safeStopImmediate(e)}
                   role="combobox"
                   aria-expanded={openNumeroMobile}
                   className="w-52 justify-between border-black font-normal text-gray-400"
@@ -706,7 +717,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 </Command>
               </PopoverContent>
             </Popover>
-            <div className="flex flex-row gap-2 mt-2">
+            <div className="flex flex-row gap-2">
               <Button variant="outline" onClick={handleBuscar} className="text-black">
                 <Search/>
                 <p>Buscar</p>
