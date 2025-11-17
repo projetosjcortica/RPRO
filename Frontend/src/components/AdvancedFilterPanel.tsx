@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -9,19 +9,33 @@ interface AdvancedFilterPanelProps {
   onChange: (filters: AdvancedFilters) => void;
   onApply: () => void;
   onClear: () => void;
+  colLabels?: { [key: string]: string };
 }
 
-export default function AdvancedFilterPanel({ filters, onChange, onApply, onClear }: AdvancedFilterPanelProps) {
+export default function AdvancedFilterPanel({ filters, onChange, onApply, onClear, colLabels }: AdvancedFilterPanelProps) {
   const [productCodeInput, setProductCodeInput] = useState('');
   const [productNameInput, setProductNameInput] = useState('');
   const [formulaCodeInput, setFormulaCodeInput] = useState('');
   const [materiaLabels, setMateriaLabels] = useState<Record<number, string>>({});
+  const [formulaLabels, setFormulaLabels] = useState<Record<string, string>>({});
   // loadingLabels is intentionally omitted from UI for now
 
   useEffect(() => {
     let mounted = true;
     const load = async () => {
       try {
+        // Load formula labels
+        try {
+          const fRes = await fetch('http://localhost:3000/api/formulas/labels');
+          if (fRes.ok) {
+            const fJs = await fRes.json();
+            if (mounted) setFormulaLabels(fJs);
+          }
+        } catch (e) {
+          // ignore formula label failure
+        }
+
+        // Load materia labels
         const res = await fetch('http://localhost:3000/api/materiaprima/labels');
         if (!res.ok) return;
         const js = await res.json();
@@ -41,7 +55,6 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
       } catch (e) {
         // ignore
       } finally {
-        // no-op: loading state intentionally kept unused for now
         if (!mounted) return;
       }
     };
@@ -49,28 +62,47 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
     return () => { mounted = false; };
   }, []);
 
+  const onChangeWithEvent = useCallback((nextFilters: AdvancedFilters) => {
+    onChange(nextFilters);
+    try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: nextFilters })); } catch (e) {}
+    // Persist to localStorage and notify other listeners so side-info updates immediately
+    try {
+      localStorage.setItem('cortez:advancedFilters:products', JSON.stringify(nextFilters));
+      try { window.dispatchEvent(new CustomEvent('advancedFiltersStorageUpdated', { detail: nextFilters })); } catch (e) {}
+    } catch (e) {
+      // ignore storage failures
+    }
+  }, [onChange]);
+
+  const truncate = (s: string, n = 32) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+  const getProductLabel = (c: number) => {
+    const label = colLabels && colLabels[`col${c+5}`] ? `${colLabels[`col${c+5}`]} (${c})` : (materiaLabels[c] ? `${materiaLabels[c]} (${c})` : `Produto ${c}`);
+    return label;
+  };
+
   const addProductCode = () => {
     const parts = productCodeInput.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
     const nums = parts.map(p => Number(p)).filter(n => !Number.isNaN(n) && n >= 1 && n <= 40);
     if (!nums.length) { setProductCodeInput(''); return; }
     const next = { ...filters, includeProductCodes: Array.from(new Set([...filters.includeProductCodes, ...nums])) };
-    onChange(next);
+    onChangeWithEvent(next);
     setProductCodeInput('');
   };
 
   const removeProductCode = (code: number) => {
     const next = { ...filters, includeProductCodes: filters.includeProductCodes.filter(c => c !== code), excludeProductCodes: filters.excludeProductCodes.filter(c => c !== code) };
-    onChange(next);
+    onChangeWithEvent(next);
   };
 
   const removeIncludeProductCode = (code: number) => {
     const next = { ...filters, includeProductCodes: filters.includeProductCodes.filter(c => c !== code) };
-    onChange(next);
+    onChangeWithEvent(next);
   };
 
   const removeExcludeProductCode = (code: number) => {
     const next = { ...filters, excludeProductCodes: filters.excludeProductCodes.filter(c => c !== code) };
-    onChange(next);
+    onChangeWithEvent(next);
   };
 
   const addExcludeProductCode = () => {
@@ -78,7 +110,7 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
     const nums = parts.map(p => Number(p)).filter(n => !Number.isNaN(n) && n >= 1 && n <= 40);
     if (!nums.length) { setProductCodeInput(''); return; }
     const next = { ...filters, excludeProductCodes: Array.from(new Set([...filters.excludeProductCodes, ...nums])) };
-    onChange(next);
+    onChangeWithEvent(next);
     setProductCodeInput('');
   };
 
@@ -86,7 +118,7 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
     const v = productNameInput.trim();
     if (!v) return;
     const next = { ...filters, includeProductNames: Array.from(new Set([...filters.includeProductNames, v])) };
-    onChange(next);
+    onChangeWithEvent(next);
     setProductNameInput('');
   };
 
@@ -94,37 +126,42 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
     const v = productNameInput.trim();
     if (!v) return;
     const next = { ...filters, excludeProductNames: Array.from(new Set([...filters.excludeProductNames, v])) };
-    onChange(next);
+    onChangeWithEvent(next);
     setProductNameInput('');
   };
 
   const removeProductName = (name: string) => {
     const next = { ...filters, includeProductNames: filters.includeProductNames.filter(n => n !== name), excludeProductNames: filters.excludeProductNames.filter(n => n !== name) };
-    onChange(next);
+    onChangeWithEvent(next);
   };
 
   const removeIncludeProductName = (name: string) => {
     const next = { ...filters, includeProductNames: filters.includeProductNames.filter(n => n !== name) };
-    onChange(next);
+    onChangeWithEvent(next);
   };
 
   const removeExcludeProductName = (name: string) => {
     const next = { ...filters, excludeProductNames: filters.excludeProductNames.filter(n => n !== name) };
-    onChange(next);
+    onChangeWithEvent(next);
   };
 
   const removeIncludeFormula = (fnum: number) => {
     const next = { ...filters, includeFormulas: filters.includeFormulas.filter(f => f !== fnum) };
-    onChange(next);
+    onChangeWithEvent(next);
   };
 
   const removeExcludeFormula = (fnum: number) => {
     const next = { ...filters, excludeFormulas: filters.excludeFormulas.filter(f => f !== fnum) };
-    onChange(next);
+    onChangeWithEvent(next);
   };
 
   const toggleFixed = () => {
-    onChange({ ...filters, isFixed: !filters.isFixed });
+    onChangeWithEvent({ ...filters, isFixed: !filters.isFixed });
+  };
+
+  const formatFormulaName = (code: number) => {
+    const name = formulaLabels[String(code)];
+    return name ? `${code} — ${name}` : `Formula ${code}`;
   };
 
   return (
@@ -143,19 +180,19 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {filters.includeProductCodes.map((c) => (
                 <div key={`inc-p-${c}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px', borderRadius: 6, background: '#eef', border: '1px solid #dfe' }}>
-                  <span>{materiaLabels[c] ? `${materiaLabels[c]} (${c})` : `Produto ${c}`}</span>
+                  <span title={getProductLabel(c)}>{truncate(getProductLabel(c), 32)}</span>
                   <button aria-label={`Remover ${c}`} onClick={() => removeIncludeProductCode(c)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 700 }}>×</button>
                 </div>
               ))}
               {filters.includeProductNames.map((n) => (
                 <div key={`inc-n-${n}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px', borderRadius: 6, background: '#eef', border: '1px solid #dfe' }}>
-                  <span>{n}</span>
+                  <span title={String(n)}>{truncate(String(n), 32)}</span>
                   <button aria-label={`Remover ${n}`} onClick={() => removeIncludeProductName(n)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 700 }}>×</button>
                 </div>
               ))}
               {filters.includeFormulas.map((f) => (
                 <div key={`inc-f-${f}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px', borderRadius: 6, background: '#eef', border: '1px solid #dfe' }}>
-                  <span>{`Formula ${f}`}</span>
+                  <span title={formatFormulaName(f)}>{truncate(formatFormulaName(f), 32)}</span>
                   <button aria-label={`Remover formula ${f}`} onClick={() => removeIncludeFormula(f)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 700 }}>×</button>
                 </div>
               ))}
@@ -167,19 +204,19 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {filters.excludeProductCodes.map((c) => (
                 <div key={`exc-p-${c}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px', borderRadius: 6, background: '#fee', border: '1px solid #fed' }}>
-                  <span>{materiaLabels[c] ? `${materiaLabels[c]} (${c})` : `Produto ${c}`}</span>
+                  <span title={getProductLabel(c)}>{truncate(getProductLabel(c), 32)}</span>
                   <button aria-label={`Remover ${c}`} onClick={() => removeExcludeProductCode(c)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 700 }}>×</button>
                 </div>
               ))}
               {filters.excludeProductNames.map((n) => (
                 <div key={`exc-n-${n}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px', borderRadius: 6, background: '#fee', border: '1px solid #fed' }}>
-                  <span>{n}</span>
+                  <span title={String(n)}>{truncate(String(n), 32)}</span>
                   <button aria-label={`Remover ${n}`} onClick={() => removeExcludeProductName(n)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 700 }}>×</button>
                 </div>
               ))}
               {filters.excludeFormulas.map((f) => (
                 <div key={`exc-f-${f}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '4px 8px', borderRadius: 6, background: '#fee', border: '1px solid #fed' }}>
-                  <span>{`Formula ${f}`}</span>
+                  <span title={formatFormulaName(f)}>{truncate(formatFormulaName(f), 32)}</span>
                   <button aria-label={`Remover formula ${f}`} onClick={() => removeExcludeFormula(f)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 700 }}>×</button>
                 </div>
               ))}
@@ -230,14 +267,14 @@ export default function AdvancedFilterPanel({ filters, onChange, onApply, onClea
             const nums = formulaCodeInput.split(/[,;\s]+/).map(s => Number(s)).filter(n => !Number.isNaN(n));
             if (!nums.length) { setFormulaCodeInput(''); return; }
             const next = { ...filters, includeFormulas: Array.from(new Set([...filters.includeFormulas, ...nums])) };
-            onChange(next);
+            onChangeWithEvent(next);
             setFormulaCodeInput('');
           }}>Incluir</Button>
           <Button size="sm" onClick={() => {
             const nums = formulaCodeInput.split(/[,;\s]+/).map(s => Number(s)).filter(n => !Number.isNaN(n));
             if (!nums.length) { setFormulaCodeInput(''); return; }
             const next = { ...filters, excludeFormulas: Array.from(new Set([...filters.excludeFormulas, ...nums])) };
-            onChange(next);
+            onChangeWithEvent(next);
             setFormulaCodeInput('');
           }}>Excluir</Button>
         </div>

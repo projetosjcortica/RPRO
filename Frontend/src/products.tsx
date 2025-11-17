@@ -524,6 +524,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
           try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: advancedFilters })); } catch (e) {}
         }}
         onClear={() => { clearAdvancedFilters(); try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: {} })); } catch (e) {} }}
+        colLabels={colLabels}
       />
     </div>
   );

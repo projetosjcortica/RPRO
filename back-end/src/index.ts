@@ -357,6 +357,125 @@ app.use((req, res, next) => {
   next();
 });
 
+// POST handler: aceitar body.params + body.advancedFilters (compatível com Processador.relatorioPaginate)
+app.post('/api/relatorio/paginate', async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!AppDataSource.isInitialized) await dbService.init();
+
+    const params = req.body?.params || {};
+    const advancedFilters = req.body?.advancedFilters || null;
+
+    const pageNum = Number.isFinite(Number(params.page)) && Number(params.page) > 0 ? Number(params.page) : 1;
+    const pageSizeNum = Number.isFinite(Number(params.pageSize)) && Number(params.pageSize) > 0 ? Number(params.pageSize) : 100;
+    const sortBy = params.sortBy || 'Dia';
+    const sortDir = String(params.sortDir || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+    const codigoRaw = params.codigo ?? null;
+    const numeroRaw = params.numero ?? null;
+    const formulaRaw = params.formula ?? null;
+    const dataInicio = params.dataInicio ?? null;
+    const dataFim = params.dataFim ?? null;
+
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
+
+    const repo = AppDataSource.getRepository(Relatorio);
+    let qb = repo.createQueryBuilder('r');
+
+    if (codigoRaw != null && String(codigoRaw) !== '') {
+      const c = Number(codigoRaw);
+      if (!Number.isNaN(c)) qb.andWhere('r.Form1 = :c', { c });
+    }
+    if (numeroRaw != null && String(numeroRaw) !== '') {
+      const num = Number(numeroRaw);
+      if (!Number.isNaN(num)) qb.andWhere('r.Form2 = :num', { num });
+    }
+    if (formulaRaw != null && String(formulaRaw) !== '') {
+      const fNum = Number(String(formulaRaw));
+      if (!Number.isNaN(fNum)) qb.andWhere('r.Form1 = :fNum', { fNum });
+      else {
+        const fStr = String(formulaRaw).toLowerCase();
+        qb.andWhere('LOWER(r.Nome) LIKE :fStr', { fStr: `%${fStr}%` });
+      }
+    }
+    if (normDataInicio) qb.andWhere('r.Dia >= :ds', { ds: normDataInicio });
+    if (normDataFim) {
+      const parts = normDataFim.split('-');
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, '0');
+        const d = String(dt.getDate()).padStart(2, '0');
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) { dePlus = normDataFim; }
+      qb.andWhere('r.Dia < :dePlus', { dePlus });
+    }
+
+    // Ordenação seguro
+    const allowed = new Set(['Dia','Hora','Nome','Form1','Form2']);
+    for (let i = 1; i <= 40; i++) allowed.add(`Prod_${i}`);
+    const sb = allowed.has(sortBy) ? sortBy : 'Dia';
+    const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
+    if (sb === 'Dia') qb.orderBy('r.Dia', sd).addOrderBy('r.Hora', sd as any);
+    else qb.orderBy(`r.${sb}`, sd);
+
+  // Carregar materias e aplicar advancedFilters
+  const materiasByNum = await getMateriaPrimaCache();
+  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    const offset = (pageNum - 1) * pageSizeNum;
+    qb.offset(offset).limit(pageSizeNum);
+
+    const [rows, total] = await qb.getManyAndCount();
+
+    // Mapear rows para o mesmo formato do GET (values, valuesRaw, unidades)
+    const produtosAtivos = true ? null : await getProdutosAtivos();
+    const mappedRows = rows.map((row: any) => {
+      const values: string[] = new Array(40);
+      const valuesRaw: number[] = new Array(40);
+      const unidades: string[] = new Array(40);
+      for (let i = 1; i <= 40; i++) {
+        const prodValue = row[`Prod_${i}`];
+        let v = typeof prodValue === 'number' ? prodValue : prodValue != null ? Number(prodValue) : 0;
+        const materia = materiasByNum[i];
+        if (produtosAtivos && !produtosAtivos.has(i)) v = 0;
+        if (v < 0) v = 0;
+        const idx = i - 1;
+        valuesRaw[idx] = v;
+        if (materia && Number(materia.medida) === 0) {
+          unidades[idx] = 'g';
+          values[idx] = (v / 1000).toFixed(3);
+        } else {
+          unidades[idx] = 'kg';
+          values[idx] = v.toFixed(3);
+        }
+      }
+      return {
+        Dia: row.Dia || '',
+        Hora: row.Hora || '',
+        Nome: row.Nome || '',
+        Codigo: row.Form1 ?? 0,
+        Numero: row.Form2 ?? 0,
+        values,
+        valuesRaw,
+        unidades,
+      };
+    });
+
+    const totalPages = Math.ceil(total / pageSizeNum);
+    const responseData = { rows: mappedRows, total, page: pageNum, pageSize: pageSizeNum, totalPages };
+
+    res.set({ 'Cache-Control': 'no-cache, no-store, must-revalidate' });
+    return res.json(responseData);
+  } catch (e: any) {
+    console.error('[relatorio/paginate POST] error', e);
+    return res.status(500).json({ error: e?.message || 'Internal server error' });
+  }
+});
+
 // Defensive: log and respond to preflight OPTIONS explicitly so the browser
 // receives the required CORS headers even if some route middleware would
 // otherwise interfere.
@@ -451,6 +570,32 @@ app.get("/api/materiaprima/labels", async (req, res) => {
   } catch (e) {
     console.error("Failed to get materia prima labels", e);
     return res.status(500).json({});
+  }
+});
+
+// Labels de fórmulas: retorna map { codigo: nome }
+app.get('/api/formulas/labels', async (req, res) => {
+  try {
+    if (!AppDataSource.isInitialized) await dbService.init();
+    const repo = AppDataSource.getRepository(Relatorio);
+    const raw = await repo
+      .createQueryBuilder('r')
+      .select(['r.Form1 as codigo', 'r.Nome as nome'])
+      .groupBy('r.Form1, r.Nome')
+      .orderBy('r.Form1')
+      .getRawMany();
+
+    const map: Record<string, string> = {};
+    for (const row of raw) {
+      if (row.codigo != null) {
+        map[String(row.codigo)] = row.nome || `Formula ${row.codigo}`;
+      }
+    }
+
+    return res.json(map);
+  } catch (e: any) {
+    console.error('[formulas/labels] error', e);
+    return res.status(500).json({ error: e?.message || 'Internal server error' });
   }
 });
 
@@ -1150,6 +1295,98 @@ app.get("/api/ihm/fetchLatest", async (req, res) => {
   }
 });
 
+// Central helper to apply advancedFilters to a QueryBuilder
+function applyAdvancedFiltersToQuery(
+  qb: any,
+  advancedFilters: any,
+  materiasByNum: Record<number, any> = {}
+) {
+  if (!advancedFilters || typeof advancedFilters !== 'object') return qb;
+
+  const asNums = (arr: any[]) => Array.from(
+    new Set((arr || [])
+      .map((x: any) => Number(x))
+      .filter(n => Number.isFinite(n) && n >= 1 && n <= 40))
+  ).slice(0, 200);
+
+  // exclude by product codes
+  const excludeCodes = asNums(advancedFilters.excludeProductCodes || []);
+  if (excludeCodes.length) {
+    const conditions = excludeCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+    qb.andWhere(`NOT (${conditions})`);
+  }
+
+  // include by product codes
+  const includeCodes = asNums(advancedFilters.includeProductCodes || []);
+  if (includeCodes.length) {
+    const conditions = includeCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+    qb.andWhere(`(${conditions})`);
+  }
+
+  // map names -> nums using materiasByNum
+  const matchMode = advancedFilters.matchMode === 'exact' ? 'exact' : 'contains';
+  const mapNamesToNums = (names: any[]) => {
+    if (!names || !names.length) return [];
+    const searchTerms = names.map((s: any) => String(s).toLowerCase().trim());
+    const nums: number[] = [];
+    Object.entries(materiasByNum).forEach(([k, v]: any) => {
+      const prodName = String(v.produto || v.nome || '').toLowerCase();
+      for (const term of searchTerms) {
+        if (!term) continue;
+        if (matchMode === 'exact') {
+          if (prodName === term) nums.push(Number(k));
+        } else {
+          if (prodName.includes(term)) nums.push(Number(k));
+        }
+      }
+    });
+    return Array.from(new Set(nums)).slice(0, 200);
+  };
+
+  const includeNameCodes = mapNamesToNums(advancedFilters.includeProductNames || []);
+  if (includeNameCodes.length) {
+    const conditions = includeNameCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+    qb.andWhere(`(${conditions})`);
+  }
+
+  const excludeNameCodes = mapNamesToNums(advancedFilters.excludeProductNames || []);
+  if (excludeNameCodes.length) {
+    const conditions = excludeNameCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+    qb.andWhere(`NOT (${conditions})`);
+  }
+
+  // formulas include/exclude
+  if (Array.isArray(advancedFilters.includeFormulas) && advancedFilters.includeFormulas.length) {
+    const formulas = advancedFilters.includeFormulas.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n));
+    if (formulas.length) qb.andWhere('r.Form1 IN (:...arrIncludeFormulas)', { arrIncludeFormulas: formulas });
+  }
+  if (Array.isArray(advancedFilters.excludeFormulas) && advancedFilters.excludeFormulas.length) {
+    const formulas = advancedFilters.excludeFormulas.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n));
+    if (formulas.length) qb.andWhere('r.Form1 NOT IN (:...arrExcludeFormulas)', { arrExcludeFormulas: formulas });
+  }
+
+  // formula names (LOWER(r.Nome) LIKE ...)
+  if (Array.isArray(advancedFilters.includeFormulaNames) && advancedFilters.includeFormulaNames.length) {
+    const formulaNames = (advancedFilters.includeFormulaNames || []).map((s: any) => String(s).toLowerCase().trim()).filter(Boolean);
+    if (formulaNames.length) {
+      const conditions = formulaNames.map((_: string, i: number) => `LOWER(r.Nome) LIKE :includeFormulaName${i}`).join(' OR ');
+      qb.andWhere(`(${conditions})`);
+      formulaNames.forEach((name: string, i: number) => qb.setParameter(`includeFormulaName${i}`, `%${name}%`));
+    }
+  }
+
+  if (Array.isArray(advancedFilters.excludeFormulaNames) && advancedFilters.excludeFormulaNames.length) {
+    const formulaNames = (advancedFilters.excludeFormulaNames || []).map((s: any) => String(s).toLowerCase().trim()).filter(Boolean);
+    if (formulaNames.length) {
+      const conditions = formulaNames.map((_: string, i: number) => `LOWER(r.Nome) NOT LIKE :excludeFormulaName${i}`).join(' AND ');
+      qb.andWhere(`(${conditions})`);
+      formulaNames.forEach((name: string, i: number) => qb.setParameter(`excludeFormulaName${i}`, `%${name}%`));
+    }
+  }
+
+  return qb;
+}
+
 app.get("/api/relatorio/paginate", async (req, res) => {
   const startTime = Date.now();
   try {
@@ -1202,8 +1439,8 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       });
     }
 
-    const repo = AppDataSource.getRepository(Relatorio);
-    const qb = repo.createQueryBuilder("r");
+  const repo = AppDataSource.getRepository(Relatorio);
+  let qb = repo.createQueryBuilder("r");
 
     // Apply separate numeric filters when provided
     if (codigoRaw != null && String(codigoRaw) !== "") {
@@ -1280,6 +1517,24 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     const offset = (pageNum - 1) * pageSizeNum;
     const take = pageSizeNum;
 
+    // Carregar materias para permitir mapeamento nomes->nums e aplicar filtros avançados
+    const materiasByNum = await getMateriaPrimaCache();
+
+    // Aplicar advancedFilters vindos por query string (se houver)
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(decodeURIComponent(advancedFiltersRaw));
+      } catch (e) {
+        console.warn('[relatorio/paginate] Erro ao parsear advancedFilters:', e);
+      }
+    }
+
+  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    
+
     let rows: any[] = [];
     let total = 0;
 
@@ -1297,10 +1552,9 @@ app.get("/api/relatorio/paginate", async (req, res) => {
         .json({ error: "Database query failed", details: queryError?.message });
     }
 
-    // Map rows to include values array from Prod_1 to Prod_40
-    // Normalize product values according to MateriaPrima.measure (grams->kg)
-    // OTIMIZAÇÃO: Usar cache em vez de consultar banco a cada request
-    const materiasByNum = await getMateriaPrimaCache();
+  // Map rows to include values array from Prod_1 to Prod_40
+  // Normalize product values according to MateriaPrima.measure (grams->kg)
+  // OTIMIZAÇÃO: Usar cache em vez de consultar banco a cada request
     
   // 🔍 Obter produtos ativos para filtrar inativos (a menos que client peça incluir todos via includeIgnored)
   const produtosAtivos = includeIgnored ? null : await getProdutosAtivos();
@@ -2150,6 +2404,17 @@ app.get("/api/resumo", async (req, res) => {
     const normDataInicioResumo = normalizeDateParam(dataInicio) || null;
     const normDataFimResumo = normalizeDateParam(dataFim) || null;
 
+    // parse advancedFilters if provided (JSON encoded)
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(decodeURIComponent(advancedFiltersRaw));
+      } catch (e) {
+        console.warn('[resumo] Erro ao parsear advancedFilters:', e);
+      }
+    }
+
     // If nomeFormula looks like a number, prefer numeric formula filtering
     let numericFormula: number | null = null;
     if (nomeFormula != null && nomeFormula !== "") {
@@ -2170,12 +2435,58 @@ app.get("/api/resumo", async (req, res) => {
       numero: Number.isFinite(numero) ? numero : null,
       dateStart: normDataInicioResumo,
       dateEnd: normDataFimResumo,
-    });
+    }, advancedFilters);
 
     return res.json(result);
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "internal" });
+  }
+});
+
+// POST variant: accept body { params, advancedFilters } so clients can send large advancedFilters in the body
+app.post('/api/resumo', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const params = body.params || {};
+    const advancedFilters = body.advancedFilters || null;
+
+    const areaId = params.areaId ? String(params.areaId) : null;
+    const formula = params.formula ? String(params.formula) : null;
+    const nomeFormula = params.nomeFormula ? String(params.nomeFormula) : null;
+    const codigo = params.codigo != null ? Number(params.codigo) : null;
+    const numero = params.numero != null ? Number(params.numero) : null;
+    const dataInicio = params.dataInicio ? String(params.dataInicio) : null;
+    const dataFim = params.dataFim ? String(params.dataFim) : null;
+    const normDataInicioResumo = normalizeDateParam(dataInicio) || null;
+    const normDataFimResumo = normalizeDateParam(dataFim) || null;
+
+    // If nomeFormula looks like a number, prefer numeric formula filtering
+    let numericFormula: number | null = null;
+    if (nomeFormula != null && nomeFormula !== "") {
+      const nf = Number(nomeFormula);
+      if (Number.isFinite(nf)) numericFormula = nf;
+    }
+
+    const result = await resumoService.getResumo({
+      areaId,
+      formula:
+        numericFormula != null
+          ? numericFormula
+          : formula !== null && formula !== ""
+          ? Number(formula)
+          : null,
+      formulaName: numericFormula == null ? nomeFormula : null,
+      codigo: Number.isFinite(codigo) ? codigo : null,
+      numero: Number.isFinite(numero) ? numero : null,
+      dateStart: normDataInicioResumo,
+      dateEnd: normDataFimResumo,
+    }, advancedFilters);
+
+    return res.json(result);
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: 'internal' });
   }
 });
 
@@ -2804,15 +3115,30 @@ app.get("/api/chartdata", async (req, res) => {
       qb.andWhere("r.Dia < :dePlus", { dePlus });
     }
 
-    const rows = await qb.getMany();
-
-    // Load materia prima units
+    // Load materia prima units early so we can apply advancedFilters mapping names->nums
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
       const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
+
+    // apply advancedFilters if provided via query (JSON encoded)
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(decodeURIComponent(advancedFiltersRaw));
+      } catch (e) {
+        console.warn('[chartdata] Erro ao parsear advancedFilters:', e);
+      }
+    }
+
+    if (advancedFilters) {
+      applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+    }
+
+    const rows = await qb.getMany();
 
     // Filtrar produtos inativos e produtos marcados para ignorar cálculos (usado por dashboards/home)
     const produtosAtivos = await getProdutosAtivos(true);
@@ -2902,15 +3228,27 @@ app.get("/api/chartdata/formulas", async (req, res) => {
       if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
     }
 
-    const rows = await qb.getMany();
-
-    // Load materia prima units so we can normalize product weights (g -> kg)
+    // Load materia prima for mapping names->nums and for product metadata
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
       const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
+
+    // parse advancedFilters if provided and apply
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(decodeURIComponent(advancedFiltersRaw));
+      } catch (e) {
+        console.warn('[chartdata/formulas] Erro ao parsear advancedFilters:', e);
+      }
+    }
+  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    const rows = await qb.getMany();
 
   // Filtrar produtos inativos e produtos marcados para ignorar cálculos
   const produtosAtivos = await getProdutosAtivos(true);
@@ -3027,15 +3365,27 @@ app.get("/api/chartdata/produtos", async (req, res) => {
       if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
     }
 
-    const rows = await qb.getMany();
-
-    // Carregar unidades das matérias-primas
+    // Carregar unidades das matérias-primas cedo para aplicar advancedFilters
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
       const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
+
+    // parse advancedFilters if provided and apply to query
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(decodeURIComponent(advancedFiltersRaw));
+      } catch (e) {
+        console.warn('[chartdata/produtos] Erro ao parsear advancedFilters:', e);
+      }
+    }
+  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    const rows = await qb.getMany();
 
   // Filtrar produtos inativos e também produtos marcados para ignorar cálculos
   const produtosAtivos = await getProdutosAtivos(true);
@@ -3150,15 +3500,28 @@ app.get("/api/chartdata/horarios", async (req, res) => {
       if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
     }
 
-    const rows = await qb.getMany();
-
-    // Load materias to normalize per-row totals
+    // Load materias first so we can apply advancedFilters to the query builder
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
       const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
+
+    // Parse advancedFilters if provided (sent as JSON string in query)
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(String(advancedFiltersRaw));
+      } catch (e) {
+        // ignore parse errors and continue without advanced filters
+      }
+    }
+
+  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    const rows = await qb.getMany();
 
     // Filtrar produtos inativos e produtos marcados para ignorar cálculos
     const produtosAtivos = await getProdutosAtivos(true);
@@ -3270,15 +3633,28 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
       if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
     }
 
-    const rows = await qb.getMany();
-
-    // Load materias to normalize per-row totals
+    // Load materias first so applyAdvancedFiltersToQuery can map product numbers
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
       const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
+
+    // Parse advancedFilters if provided (sent as JSON string in query)
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(String(advancedFiltersRaw));
+      } catch (e) {
+        // ignore parse errors and continue without advanced filters
+      }
+    }
+
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    const rows = await qb.getMany();
 
   // Filtrar produtos inativos e produtos marcados para ignorar cálculos
   const produtosAtivos = await getProdutosAtivos(true);
@@ -3419,15 +3795,28 @@ app.get("/api/chartdata/stats", async (req, res) => {
       if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
     }
 
-    const rows = await qb.getMany();
-
-    // Load materias to normalize totals
+    // Load materias first so we can apply advancedFilters to the query if provided
     const materias = await materiaPrimaService.getAll();
     const materiasByNum: Record<number, any> = {};
     for (const m of materias) {
       const n = typeof m.num === "number" ? m.num : Number(m.num);
       if (!Number.isNaN(n)) materiasByNum[n] = m;
     }
+
+    // Parse advancedFilters if provided (sent as JSON string in query)
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(String(advancedFiltersRaw));
+      } catch (e) {
+        // ignore parse errors and continue without advanced filters
+      }
+    }
+
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    const rows = await qb.getMany();
 
     // Filtrar produtos inativos e produtos marcados para ignorar cálculos
     const produtosAtivos = await getProdutosAtivos(true);
@@ -3533,7 +3922,29 @@ app.get("/api/chartdata/semana", async (req, res) => {
       if (!Number.isNaN(n)) qb.andWhere("r.Form2 = :numero", { numero: n });
     }
 
+    // Load materias first so we can apply advancedFilters to the query
+    const materias = await materiaPrimaService.getAll();
+    const materiasByNum: Record<number, any> = {};
+    for (const m of materias) {
+      const n = typeof m.num === "number" ? m.num : Number(m.num);
+      if (!Number.isNaN(n)) materiasByNum[n] = m;
+    }
+
+    // Parse advancedFilters if provided (sent as JSON string in query)
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(String(advancedFiltersRaw));
+      } catch (e) {
+        // ignore parse errors and continue without advanced filters
+      }
+    }
+
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
     const rows = await qb.getMany();
+
     const parseDia = (dia?: string): Date | null => {
       if (!dia) return null;
       const s = dia.trim();
@@ -3548,13 +3959,7 @@ app.get("/api/chartdata/semana", async (req, res) => {
       return !isNaN(dt.getTime()) ? dt : null;
     };
 
-    // Load materias to normalize per-row totals
-    const materias = await materiaPrimaService.getAll();
-    const materiasByNum: Record<number, any> = {};
-    for (const m of materias) {
-      const n = typeof m.num === "number" ? m.num : Number(m.num);
-      if (!Number.isNaN(n)) materiasByNum[n] = m;
-    }
+    // materias already loaded above and mapped to materiasByNum
 
     // Agregar por dia da semana usando total normalizado por linha (kg)
     const weekdays = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];

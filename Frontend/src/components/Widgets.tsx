@@ -29,7 +29,7 @@ import { DASHBOARD_COLORS as COLORS } from "../lib/colors";
 const chartDataCache: Record<string, { data: ChartDatum[], stats: any, timestamp: number }> = {};
 
 // Hook para buscar dados do backend
-export const useChartData = (chartType: ChartType, filters?: any) => {
+export const useChartData = (chartType: ChartType, config?: any) => {
   const [data, setData] = useState<ChartDatum[]>([]);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
@@ -42,36 +42,44 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
     
     const fetchData = async () => {
       if (!isMounted) return;
-      
+
+      // Accept either a plain filters object or a config object with { filters, advancedFilters }
+      const filtersObj = config && typeof config === 'object' && config.filters ? config.filters : config || {};
+      const advancedFilters = config && typeof config === 'object' && config.advancedFilters ? config.advancedFilters : (filtersObj && filtersObj.advancedFilters) ? filtersObj.advancedFilters : null;
+
+      // Construir parâmetros de consulta (parâmetros simples)
+      const params = new URLSearchParams();
+  // advancedFilters key will be composed later once params are filled
+
       try {
         setLoading(true);
         setError(null);
-        
-        // Construir parâmetros de consulta
-        const params = new URLSearchParams();
         // Só adiciona parâmetros se não forem vazios ou undefined
         // Use both 'nomeFormula' and legacy 'formula' keys so backend endpoints accept either
-        if (filters?.nomeFormula && String(filters.nomeFormula).trim()) {
-          params.set('nomeFormula', String(filters.nomeFormula));
+        if (filtersObj?.nomeFormula && String(filtersObj.nomeFormula).trim()) {
+          params.set('nomeFormula', String(filtersObj.nomeFormula));
           // also set 'formula' for backend routes that expect that param
-          params.set('formula', String(filters.nomeFormula));
+          params.set('formula', String(filtersObj.nomeFormula));
         }
-        if (filters?.formula && String(filters.formula).trim()) params.set('formula', String(filters.formula));
-        if (filters?.dataInicio && String(filters.dataInicio).trim()) params.set('dataInicio', String(filters.dataInicio));
-        if (filters?.dataFim && String(filters.dataFim).trim()) params.set('dataFim', String(filters.dataFim));
-        if (filters?.codigo && String(filters.codigo).trim()) params.set('codigo', String(filters.codigo));
-        if (filters?.numero && String(filters.numero).trim()) params.set('numero', String(filters.numero));
+        if (filtersObj?.formula && String(filtersObj.formula).trim()) params.set('formula', String(filtersObj.formula));
+        if (filtersObj?.dataInicio && String(filtersObj.dataInicio).trim()) params.set('dataInicio', String(filtersObj.dataInicio));
+        if (filtersObj?.dataFim && String(filtersObj.dataFim).trim()) params.set('dataFim', String(filtersObj.dataFim));
+        if (filtersObj?.codigo && String(filtersObj.codigo).trim()) params.set('codigo', String(filtersObj.codigo));
+        if (filtersObj?.numero && String(filtersObj.numero).trim()) params.set('numero', String(filtersObj.numero));
 
-        // Criar chave de cache usando tipo de gráfico e parâmetros
-        const cacheKey = `${chartType}:${params.toString()}`;
-        
-        // Do NOT use in-memory cache for charts by default. Always fetch fresh.
+    // Do NOT use in-memory cache for charts by default. Always fetch fresh.
   const now = Date.now();
         
-        const url = `http://localhost:3000/api/chartdata/${chartType}?${params.toString()}`;
-        console.log(`[useChartData] Fetching ${chartType} with filters:`, filters);
-        
-        console.log(`[useChartData] Fetching from: ${url}`);
+        // If advancedFilters present, add as a JSON-encoded query parameter to the URL
+        let url = `http://localhost:3000/api/chartdata/${chartType}`;
+        const qs = params.toString();
+        if (qs) url += `?${qs}`;
+        if (advancedFilters) {
+          const enc = encodeURIComponent(JSON.stringify(advancedFilters));
+          url += (qs ? '&' : '?') + `advancedFilters=${enc}`;
+        }
+  console.log(`[useChartData] Fetching ${chartType} with filters:`, filtersObj, 'advancedFilters:', advancedFilters);
+  console.log(`[useChartData] Fetching from: ${url}`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 20000); // Aumentado para 20 segundos timeout
         
@@ -109,7 +117,9 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
           }
           
           // Store a fallback snapshot (not used for actual display) in case of subsequent network errors
-          chartDataCache[cacheKey] = {
+          const advKeyForStore = advancedFilters ? encodeURIComponent(JSON.stringify(advancedFilters)) : '';
+          const computedCacheKey = `${chartType}:${qs}:adv:${advKeyForStore}`;
+          chartDataCache[computedCacheKey] = {
             data: chartData,
             stats: body,
             timestamp: now,
@@ -141,19 +151,20 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
         setError(err.message || 'Erro ao carregar dados');
         
         // Se houver dados em cache, usar mesmo vencido em caso de erro
-        const params = new URLSearchParams();
-        if (filters?.nomeFormula && String(filters.nomeFormula).trim()) {
-          params.set('nomeFormula', String(filters.nomeFormula));
-          params.set('formula', String(filters.nomeFormula));
+        const fallbackParams = new URLSearchParams();
+        if (filtersObj?.nomeFormula && String(filtersObj.nomeFormula).trim()) {
+          fallbackParams.set('nomeFormula', String(filtersObj.nomeFormula));
+          fallbackParams.set('formula', String(filtersObj.nomeFormula));
         }
-        if (filters?.formula && String(filters.formula).trim()) params.set('formula', String(filters.formula));
-        if (filters?.dataInicio && String(filters.dataInicio).trim()) params.set('dataInicio', String(filters.dataInicio));
-        if (filters?.dataFim && String(filters.dataFim).trim()) params.set('dataFim', String(filters.dataFim));
-        if (filters?.codigo && String(filters.codigo).trim()) params.set('codigo', String(filters.codigo));
-        if (filters?.numero && String(filters.numero).trim()) params.set('numero', String(filters.numero));
-        const cacheKey = `${chartType}:${params.toString()}`;
-        
-        const cachedItem = chartDataCache[cacheKey];
+        if (filtersObj?.formula && String(filtersObj.formula).trim()) fallbackParams.set('formula', String(filtersObj.formula));
+        if (filtersObj?.dataInicio && String(filtersObj.dataInicio).trim()) fallbackParams.set('dataInicio', String(filtersObj.dataInicio));
+        if (filtersObj?.dataFim && String(filtersObj.dataFim).trim()) fallbackParams.set('dataFim', String(filtersObj.dataFim));
+        if (filtersObj?.codigo && String(filtersObj.codigo).trim()) fallbackParams.set('codigo', String(filtersObj.codigo));
+        if (filtersObj?.numero && String(filtersObj.numero).trim()) fallbackParams.set('numero', String(filtersObj.numero));
+  const fallbackAdvKey = advancedFilters ? encodeURIComponent(JSON.stringify(advancedFilters)) : '';
+  const fallbackCacheKey = `${chartType}:${fallbackParams.toString()}:adv:${fallbackAdvKey}`;
+
+        const cachedItem = chartDataCache[fallbackCacheKey];
         if (cachedItem) {
           console.log(`[useChartData] Usando cache de fallback devido a erro`);
           setData(cachedItem.data);
@@ -184,7 +195,7 @@ export const useChartData = (chartType: ChartType, filters?: any) => {
       isMounted = false;
       if (retryTimeout) clearTimeout(retryTimeout);
     };
-  }, [chartType, JSON.stringify(filters), retryCount]);
+  }, [chartType, JSON.stringify({ filters: config && config.filters ? config.filters : config, advancedFilters: config && config.advancedFilters ? config.advancedFilters : (config && config.filters ? config.filters.advancedFilters : null) }), retryCount]);
 
   // Função para forçar atualização manual
   const refetch = useCallback(() => {
@@ -323,7 +334,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
     fetchData();
   }, [fetchUrl]);
 
-  const hookResult = useChartData(chartType, config?.filters);
+  const hookResult = useChartData(chartType, config);
   
   const data = fetchUrl ? directData : hookResult.data;
   const loading = fetchUrl ? directLoading : hookResult.loading;
@@ -497,7 +508,7 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
     fetchData();
   }, [fetchUrl]);
 
-  const hookResult = useChartData(chartType, config?.filters);
+  const hookResult = useChartData(chartType, config);
   
   const data = fetchUrl ? directData : hookResult.data;
   const loading = fetchUrl ? directLoading : hookResult.loading;
