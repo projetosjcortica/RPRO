@@ -370,7 +370,6 @@ export default function Report() {
   // Derived view: chips for active advanced filters to show in side info
   type FilterChip = { id: string; label: string; type: string; value: any };
 
-  const truncate = (s: string, n = 32) => (s && s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
   const activeFilterChips = useMemo(() => {
     if (!advancedFilters) return [] as FilterChip[];
@@ -1839,7 +1838,7 @@ export default function Report() {
 
           {/* Active advanced filters preview */}
           <div className="w-83 rounded-lg p-2 shadow-md/16 bg-white">
-            <p className="text-sm font-semibold text-center">Filtros Avançados</p>
+            <p className="text-sm font-semibold text-center">Filtros aplicados</p>
             <div className="mt-2 flex flex-wrap gap-2 justify-center">
               {activeFilterChips.length === 0 && (
                 <span className="text-xs text-gray-400">Nenhum filtro avançado ativo</span>
@@ -1850,7 +1849,7 @@ export default function Report() {
                   className="inline-flex items-center px-2 py-1 bg-gray-100 rounded-full text-xs text-gray-700 border"
                   title={String(c.label)}
                 >
-                  <span className="max-w-[220px] block truncate">{truncate(String(c.label), 32)}</span>
+                  <span className="max-w-[220px] block truncate">{formatShortDate(String(c.label))}</span>
                   <button
                     type="button"
                     onClick={(ev) => {

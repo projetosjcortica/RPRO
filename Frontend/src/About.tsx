@@ -4,8 +4,6 @@ import data from './data/patch-notes.json';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
 } from './components/ui/dialog';
 import logo from './public/logo.png';
@@ -21,7 +19,7 @@ const About: React.FC = () => {
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) navigate(-1); }}>
       <DialogContent>
-        <div style={styles.container}>
+        <div style={styles.container} className='thin-red-scrollbar'>
           {/* Logo e Nome do Sistema */}
           <header style={styles.header}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 18, justifyContent: 'center' }}>
@@ -30,7 +28,9 @@ const About: React.FC = () => {
             </div>
             <h1 style={styles.title}>{data.appName}</h1>
             <p style={styles.version}>Versão: {data.version} (Build: {data.buildDate})</p>
-            <DialogDescription style={{ color: '#666', marginTop: 6 }}>{data.tagline}</DialogDescription>
+            {(data as any).tagline ? (
+              <DialogDescription style={{ color: '#666', marginTop: 6 }}>{(data as any).tagline}</DialogDescription>
+            ) : null}
           </header>
 
           {/* Patch Notes */}
@@ -67,7 +67,7 @@ const styles = {
     maxWidth: '900px',
     margin: '0 auto',
     backgroundColor: '#f9f9f9',
-    minHeight: '100vh',
+    minHeight: '70vh',
     maxHeight: '80vh',
     overflowY: 'auto' as const,
   },
@@ -78,7 +78,7 @@ const styles = {
     borderBottom: '1px solid #ddd',
   },
   logo: {
-    width: '150px',
+    width: '80px',
     height: 'auto',
     marginBottom: '10px',
   },

@@ -178,6 +178,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     };
   };
 
+  console.log(error)
+
   // Filtros ativos (inicializar com últimos 30 dias)
   const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>(getUltimosDias());
   
