@@ -1039,7 +1039,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                       }
                     }}
                     disabled={page === 1 || loading}
-                    className="p-1"
+                    className="p-1 active:bg-red-500 transition-colors rounded"
                     title="Página anterior"
                   >
                     <ChevronLeft className="h-4 w-4" />
@@ -1083,7 +1083,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                       }
                     }}
                     disabled={page === totalPages || loading}
-                    className="p-1"
+                    className="p-1 active:bg-red-500 transition-colors rounded"
                     title="Próxima página"
                   >
                     <ChevronRight className="h-4 w-4" />

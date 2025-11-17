@@ -72,7 +72,7 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) =>
 
   return (
     <div className="max-w-md mx-auto bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="p-4 sm:p-6">
+      <div className="p-6 3xl:w-110">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           <div className="flex-shrink-0 relative">
             <Avatar className="size-16 sm:size-20 bg-gray-200">

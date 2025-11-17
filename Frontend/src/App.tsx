@@ -360,7 +360,7 @@ const App = () => {
                                     
                                     <SidebarMenuSubButton> <CircleQuestionMark /> Sobre</SidebarMenuSubButton>
                                   </DialogTrigger>
-                                  <DialogContent>
+                                  <DialogContent className=' h-[90%]  flex items-center'>
                                     <div style={styles.container} className='thin-red-scrollbar'>
                                     {/* Logo e Nome do Sistema */}
                                     <header style={styles.header}>

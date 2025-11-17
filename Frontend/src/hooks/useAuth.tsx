@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password }),
     });
-    if (!res.ok) throw new Error('Invalid credentials');
+    if (!res.ok) throw new Error('Credenciais inválidas');
     const data = await res.json();
     setUser(data);
     return data;

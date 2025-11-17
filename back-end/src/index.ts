@@ -2128,7 +2128,7 @@ app.post("/api/auth/register", async (req, res) => {
       return res.status(400).json({ error: "usuário e senha requeridos" });
     const repo = AppDataSource.getRepository(User);
     const existing = await repo.findOne({ where: { username } });
-    if (existing) return res.status(409).json({ error: "username taken" });
+    if (existing) return res.status(409).json({ error: "usuário já existe" });
     // If there are no users yet, make this one admin
     const usersCount = await repo.count();
     const isAdmin = usersCount === 0;
