@@ -11,7 +11,8 @@
       "changes": [ 
         "Mensagens do coletor estão menos invasivas — aparecem apenas quando necessárias.",
         "Tela 'Sobre' atualizada para mostrar notas e logos diretamente no aplicativo.",
-        "Introduzido o Painel de Filtros Avançados com suporte a incluir e excluir itens."
+    "Introduzido o Painel de Filtros Avançados com suporte a incluir e excluir itens.",
+    "Adicionada ferramenta de descoberta de IHM (node / PowerShell) — disponível em Configurações Administrativas > Descobrir IHMs."
       ]
     },
     {

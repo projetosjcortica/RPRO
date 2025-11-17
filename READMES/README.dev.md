@@ -27,6 +27,22 @@ Observações
 # no terminal 1 (backend)
 cd back-end; npm run dev
 
+Windows (PowerShell)
+
+Se você está em Windows e não usa o script Bash, há um helper PowerShell que inicia os dois dev servers e salva logs em `back-end/logs`:
+
+1. Abra PowerShell
+2. Execute:
+
+	cd .\scripts
+	.\start-dev-windows.ps1
+
+3. Para ver logs (em tempo real):
+
+	Get-Content -Wait ..\back-end\logs\backend-dev.log | Select-Object -Last 200
+
+Observações: o script detecta portas ocupadas (3000 para backend; 5173 para frontend) e mostra qual processo está usando a porta.
+
 # no terminal 2 (frontend)
 cd Frontend; npm run dev
 

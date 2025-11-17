@@ -160,6 +160,12 @@ export class Processador {
       case 'collector.stop':
         return this.collectorStop();
 
+      case 'ihm.discover':
+        return this.discoverIhms(payload?.method, payload?.ports, payload?.timeoutMs);
+
+      case 'ihm.discover.last':
+        return this.getIhmDiscoveryLast();
+
       default:
         throw new Error(`Unknown command: ${cmd}`);
     }
@@ -227,6 +233,26 @@ export class Processador {
 
   public ihmFetchLatest(ip: string, user = "anonymous", password = "") {
     return this.makeRequest('/api/ihm/fetchLatest', 'GET', { ip, user, password });
+  }
+
+  public discoverIhms(method: 'node' | 'powershell' = 'node', ports: number[] = [80,443,502], timeoutMs = 800, paths: string[] = ['/', '/visu', '/visu/index.html']) {
+    return this.makeRequest('/api/ihm/discover', 'POST', { method, ports, timeoutMs, paths });
+  }
+
+  public getIhmDiscoveryLast() {
+    return this.makeRequest('/api/ihm/discover/last', 'GET');
+  }
+
+  public getAdminUsers() {
+    return this.makeRequest('/api/admin/users', 'GET');
+  }
+
+  public deleteUser(username?: string, id?: number) {
+    return this.makeRequest('/api/admin/delete-user', 'POST', { username, id });
+  }
+
+  public toggleAdmin(username?: string, id?: number, isAdmin = true) {
+    return this.makeRequest('/api/admin/toggle-admin', 'POST', { username, id, isAdmin });
   }
 
   public backupList() {

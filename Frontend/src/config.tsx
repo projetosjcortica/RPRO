@@ -495,7 +495,7 @@ export function ProfileConfig({
   // ✅ AGORA SIM O RETURN FINAL
   return (
     <div id="geral" className="flex flex-col gap-4 bg-white">
-      <Profile externalPreview={preview} file={file} />
+  <Profile externalPreview={preview} file={file} onUpload={uploadPhoto} />
       
       {user?.isAdmin && (
         <div className="mt-4 border border-gray-300 flex flex-col gap-4 rounded p-3 bg-white">

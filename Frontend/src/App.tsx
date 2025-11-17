@@ -110,9 +110,12 @@ const App = () => {
 
     window.addEventListener('profile-config-updated', onCfg as EventListener);
     window.addEventListener('user-photos-updated', onPhotoUpdate);
+    const onLogoutClose = () => setProfileDialogOpen(false);
+    window.addEventListener('profile-logged-out', onLogoutClose);
     return () => {
       window.removeEventListener('profile-config-updated', onCfg as EventListener);
       window.removeEventListener('user-photos-updated', onPhotoUpdate);
+      window.removeEventListener('profile-logged-out', onLogoutClose);
     };
   }, [user, updateUser]);
   
@@ -140,6 +143,7 @@ const App = () => {
       icon: Settings,
     }
   ];
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
 
   return (
     <div id="app" className="flex w-screen h-dvh overflow-hidden">
@@ -226,7 +230,7 @@ const App = () => {
                             </SidebarMenuButton>
                           </CollapsibleTrigger>
                           <CollapsibleContent className="text-popover-foreground flex flex-col outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
-                            <Dialog>
+                            <Dialog open={profileDialogOpen} onOpenChange={(v) => setProfileDialogOpen(v)}>
                               <DialogTrigger asChild>
                                 <SidebarMenuSubButton> <CircleUser />Perfil</SidebarMenuSubButton>
                               </DialogTrigger>
@@ -240,6 +244,7 @@ const App = () => {
                                 <ProfileConfig />
                               </DialogContent>
                             </Dialog>
+                            
 
                             {user?.isAdmin && (
                               <>

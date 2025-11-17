@@ -3,6 +3,8 @@ import { toast } from "react-toastify";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
+import { getProcessador } from "./Processador";
+import { resolvePhotoUrl } from "./lib/photoUtils";
 import { Switch } from "./components/ui/switch";
 import {
   AlertDialog,
@@ -31,6 +33,10 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
   
   // Estado para features experimentais
   const [experimentalFeatures, setExperimentalFeatures] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [discoverResults, setDiscoverResults] = useState<any | null>(null);
+  const [usersList, setUsersList] = useState<any[] | null>(null);
+  const [discoverPaths, setDiscoverPaths] = useState<string>('/,/visu,/visu/index.html');
 
   // Local alias to the Electron preload API. Typed as any so callers don't error when optional.
   const electronAPI: any = (window as any).electronAPI;
@@ -142,6 +148,74 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
     } catch (err) {
       console.error('Erro exportando Excel', err);
       toast.error('Erro ao exportar relatório');
+    }
+  };
+
+  const handleDiscoverIhms = async () => {
+    try {
+      setDiscoverResults(null);
+      setDiscovering(true);
+      toast.info('Iniciando busca de IHM na rede (isso pode demorar)');
+      const processador = getProcessador();
+  const paths = (discoverPaths || '').split(',').map(p => p.trim()).filter(Boolean);
+  const res = await processador.discoverIhms('node', [80,443,502], 1200, paths);
+      if (res && res.ok) {
+        setDiscoverResults(res.results);
+        toast.success(`Busca finalizada. ${res.results?.found?.length ?? 0} encontrados.`);
+      } else {
+        toast.warn('Busca finalizada com erro. Ver logs do backend.');
+        setDiscoverResults(res.results || null);
+      }
+    } catch (e) {
+      console.error('discoverIhms failed', e);
+      toast.error('Erro ao buscar IHMs: ' + String(e));
+    } finally {
+      setDiscovering(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const p = getProcessador();
+      const res = await p.getAdminUsers();
+      if (res && res.users) {
+        setUsersList(res.users);
+      }
+    } catch (e) {
+      console.error('Failed to load users', e);
+      setUsersList(null);
+    }
+  };
+
+  const handleDeleteUser = async (uname: string, id?: number) => {
+    try {
+      const p = getProcessador();
+      const res = await p.deleteUser(uname, id);
+      if (res && res.ok) {
+        toast.success('Usuário excluído');
+        await fetchUsers();
+      } else {
+        toast.error('Falha ao excluir');
+      }
+    } catch (e) {
+      console.error('delete user', e);
+      toast.error('Erro ao excluir usuário');
+    }
+  };
+
+  const handleToggleAdmin = async (uname: string, id: number, isAdmin: boolean) => {
+    try {
+      const p = getProcessador();
+      const res = await p.toggleAdmin(uname, id, isAdmin);
+      if (res && res.ok) {
+        toast.success(isAdmin ? 'Usuário promovido a admin' : 'Admin revogado');
+        await fetchUsers();
+      } else {
+        toast.error('Falha ao atualizar admin');
+      }
+    } catch (e) {
+      console.error('toggle admin', e);
+      toast.error('Erro ao atualizar admin');
     }
   };
 
@@ -299,6 +373,68 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      </div>
+      <div id="IhmDiscovery" className="mb-6 p-4 border rounded-lg bg-gray-50">
+        <Label className="font-medium text-gray-800">Descobrir IHMs na rede</Label>
+        <p className="text-sm text-gray-600 mt-1">Scan de portas (80,443,502) para encontrar possíveis interfaces HMI.</p>
+        <div className="mt-2">
+          <Label className="text-sm">Caminhos HTTP a testar (separados por vírgula)</Label>
+          <Input type="text" value={discoverPaths} onChange={(e) => setDiscoverPaths((e.target as HTMLInputElement).value)} className="mt-1 w-80" />
+        </div>
+        <div className="flex items-center gap-2 mt-3">
+          <Button onClick={handleDiscoverIhms} disabled={discovering} className="bg-blue-600 hover:bg-blue-700">
+            {discovering ? 'Procurando...' : 'Iniciar descoberta'}
+          </Button>
+          <Button onClick={async () => { const p = getProcessador(); const res = await p.getIhmDiscoveryLast(); setDiscoverResults(res?.results || null); }} className="bg-gray-200 hover:bg-gray-300">Carregar último</Button>
+        </div>
+        {discoverResults ? (
+          <div className="mt-4">
+            <Label className="font-medium">Resultados</Label>
+            {discoverResults.found && discoverResults.found.length > 0 ? (
+              <ul className="list-disc pl-5 mt-2 text-sm">
+                {discoverResults.found.map((f: any) => (
+                  <li key={f.ip} className="mb-1">
+                    <strong>{f.ip}</strong> — portas: {f.openPorts.join(', ')}
+                    {f.http && f.http.length > 0 ? (
+                      <div className="mt-1 text-sm text-gray-700">
+                        {f.http.map((h: any, idx: number) => (
+                          <div key={idx} className="mb-0">
+                            <span className="font-medium">{h.path}</span>: {h.title || h.statusCode || 'sem título'}</div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500 mt-2">Nenhum dispositivo encontrado.</p>
+            )}
+          </div>
+        ) : null}
+        <div className="mt-6 border-t pt-4">
+          <Label className="font-medium">Usuários do Sistema</Label>
+          <div className="mt-2">
+            <Button onClick={fetchUsers} size="sm" className="mb-2">Carregar usuários</Button>
+            {usersList && usersList.length > 0 ? (
+              <ul className="text-sm">
+                {usersList.map(u => (
+                  <li key={u.username} className="flex items-center justify-between py-1">
+                    <div className="flex items-center gap-3">
+                      <img src={u.photoPath ? resolvePhotoUrl(u.photoPath) : ''} alt="avatar" className="h-7 w-7 rounded-full border" />
+                      <div>{u.displayName || u.username} {u.isAdmin ? '(ADMIN)' : ''}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={() => handleToggleAdmin(u.username, u.id, !u.isAdmin)}>{u.isAdmin ? 'Remover Admin' : 'Tornar Admin'}</Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(u.username, u.id)}>Excluir</Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-xs text-gray-500 mt-1">Nenhum usuário carregado.</div>
+            )}
+          </div>
+        </div>
       </div>
       <div id="excelExport" className="mb-4">
           <Label className="font-medium text-gray-700">

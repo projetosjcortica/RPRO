@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from './hooks/useAuth';
+import { toast } from 'react-toastify';
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group';
 
 const Login: React.FC = () => {
@@ -24,7 +25,16 @@ const Login: React.FC = () => {
       }
       navigate('/');
     } catch (err: any) {
-      setError(String(err?.message || err));
+      let msg = String(err?.message || err);
+      // Map common English errors to Portuguese
+      if (msg.includes('Invalid credentials')) {
+        msg = 'Credenciais inválidas. Verifique usuário e senha.';
+      } else if (msg.includes('username taken') || msg.includes('username')) {
+        msg = 'Nome de usuário já existe. Escolha outro.';
+      }
+      setError(msg);
+      // Also show a toast for better visibility
+      try { toast.error(msg); } catch(e) {}
     }
   };
 

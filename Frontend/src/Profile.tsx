@@ -3,15 +3,17 @@ import useAuth from "./hooks/useAuth";
 import { resolvePhotoUrl } from "./lib/photoUtils";
 import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
 import { Button } from "./components/ui/button";
+import { toast } from 'react-toastify';
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label"; 
 
 interface ProfileProps {
   externalPreview?: string | null;
   file?: File | null;
+  onUpload?: () => Promise<void>;
 }
 
-const Profile: React.FC<ProfileProps> = ({ externalPreview, file }) => {
+const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) => {
   const { user, logout, updateUser } = useAuth();
 
   // Hooks sempre declarados no topo
@@ -54,7 +56,16 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file }) => {
       });
       if (!res.ok) throw new Error(`update failed: ${res.status}`);
       const data = await res.json();
-      updateUser(data);
+  updateUser(data);
+      // Notify other UI parts about the name change
+      try {
+        window.dispatchEvent(new Event('profile-config-updated'));
+      } catch (e) {}
+      try { toast.success('Nome atualizado'); } catch (e) {}
+      // If the parent passed an upload handler and there's a selected file, invoke it
+      if (file && onUpload) {
+        try { await onUpload(); } catch (e) { console.error('upload after save failed', e); }
+      }
     } catch (e: any) {
     }
   }; 
@@ -86,7 +97,7 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file }) => {
             )}
           </div>
           <div className="flex-shrink-0">
-            <Button variant="destructive" size="sm" onClick={logout}>
+            <Button variant="destructive" size="sm" onClick={() => { logout(); try { window.dispatchEvent(new Event('profile-logged-out')); } catch (e) {}; try { toast.info('Você saiu'); } catch (e) {} }}>
               Sair
             </Button>
           </div>

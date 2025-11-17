@@ -33,9 +33,20 @@ import { csvConverterService } from "./services/csvConverterService";
 import { changeDetectionService } from "./services/changeDetectionService";
 import { statsLogger, statsMiddleware } from "./services/statsLogger";
 import { cacheService } from "./services/CacheService";
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+const execFileAsync = promisify(execFile);
 
 console.log("✅ [Startup] Módulos importados com sucesso");
 console.log("✅ [Startup] fileProcessorService:", fileProcessorService ? "LOADED" : "UNDEFINED");
+
+// Global handlers for improved debugging on dev setup
+process.on('unhandledRejection', (reason) => {
+  console.error('[Global] unhandledRejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Global] uncaughtException:', err);
+});
 
 // ========== CACHE DE MATÉRIAS-PRIMAS ==========
 // Cache global para evitar consultas repetidas ao banco
@@ -2287,6 +2298,57 @@ app.post("/api/admin/set-default-photo", async (req, res) => {
   }
 });
 
+// Admin: list users (public, but only useful to admin UI)
+app.get('/api/admin/users', async (_req, res) => {
+  try {
+    await ensureDatabaseConnection();
+    const repo = AppDataSource.getRepository(User);
+    const users = await repo.find();
+    const sanitized = users.map(u => ({ id: u.id, username: u.username, displayName: u.displayName, photoPath: u.photoPath, isAdmin: u.isAdmin, userType: u.userType }));
+    return res.json({ ok: true, users: sanitized });
+  } catch (e: any) {
+    console.error('[admin/users] error', e);
+    return res.status(500).json({ ok: false, error: e?.message || 'internal' });
+  }
+});
+
+// Admin: delete a user by username or id
+app.post('/api/admin/delete-user', async (req, res) => {
+  try {
+    const { username, id } = req.body || {};
+    if (!username && !id) return res.status(400).json({ ok: false, error: 'username or id required' });
+    await ensureDatabaseConnection();
+    const repo = AppDataSource.getRepository(User);
+    if (id) {
+      await repo.delete({ id: Number(id) });
+    } else {
+      await repo.delete({ username: String(username) });
+    }
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[admin/delete-user] error', e);
+    return res.status(500).json({ ok: false, error: e?.message || 'internal' });
+  }
+});
+
+// Admin: toggle admin status
+app.post('/api/admin/toggle-admin', async (req, res) => {
+  try {
+    const { username, id, isAdmin } = req.body || {};
+    if ((!username && !id) || typeof isAdmin !== 'boolean') return res.status(400).json({ ok: false, error: 'username/id and isAdmin required' });
+    await ensureDatabaseConnection();
+    const repo = AppDataSource.getRepository(User);
+    const target = id ? await repo.findOne({ where: { id: Number(id) } }) : await repo.findOne({ where: { username: String(username) } });
+    if (!target) return res.status(404).json({ ok: false, error: 'user not found' });
+    target.isAdmin = isAdmin;
+    await repo.save(target);
+    return res.json({ ok: true, user: { id: target.id, username: target.username, isAdmin: target.isAdmin } });
+  } catch (e: any) {
+    console.error('[admin/toggle-admin] error', e);
+    return res.status(500).json({ ok: false, error: e?.message || 'internal' });
+  }
+});
+
 // Admin utility: trigger TypeORM schema synchronization (creates missing tables/columns)
 app.post('/api/admin/sync-schema', async (req, res) => {
   try {
@@ -2609,6 +2671,66 @@ app.get("/api/collector/status", async (_req, res) => {
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "internal" });
+  }
+});
+
+// IHM network discovery — runs tools/ihm-discovery/discover.js (Node) or scan.ps1 on Windows
+app.post('/api/ihm/discover', async (req, res) => {
+  try {
+  const { method = 'node', ports = [80,443,502], timeoutMs = 800, paths = ['/', '/visu', '/visu/index.html'] } = req.body || {};
+    const toolsDir = path.resolve(process.cwd(), 'tools', 'ihm-discovery');
+    const outFile = path.join(toolsDir, 'results.json');
+
+    // Ensure the tools folder exists
+    if (!fs.existsSync(toolsDir)) {
+      return res.status(404).json({ ok: false, error: 'ihm-discovery tools not found' });
+    }
+
+    let cmd: string;
+    let args: string[] = [];
+
+    if (String(method).toLowerCase() === 'powershell' && process.platform === 'win32') {
+      cmd = 'powershell.exe';
+  args = ['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File', path.join(toolsDir, 'scan.ps1'), '-TimeoutMs', String(timeoutMs), '-Ports', String((ports || []).join(',')), '-Paths', String((paths || []).join(',')), '-OutFile', outFile];
+    } else {
+      // Default to Node script
+      cmd = process.execPath; // Node binary
+      args = [path.join(toolsDir, 'discover.js'), '--timeout', String(timeoutMs), '--ports', String((ports || []).join(',')), '--paths', String((paths || []).join(','))];
+    }
+
+    console.log('[IHM Discover] running', cmd, args.join(' '));
+
+    // Execute with a 2-minute max so request doesn't hang indefinitely
+    await execFileAsync(cmd, args, { cwd: toolsDir, timeout: 2 * 60 * 1000 });
+
+    // If the script succeeded, parse results.json
+    let json = {};
+    if (fs.existsSync(outFile)) {
+      json = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+    }
+
+    return res.json({ ok: true, results: json });
+  } catch (e) {
+    console.error('[IHM Discover] error:', e);
+    const toolsDir = path.resolve(process.cwd(), 'tools', 'ihm-discovery');
+    const outFile = path.join(toolsDir, 'results.json');
+    let partial = {};
+    try {
+      if (fs.existsSync(outFile)) partial = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+    } catch (_) {}
+    return res.status(500).json({ ok: false, error: String(e), results: partial });
+  }
+});
+
+app.get('/api/ihm/discover/last', async (_req, res) => {
+  try {
+    const outFile = path.resolve(process.cwd(), 'tools', 'ihm-discovery', 'results.json');
+    if (!fs.existsSync(outFile)) return res.status(404).json({ ok: false, error: 'not found' });
+    const json = JSON.parse(fs.readFileSync(outFile, 'utf8'));
+    return res.json({ ok: true, results: json });
+  } catch (e) {
+    console.error('[IHM Discover] read/last error', e);
+    return res.status(500).json({ ok: false, error: String(e) });
   }
 });
 
