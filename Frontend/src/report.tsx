@@ -679,7 +679,6 @@ export default function Report() {
     if (collectorLoading) return;
     setCollectorLoading(true);
     setCollectorError(null);
-  try { toastManager.showInfoOnce('collector-toggle', collectorRunning ? 'Parando coleta...' : 'Iniciando coleta...'); } catch(e){}
     try {
       if (collectorRunning) {
         const res = await fetch("http://localhost:3000/api/collector/stop", {
@@ -709,29 +708,26 @@ export default function Report() {
 
         // Start collector with current IHM config
         let res;
-        if (
-          ihmConfig &&
-          (ihmConfig.ip || ihmConfig.user || ihmConfig.password)
-        ) {
-          // Send config as POST with body
-          startConnecting("Conectando ao coletor...");
-          res = await fetch("http://localhost:3000/api/collector/start", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              ip: ihmConfig.ip,
-              user: ihmConfig.user,
-              password: ihmConfig.password,
-            }),
-          });
-        } else {
-          // Fallback to GET method
-          res = await fetch("http://localhost:3000/api/collector/start", {
-            method: "GET",
-          });
+        if (!ihmConfig || !(ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
+          // User actively requested start but no IHM config present: show a single warning and abort.
+          try { toastManager.showWarningOnce('collector-toggle', 'IHM não configurada. Configure a IHM em Configurações antes de iniciar a coleta.'); } catch(e){}
+          setCollectorLoading(false);
+          return;
         }
+
+        // Send config as POST with body
+        startConnecting("Conectando ao coletor...");
+        res = await fetch("http://localhost:3000/api/collector/start", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ip: ihmConfig.ip,
+            user: ihmConfig.user,
+            password: ihmConfig.password,
+          }),
+        });
 
         if (!res.ok) throw new Error("Falha ao iniciar o coletor.");
         const payload = await res.json().catch(() => ({}));

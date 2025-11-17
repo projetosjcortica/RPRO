@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import Home from './home';
 import Login from './Login';
+import About from './About';
 import useAuth from './hooks/useAuth';
 import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './config';
 import Report from './report';
@@ -125,6 +126,11 @@ const App = () => {
       title: "Relatórios",
       icon: Sheet,
       path: '/report'
+    }
+    ,{
+      title: "Sobre",
+      icon: Factory,
+      path: '/about'
     }
   ];
 
@@ -294,6 +300,7 @@ const App = () => {
                 </RequireAuth>
               } 
             />
+            <Route path="/about" element={<RequireAuth><About /></RequireAuth>} />
             {/* <Route path="/custom-reports" element={<RequireAuth><CustomReports /></RequireAuth>} /> */}
             {/* <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} /> */}
             <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />
