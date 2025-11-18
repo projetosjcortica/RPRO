@@ -342,7 +342,7 @@ export class AmendoimService {
               console.error('[AmendoimService] Erro ao salvar registro em modo forceSaveAll:', eSave?.message || eSave);
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           console.warn('[AmendoimService] ⚠️ Erro ao tentar salvar todos os registros em amendoim no modo forceSaveAll:', e?.message || e);
         }
       }
