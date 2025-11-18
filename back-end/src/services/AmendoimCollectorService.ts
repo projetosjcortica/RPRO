@@ -4,7 +4,7 @@ import * as crypto from 'crypto';
 import { AmendoimService } from './AmendoimService';
 import { backupSvc } from './backupService';
 import { IHMService } from './IHMService';
-import { getRuntimeConfig } from '../core/runtimeConfig';
+import { getRuntimeConfig, setRuntimeConfigs } from '../core/runtimeConfig';
 import { cacheService } from './CacheService';
 
 interface ChangeDetectionRecord {
@@ -48,6 +48,30 @@ export class AmendoimCollectorService {
   
   // Cache de detecção de mudanças
   private static changeRecords: Map<string, ChangeDetectionRecord> = new Map();
+
+  /** Normalize IHM2 config supporting both `ihm2` object and flat `ip2/user2/password2` */
+  private static resolveIhm2Config(iCfg: any): { ip: string; user?: string; password?: string; caminhoRemoto?: string; source: 'ihm2' | 'flat' } | null {
+    if (!iCfg) return null;
+    if (iCfg.ihm2 && iCfg.ihm2.ip) {
+      return {
+        ip: String(iCfg.ihm2.ip),
+        user: String(iCfg.ihm2.user || ''),
+        password: String(iCfg.ihm2.password || ''),
+        caminhoRemoto: iCfg.ihm2.caminhoRemoto,
+        source: 'ihm2'
+      };
+    }
+    if (iCfg.ip2) {
+      return {
+        ip: String(iCfg.ip2),
+        user: String(iCfg.user2 || ''),
+        password: String(iCfg.password2 || ''),
+        caminhoRemoto: iCfg.caminhoRemoto2 || iCfg.caminhoRemoto,
+        source: 'flat'
+      };
+    }
+    return null;
+  }
 
   /**
    * Inicializa o IHMService com as configurações do ihm-config
@@ -101,14 +125,17 @@ export class AmendoimCollectorService {
     // Tentar IHM2 se configurado e primário falhou
     if (!result) {
       const ihmCfg = getRuntimeConfig('ihm-config') || {};
-      if ((ihmCfg as any).duasIHMs && (ihmCfg as any).ihm2) {
-        const ih2 = (ihmCfg as any).ihm2;
+      const ih2 = this.resolveIhm2Config(ihmCfg as any);
+      if (ih2 && ih2.ip) {
         try {
           console.log(`[AmendoimCollector] Tentando IHM2 (${ih2.ip}) como fallback`);
+          const runtime = getRuntimeConfig('ihm-config') || {};
+          const defaultRemote = runtime.caminhoRemoto || '/InternalStorage/data/';
           const svc2 = new IHMService(
-            ih2.ip || '192.168.5.250',
-            ih2.user || 'anonymous',
-            ih2.password || ''
+            String(ih2.ip || '192.168.5.250'),
+            String(ih2.user || 'anonymous'),
+            String(ih2.password || ''),
+            String(ih2.caminhoRemoto || defaultRemote)
           );
           result = await tryWithService(svc2);
           if (result) console.log(`[AmendoimCollector] ✓ Arquivo obtido via IHM2: ${result.name}`);
@@ -385,10 +412,26 @@ export class AmendoimCollectorService {
 
       // Usar configuração do ihm-config (preferida) ou amendoim-config quando disponível
       const ihmCfg = getRuntimeConfig('ihm-config') || {};
+      console.log('[AmendoimCollector] runtime ihm-config (pre overlay):', JSON.stringify(ihmCfg));
       // Prefer amendoim-config values for file selection if present
       try {
         const { AmendoimConfigService } = await Promise.resolve().then(() => require('./AmendoimConfigService'));
         const amCfg = AmendoimConfigService.getConfig();
+        // If amendoim-config defines IHM2 config and runtime ihm-config has not set it,
+        // copy it so clearing DB will not remove IHM2 info.
+        if (amCfg && amCfg.ihm2 && !(ihmCfg as any).ihm2 && !(ihmCfg as any).ip2) {
+          (ihmCfg as any).ip2 = amCfg.ihm2.ip;
+          (ihmCfg as any).user2 = amCfg.ihm2.user;
+          (ihmCfg as any).password2 = amCfg.ihm2.password;
+          (ihmCfg as any).caminhoRemoto2 = amCfg.ihm2.caminhoRemoto;
+          try {
+            setRuntimeConfigs({ 'ihm-config': ihmCfg });
+            console.log('[AmendoimCollector] Persisted ihm-config with IHM2 fields from amendoim-config');
+          } catch (e) {
+            console.warn('[AmendoimCollector] failed to persist ihm-config mapping from amendoim-config:', e);
+          }
+        }
+
         // If amendoim-config defines an explicit localCSV filename, copy it into ihmCfg for selection
         if (amCfg && (amCfg as any).localCSV) {
           ihmCfg.localCSV = (amCfg as any).localCSV;
@@ -420,30 +463,34 @@ export class AmendoimCollectorService {
       console.log(`  - IHM1 Caminho: ${caminhoPadrao}`);
       console.log(`  - REGRA: Balanças 1,2 = ENTRADA | Balança 3 = SAÍDA`);
       console.log(`  - COLETA: Todos os arquivos CSV serão processados`);
-      if (ihmCfg.duasIHMs && ihmCfg.ihm2) {
-        console.log(`  - IHM2 IP: ${ihmCfg.ihm2.ip || 'NÃO CONFIGURADO'}`);
-        console.log(`  - IHM2 Caminho: ${ihmCfg.ihm2.caminhoRemoto || 'PADRÃO'}`);
-        console.log(`  - IHM2 User: ${ihmCfg.ihm2.user || 'anonymous'}`);
+      // Show IHM2 info if present (supporting flat ip2 keys as well)
+      const resolvedIhm2Display = this.resolveIhm2Config(ihmCfg);
+      if (resolvedIhm2Display) {
+        console.log(`  - IHM2 IP: ${resolvedIhm2Display.ip}`);
+        console.log(`  - IHM2 Caminho: ${resolvedIhm2Display.caminhoRemoto || 'PADRÃO'}`);
+        console.log(`  - IHM2 User: ${resolvedIhm2Display.user || 'anonymous'}`);
       } else {
         console.log(`  - IHM2: NÃO CONFIGURADA`);
       }
+      console.log('[AmendoimCollector] ========================================');
       console.log('[AmendoimCollector] ========================================');
 
       // Criar IHM1 (principal)
       const ihm1Service = new IHMService(ipPadrao, userPadrao, passwordPadrao, caminhoPadrao);
       console.log(`[AmendoimCollector] ✓ IHM1 criada - IP: ${ipPadrao}`);
 
-      // Criar IHM2 se configurada (se existir definição de ihm2, usar mesmo que 'duasIHMs' esteja desmarcado)
+      // Criar IHM2 se configurada (aceita nested ihm2 ou ip2/user2 fields)
       let ihm2Service: IHMService | null = null;
-      if (ihmCfg.ihm2 && ihmCfg.ihm2.ip) {
-        const caminhoIhm2 = ihmCfg.ihm2.caminhoRemoto || caminhoPadrao;
+      const ih2cfg = this.resolveIhm2Config(ihmCfg as any);
+      if (ih2cfg && ih2cfg.ip) {
+        const caminhoIhm2 = ih2cfg.caminhoRemoto || caminhoPadrao;
         ihm2Service = new IHMService(
-          ihmCfg.ihm2.ip,
-          ihmCfg.ihm2.user || 'anonymous',
-          ihmCfg.ihm2.password || '',
+          ih2cfg.ip,
+          ih2cfg.user || 'anonymous',
+          ih2cfg.password || '',
           caminhoIhm2
         );
-        console.log(`[AmendoimCollector] ✓ IHM2 criada - IP: ${ihmCfg.ihm2.ip}`);
+        console.log(`[AmendoimCollector] ✓ IHM2 criada - IP: ${ih2cfg.ip} (source: ${ih2cfg.source})`);
       }
 
       // 🔧 NOVA LÓGICA: Listar TODOS os arquivos CSV de cada IHM
@@ -479,9 +526,22 @@ export class AmendoimCollectorService {
       if (ihm2Service) {
         console.log('[AmendoimCollector] 📂 Listando arquivos CSV da IHM2...');
         try {
-          const caminhoIhm2 = ihmCfg.ihm2?.caminhoRemoto || caminhoPadrao;
+          const caminhoIhm2 = ih2cfg?.caminhoRemoto || caminhoPadrao;
           let arquivosIHM2 = await ihm2Service.listarArquivosCSV();
           console.log(`[AmendoimCollector] ✓ IHM2: ${arquivosIHM2.length} arquivos CSV encontrados`);
+          // if list returned 0 but localCSV2 is configured, attempt force download
+          if (arquivosIHM2.length === 0 && (ihmCfg as any).localCSV2 && String((ihmCfg as any).localCSV2).trim() !== '') {
+            const requested2 = String((ihmCfg as any).localCSV2).trim();
+            console.log(`[AmendoimCollector] ⚠️ IHM2 list 0 files; attempting forceDownloadFile('${requested2}')`);
+            try {
+              const localDirForIhm2 = path.join(this.TMP_DIR, 'IHM2');
+              if (!fs.existsSync(localDirForIhm2)) fs.mkdirSync(localDirForIhm2, { recursive: true });
+              const d = await this.downloadSpecificFile(requested2, localDirForIhm2, 'IHM2', ihm2Service);
+              if (d) arquivosIHM2 = [d.name];
+            } catch (e) {
+              console.warn('[AmendoimCollector] error forcing localCSV2 download:', e);
+            }
+          }
           if (ihmCfg && ihmCfg.localCSV2 && String(ihmCfg.localCSV2).trim() !== '') {
             const requested2 = String(ihmCfg.localCSV2).trim();
             const filtered2 = arquivosIHM2.filter(n => n === requested2 || n.includes(requested2));

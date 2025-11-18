@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Input } from "./components/ui/input";
-import AdvancedFilterPanel from './components/AdvancedFilterPanel';
-import useAdvancedFilters from './hooks/useAdvancedFilters';
+// import AdvancedFilterPanel from './components/AdvancedFilterPanel';
+// import useAdvancedFilters from './hooks/useAdvancedFilters';
 import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
 import { Button } from "./components/ui/button";
@@ -418,8 +418,8 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   const editableColumns = Array.from({ length: END_COL - START_COL + 1 }, (_, i) => `col${i + START_COL}`);
 
   // Advanced filters hook (persistent)
-  const adv = useAdvancedFilters();
-  const { filters: advancedFilters, setFiltersState: setAdvancedFiltersState, clearFilters: clearAdvancedFilters } = adv;
+  // const adv = useAdvancedFilters();
+  // const { filters: advancedFilters, setFiltersState: setAdvancedFiltersState, clearFilters: clearAdvancedFilters } = adv;
   return (
     <div className="w-full h-full flex">
       <div className="flex-1 flex flex-col">
@@ -517,7 +517,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
         </div>
       </div>
 
-      <AdvancedFilterPanel
+      {/* <AdvancedFilterPanel
         filters={advancedFilters}
         onChange={(f) => setAdvancedFiltersState(f)}
         onApply={() => {
@@ -525,7 +525,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
         }}
         onClear={() => { clearAdvancedFilters(); try { window.dispatchEvent(new CustomEvent('advancedFiltersChanged', { detail: {} })); } catch (e) {} }}
         colLabels={colLabels}
-      />
+      /> */}
     </div>
   );
 }
