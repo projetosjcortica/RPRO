@@ -614,7 +614,6 @@ export function IHMConfig({
       <div className="flex gap-2">
         <button
           type="button"
-          disabled={!isEditing}
           onClick={() => onChange("selectedIhm", 1)}
           className={`px-3 py-2 rounded-md border ${((formData as any).selectedIhm || 1) === 1 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700'}`}
         >
@@ -622,7 +621,7 @@ export function IHMConfig({
         </button>
         <button
           type="button"
-          disabled={!isEditing || !(formData as any).duasIHMs}
+          disabled={!(formData as any).duasIHMs}
           onClick={() => onChange("selectedIhm", 2)}
           className={`px-3 py-2 rounded-md border ${((formData as any).selectedIhm || 1) === 2 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700'} ${!(formData as any).duasIHMs ? 'opacity-50 cursor-not-allowed' : ''}`}
         >

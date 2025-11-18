@@ -1425,7 +1425,7 @@ export default function Report() {
   return (
     <div className="flex flex-col gap-1.5 w-full h-full">
       <div className="h-[10dvh] flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-1 h-[10dvh]">
+        <div className="flex flex-row items-end gap-1 h-[10dvh] ml-4">
           <Button 
             onClick={() => setView("table")} 
             className={view === "table" ? "bg-red-800 border border-gray-300" : ""}
@@ -1460,11 +1460,11 @@ export default function Report() {
                 <Play className="h-4 w-4" />
               )}
               {collectorLoading ? (
-                <p className="md:flex 2xl:hidden 3xl:flex">Processando...</p>
+                <p className="md:flex ">Processando...</p>
               ) : collectorRunning ? (
-                <p className="md:flex 2xl:hidden 3xl:flex"> Parar coleta</p>
+                <p className="md:flex "> Parar coleta</p>
               ) : (
-                <p className="md:flex 2xl:hidden 3xl:flex">Iniciar coleta</p>
+                <p className="md:flex ">Iniciar coleta</p>
               )}
             </Button>
           </div>

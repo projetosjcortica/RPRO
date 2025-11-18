@@ -14,9 +14,63 @@ import {
 } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 
+// ✅ Função de formatação brasileira
+const formatBR = (value: number, decimals = 3): string => {
+  return new Intl.NumberFormat("pt-BR", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: true,
+  }).format(value);
+};
+
+// ✅ Tooltip personalizado para gráficos compostos (kg vs %)
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const labelsMap: Record<string, string> = {
+    entrada: "Entrada",
+    saida: "Saída",
+    rendimento: "Rendimento",
+    perda: "Perda Diária",
+    acumulado: "Perda Acumulada",
+  };
+
+  return (
+    <div className="bg-background p-3 border rounded shadow-sm">
+      <p className="font-medium">{label}</p>
+      <ul className="mt-1">
+        {payload.map((entry: any, index: number) => {
+          const value = Number(entry.value);
+          let formattedValue = "";
+          let displayName = entry.name || labelsMap[entry.dataKey] || entry.dataKey;
+
+          if (displayName.includes("%") || entry.dataKey === "rendimento") {
+            formattedValue = `${formatBR(value, 2)}%`;
+          } else if (["entrada", "saida", "perda", "acumulado"].includes(entry.dataKey)) {
+            formattedValue = `${formatBR(value)} kg`;
+          } else {
+            formattedValue = formatBR(value);
+          }
+
+          return (
+            <li key={index} className="flex items-center gap-2 mt-1">
+              <span
+                className="w-3 h-3 rounded-full"
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-sm">{displayName}:</span>
+              <span className="font-medium">{formattedValue}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
+
 interface ChartEntradaSaidaPorHorarioProps {
   dados: Array<{ hora: number; entrada: number; saida: number }>;
-  bare?: boolean; // quando true, renderiza apenas o gráfico, sem Card/headers
+  bare?: boolean;
 }
 
 interface ChartRendimentoPorDiaProps {
@@ -37,18 +91,13 @@ interface ChartPerdaAcumuladaProps {
   dados: Array<{ dia: string; perdaDiaria: number; perdaAcumulada: number }>;
 }
 
-// Cores do tema
 const COLORS = {
-  entrada: "#ef4444",   // red-500
-  saida: "#6b7280",     // gray-500
-  rendimento: "#ef4444", // red-500
-  perda: "#ef4444",     // red-500
+  entrada: "#ef4444",
+  saida: "#6b7280",
+  rendimento: "#ef4444",
+  perda: "#ef4444",
 };
 
-/**
- * Gráfico de Entrada vs Saída por Horário
- * Agrupa registros por hora do dia e compara peso entrada vs saída
- */
 export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPorHorarioProps) {
   const data = dados?.map((d) => ({
     hora: `${String(d.hora).padStart(2, "0")}:00`,
@@ -62,7 +111,24 @@ export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPo
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="hora" />
         <YAxis />
-        <Tooltip formatter={(value: number) => `${(value as number).toFixed(2)} kg`} />
+        <Tooltip
+          formatter={(value, name) => {
+            let numericValue: number;
+
+            if (Array.isArray(value)) {
+              // Se for um array, pegue o último valor (ou o que for relevante)
+              numericValue = Number(value[value.length - 1]);
+            } else {
+              numericValue = Number(value);
+            }
+
+            if (isNaN(numericValue)) return ['', ''];
+
+            const formattedValue = `${formatBR(numericValue)} kg`;
+            const label = name === 'entrada' ? 'Entrada' : 'Saída';
+            return [formattedValue, label];
+          }}
+        />
         <Legend />
         <Bar dataKey="entrada" fill={COLORS.entrada} name="Entrada" />
         <Bar dataKey="saida" fill={COLORS.saida} name="Saída" />
@@ -103,10 +169,6 @@ export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPo
   );
 }
 
-/**
- * Gráfico de Rendimento por Dia
- * Mostra entrada, saída e percentual de rendimento dia a dia (dados pré-processados)
- */
 export function ChartRendimentoPorDia({ dados }: ChartRendimentoPorDiaProps) {
   const data = dados.map((d) => ({
     ...d,
@@ -142,7 +204,7 @@ export function ChartRendimentoPorDia({ dados }: ChartRendimentoPorDiaProps) {
             <XAxis dataKey="dia" />
             <YAxis yAxisId="left" />
             <YAxis yAxisId="right" orientation="right" domain={[0, 100]} />
-            <Tooltip />
+            <Tooltip content={<CustomTooltip />} />
             <Legend />
             <Bar yAxisId="left" dataKey="entrada" fill={COLORS.entrada} name="Entrada (kg)" />
             <Bar yAxisId="left" dataKey="saida" fill={COLORS.saida} name="Saída (kg)" />
@@ -162,10 +224,6 @@ export function ChartRendimentoPorDia({ dados }: ChartRendimentoPorDiaProps) {
   );
 }
 
-/**
- * Gráfico de Fluxo Semanal
- * Visualização da variação entrada vs saída ao longo da semana (dados pré-processados)
- */
 export function ChartFluxoSemanal({ dados, bare }: ChartFluxoSemanalProps) {
   const data = dados?.map((d) => ({
     dia: d.diaSemana,
@@ -179,7 +237,24 @@ export function ChartFluxoSemanal({ dados, bare }: ChartFluxoSemanalProps) {
         <CartesianGrid strokeDasharray="3 3" />
         <XAxis dataKey="dia" />
         <YAxis />
-        <Tooltip formatter={(value: number) => `${(value as number).toFixed(2)} kg`} />
+        <Tooltip
+          formatter={(value, name) => {
+            let numericValue: number;
+
+            if (Array.isArray(value)) {
+              // Se for um array, pegue o último valor (ou o que for relevante)
+              numericValue = Number(value[value.length - 1]);
+            } else {
+              numericValue = Number(value);
+            }
+
+            if (isNaN(numericValue)) return ['', ''];
+
+            const formattedValue = `${formatBR(numericValue)} kg`;
+            const label = name === 'entrada' ? 'Entrada' : 'Saída';
+            return [formattedValue, label];
+          }}
+        />
         <Legend />
         <Bar dataKey="entrada" fill="#ef4444" name="Entrada" />
         <Bar dataKey="saida" fill="#6b7280" name="Saída" />
@@ -206,10 +281,6 @@ export function ChartFluxoSemanal({ dados, bare }: ChartFluxoSemanalProps) {
   );
 }
 
-/**
- * Gráfico de Eficiência por Período (Turnos)
- * Dados pré-processados do backend
- */
 export function ChartEficienciaPorTurno({ dados, bare }: ChartEficienciaPorTurnoProps) {
   const data = dados?.map((d) => ({
     turno: d.turno,
@@ -225,7 +296,7 @@ export function ChartEficienciaPorTurno({ dados, bare }: ChartEficienciaPorTurno
         <XAxis dataKey="turno" />
         <YAxis yAxisId="left" />
         <YAxis yAxisId="right" orientation="right" domain={[0, 100]} />
-        <Tooltip />
+        <Tooltip content={<CustomTooltip />} />
         <Legend />
         <Bar yAxisId="left" dataKey="entrada" fill={COLORS.entrada} name="Entrada (kg)" />
         <Bar yAxisId="left" dataKey="saida" fill={COLORS.saida} name="Saída (kg)" />
@@ -260,10 +331,6 @@ export function ChartEficienciaPorTurno({ dados, bare }: ChartEficienciaPorTurno
   );
 }
 
-/**
- * Gráfico de Perda/Ganho Acumulado
- * Dados pré-processados do backend
- */
 export function ChartPerdaAcumulada({ dados }: ChartPerdaAcumuladaProps) {
   const data = dados.map((d) => ({
     dia: d.dia,
@@ -297,7 +364,24 @@ export function ChartPerdaAcumulada({ dados }: ChartPerdaAcumuladaProps) {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="dia" />
             <YAxis />
-            <Tooltip formatter={(value: number) => `${value.toFixed(2)} kg`} />
+            <Tooltip
+              formatter={(value, name) => {
+                let numericValue: number;
+
+                if (Array.isArray(value)) {
+                  // Se for um array, pegue o último valor (ou o que for relevante)
+                  numericValue = Number(value[value.length - 1]);
+                } else {
+                  numericValue = Number(value);
+                }
+
+                if (isNaN(numericValue)) return ['', ''];
+
+                const formattedValue = `${formatBR(numericValue)} kg`;
+                const label = name === 'entrada' ? 'Entrada' : 'Saída';
+                return [formattedValue, label];
+              }}
+            />            
             <Legend />
             <Area
               type="monotone"

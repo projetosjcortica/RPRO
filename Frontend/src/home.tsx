@@ -604,7 +604,7 @@ export default function Home() {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip 
                           contentStyle={{ fontSize: 12 }}
-                          formatter={(value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg`}
+                          formatter={(value: number) => `${value.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`}
                         />
                         <Bar dataKey="valor" fill="#ef4444" name="Entrada" />
                       </BarChart>
@@ -674,7 +674,7 @@ export default function Home() {
                         <YAxis tick={{ fontSize: 11 }} />
                         <Tooltip 
                           contentStyle={{ fontSize: 12 }}
-                          formatter={(value: number) => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg`}
+                          formatter={(value: number) => `${value.toLocaleString('pt-BR', {minimumFractionDigits:3, maximumFractionDigits: 3 })} kg`}
                         />
                         <Bar dataKey="valor" fill="#6b7280" name="Saída" />
                       </BarChart>
@@ -709,13 +709,13 @@ export default function Home() {
                         <div className="shadow-md rounded-lg p-4">
                           <div className="text-sm text-gray-500 font-medium">Entrada</div>
                           <div className="text-lg font-bold">
-                            {entradaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                            {entradaSum.toLocaleString('pt-BR', {  minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           </div>
                         </div>
                         <div className="shadow-md rounded-lg p-4">
                           <div className="text-sm text-gray-500 font-medium">Saída</div>
                           <div className="text-lg font-bold">
-                            {saidaSum.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                            {saidaSum.toLocaleString('pt-BR', {  minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           </div>
                         </div>
                       </div>
@@ -724,7 +724,7 @@ export default function Home() {
                       <div className="shadow-md rounded-lg p-5">
                         <div className="text-xs text-red-600 font-medium">Perda de Material</div>
                         <div className="text-3xl font-bold text-red-800">
-                          {(entradaSum - saidaSum).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} kg
+                          {(entradaSum - saidaSum).toLocaleString('pt-BR', { minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           <span className="text-sm ml-2">
                             ({entradaSum > 0 
                               ? (((entradaSum - saidaSum) / entradaSum) * 100).toFixed(2)

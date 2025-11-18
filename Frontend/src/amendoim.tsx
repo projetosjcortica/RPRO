@@ -193,7 +193,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     hora: 80,
     codigoProduto: 120,
     balanca: 80,
-    nomeProduto: 250,
+    nomeProduto: 260,
     peso: 120,
     tipo: 100,
   };
@@ -837,7 +837,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           </div>
         ) : (
           <div className="w-full h-full flex flex-col relative">
-            <div className="overflow-auto flex-1 thin-red-scrollbar">
+            <div className=" overflow-auto 2xl:overflow-x-hidden flex-1 thin-red-scrollbar">
               <div className="min-w-max w-full">
                 {/* Cabeçalho com ordenação e redimensionamento */}
                 <div className="sticky top-0 z-10 bg-gray-200 border-b border-gray-300">
