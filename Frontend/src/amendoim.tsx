@@ -8,6 +8,7 @@ import { AmendoimExport } from "./components/AmendoimExport";
 import toastManager from "./lib/toastManager";
 import { format as formatDateFn } from "date-fns";
 import { cn } from "./lib/utils";
+import { getProcessador } from "./Processador";
 import { Separator } from "./components/ui/separator";
 import useAuth from "./hooks/useAuth";
 import { resolvePhotoUrl } from "./lib/photoUtils";
@@ -490,7 +491,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   }, [filtrosAtivos, viewMode]);
 
   // Buscar métricas de rendimento
-  const fetchMetricasRendimento = async () => {
+  const fetchMetricasRendimento = useCallback(async () => {
     try {
       const params = new URLSearchParams();
       if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
@@ -507,7 +508,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       console.error('Erro ao buscar métricas de rendimento:', err);
       setMetricasRendimento(null);
     }
-  };
+  }, [filtrosAtivos]);
 
   // Buscar dados de análise pré-processados
   const fetchDadosAnalise = async () => {
@@ -621,15 +622,30 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   useEffect(() => {
     if (!collectorRunning) return;
     
-    // Atualizar dados a cada 30 segundos quando o coletor está ativo (para testes com 1min de coleta)
+    // Atualizar dados a cada 30 segundos quando o coletor está ativo
+    // Em vez de tocar o state de filtros (que faz a tabela piscar), chamamos
+    // as funções de fetch diretamente para atualizar apenas os dados necessários.
     const intervalId = setInterval(() => {
-      console.log('[Amendoim] Atualizando dados automaticamente (coletor ativo)');
-      // Força re-fetch fazendo setState nos filtros (triggers o useEffect principal)
-      setFiltrosAtivos(prev => ({ ...prev }));
+      console.log('[Amendoim] Atualizando dados automaticamente (coletor ativo) - fetch direto');
+      void fetchRegistros();
+      void fetchEstatisticas();
+      if (viewMode === 'comparativo') void fetchMetricasRendimento();
     }, 30000); // 30 segundos para capturar mudanças do coletor de 1min
-    
+
     return () => clearInterval(intervalId);
-  }, [collectorRunning]);
+  }, [collectorRunning, fetchRegistros, fetchEstatisticas, fetchMetricasRendimento, viewMode]);
+
+  // Resetar larguras das colunas para padrão
+  const resetTableColumns = () => {
+    try {
+      setColumnWidths(DEFAULT_WIDTHS);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_WIDTHS));
+      // Forçar re-render leve para atualizar UI se necessário
+      // (não mexemos nos filtros para evitar piscar a tabela)
+    } catch (e) {
+      console.warn('[Amendoim] falha ao resetar colunas', e);
+    }
+  };
 
   const handleCollectorToggle = async () => {
     if (collectorLoading) return;
@@ -685,19 +701,11 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('tipo', uploadTipo); // Adiciona tipo ao upload
+      const processador = getProcessador();
+      const data = await processador.uploadAmendoimFile(file, uploadTipo);
 
-      const res = await fetch('http://localhost:3000/api/amendoim/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Erro ao processar arquivo');
+      if (!data || !data.ok) {
+        throw new Error(data?.error || 'Erro ao processar arquivo');
       }
 
       // Mostrar toast de sucesso
@@ -765,6 +773,16 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       {/* Header */}
       <div className="h-[10dvh] flex flex-row justify-between w-full">
         <div className="flex flex-row items-end gap-1 h-[10dvh]">
+          {/* Resetar colunas: posição alinhada com o relatório (ração) */}
+          <div>
+            <Button
+              onClick={resetTableColumns}
+              variant="ghost"
+              className=" text-gray-500 hover:text-gray-700 hover:underline transition-colors"
+            >
+              Resetar colunas
+            </Button>
+          </div>
         </div>
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1"> 
@@ -1460,7 +1478,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         </div>
         
         {/* Botão de Exportação - Centralizado */}
-        <div className="w-full px-2 pb-2 flex justify-center">
+        <div className="w-full px-2 pb-2 flex justify-center items-center gap-3">
           {(() => {
             const comentariosComId = comentarios.map((c, idx) => ({ id: String(idx), texto: c.texto, data: c.data || new Date().toLocaleString('pt-BR') }));
 

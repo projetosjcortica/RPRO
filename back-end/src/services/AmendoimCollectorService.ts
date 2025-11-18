@@ -33,7 +33,17 @@ export class AmendoimCollectorService {
   private static intervalId: NodeJS.Timeout | null = null;
   private static isRunning = false;
   private static ihmService: IHMService | null = null;
-  private static TMP_DIR = path.resolve(process.cwd(), 'tmp');
+  // Use runtime-config 'collector_tmp' if set, otherwise prefer OS temp directory.
+  private static TMP_DIR = ((): string => {
+    try {
+      const cfg = getRuntimeConfig('collector_tmp') || process.env.COLLECTOR_TMP;
+      if (cfg && String(cfg).trim() !== '') return path.resolve(String(cfg));
+    } catch (e) {
+      // ignore and fallback
+    }
+    // Fallback to OS tempdir to ensure writable location in packaged apps
+    return path.resolve(require('os').tmpdir(), 'cortez-collector-tmp');
+  })();
   
   // Cache de detecção de mudanças
   private static changeRecords: Map<string, ChangeDetectionRecord> = new Map();
@@ -358,8 +368,22 @@ export class AmendoimCollectorService {
       await cacheService.init();
       console.log('[AmendoimCollector] Cache service inicializado');
 
-      // Usar configuração do ihm-config
+      // Usar configuração do ihm-config (preferida) ou amendoim-config quando disponível
       const ihmCfg = getRuntimeConfig('ihm-config') || {};
+      // Prefer amendoim-config values for file selection if present
+      try {
+        const { AmendoimConfigService } = await Promise.resolve().then(() => require('./AmendoimConfigService'));
+        const amCfg = AmendoimConfigService.getConfig();
+        // If amendoim-config defines an explicit localCSV filename, copy it into ihmCfg for selection
+        if (amCfg && (amCfg as any).localCSV) {
+          ihmCfg.localCSV = (amCfg as any).localCSV;
+        }
+        if (amCfg && amCfg.ihm2 && (amCfg.ihm2 as any).localCSV) {
+          ihmCfg.localCSV2 = (amCfg.ihm2 as any).localCSV;
+        }
+      } catch (e) {
+        // ignore if AmendoimConfigService not available
+      }
       
       // ⚡ VALIDAÇÃO: Verificar se há configuração mínima
       const hasIpConfig = ihmCfg.ip || process.env.IHM_IP;
@@ -413,15 +437,17 @@ export class AmendoimCollectorService {
       // Listar CSVs da IHM1
       console.log('[AmendoimCollector] 📂 Listando arquivos CSV da IHM1...');
       try {
-        const arquivosIHM1 = await ihm1Service.listarArquivosCSV();
+        let arquivosIHM1 = await ihm1Service.listarArquivosCSV();
         console.log(`[AmendoimCollector] ✓ IHM1: ${arquivosIHM1.length} arquivos CSV encontrados`);
+        // If config defines a specific filename for this IHM, filter to that file only
+        if (ihmCfg && ihmCfg.localCSV && String(ihmCfg.localCSV).trim() !== '') {
+          const requested = String(ihmCfg.localCSV).trim();
+          const filtered = arquivosIHM1.filter(n => n === requested || n.includes(requested));
+          console.log(`[AmendoimCollector] IHM1 localCSV configured: '${requested}' -> matched ${filtered.length} file(s)`);
+          arquivosIHM1 = filtered;
+        }
         arquivosIHM1.forEach(arquivo => {
-          arquivosParaColetar.push({
-            arquivo,
-            caminho: caminhoPadrao,
-            ihmService: ihm1Service,
-            ihmLabel: 'IHM1'
-          });
+          arquivosParaColetar.push({ arquivo, caminho: caminhoPadrao, ihmService: ihm1Service, ihmLabel: 'IHM1' });
         });
       } catch (err: any) {
         console.error(`[AmendoimCollector] ❌ Erro ao listar CSVs da IHM1:`, err.message);
@@ -432,15 +458,16 @@ export class AmendoimCollectorService {
         console.log('[AmendoimCollector] 📂 Listando arquivos CSV da IHM2...');
         try {
           const caminhoIhm2 = ihmCfg.ihm2?.caminhoRemoto || caminhoPadrao;
-          const arquivosIHM2 = await ihm2Service.listarArquivosCSV();
+          let arquivosIHM2 = await ihm2Service.listarArquivosCSV();
           console.log(`[AmendoimCollector] ✓ IHM2: ${arquivosIHM2.length} arquivos CSV encontrados`);
+          if (ihmCfg && ihmCfg.localCSV2 && String(ihmCfg.localCSV2).trim() !== '') {
+            const requested2 = String(ihmCfg.localCSV2).trim();
+            const filtered2 = arquivosIHM2.filter(n => n === requested2 || n.includes(requested2));
+            console.log(`[AmendoimCollector] IHM2 localCSV configured: '${requested2}' -> matched ${filtered2.length} file(s)`);
+            arquivosIHM2 = filtered2;
+          }
           arquivosIHM2.forEach(arquivo => {
-            arquivosParaColetar.push({
-              arquivo,
-              caminho: caminhoIhm2,
-              ihmService: ihm2Service!,
-              ihmLabel: 'IHM2'
-            });
+            arquivosParaColetar.push({ arquivo, caminho: caminhoIhm2, ihmService: ihm2Service!, ihmLabel: 'IHM2' });
           });
         } catch (err: any) {
           console.error(`[AmendoimCollector] ❌ Erro ao listar CSVs da IHM2:`, err.message);

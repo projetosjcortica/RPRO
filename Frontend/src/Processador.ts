@@ -34,6 +34,29 @@ export class Processador {
     console.log(`[Processador] HTTP client initialized for ${this.baseURL}`);
   }
 
+  /**
+   * Upload a file to the amendoim upload endpoint using FormData.
+   * Accepts a File (browser) or Blob; in Electron renderer File is available.
+   */
+  public async uploadAmendoimFile(file: File | Blob, tipo?: string): Promise<any> {
+    const url = `${this.baseURL}/api/amendoim/upload`;
+    const form = new FormData();
+    form.append('file', file as any);
+    if (tipo) form.append('tipo', tipo);
+
+    try {
+      const resp = await fetch(url, { method: 'POST', body: form });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${resp.status}: ${resp.statusText}`);
+      }
+      return await resp.json();
+    } catch (err) {
+      console.error('[Processador] uploadAmendoimFile failed:', err);
+      throw err;
+    }
+  }
+
   // Método makeRequest corrigido - SEMPRE usa URL absoluta
   private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
     

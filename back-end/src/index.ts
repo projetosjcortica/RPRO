@@ -5233,18 +5233,26 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
         nomeProduto: `%${nomeProduto}%` 
       });
     }
-    if (dataInicio) {
-      const dataInicioDB = convertDateToDBFormat(dataInicio);
-      console.log('[Excel Export GET] 📅 Conversão dataInicio:', { original: dataInicio, convertido: dataInicioDB });
-      // Usar STR_TO_DATE para comparação cronológica, não lexicográfica
-      qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicioDB, '%d/%m/%y')", { dataInicioDB });
-    }
-    if (dataFim) {
-      const dataFimDB = convertDateToDBFormat(dataFim);
-      console.log('[Excel Export GET] 📅 Conversão dataFim:', { original: dataFim, convertido: dataFimDB });
-      // Usar STR_TO_DATE com < (exclusive) - comparar com próximo dia (dataFim + 1)
-      // DATE_ADD retorna DATE, então não precisa STR_TO_DATE depois
-      qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') < DATE_ADD(STR_TO_DATE(:dataFimDB, '%d/%m/%y'), INTERVAL 1 DAY)", { dataFimDB });
+    // Handle date filters differently depending on DB engine.
+    // MySQL: use STR_TO_DATE / DATE_ADD in SQL for efficient filtering.
+    // Other engines (SQLite fallback): fetch rows and filter in JS to avoid missing SQL functions.
+    const isMySQL = (AppDataSource.options as any)?.type === 'mysql';
+
+    if (isMySQL) {
+      if (dataInicio) {
+        const dataInicioDB = convertDateToDBFormat(dataInicio);
+        console.log('[Excel Export GET] 📅 Conversão dataInicio (SQL path):', { original: dataInicio, convertido: dataInicioDB });
+        qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicioDB, '%d/%m/%y')", { dataInicioDB });
+      }
+      if (dataFim) {
+        const dataFimDB = convertDateToDBFormat(dataFim);
+        console.log('[Excel Export GET] 📅 Conversão dataFim (SQL path):', { original: dataFim, convertido: dataFimDB });
+        qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') < DATE_ADD(STR_TO_DATE(:dataFimDB, '%d/%m/%y'), INTERVAL 1 DAY)", { dataFimDB });
+      }
+    } else {
+      // Non-MySQL: we'll apply data filters in JS after fetching rows.
+      if (dataInicio) console.log('[Excel Export GET] 📅 dataInicio provided (JS filter path):', dataInicio);
+      if (dataFim) console.log('[Excel Export GET] 📅 dataFim provided (JS filter path):', dataFim);
     }
 
     qb.orderBy("STR_TO_DATE(a.dia, '%d/%m/%y')", "ASC").addOrderBy("a.hora", "ASC");
@@ -5253,8 +5261,57 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
     const sql = qb.getSql();
     console.log('[Excel Export GET] 📋 SQL Gerada:', sql);
 
-    const registros = await qb.getMany();
-    console.log('[Excel Export GET] ✅ Registros encontrados:', registros.length);
+    let registros = await qb.getMany();
+    console.log('[Excel Export GET] ✅ Registros encontrados (pre-date-filter):', registros.length);
+
+    // If not using MySQL, apply inclusive/exclusive date filtering in JS to avoid DB function incompatibilities.
+    if (!isMySQL && (dataInicio || dataFim)) {
+      const normalizeToISO = (d: string) => {
+        // Accepts YYYY-MM-DD or DD/MM/YY or DD/MM/YYYY
+        if (!d) return null as string | null;
+        const s = String(d).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        if (/^\d{2}\/\d{2}\/\d{2}$/.test(s)) {
+          const [day, month, year] = s.split('/');
+          const fullYear = Number(year) < 50 ? '20' + year : '19' + year;
+          return `${fullYear}-${month}-${day}`;
+        }
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+          const [day, month, year] = s.split('/');
+          return `${year}-${month}-${day}`;
+        }
+        return null;
+      };
+
+      const startISO = dataInicio ? normalizeToISO(dataInicio) : null;
+      const endISOExclusive = dataFim ? (() => {
+        const iso = normalizeToISO(dataFim!);
+        if (!iso) return null;
+        const dt = new Date(iso);
+        dt.setDate(dt.getDate() + 1);
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      })() : null;
+
+      registros = registros.filter(r => {
+        try {
+          const dia = String(r.dia || '').trim();
+          // dia stored as DD/MM/YY
+          const parts = dia.split('/');
+          if (parts.length !== 3) return false;
+          const year = Number(parts[2]);
+          const fullYear = year < 50 ? 2000 + year : 1900 + year;
+          const iso = `${fullYear}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+
+          if (startISO && iso < startISO) return false;
+          if (endISOExclusive && iso >= endISOExclusive) return false;
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
+
+      console.log('[Excel Export GET] ✅ Registros após filtro JS:', registros.length);
+    }
 
     // Criar workbook Excel
     const wb = new ExcelJS.Workbook();
@@ -5377,16 +5434,23 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
         nomeProduto: `%${nomeProduto}%` 
       });
     }
-    if (dataInicio) {
-      const dataInicioDB = convertDateToDBFormat(dataInicio);
-      // Usar STR_TO_DATE para comparação cronológica, não lexicográfica
-      qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicioDB, '%d/%m/%y')", { dataInicioDB });
-    }
-    if (dataFim) {
-      const dataFimDB = convertDateToDBFormat(dataFim);
-      // Usar STR_TO_DATE com < (exclusive) - comparar com próximo dia (dataFim + 1)
-      // DATE_ADD retorna DATE, então não precisa STR_TO_DATE depois
-      qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') < DATE_ADD(STR_TO_DATE(:dataFimDB, '%d/%m/%y'), INTERVAL 1 DAY)", { dataFimDB });
+    const isMySQL = (AppDataSource.options as any)?.type === 'mysql';
+
+    if (isMySQL) {
+      if (dataInicio) {
+        const dataInicioDB = convertDateToDBFormat(dataInicio);
+        // Usar STR_TO_DATE para comparação cronológica, não lexicográfica
+        qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicioDB, '%d/%m/%y')", { dataInicioDB });
+      }
+      if (dataFim) {
+        const dataFimDB = convertDateToDBFormat(dataFim);
+        // Usar STR_TO_DATE com < (exclusive) - comparar com próximo dia (dataFim + 1)
+        // DATE_ADD retorna DATE, então não precisa STR_TO_DATE depois
+        qb.andWhere("STR_TO_DATE(a.dia, '%d/%m/%y') < DATE_ADD(STR_TO_DATE(:dataFimDB, '%d/%m/%y'), INTERVAL 1 DAY)", { dataFimDB });
+      }
+    } else {
+      if (dataInicio) console.log('[Excel Export POST] 📅 dataInicio provided (JS filter path):', dataInicio);
+      if (dataFim) console.log('[Excel Export POST] 📅 dataFim provided (JS filter path):', dataFim);
     }
 
     qb.orderBy("STR_TO_DATE(a.dia, '%d/%m/%y')", "ASC").addOrderBy("a.hora", "ASC");
@@ -5395,8 +5459,53 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
     const sql = qb.getSql();
     console.log('[Excel Export POST] 📋 SQL Gerada:', sql);
 
-    const registros = await qb.getMany();
-    console.log('[Excel Export POST] ✅ Registros encontrados:', registros.length);
+    let registros = await qb.getMany();
+    console.log('[Excel Export POST] ✅ Registros encontrados (pre-date-filter):', registros.length);
+
+    if (!isMySQL && (dataInicio || dataFim)) {
+      const normalizeToISO = (d: string) => {
+        if (!d) return null as string | null;
+        const s = String(d).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        if (/^\d{2}\/\d{2}\/\d{2}$/.test(s)) {
+          const [day, month, year] = s.split('/');
+          const fullYear = Number(year) < 50 ? '20' + year : '19' + year;
+          return `${fullYear}-${month}-${day}`;
+        }
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {
+          const [day, month, year] = s.split('/');
+          return `${year}-${month}-${day}`;
+        }
+        return null;
+      };
+
+      const startISO = dataInicio ? normalizeToISO(dataInicio) : null;
+      const endISOExclusive = dataFim ? (() => {
+        const iso = normalizeToISO(dataFim!);
+        if (!iso) return null;
+        const dt = new Date(iso);
+        dt.setDate(dt.getDate() + 1);
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+      })() : null;
+
+      registros = registros.filter(r => {
+        try {
+          const dia = String(r.dia || '').trim();
+          const parts = dia.split('/');
+          if (parts.length !== 3) return false;
+          const year = Number(parts[2]);
+          const fullYear = year < 50 ? 2000 + year : 1900 + year;
+          const iso = `${fullYear}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+          if (startISO && iso < startISO) return false;
+          if (endISOExclusive && iso >= endISOExclusive) return false;
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
+
+      console.log('[Excel Export POST] ✅ Registros após filtro JS:', registros.length);
+    }
 
     // Criar workbook Excel
     const wb = new ExcelJS.Workbook();

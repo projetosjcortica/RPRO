@@ -155,6 +155,9 @@ export class AmendoimService {
       }
 
       // Salvar em lote com PROTEÇÃO TRIPLA contra duplicatas
+      let duplicatasInternas = 0;
+      let duplicatasDB = 0;
+
       if (registrosParaSalvar.length > 0) {
         console.log(`[AmendoimService] 🛡️ Iniciando proteção anti-duplicatas para ${registrosParaSalvar.length} registros...`);
         
@@ -176,8 +179,8 @@ export class AmendoimService {
         }
         
         const registrosSemDuplicatasInternas = Array.from(hashMap.values());
-        const duplicatasInternas = registrosParaSalvar.length - registrosSemDuplicatasInternas.length;
-        
+        duplicatasInternas = registrosParaSalvar.length - registrosSemDuplicatasInternas.length;
+
         if (duplicatasInternas > 0) {
           console.log(`[AmendoimService] ⚠️ PROTEÇÃO NÍVEL 1: ${duplicatasInternas} duplicatas encontradas no próprio lote`);
         }
@@ -216,7 +219,7 @@ export class AmendoimService {
           );
         });
 
-        const duplicatasDB = registrosSemDuplicatasInternas.length - registrosNovos.length;
+        duplicatasDB = registrosSemDuplicatasInternas.length - registrosNovos.length;
         
         if (duplicatasDB > 0) {
           console.log(`[AmendoimService] ⚠️ PROTEÇÃO NÍVEL 2: ${duplicatasDB} duplicatas já existem no banco de dados`);
@@ -228,6 +231,10 @@ export class AmendoimService {
             await repo.save(registrosNovos);
             salvos = registrosNovos.length;
             console.log(`[AmendoimService] ✅ ${salvos} registros salvos com sucesso`);
+
+            // Contar entradas/saidas também no caso de save em lote
+            entradasSalvas = registrosNovos.filter(r => r.tipo === 'entrada').length;
+            saidasSalvas = registrosNovos.filter(r => r.tipo === 'saida').length;
           } catch (err: any) {
             // Se houver erro de constraint unique, tentar salvar um por um
             if (err.code === 'ER_DUP_ENTRY' || err.message?.includes('unique')) {
@@ -274,8 +281,8 @@ export class AmendoimService {
         }
       }
 
-      console.log(`[AmendoimService] 📊 RESUMO FINAL - Processados: ${processados} | Salvos: ${salvos} | ENTRADA: ${entradasSalvas} | SAÍDA: ${saidasSalvas}`);
-      return { processados, salvos, erros, entradasSalvas, saidasSalvas };
+      console.log(`[AmendoimService] 📊 RESUMO FINAL - Processados: ${processados} | Salvos: ${salvos} | ENTRADA: ${entradasSalvas} | SAÍDA: ${saidasSalvas} | DuplicatasInternas: ${duplicatasInternas} | DuplicatasDB: ${duplicatasDB}`);
+      return { processados, salvos, erros, entradasSalvas, saidasSalvas, duplicatasInternas, duplicatasDB } as any;
     } catch (err: any) {
       throw new Error(`Erro ao processar CSV: ${err.message}`);
     }
@@ -465,7 +472,7 @@ export class AmendoimService {
     // Buscar primeira e última data/hora
     const primeiroRegistro = await qb
       .clone()
-      .orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "ASC")
+      .orderBy("STR_TO_DATE(amendoim.dia, '%d/%m/%y')", "ASC")
       .addOrderBy("amendoim.hora", "ASC")
       .select(["amendoim.dia", "amendoim.hora"])
       .limit(1)
@@ -473,7 +480,7 @@ export class AmendoimService {
 
     const ultimoRegistro = await qb
       .clone()
-      .orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "DESC")
+      .orderBy("STR_TO_DATE(amendoim.dia, '%d/%m/%y')", "DESC")
       .addOrderBy("amendoim.hora", "DESC")
       .select(["amendoim.dia", "amendoim.hora"])
       .limit(1)
@@ -891,7 +898,7 @@ export class AmendoimService {
 
     const primeiroRegistro = await qbPeriodo
       .clone()
-      .orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "ASC")
+      .orderBy("STR_TO_DATE(amendoim.dia, '%d/%m/%y')", "ASC")
       .addOrderBy("amendoim.hora", "ASC")
       .select(["amendoim.dia", "amendoim.hora"])
       .limit(1)
@@ -899,7 +906,7 @@ export class AmendoimService {
 
     const ultimoRegistro = await qbPeriodo
       .clone()
-      .orderBy("STR_TO_DATE(amendoim.dia, '%d-%m-%y')", "DESC")
+      .orderBy("STR_TO_DATE(amendoim.dia, '%d/%m/%y')", "DESC")
       .addOrderBy("amendoim.hora", "DESC")
       .select(["amendoim.dia", "amendoim.hora"])
       .limit(1)
