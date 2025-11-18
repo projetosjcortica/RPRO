@@ -358,31 +358,6 @@ const App = () => {
                             </Dialog>
                             
 
-                            {user?.isAdmin && (
-                              <>
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <SidebarMenuSubButton><GalleryThumbnails />IHM</SidebarMenuSubButton>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle> IHM</DialogTitle>
-                                      <DialogDescription>
-                                        Configurações da IHM
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <IHMConfig />
-                                  </DialogContent>
-                                </Dialog>
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    
-                                    <SidebarMenuSubButton> <HatGlasses /> ADM</SidebarMenuSubButton>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <AdminConfig />
-                                  </DialogContent>
-                                </Dialog>
                                 <Dialog>
                                   <DialogTrigger asChild>
                                     
@@ -422,6 +397,31 @@ const App = () => {
                                       ))}
                                     </section>
                                   </div>
+                                  </DialogContent>
+                                </Dialog>
+                            {user?.isAdmin && (
+                              <>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <SidebarMenuSubButton><GalleryThumbnails />IHM</SidebarMenuSubButton>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle> IHM</DialogTitle>
+                                      <DialogDescription>
+                                        Configurações da IHM
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <IHMConfig />
+                                  </DialogContent>
+                                </Dialog>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    
+                                    <SidebarMenuSubButton> <HatGlasses /> ADM</SidebarMenuSubButton>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <AdminConfig />
                                   </DialogContent>
                                 </Dialog>
                               </>
