@@ -424,7 +424,7 @@ export function ExportDropdown({
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="silo" id="sort-silo" />
-                  <Label htmlFor="sort-silo" className="cursor-pointer font-normal">Silos (Prod_1...40)</Label>
+                  <Label htmlFor="sort-silo" className="cursor-pointer font-normal">Silos (Prod_1...65)</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="most-used" id="sort-usage" />
