@@ -357,6 +357,7 @@ export class AmendoimCollectorService {
       errors: [] as string[],
       processados: 0,
       salvos: 0,
+      rawSaved: 0,
       erros: 0,
       deduplicadas: 0,
       entradasSalvas: 0,
@@ -367,6 +368,19 @@ export class AmendoimCollectorService {
       // ⚡ INICIALIZAR CACHE antes de processar
       await cacheService.init();
       console.log('[AmendoimCollector] Cache service inicializado');
+
+      // Garantir TMP_DIR existe e é gravável
+      try {
+        if (!fs.existsSync(this.TMP_DIR)) {
+          fs.mkdirSync(this.TMP_DIR, { recursive: true });
+          console.log(`[AmendoimCollector] Diretório TMP criado: ${this.TMP_DIR}`);
+        }
+        fs.accessSync(this.TMP_DIR, fs.constants.W_OK);
+      } catch (permErr: any) {
+        const msg = `TMP_DIR não gravável: ${this.TMP_DIR} - ${permErr?.message || permErr}`;
+        console.error(`[AmendoimCollector] ❌ ${msg}`);
+        throw new Error(msg);
+      }
 
       // Usar configuração do ihm-config (preferida) ou amendoim-config quando disponível
       const ihmCfg = getRuntimeConfig('ihm-config') || {};
@@ -418,9 +432,9 @@ export class AmendoimCollectorService {
       const ihm1Service = new IHMService(ipPadrao, userPadrao, passwordPadrao, caminhoPadrao);
       console.log(`[AmendoimCollector] ✓ IHM1 criada - IP: ${ipPadrao}`);
 
-      // Criar IHM2 se configurada
+      // Criar IHM2 se configurada (se existir definição de ihm2, usar mesmo que 'duasIHMs' esteja desmarcado)
       let ihm2Service: IHMService | null = null;
-      if (ihmCfg.duasIHMs && ihmCfg.ihm2 && ihmCfg.ihm2.ip) {
+      if (ihmCfg.ihm2 && ihmCfg.ihm2.ip) {
         const caminhoIhm2 = ihmCfg.ihm2.caminhoRemoto || caminhoPadrao;
         ihm2Service = new IHMService(
           ihmCfg.ihm2.ip,
@@ -445,6 +459,13 @@ export class AmendoimCollectorService {
           const filtered = arquivosIHM1.filter(n => n === requested || n.includes(requested));
           console.log(`[AmendoimCollector] IHM1 localCSV configured: '${requested}' -> matched ${filtered.length} file(s)`);
           arquivosIHM1 = filtered;
+
+          // If no files matched but a filename was requested, attempt a direct force download later
+          if (arquivosIHM1.length === 0) {
+            console.log(`[AmendoimCollector] ⚠️ localCSV '${requested}' não encontrado na listagem; será tentado download direto via forceDownloadFile`);
+            // push a marker entry so we attempt forceDownloadFile later
+            arquivosIHM1.push(requested);
+          }
         }
         arquivosIHM1.forEach(arquivo => {
           arquivosParaColetar.push({ arquivo, caminho: caminhoPadrao, ihmService: ihm1Service, ihmLabel: 'IHM1' });
@@ -465,6 +486,11 @@ export class AmendoimCollectorService {
             const filtered2 = arquivosIHM2.filter(n => n === requested2 || n.includes(requested2));
             console.log(`[AmendoimCollector] IHM2 localCSV configured: '${requested2}' -> matched ${filtered2.length} file(s)`);
             arquivosIHM2 = filtered2;
+
+            if (arquivosIHM2.length === 0) {
+              console.log(`[AmendoimCollector] ⚠️ localCSV2 '${requested2}' não encontrado na listagem da IHM2; será tentado download direto via forceDownloadFile`);
+              arquivosIHM2.push(requested2);
+            }
           }
           arquivosIHM2.forEach(arquivo => {
             arquivosParaColetar.push({ arquivo, caminho: caminhoIhm2, ihmService: ihm2Service!, ihmLabel: 'IHM2' });
@@ -482,8 +508,12 @@ export class AmendoimCollectorService {
         try {
           console.log(`[AmendoimCollector] ⚡ Iniciando coleta da ${arquivoInfo.ihmLabel}: ${arquivoInfo.arquivo}`);
 
-          // Baixar arquivo forçado (ignora cache de tamanho)
-          const downloadedFile = await this.downloadSpecificFile(arquivoInfo.arquivo, this.TMP_DIR, arquivoInfo.ihmLabel, arquivoInfo.ihmService);
+          // Preparar diretório local por IHM (ex: TMP_DIR/IHM1)
+          const localDirForIhm = path.join(this.TMP_DIR, arquivoInfo.ihmLabel);
+          if (!fs.existsSync(localDirForIhm)) fs.mkdirSync(localDirForIhm, { recursive: true });
+
+          // Baixar arquivo forçado (ignora cache de tamanho) para o diretório específico da IHM
+          const downloadedFile = await this.downloadSpecificFile(arquivoInfo.arquivo, localDirForIhm, arquivoInfo.ihmLabel, arquivoInfo.ihmService);
           
           if (!downloadedFile) {
             const msg = `Arquivo NÃO ENCONTRADO na ${arquivoInfo.ihmLabel}: ${arquivoInfo.arquivo}`;
@@ -491,9 +521,11 @@ export class AmendoimCollectorService {
             return { ...DEFAULT_RESULT, erros: [msg] };
           }
 
-          // Criar chave de cache
-          const cacheKey = `${arquivoInfo.ihmLabel}_${downloadedFile.name}`;
-          console.log(`[AmendoimCollector] ✓ Arquivo baixado da ${arquivoInfo.ihmLabel}: ${downloadedFile.name} (${downloadedFile.size} bytes)`);
+          // Criar chave de cache usando o helper da IHM (inclui prefixo por IP)
+          const cacheKey = arquivoInfo.ihmService && typeof (arquivoInfo.ihmService as any).getCacheKey === 'function'
+            ? (arquivoInfo.ihmService as any).getCacheKey(downloadedFile.name)
+            : `${arquivoInfo.ihmLabel}_${downloadedFile.name}`;
+          console.log(`[AmendoimCollector] ✓ Arquivo baixado da ${arquivoInfo.ihmLabel}: ${downloadedFile.name} (${downloadedFile.size} bytes) - cacheKey: ${cacheKey}`);
 
           // Ler conteúdo CSV
           const csvContent = fs.readFileSync(downloadedFile.localPath, 'utf8');
@@ -556,7 +588,7 @@ export class AmendoimCollectorService {
 
           // ✅ PROCESSAMENTO SIMPLIFICADO: Apenas chamar processarCSV
           // O próprio AmendoimService determina tipo baseado no campo balança
-          const processResult = await AmendoimService.processarCSV(csvDeduplicated);
+          const processResult = await AmendoimService.processarCSV(csvDeduplicated, { forceSaveAll: true, sourceIhm: arquivoInfo.ihmLabel });
           
           const linhasProcessadas = linhasNovas;
           const totalSalvas = processResult.salvos;
@@ -571,6 +603,7 @@ export class AmendoimCollectorService {
 
           // 💾 Criar backup com prefixo IHM para evitar conflitos entre IHM1/IHM2
           try {
+            // backupSvc aceita um segundo argumento label que prefixa o arquivo salvo
             await backupSvc.backupFile({
               originalname: downloadedFile.name,
               path: downloadedFile.localPath,
@@ -608,18 +641,27 @@ export class AmendoimCollectorService {
       for (const r of settled) {
         result.processados += r.processados;
         result.salvos += r.salvos;
+        result.rawSaved += (r.rawSaved || 0);
         result.erros += typeof r.erros === 'number' ? r.erros : r.erros.length;
         result.deduplicadas += r.deduplicadas;
         result.entradasSalvas += r.entradasSalvas || 0;
         result.saidasSalvas += r.saidasSalvas || 0;
       }
 
+      // Numero de arquivos efetivamente processados (para retorno da API)
+      try {
+        result.filesProcessed = arquivosParaColetar.length;
+      } catch (e) {
+        result.filesProcessed = settled.length;
+      }
+      result.recordsSaved = (result.salvos || 0) + (result.rawSaved || 0);
+
       console.log('[AmendoimCollector] ========================================');
       console.log('[AmendoimCollector] � RESUMO DA COLETA');
       console.log('[AmendoimCollector] ========================================');
-      console.log(`  📂 Arquivos processados: ${arquivosParaColetar.length}`);
-      console.log(`  � Total processado: ${result.processados}`);
-      console.log(`  💾 Total salvos: ${result.salvos}`);
+      console.log(`  📂 Arquivos processados (planejados): ${arquivosParaColetar.length} | Arquivos efetivamente processados: ${result.filesProcessed}`);
+      console.log(`  � Total processado (linhas): ${result.processados}`);
+      console.log(`  💾 Total salvos (linhas): ${result.salvos}`);
       console.log(`    ⬆️  Entradas: ${result.entradasSalvas}`);
       console.log(`    ⬇️  Saídas: ${result.saidasSalvas}`);
       console.log(`  �️ Duplicatas bloqueadas: ${result.deduplicadas}`);
@@ -676,9 +718,10 @@ export class AmendoimCollectorService {
       await cacheService.init();
       const repo = cacheService.ds.getRepository(cacheService.ds.getMetadata('CacheFile').target);
       const amendoimRecords = await repo.createQueryBuilder('c')
-        .where('c.originalName LIKE :pattern1 OR c.originalName LIKE :pattern2', {
+        .where('c.originalName LIKE :pattern1 OR c.originalName LIKE :pattern2 OR c.originalName LIKE :pattern3', {
           pattern1: 'entrada_%',
-          pattern2: 'saida_%'
+          pattern2: 'saida_%',
+          pattern3: 'ihm_%'
         })
         .getMany();
       

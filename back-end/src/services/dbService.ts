@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
-import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim } from '../entities/index';
+import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw } from '../entities/index';
 import { getRuntimeConfig } from '../core/runtimeConfig';
 
 export class DBService extends BaseService {
@@ -79,7 +79,7 @@ export class DBService extends BaseService {
           database: finalDb,
           synchronize: true, // This will create/update tables automatically
           logging: ['error', 'schema'], // Log only errors and schema changes
-          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim],
+          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw],
         });
       } else {
         const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
@@ -93,7 +93,7 @@ export class DBService extends BaseService {
           database: absPath,
           synchronize: typeormSync,
           logging: false,
-          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim],
+          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw],
         });
       }
       await this.ds.initialize();
@@ -121,7 +121,7 @@ export class DBService extends BaseService {
             database: absPath,
             synchronize: true,
             logging: ['error', 'schema'],
-            entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim],
+            entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw],
           });
           await this.ds.initialize();
           this.useMysql = false;
@@ -330,7 +330,7 @@ export class DBService extends BaseService {
    */
   async clearAll() {
     await this.init();
-    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim];
+    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw];
     // Use a transaction to ensure atomicity when supported
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -387,6 +387,7 @@ export class DBService extends BaseService {
       Setting,
       User,
       Amendoim,
+      AmendoimRaw,
     };
     for (const k of Object.keys(entities)) {
       // @ts-ignore

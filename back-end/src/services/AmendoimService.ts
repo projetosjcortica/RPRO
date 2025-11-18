@@ -45,19 +45,23 @@ export class AmendoimService {
    * @returns Número de registros processados e salvos
    */
   static async processarCSV(
-    csvContent: string
+    csvContent: string,
+    options?: { forceSaveAll?: boolean; sourceIhm?: string }
   ): Promise<{
     processados: number;
     salvos: number;
     erros: string[];
     entradasSalvas: number;
     saidasSalvas: number;
+    duplicatasInternas?: number;
+    duplicatasDB?: number;
   }> {
     const erros: string[] = [];
     let processados = 0;
     let salvos = 0;
     let entradasSalvas = 0;
     let saidasSalvas = 0;
+    let rawSaved = 0;
 
     try {
       // Parse CSV sem header
@@ -69,6 +73,8 @@ export class AmendoimService {
 
       const repo = AppDataSource.getRepository(Amendoim);
       const registrosParaSalvar: Amendoim[] = [];
+      // For forceSaveAll mode, also collect raw rows to persist in amendoim_raw
+      const rawRows: any[] = [];
 
       for (let i = 0; i < records.length; i++) {
         const row = records[i];
@@ -111,15 +117,21 @@ export class AmendoimService {
           // Validar se há produto (nome ou código)
           const hasProduto = nomeProduto && String(nomeProduto).trim() !== "";
           const hasCodigo = codigoProduto && String(codigoProduto).trim() !== "";
-          
+
           if (!hasProduto && !hasCodigo) {
-            // Linha sem produto, pular silenciosamente (pode ser teste da balança)
-            continue;
+            // Se modo forceSaveAll, não pular — apenas marcar como Sem nome
+            if (!options?.forceSaveAll) {
+              // Linha sem produto, pular silenciosamente (pode ser teste da balança)
+              continue;
+            }
           }
 
           if (!peso || isNaN(Number(peso))) {
-            erros.push(`Linha ${i + 1}: Peso inválido (${peso})`);
-            continue;
+            if (!options?.forceSaveAll) {
+              erros.push(`Linha ${i + 1}: Peso inválido (${peso})`);
+              continue;
+            }
+            // forceSaveAll: set peso zero quando inválido
           }
 
           // Criar registro
@@ -145,10 +157,25 @@ export class AmendoimService {
           const nomeProcessado = nomeProduto ? String(nomeProduto).trim() : "";
           registro.nomeProduto = nomeProcessado || "Sem nome";
           
-          registro.peso = Number(peso);
+          registro.peso = Number(peso) || 0;
           registro.balanca = balanca ? String(balanca).trim() : undefined;
 
           registrosParaSalvar.push(registro);
+
+          if (options?.forceSaveAll) {
+            rawRows.push({
+              tipo: registro.tipo,
+              dia: registro.dia,
+              hora: registro.hora,
+              codigoProduto: registro.codigoProduto,
+              codigoCaixa: registro.codigoCaixa,
+              nomeProduto: registro.nomeProduto,
+              peso: registro.peso,
+              balanca: registro.balanca,
+              sourceIhm: options.sourceIhm,
+              rawLine: row.join(',')
+            });
+          }
         } catch (err: any) {
           erros.push(`Linha ${i + 1}: ${err.message}`);
         }
@@ -281,8 +308,47 @@ export class AmendoimService {
         }
       }
 
-      console.log(`[AmendoimService] 📊 RESUMO FINAL - Processados: ${processados} | Salvos: ${salvos} | ENTRADA: ${entradasSalvas} | SAÍDA: ${saidasSalvas} | DuplicatasInternas: ${duplicatasInternas} | DuplicatasDB: ${duplicatasDB}`);
-      return { processados, salvos, erros, entradasSalvas, saidasSalvas, duplicatasInternas, duplicatasDB } as any;
+      // Se modo forceSaveAll estiver ativo, persistir também os rawRows em amendoim_raw
+      if (options?.forceSaveAll) {
+        try {
+          const { AmendoimRaw } = await Promise.resolve().then(() => require('../entities').then ? require('../entities') : require('../entities'));
+        } catch (e) {
+          // fallback - require directly
+        }
+          try {
+            const repoRaw = AppDataSource.getRepository((await Promise.resolve().then(() => require('../entities'))).AmendoimRaw);
+            if (rawRows.length > 0) {
+              await repoRaw.save(rawRows);
+              rawSaved = rawRows.length;
+              console.log(`[AmendoimService] ✅ ${rawRows.length} linhas salvas em amendoim_raw (forceSaveAll)`);
+            }
+        } catch (errRaw: any) {
+          console.warn('[AmendoimService] ⚠️ Erro ao salvar rawRows em amendoim_raw:', errRaw?.message || errRaw);
+        }
+
+        // Além disso, tentar salvar individualmente todos os registros no amendoim (ignorar dedupe rígida)
+        try {
+          const repoAll = AppDataSource.getRepository(Amendoim);
+          for (const registro of registrosParaSalvar) {
+            try {
+              await repoAll.save(registro);
+              salvos++;
+              if (registro.tipo === 'entrada') entradasSalvas++; else saidasSalvas++;
+            } catch (eSave: any) {
+              // ignorar erros de unique e continuar
+              if (eSave.code === 'ER_DUP_ENTRY' || String(eSave.message).toLowerCase().includes('unique')) {
+                continue;
+              }
+              console.error('[AmendoimService] Erro ao salvar registro em modo forceSaveAll:', eSave?.message || eSave);
+            }
+          }
+        } catch (e) {
+          console.warn('[AmendoimService] ⚠️ Erro ao tentar salvar todos os registros em amendoim no modo forceSaveAll:', e?.message || e);
+        }
+      }
+
+      console.log(`[AmendoimService] 📊 RESUMO FINAL - Processados: ${processados} | Salvos: ${salvos} | RawSaved: ${rawSaved || 0} | ENTRADA: ${entradasSalvas} | SAÍDA: ${saidasSalvas} | DuplicatasInternas: ${duplicatasInternas} | DuplicatasDB: ${duplicatasDB}`);
+      return { processados, salvos, erros, entradasSalvas, saidasSalvas, duplicatasInternas, duplicatasDB, rawSaved: rawSaved || 0 } as any;
     } catch (err: any) {
       throw new Error(`Erro ao processar CSV: ${err.message}`);
     }

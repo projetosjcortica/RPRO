@@ -70,6 +70,14 @@ export class IHMService extends BaseService {
     }
   }
 
+  /**
+   * Retorna a chave de cache usada para persistir um arquivo desta IHM
+   * Ex: 'ihm_192_168_5_250_MeuArquivo.csv'
+   */
+  getCacheKey(fileName: string): string {
+    return `${this.cachePrefix}_${String(fileName)}`;
+  }
+
   filterNewFiles() {
     return (f: { name: string; size: number }) => {
       log(`[IHMService] ${this.cachePrefix} - Checking file: ${f.name}, size: ${f.size}`);
