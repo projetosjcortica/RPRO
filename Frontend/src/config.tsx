@@ -8,6 +8,7 @@ import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
 import { getProcessador } from "./Processador";
 import { resolvePhotoUrl } from "./lib/photoUtils";
+import { Switch } from "./components/ui/switch";
 
 import {
   AlertDialog,
@@ -881,6 +882,22 @@ interface Estatisticas {
 
   const { isEditing, isLoading, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
+  // Extended products flag (admin control)
+  const [enableExtendedProducts, setEnableExtendedProducts] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      const ext = localStorage.getItem('enable-extended-products');
+      if (ext) setEnableExtendedProducts(ext === 'true');
+    } catch (e) {}
+  }, []);
+
+  const handleToggleExtended = (checked: boolean) => {
+    setEnableExtendedProducts(checked);
+    try { localStorage.setItem('enable-extended-products', String(checked)); } catch (e) {}
+    try { window.dispatchEvent(new CustomEvent('extended-products-changed', { detail: { enabled: checked } })); } catch (e) {}
+    toast.info(checked ? 'Edição de produtos estendida ATIVADA (1-65)' : 'Edição de produtos estendida DESATIVADA (1-40)');
+  };
   // Export state and handler (inline form instead of prompt)
   const [exportOpen, setExportOpen] = useState(false);
   const [exportDataInicio, setExportDataInicio] = useState<string | null>(null);
@@ -1093,6 +1110,28 @@ interface Estatisticas {
       </h2>
 
       {/* Funcionalidades Experimentais - TOPO */}
+      <div className="mb-6 p-4 border-2 border-yellow-400 rounded-lg bg-yellow-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="font-medium text-gray-900 text-base">🧪 Funcionalidades Experimentais</Label>
+            <p className="text-sm text-gray-600 mt-1">Habilita recursos em teste (ignorar produtos, botões de reset)</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch checked={!!(localStorage.getItem('experimental-features') === 'true')} onCheckedChange={(v) => { try { localStorage.setItem('experimental-features', String(!!v)); window.dispatchEvent(new CustomEvent('experimental-features-changed', { detail: { enabled: !!v } })); toast.info(!!v ? '🧪 Funcionalidades experimentais ATIVADAS' : '🔒 Funcionalidades experimentais DESATIVADAS'); } catch (e) {} }} />
+          </div>
+        </div>
+      </div>
+
+      {/* Habilitar edição estendida de produtos (até 65) */}
+      <div className="mb-6 p-4 border-2 border-sky-400 rounded-lg bg-sky-50">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label className="font-medium text-gray-900 text-base">🧾 Habilitar edição de Produtos (até 65)</Label>
+            <p className="text-sm text-gray-600 mt-1">Permite editar e adicionar produtos além do 40 padrão (expande para Produto 41-65).</p>
+          </div>
+          <Switch checked={enableExtendedProducts} onCheckedChange={(v) => handleToggleExtended(!!v)} className="data-[state=checked]:bg-sky-600" />
+        </div>
+      </div>
       <div id="CfgAdvancedDB" className="my-4">
         <div className="dir flex flex-col gap-5">
           {/* <div className="flex-col">

@@ -22,9 +22,12 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   // const [resettingAll, setResettingAll] = useState(false);
   // const [resettingUnits, setResettingUnits] = useState(false);
 
-  // Constantes
+  // Feature flag: allow editing up to 65 products when enabled in Admin
+  const [extendedProductsEnabled, setExtendedProductsEnabled] = useState<boolean>(false);
+
+  // Constantes (END_COL depends on the flag)
   const START_COL = 6;
-  const END_COL = 45;
+  const END_COL = extendedProductsEnabled ? 70 : 45;
 
   // Inicializa produtosInfo no localStorage
   const initializeProdutosInfo = () => {
@@ -119,6 +122,25 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     initializeProdutosInfo();
     loadFromStorage();
     loadProdutosAtivos();
+    // Load extended products flag from admin settings
+    try {
+      const ext = localStorage.getItem('enable-extended-products');
+      setExtendedProductsEnabled(ext === 'true');
+    } catch (e) {}
+
+    const onExt = (ev: any) => {
+      try {
+        const enabled = ev?.detail?.enabled;
+        const newVal = typeof enabled === 'boolean' ? enabled : (localStorage.getItem('enable-extended-products') === 'true');
+        setExtendedProductsEnabled(newVal);
+        // Ensure local produtosInfo contains the extended keys when enabling
+        if (newVal) {
+          try { initializeProdutosInfo(); loadFromStorage(); } catch (e) {}
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('extended-products-changed', onExt as EventListener);
+    return () => window.removeEventListener('extended-products-changed', onExt as EventListener);
   }, []);
 
   const handleLabelChange = (colKey: string, newName: string, unidade: string = "kg") => {
