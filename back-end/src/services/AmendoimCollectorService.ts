@@ -483,7 +483,27 @@ export class AmendoimCollectorService {
       let ihm2Service: IHMService | null = null;
       const ih2cfg = this.resolveIhm2Config(ihmCfg as any);
       if (ih2cfg && ih2cfg.ip) {
-        const caminhoIhm2 = ih2cfg.caminhoRemoto || caminhoPadrao;
+        // Detect if caminhoRemoto is actually a filename (e.g., 'Relatorio_2025_11.csv')
+        // If so, move it to localCSV2 and use the default directory for remotePath.
+        try {
+          const cr = String(ih2cfg.caminhoRemoto || '').trim();
+          const looksLikeFile = cr !== '' && cr.toLowerCase().endsWith('.csv') && !cr.includes('/') && !cr.includes('\\');
+          if (looksLikeFile) {
+            // Save filename into runtime config as localCSV2 and set remote path to default
+            (ihmCfg as any).localCSV2 = cr;
+            (ihmCfg as any).caminhoRemoto2 = caminhoPadrao;
+            try {
+              setRuntimeConfigs({ 'ihm-config': ihmCfg });
+              console.log(`[AmendoimCollector] Ajustado IHM2: move '${cr}' para localCSV2 e definiu caminhoRemoto2='${caminhoPadrao}'`);
+            } catch (e) {
+              console.warn('[AmendoimCollector] Falha ao persistir ajuste de IHM2 no runtime-config:', e);
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+
+        const caminhoIhm2 = (ihmCfg as any).caminhoRemoto2 || ih2cfg.caminhoRemoto || caminhoPadrao;
         ihm2Service = new IHMService(
           ih2cfg.ip,
           ih2cfg.user || 'anonymous',

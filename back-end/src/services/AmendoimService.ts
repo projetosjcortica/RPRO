@@ -256,48 +256,63 @@ export class AmendoimService {
         // PROTEÇÃO NÍVEL 3: Save com tratamento de erro de constraint unique
         if (registrosNovos.length > 0) {
           try {
-            await repo.save(registrosNovos);
-            salvos = registrosNovos.length;
-            console.log(`[AmendoimService] ✅ ${salvos} registros salvos com sucesso`);
+            // Usar insert em massa com IGNORE para MySQL (evita ER_DUP_ENTRY)
+            // Isso gera um INSERT IGNORE ... que ignora chaves duplicadas e continua
+            const insertResult: any = await AppDataSource.createQueryBuilder()
+              .insert()
+              .into(Amendoim)
+              .values(registrosNovos)
+              .orIgnore() // Gera INSERT IGNORE em MySQL
+              .execute();
 
-            // Contar entradas/saidas também no caso de save em lote
+            // Tentar inferir quantos foram realmente inseridos
+            const affected = (insertResult?.raw && (insertResult.raw.affectedRows ?? insertResult.raw.affectedRows === 0))
+              ? insertResult.raw.affectedRows
+              : (insertResult?.generatedMaps ? insertResult.generatedMaps.length : undefined);
+
+            if (typeof affected === 'number') salvos = affected;
+            else salvos = registrosNovos.length; // fallback conservador
+
+            // Contar entradas/saidas com base nos registrosNovos (salvos pode incluir ignorados)
             entradasSalvas = registrosNovos.filter(r => r.tipo === 'entrada').length;
             saidasSalvas = registrosNovos.filter(r => r.tipo === 'saida').length;
+
+            console.log(`[AmendoimService] ✅ Tentativa de inserção em lote: ${registrosNovos.length} registros (salvos estimados: ${salvos})`);
           } catch (err: any) {
-            // Se houver erro de constraint unique, tentar salvar um por um
-            if (err.code === 'ER_DUP_ENTRY' || err.message?.includes('unique')) {
-              console.log(`[AmendoimService] ⚠️ PROTEÇÃO NÍVEL 3: Detectado conflito unique, salvando individualmente...`);
-              
-              let duplicatasConstraint = 0;
-              
-              for (const registro of registrosNovos) {
-                try {
-                  await repo.save(registro);
+            // Em caso de falha inesperada, tentar inserir individualmente com IGNORE
+            console.log(`[AmendoimService] ⚠️ PROTEÇÃO NÍVEL 3: Erro no insert em lote (${err?.message}), tentando insert individual com ignore...`);
+
+            let duplicatasConstraint = 0;
+
+            for (const registro of registrosNovos) {
+              try {
+                const singleResult: any = await AppDataSource.createQueryBuilder()
+                  .insert()
+                  .into(Amendoim)
+                  .values(registro)
+                  .orIgnore()
+                  .execute();
+
+                const singleAffected = (singleResult?.raw && (singleResult.raw.affectedRows ?? singleResult.raw.affectedRows === 0))
+                  ? singleResult.raw.affectedRows
+                  : (singleResult?.generatedMaps ? singleResult.generatedMaps.length : undefined);
+
+                if (singleAffected === 1) {
                   salvos++;
-                  
-                  // Contar por tipo
-                  if (registro.tipo === 'entrada') {
-                    entradasSalvas++;
-                  } else {
-                    saidasSalvas++;
-                  }
-                } catch (saveErr: any) {
-                  if (saveErr.code === 'ER_DUP_ENTRY' || saveErr.message?.includes('unique')) {
-                    // Duplicata detectada - contar silenciosamente
-                    duplicatasConstraint++;
-                    continue;
-                  }
-                  // Outro erro, registrar
-                  console.error(`[AmendoimService] ❌ Erro ao salvar registro:`, saveErr.message);
-                  erros.push(`Erro ao salvar registro: ${saveErr.message}`);
+                  if (registro.tipo === 'entrada') entradasSalvas++; else saidasSalvas++;
+                } else {
+                  // provavelmente foi ignorado por duplicate
+                  duplicatasConstraint++;
                 }
+              } catch (saveErr: any) {
+                // Não falhar toda a importação por causa de um registro
+                console.error(`[AmendoimService] ❌ Erro ao inserir individualmente (ignorando registro):`, saveErr?.message || saveErr);
+                erros.push(`Erro ao inserir registro: ${saveErr?.message || saveErr}`);
               }
-              
-              console.log(`[AmendoimService] ✅ ${salvos} registros salvos individualmente (${duplicatasConstraint} duplicatas bloqueadas por constraint)`);
-              console.log(`[AmendoimService]    📥 ENTRADA: ${entradasSalvas} | 📤 SAÍDA: ${saidasSalvas}`);
-            } else {
-              throw err; // Re-throw se não for erro de duplicata
             }
+
+            console.log(`[AmendoimService] ✅ ${salvos} registros salvos individualmente (${duplicatasConstraint} duplicatas bloqueadas por constraint)`);
+            console.log(`[AmendoimService]    📥 ENTRADA: ${entradasSalvas} | 📤 SAÍDA: ${saidasSalvas}`);
           }
           
           const totalDuplicatas = duplicatasInternas + duplicatasDB;
@@ -327,25 +342,12 @@ export class AmendoimService {
           console.warn('[AmendoimService] ⚠️ Erro ao salvar rawRows em amendoim_raw:', errRaw?.message || errRaw);
         }
 
-        // Além disso, tentar salvar individualmente todos os registros no amendoim (ignorar dedupe rígida)
-        try {
-          const repoAll = AppDataSource.getRepository(Amendoim);
-          for (const registro of registrosParaSalvar) {
-            try {
-              await repoAll.save(registro);
-              salvos++;
-              if (registro.tipo === 'entrada') entradasSalvas++; else saidasSalvas++;
-            } catch (eSave: any) {
-              // ignorar erros de unique e continuar
-              if (eSave.code === 'ER_DUP_ENTRY' || String(eSave.message).toLowerCase().includes('unique')) {
-                continue;
-              }
-              console.error('[AmendoimService] Erro ao salvar registro em modo forceSaveAll:', eSave?.message || eSave);
-            }
-          }
-        } catch (e: any) {
-          console.warn('[AmendoimService] ⚠️ Erro ao tentar salvar todos os registros em amendoim no modo forceSaveAll:', e?.message || e);
-        }
+        // NOTE: In forceSaveAll mode we persist raw rows to `amendoim_raw` for audit, but
+        // we AVOID re-inserting the same registrosParaSalvar into `amendoim` here to
+        // prevent double-insertion and duplicated `salvos` counters. The main insert
+        // flow above already attempted to save new records; forceSaveAll's responsibility
+        // is only to persist rawRows for traceability.
+        console.log(`[AmendoimService] ℹ️ forceSaveAll: rawRows persisted (${rawRows.length}), skipping re-insert to amendoim to avoid duplicates`);
       }
 
       console.log(`[AmendoimService] 📊 RESUMO FINAL - Processados: ${processados} | Salvos: ${salvos} | RawSaved: ${rawSaved || 0} | ENTRADA: ${entradasSalvas} | SAÍDA: ${saidasSalvas} | DuplicatasInternas: ${duplicatasInternas} | DuplicatasDB: ${duplicatasDB}`);

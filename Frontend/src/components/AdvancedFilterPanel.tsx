@@ -166,7 +166,7 @@ export default function AdvancedFilterPanel({ filters, onChange, colLabels }: Ad
   return (
     <aside style={{ width: 320, maxWidth: 360, marginBottom: 10, background: 'var(--surface)', borderLeft: '1px solid var(--muted)' }}>
       <div style={{ marginBottom: 12 }}>
-        <strong>{filters.isFixed ? 'Filtros fixos' : 'Filtros avançados'}</strong>
+        <strong>{filters.isFixed ? 'Filtros avançados' : 'Filtros avançados'}</strong>
         <div style={{ fontSize: 12, color: "black" }}>{`${filters.includeProductCodes.length + filters.excludeProductCodes.length} produtos configurados — ${filters.includeProductNames.length + filters.excludeProductNames.length} nomes`}</div>
       </div>
 

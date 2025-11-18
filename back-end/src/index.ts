@@ -95,7 +95,6 @@ const POLL_INTERVAL = Number(
     "60000"
 );
 
-const os = require('os');
 // Base temp dir for collector: prefer runtime config -> env var -> OS temp dir
 const TMP_DIR_BASE = path.resolve(String(getRuntimeConfig("collector_tmp") ?? process.env.COLLECTOR_TMP ?? os.tmpdir()));
 if (!fs.existsSync(TMP_DIR_BASE)) fs.mkdirSync(TMP_DIR_BASE, { recursive: true });

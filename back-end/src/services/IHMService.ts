@@ -17,7 +17,22 @@ export class IHMService extends BaseService {
     super('IHMService');
     this.cache = new Map(); // mapa para armazenar o cache e identificar arquivos novos
     this.originalNames = new Map();
-    this.remotePath = remotePath;
+    // Normalize remotePath: if a filename was provided by mistake (contains .csv), use its directory
+    try {
+      const rp = String(remotePath || '').trim();
+      if (rp.toLowerCase().includes('.csv')) {
+        // Use posix to ensure forward-slash behavior for FTP servers
+        const posix = path.posix;
+        let dir = posix.dirname(rp);
+        if (!dir || dir === '.' || dir === '') dir = '/';
+        this.remotePath = dir;
+        console.log(`[IHMService] Normalized remotePath from '${remotePath}' to directory '${this.remotePath}'`);
+      } else {
+        this.remotePath = remotePath;
+      }
+    } catch (e) {
+      this.remotePath = remotePath;
+    }
     // Criar prefixo único baseado no IP para separar caches
     this.cachePrefix = `ihm_${ip.replace(/\./g, '_')}`;
     console.log(`[IHMService] Inicializando com cache prefix: ${this.cachePrefix}`);

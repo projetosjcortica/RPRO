@@ -64,9 +64,8 @@ export class DBService extends BaseService {
     const finalPass = runtimeDb.passwordDB ?? process.env.MYSQL_PASSWORD ?? 'root';
     const finalDb = runtimeDb.database ?? process.env.MYSQL_DB ?? 'cadastro';
 
+    const allEntities: any[] = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw];
     try {
-      // Build list of available entities and allow runtime selection via 'db-schemas' setting
-      const allEntities: any[] = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw];
       const schemaCfg = getRuntimeConfig('db-schemas');
       let selectedEntities = allEntities;
       if (Array.isArray(schemaCfg) && schemaCfg.length > 0) {
