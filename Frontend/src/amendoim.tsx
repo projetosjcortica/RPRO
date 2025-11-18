@@ -191,11 +191,11 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   const DEFAULT_WIDTHS = {
     dia: 100,
     hora: 80,
-    codigoProduto: 120,
+    codigoProduto: 80,
     balanca: 80,
-    nomeProduto: 260,
+    nomeProduto: 310,
     peso: 120,
-    tipo: 100,
+    tipo: 120,
   };
   
   const STORAGE_KEY = "amendoim-table-column-widths";
@@ -1012,7 +1012,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                   </div>
                 </div>
 
-                {/* Corpo da tabela — visão detalhada (ordenação aplicada no backend) */}
+                {/* Corpo da   — visão detalhada (ordenação aplicada no backend) */}
                 <div>
                   {registros && registros.length > 0 ? (
                     detailedRows(registros)

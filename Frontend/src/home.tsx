@@ -580,7 +580,7 @@ export default function Home() {
                             <Button variant="outline" onClick={clearEntradaFilters} size="sm" className="flex-1">
                               Limpar
                             </Button>
-                            <Button onClick={applyEntradaFilters} size="sm" className="flex-1">
+                            <Button onClick={applyEntradaFilters} size="sm" className="flex-1 active:bg-red-600/50">
                               Aplicar
                             </Button>
                           </div>
@@ -650,7 +650,7 @@ export default function Home() {
                             <Button variant="outline" onClick={clearSaidaFilters} size="sm" className="flex-1">
                               Limpar
                             </Button>
-                            <Button onClick={applySaidaFilters} size="sm" className="flex-1">
+                            <Button onClick={applySaidaFilters} size="sm" className="flex-1 active:bg-red-600/50">
                               Aplicar
                             </Button>
                           </div>
@@ -783,7 +783,7 @@ export default function Home() {
                             <Button variant="outline" onClick={clearHorariosFilters} size="sm" className="flex-1">
                               Ontem
                             </Button>
-                            <Button onClick={applyHorariosFilters} size="sm" className="flex-1">
+                            <Button onClick={applyHorariosFilters} size="sm" className="flex-1 active:bg-red-600/50">
                               Aplicar
                             </Button>
                           </div>
@@ -912,7 +912,7 @@ export default function Home() {
                             <Button variant="outline" onClick={clearProdutosFilters} size="sm" className="flex-1">
                               Limpar
                             </Button>
-                            <Button onClick={applyProdutosFilters} size="sm" className="flex-1">
+                            <Button onClick={applyProdutosFilters} size="sm" className="flex-1 active:bg-red-600/50">
                               Aplicar
                             </Button>
                           </div>

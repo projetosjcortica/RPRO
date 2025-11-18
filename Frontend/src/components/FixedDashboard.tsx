@@ -399,7 +399,7 @@ const formatShortDate = (raw?: string | null) => {
 
           {/* Second row: Horarios & Weekly */}
           <div className="flex gap-6">
-            <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden w-1/2 h-86.5 3xl:h-121">
+            <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden w-1/2 h-86.5 3xl:h-127.5">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -452,7 +452,7 @@ const formatShortDate = (raw?: string | null) => {
             </Card>
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden h-86.5 w-1/2 3xl:h-121 ">
+            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden h-86.5 w-1/2 3xl:h-127.5 ">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
