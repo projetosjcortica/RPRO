@@ -189,9 +189,9 @@ export class CSVConverterService extends BaseService {
           const form1 = parts[3] || '0';
           const form2 = parts[4] || '0';
 
-          // Produtos (Prod_1 a Prod_40)
+          // Produtos (Prod_1 a Prod_65)
           const products: string[] = [];
-          for (let j = 5; j < 45; j++) {
+          for (let j = 5; j < 70; j++) {
             const value = parts[j] || '0';
             // Garantir que é um número válido
             const numValue = parseFloat(value.replace(',', '.'));

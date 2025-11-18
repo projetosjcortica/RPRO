@@ -99,8 +99,8 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   const [showCommentEditor, setShowCommentEditor] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [localComments, setLocalComments] = useState<{ id?: string; texto: string; data?: string }[]>(comentarios || []);
-  // Opção para separar tabelas de entrada/saída
-  const [tabelasSeparadas, setTabelasSeparadas] = useState(false);
+  // Opção para separar tabelas de entrada/saída (padrão: true)
+  const [tabelasSeparadas, setTabelasSeparadas] = useState(true);
   // PDF customization options
   const [fontSize, setFontSize] = useState<"pequena" | "media" | "grande">("media");
   const [ordenacao, setOrdenacao] = useState<"data" | "produto" | "peso">("data");

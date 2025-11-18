@@ -26,6 +26,7 @@ import {
 import { CircleQuestionMark, CircleUser, GalleryThumbnails, HatGlasses, HomeIcon, Settings, Sheet} from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { resolvePhotoUrl } from './lib/photoUtils';
+import ProfileAdminModal from './ProfileAdminModal';
 import { ToastContainer } from 'react-toastify';
 import './index.css';
 import { Factory } from 'lucide-react';
@@ -74,6 +75,8 @@ const App = () => {
     granja: 'Granja',
     proprietario: 'Proprietario',
   });
+
+  // Sidebar avatar admin modal handled by nested component below
 
   const runtime = useRuntimeConfig();
   const { formData: profileConfigData } = usePersistentForm('profile-config');
@@ -128,6 +131,40 @@ const App = () => {
       window.removeEventListener('profile-logged-out', onLogoutClose);
     };
   }, [user, updateUser]);
+
+  // SidebarAvatar component: shows avatar and opens admin modal after 5 clicks
+  function SidebarAvatar() {
+    const { user } = useAuth();
+    const [clicks, setClicks] = useState(0);
+    const [open, setOpen] = useState(false);
+
+    useEffect(() => {
+      if (clicks === 0) return;
+      const to = setTimeout(() => setClicks(0), 1500);
+      return () => clearTimeout(to);
+    }, [clicks]);
+
+    useEffect(() => {
+      if (clicks >= 5) {
+        setOpen(true);
+        setClicks(0);
+      }
+    }, [clicks]);
+
+    return (
+      <>
+        <div onClick={() => setClicks(c => c + 1)}>
+          <Avatar className="h-12 w-12 ml-2 cursor-pointer">
+            <AvatarImage src={user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo} alt="Profile" className="object-cover w-full h-full" />
+            <AvatarFallback>
+              <Factory />
+            </AvatarFallback>
+          </Avatar>
+        </div>
+        <ProfileAdminModal open={open} onClose={() => setOpen(false)} />
+      </>
+    );
+  }
   
   const items = [
     {
@@ -244,16 +281,7 @@ const App = () => {
             </div>
             <SidebarHeader className="pt-6 px-0">
               <div className="flex items-center gap-3">
-                <Avatar className="h-12 w-12 ml-2 cursor-pointer">
-                  <AvatarImage
-                    src={user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo}
-                    alt="Profile"
-                    className="object-cover w-full h-full"
-                  />
-                  <AvatarFallback>
-                    <Factory />
-                  </AvatarFallback>
-                </Avatar>
+                <SidebarAvatar />
 
                 <div className="flex flex-col font-semibold leading-tight opacity-100 transition-all duration-500 ease-in-out group-data-[state=collapsed]:opacity-0 group-data-[state=collapsed]:invisible group-data-[state=collapsed]:delay-0">
                   <span className="truncate max-w-[175px]" title={sideInfo.proprietario}>

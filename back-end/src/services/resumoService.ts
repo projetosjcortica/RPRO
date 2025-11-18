@@ -136,7 +136,7 @@ export class ResumoService {
         // Aplicar filtros avançados (include/exclude produtos e fórmulas) se fornecidos
         if (advancedFilters && typeof advancedFilters === 'object') {
             const asNums = (arr: any[]) => Array.from(
-                new Set((arr || []).map((x: any) => Number(x)).filter(n => Number.isFinite(n) && n >= 1 && n <= 40))
+                new Set((arr || []).map((x: any) => Number(x)).filter(n => Number.isFinite(n) && n >= 1 && n <= 65))
             ).slice(0, 200);
 
             const excludeCodes = asNums(advancedFilters.excludeProductCodes || []);
@@ -264,7 +264,7 @@ export class ResumoService {
             // Calcular consumo de produtos com conversão baseada na configuração
             // accumulate per-row total in normalized kg (to attribute to the formula)
             let rowTotalKg = 0;
-            for (let i = 1; i <= 40; i++) {
+            for (let i = 1; i <= 65; i++) {
                 const prodValue = (row as any)[`Prod_${i}`];
                 const valueOriginal = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
                 
@@ -527,7 +527,7 @@ export class ResumoService {
             
             // Calcular consumo de produtos (normalizando g->kg quando necessário)
             let rowTotalKg = 0;
-            for (let i = 1; i <= 40; i++) {
+            for (let i = 1; i <= 65; i++) {
                 const prodValue = (relatorio as any)[`Prod_${i}`];
                 const rawValue = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
 

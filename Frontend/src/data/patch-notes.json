@@ -1,11 +1,29 @@
 {
   "appName": "Sistema Cortez",
-  "version": "1.3.5-Beta",
+  "version": "1.3.7-Beta",
   "companyLogo": "/logo_empresa.png",
   "buildDate": "17/11/2025",
   "patchNotes": [
     {
+      "version": "1.3.7-Beta",
+      "date": "17/12/2025",
+      "title": "Atualização 1.3.7 — Novas funcionalidades e melhorias no Amendoim",
+      "changes": [
+        "Correções de bugs menores em várias áreas do aplicativo."
+      ]
+    },
+    {
       "version": "1.3.5-Beta",
+      "date": "25/11/2025",
+      "title": "Atualização 1.3.5 — Melhorias no Amendoim e correções gerais",
+      "changes": [ 
+        "Correção de bugs na geração de relatórios PDF do módulo Amendoim.",
+        "Melhorias na performance geral do aplicativo.",
+        "Aprimoramentos na interface do usuário para uma navegação mais intuitiva."
+      ]
+    },
+    {
+      "version": "1.3.0",
       "date": "17/11/2025",
       "title": "Atualização 1.3.0 — Mais controle e melhor experiência",
       "changes": [ 

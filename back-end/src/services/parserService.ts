@@ -249,10 +249,11 @@ export class ParserService extends BaseService {
       const label = sanitize(parts[2]);
       const form1 = safeNumber(parts[3]);
       const form2 = safeNumber(parts[4]);
-      const values = parts.slice(5, 45).map((v) => {
+      // Map products: support up to 65 products (Prod_1 .. Prod_65)
+      const values = parts.slice(5, 70).map((v) => {
         const n = Number(v);
         return Number.isFinite(n) ? n : 0;
-      }); // Map Prod_1 to Prod_40
+      }); // Map Prod_1 to Prod_65
 
       return { date, time, label, form1, form2, values };
     } catch (error: any) {

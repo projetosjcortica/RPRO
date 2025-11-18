@@ -387,9 +387,9 @@ export function ProfileConfig({
       const data = await res.json();
       // backend returns user without password
       updateUser(data as any);
-      // If current user is admin, also set this uploaded photo as default for all users
+      // Also attempt to set this uploaded photo as default for all users
       try {
-        if (user?.isAdmin && (data as any)?.photoPath) {
+        if ((data as any)?.photoPath) {
           const defaultRes = await fetch("http://localhost:3000/api/admin/set-default-photo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -530,30 +530,7 @@ export function ProfileConfig({
                 />
               </label>
               {file && (
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    onClick={async () => {
-                      await uploadPhoto();
-                      await useAsReportLogo();
-                    }}
-                    size="sm"
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                  >
-                    Enviar
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setFile(null);
-                      setPreview(
-                        user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
-                      );
-                    }}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Cancelar
-                  </Button>
-                </div>
+                <div className="text-sm text-gray-700">Arquivo selecionado: {file.name}</div>
               )}
             </div>
           </div>
@@ -564,7 +541,24 @@ export function ProfileConfig({
       <div className="flex gap-2 justify-end mt-6">
         <Button
           id="save"
-          onClick={onSave}
+          onClick={async () => {
+            try {
+              await onSave();
+              try {
+                window.dispatchEvent(new Event('profile-save-request'));
+              } catch (e) {}
+              if (file) {
+                try {
+                  await uploadPhoto();
+                } catch (e) {}
+                try {
+                  await useAsReportLogo();
+                } catch (e) {}
+              }
+            } catch (err) {
+              console.error('save failed', err);
+            }
+          }}
           className="bg-green-600 hover:bg-green-700"
         >
           {user ? 'Salvar' : 'OK'}
@@ -583,6 +577,54 @@ export function IHMConfig({
   // ✅ HOOKS PRIMEIRO
   const { formData, isEditing, isLoading, onChange, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
+
+  // Helper: test currently selected IHM connectivity
+  const testIhm = async (specificSel?: number) => {
+    // avoid mixing ?? and || — compute explicitly
+    let selRaw: any = typeof specificSel !== 'undefined' && specificSel !== null ? specificSel : (formData as any).selectedIhm;
+    if (selRaw == null || selRaw === '') selRaw = 1;
+    const sel = Number(selRaw);
+    const ipKey = sel === 1 ? 'ip' : 'ip2';
+    const ipVal = (formData as any)[ipKey];
+    if (!ipVal) { toast.error('IP não configurado'); return; }
+    try {
+      toast.info(`Testando IHM ${sel}...`);
+      const res = await fetch('/api/ihm/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ipVal }) });
+
+      // Try to parse JSON body when available
+      let body: any = null;
+      try { body = await res.clone().json(); } catch (_) { body = null; }
+
+      if (!res.ok) {
+        // Map common backend errors to friendly messages
+        if (res.status === 504 || (body && body.error === 'timeout')) {
+          toast.error('IHM não encontrada');
+          return;
+        }
+        // Generic unreachable / bad gateway
+        if (res.status === 502 || res.status === 503) {
+          toast.error('IHM não encontrada');
+          return;
+        }
+        // Fallback: show short error
+        const txt = (body && body.error) ? String(body.error) : await res.text().catch(() => '');
+        toast.error(txt ? `Falha: ${txt}` : `Falha: ${res.status}`);
+        return;
+      }
+
+      const j = body || await res.json();
+      if (j && j.ok) {
+        toast.success('IHM Ok!');
+      } else if (j && j.error === 'timeout') {
+        toast.error('IHM não encontrada');
+      } else {
+        toast.error('IHM respondeu com erro');
+      }
+    } catch (err: any) {
+      console.error('[IHM test] error', err);
+      toast.error('IHM não encontrada');
+    }
+  };
 
   // ✅ Loading state DEPOIS dos hooks
   if (isLoading) {
@@ -755,34 +797,47 @@ export function IHMConfig({
 
 
 
-      <div className="flex gap-2 justify-end mt-6">
-        {isEditing ? (
-          <>
-            <Button
-              id="cancel"
-              onClick={onCancel}
-              variant="outline"
-              className="border-gray-300 text-gray-700 hover:bg-gray-100"
-            >
-              Cancelar
-            </Button>
-            <Button
-              id="save"
-              onClick={onSave}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Salvar
-            </Button>
-          </>
-        ) : (
+      <div className="flex items-center justify-between mt-6">
+        <div>
           <Button
-            id="edit"
-            onClick={onEdit}
-            className="bg-red-600 hover:bg-red-700"
+            id="test-ihm"
+            size="sm"
+            onClick={() => testIhm()}
+            className="bg-gray-100 text-gray-800"
           >
-            Editar
+            Testar IHM
           </Button>
-        )}
+        </div>
+
+        <div className="flex gap-2">
+          {isEditing ? (
+            <>
+              <Button
+                id="cancel"
+                onClick={onCancel}
+                variant="outline"
+                className="border-gray-300 text-gray-700 hover:bg-gray-100"
+              >
+                Cancelar
+              </Button>
+              <Button
+                id="save"
+                onClick={onSave}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Salvar
+              </Button>
+            </>
+          ) : (
+            <Button
+              id="edit"
+              onClick={onEdit}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Editar
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -832,7 +887,6 @@ interface Estatisticas {
   const [exportDataFim, setExportDataFim] = useState<string | null>(null);
   const [exportFormula, setExportFormula] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [uploadTipo, setUploadTipo] = useState<"entrada" | "saida">("entrada");
   const [uploading, setUploading] = useState(false);
   const [, setError] = useState<string | null>(null);
   const [, setLoading] = useState(false);
@@ -857,9 +911,8 @@ interface Estatisticas {
       setError(null);
   
       try {
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('tipo', uploadTipo); // Adiciona tipo ao upload
+      const formData = new FormData();
+      formData.append('file', file);
   
         const res = await fetch('http://localhost:3000/api/amendoim/upload', {
           method: 'POST',
@@ -1444,74 +1497,54 @@ interface Estatisticas {
         </div> */}
 
         {user?.userType === 'amendoim' && (
-        <div className="flex flex-col justify-center items-center border rounded p-4 bg-white w-fit">
-          {/* Upload button - mesmo estilo do coletor */}
-          <Popover>
-            <div>
-              <Label className="font-medium text-gray-700 mb-2">Importar CSV</Label>
-            </div>
-            <PopoverTrigger>
-              <Button>
-                <FileUp />
-                <p>Importar</p>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className=" w-fit gap-2 flex flex-col" side="bottom" sideOffset={4}>
-              {/* Seletor de tipo de upload */}
-              <div className="flex items-center gap-1 h-9 bg-white rounded-lg border border-black p-1 shadow-sm">
-                <Button
-                size="sm"
-                onClick={() => setUploadTipo('entrada')}
-                className={cn(
-                  "h-7 text-xs font-medium transition-all",
-                  uploadTipo === 'entrada'
-                    ? "bg-green-600 text-white hover:bg-green-700"
-                    : "bg-transparent text-gray-600 hover:bg-gray-100"
-                )}
-                >
-                Entrada
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => setUploadTipo('saida')}
-                  className={cn(
-                    "h-7 text-xs font-medium transition-all",
-                    uploadTipo === 'saida'
-                      ? "bg-blue-600 text-white hover:bg-blue-700"
-                      : "bg-transparent text-gray-600 hover:bg-gray-100"
-                  )}
-                >
-                Saída
-                </Button>
-              </div>
-              <input
-                id="csv-upload"
-                type="file"
-                accept=".csv"
-                className="hidden"
-                onChange={handleFileUpload}
-                disabled={uploading}
-              />
-              <label htmlFor="csv-upload">
-                <Button disabled={uploading} asChild className="bg-red-600 hover:bg-gray-700 w-34">
-                  <span className="cursor-pointer">
-                    <div className="flex items-center gap-1">
-                    {uploading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Upload className="h-4 w-4" />
-                    )}
-                    {uploading ? (
-                      <p className="hidden 3xl:flex">Enviando...</p>
-                    ) : (
-                      <p className="hidden 3xl:flex">Enviar CSV</p>
-                    )}
-                    </div>
-                  </span>
-                </Button>
-              </label>
-            </PopoverContent>
-          </Popover>
+        <div
+          id="CsvImportAmendoim"
+          className="flex flex-col justify-center items-center border rounded p-4 bg-white md:w-1/3"
+        >
+          <Label className="font-medium text-gray-700">Importar CSV</Label>
+          <Button
+            disabled={!isEditing}
+            className="w-full mt-2 bg-red-600 hover:bg-red-700"
+            onClick={async () => {
+              if (!isEditing) return;
+
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = '.csv';
+              input.onchange = async (e: any) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+
+                const toastId = toast.loading(`Processando ${file.name}...`);
+
+                try {
+                  const processador = getProcessador();
+                  const result = await processador.uploadAmendoimFile(file);
+
+                  if (result && (result.salvos !== undefined || result.ok)) {
+                    const salvos = result.salvos ?? (result.processed?.rowsCount ?? 0) ?? 0;
+                    const mensagemSucesso = `${salvos} registro(s) processado(s) com sucesso`;
+                    try { toastManager.updateSuccess('amendoim-upload', mensagemSucesso); } catch (e) {}
+                    await fetchRegistros();
+                    try { await fetchEstatisticas(); } catch (e) {}
+                    try { toast.update(toastId, { render: 'Importação concluída', type: 'success', isLoading: false, autoClose: 4000 }); } catch (e) {}
+                  } else {
+                    const errMsg = result?.error || 'Erro ao processar arquivo';
+                    try { toastManager.updateError('amendoim-upload', errMsg); } catch (e) {}
+                    try { toast.update(toastId, { render: errMsg, type: 'error', isLoading: false, autoClose: 5000 }); } catch (e) {}
+                  }
+                } catch (err: any) {
+                  const mensagemErro = err?.message || 'Erro ao enviar arquivo';
+                  try { toastManager.updateError('amendoim-upload', mensagemErro); } catch (e) {}
+                  try { toast.update(toastId, { render: mensagemErro, type: 'error', isLoading: false, autoClose: 5000 }); } catch (e) {}
+                }
+              };
+
+              input.click();
+            }}
+          >
+            Importar
+          </Button>
         </div>
         )}
         
@@ -1520,7 +1553,7 @@ interface Estatisticas {
           id="CsvImport"
           className="flex flex-col justify-center items-center border rounded p-4 bg-white md:w-1/3"
         >
-          <Label className="font-medium text-gray-700">Importar CSV </Label>
+          <Label className="font-medium text-gray-700">Importar </Label>
           <Button
             disabled={!isEditing}
             className="w-full mt-2 bg-red-600 hover:bg-red-700"

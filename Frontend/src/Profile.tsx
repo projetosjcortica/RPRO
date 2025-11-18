@@ -33,6 +33,16 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) =>
   }, [user, externalPreview]);
 
   useEffect(() => {
+    const handler = async () => {
+      try {
+        await saveName();
+      } catch (e) {}
+    };
+    window.addEventListener("profile-save-request", handler as any);
+    return () => window.removeEventListener("profile-save-request", handler as any);
+  }, [displayName, file, onUpload]);
+
+  useEffect(() => {
     return () => {
       if (effectivePreview && effectivePreview.startsWith("blob:")) {
         try {
@@ -71,8 +81,8 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) =>
   }; 
 
   return (
-    <div className="max-w-md mx-auto bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="p-6 3xl:w-110">
+    <div className="w-full h-full bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="p-6 h-full">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           <div className="flex-shrink-0 relative">
             <Avatar className="size-16 sm:size-20 bg-gray-200">
@@ -103,8 +113,8 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) =>
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-4">
-          <div>
+        <div className="mt-6 grid grid-cols-1 gap-4 h-full">
+          <div className="h-full">
             <Label className="mb-2 block text-sm font-medium text-gray-700">Nome</Label>
             <div className="flex flex-col sm:flex-row gap-2">
               <Input
@@ -112,12 +122,9 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) =>
                 onChange={(e) => setDisplayName(e.target.value)}
                 className="border border-gray-300"
                 placeholder="Seu nome"
-              />  
-              <Button onClick={saveName} size="sm" className="whitespace-nowrap">
-                Salvar
-              </Button>
+              />
             </div>
-          </div> 
+          </div>
         </div>
       </div>
     </div>
