@@ -2677,7 +2677,7 @@ app.get("/api/collector/status", async (_req, res) => {
 // IHM network discovery — runs tools/ihm-discovery/discover.js (Node) or scan.ps1 on Windows
 app.post('/api/ihm/discover', async (req, res) => {
   try {
-  const { method = 'node', ports = [80,443,502], timeoutMs = 800, paths = ['/', '/visu', '/visu/index.html'] } = req.body || {};
+  const { method = 'node', ports = [80,443,502], timeoutMs = 800, paths = [ '/visu', '/visu/index.html'] } = req.body || {};
     const toolsDir = path.resolve(process.cwd(), 'tools', 'ihm-discovery');
     const outFile = path.join(toolsDir, 'results.json');
 
