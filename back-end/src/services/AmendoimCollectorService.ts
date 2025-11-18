@@ -19,15 +19,16 @@ interface ChangeDetectionRecord {
   hasChanged: boolean;
 }
 
-// Resultado padrão para coletas individuais
-const DEFAULT_RESULT = {
-  processados: 0,
-  salvos: 0,
-  erros: 0,
-  deduplicadas: 0,
-  entradasSalvas: 0,
-  saidasSalvas: 0,
-};
+ // Resultado padrão para coletas individuais
+ const DEFAULT_RESULT = {
+   processados: 0,
+   salvos: 0,
+   erros: 0,
+   deduplicadas: 0,
+   entradasSalvas: 0,
+   saidasSalvas: 0,
+   rawSaved: 0,
+ };
 
 export class AmendoimCollectorService {
   private static intervalId: NodeJS.Timeout | null = null;
@@ -627,6 +628,7 @@ export class AmendoimCollectorService {
             deduplicadas,
             entradasSalvas,
             saidasSalvas,
+            rawSaved: processResult.rawSaved || 0,
           };
 
         } catch (err: any) {

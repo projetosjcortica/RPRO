@@ -48,6 +48,7 @@ export class AmendoimService {
     csvContent: string,
     options?: { forceSaveAll?: boolean; sourceIhm?: string }
   ): Promise<{
+    rawSaved: number;
     processados: number;
     salvos: number;
     erros: string[];
