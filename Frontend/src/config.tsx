@@ -3,7 +3,7 @@ import { toast } from "react-toastify";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
-import { FileUp, Loader2, Plus, Upload } from 'lucide-react';
+import { FileUp, Loader2, Plus } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
 import { getProcessador } from "./Processador";
@@ -21,8 +21,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
-import { cn } from "./lib/utils";
 import toastManager from "./lib/toastManager";
 
 export const initialFormData = {
@@ -923,6 +921,8 @@ interface Estatisticas {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
+
+      console.log(uploading);
   
       setUploading(true);
       setError(null);
@@ -970,6 +970,7 @@ interface Estatisticas {
         event.target.value = '';
       }
     };
+    console.log(handleFileUpload);
 
     const fetchRegistros = async () => {
     setLoading(true);

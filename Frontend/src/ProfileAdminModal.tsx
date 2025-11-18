@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label";
@@ -77,6 +77,7 @@ export default function ProfileAdminModal({ open, onClose }: { open: boolean; on
   const onFileChange = async (_u: UserItem, _f: File | null) => {
     return;
   };
+  console.log(onFileChange);
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
