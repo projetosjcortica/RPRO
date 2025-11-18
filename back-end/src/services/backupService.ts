@@ -4,8 +4,10 @@ import { BaseService } from '../core/baseService';
 import { BackupMeta, hashBufferHex } from '../core/utils';
 import { cacheService } from './CacheService';
 
-const DEFAULT_BACKUP_DIR = path.resolve(process.cwd(), 'backups');
-const ENV_WORK_DIR = process.env.BACKUP_WORKDIR ? path.resolve(process.cwd(), process.env.BACKUP_WORKDIR) : null;
+const os = require('os');
+// Prefer runtime-config or env var, fallback to OS temp dir to ensure writable location in packaged apps
+const DEFAULT_BACKUP_DIR = path.resolve(String(require('../core/runtimeConfig').getRuntimeConfig('backup_dir') ?? process.env.BACKUP_DIR ?? path.join(os.tmpdir(), 'cortez-backups')));
+const ENV_WORK_DIR = process.env.BACKUP_WORKDIR ? path.resolve(String(process.env.BACKUP_WORKDIR)) : null;
 const BACKUP_WRITE_FILES = process.env.BACKUP_WRITE_FILES !== 'false';
 if (BACKUP_WRITE_FILES && !fs.existsSync(DEFAULT_BACKUP_DIR)) fs.mkdirSync(DEFAULT_BACKUP_DIR, { recursive: true });
 if (BACKUP_WRITE_FILES && ENV_WORK_DIR && !fs.existsSync(ENV_WORK_DIR)) fs.mkdirSync(ENV_WORK_DIR, { recursive: true });

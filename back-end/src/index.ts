@@ -35,6 +35,7 @@ import { statsLogger, statsMiddleware } from "./services/statsLogger";
 import { cacheService } from "./services/CacheService";
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import * as net from 'net';
 const execFileAsync = promisify(execFile);
 
 console.log("✅ [Startup] Módulos importados com sucesso");
@@ -94,13 +95,10 @@ const POLL_INTERVAL = Number(
     "60000"
 );
 
-const TMP_DIR = path.resolve(
-  process.cwd(),
-  String(
-    getRuntimeConfig("collector_tmp") ?? process.env.COLLECTOR_TMP ?? "tmp"
-  )
-);
-if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
+const os = require('os');
+// Base temp dir for collector: prefer runtime config -> env var -> OS temp dir
+const TMP_DIR_BASE = path.resolve(String(getRuntimeConfig("collector_tmp") ?? process.env.COLLECTOR_TMP ?? os.tmpdir()));
+if (!fs.existsSync(TMP_DIR_BASE)) fs.mkdirSync(TMP_DIR_BASE, { recursive: true });
 
 type CollectorStatus = {
   running: boolean;
@@ -198,7 +196,13 @@ export async function startCollector(overrideConfig?: {
   );
 
   const runCycle = async () => {
-    const downloaded = await ihm.findAndDownloadNewFiles(TMP_DIR);
+    // Create per-IHM tmp folder to avoid conflicts in packaged builds
+    const runtimeIhmCfg = getRuntimeConfig('ihm-config') || {};
+    const ihmIpForDir = (runtimeIhmCfg.ip || process.env.IHM_IP || 'local').toString().replace(/\./g, '_');
+    const perIhmTmp = path.join(TMP_DIR_BASE, `ihm_${ihmIpForDir}`);
+    if (!fs.existsSync(perIhmTmp)) fs.mkdirSync(perIhmTmp, { recursive: true });
+
+    const downloaded = await ihm.findAndDownloadNewFiles(perIhmTmp);
     console.log(`[collector] ${downloaded.length} arquivo(s) baixado(s).`);
     for (const f of downloaded) {
       if (stopFlag) break;
@@ -343,8 +347,8 @@ async function filtrarProdutosInativos(obj: any): Promise<any> {
   
   const filtered = { ...obj };
   
-  // Zerar produtos inativos (Prod_1 até Prod_40)
-  for (let i = 1; i <= 40; i++) {
+  // Zerar produtos inativos (Prod_1 até Prod_65)
+  for (let i = 1; i <= 65; i++) {
     if (!produtosAtivos.has(i)) {
       const key = `Prod_${i}`;
       if (key in filtered) {
@@ -443,7 +447,7 @@ app.post('/api/relatorio/paginate', async (req, res) => {
 
     // Ordenação seguro
     const allowed = new Set(['Dia','Hora','Nome','Form1','Form2']);
-    for (let i = 1; i <= 40; i++) allowed.add(`Prod_${i}`);
+    for (let i = 1; i <= 65; i++) allowed.add(`Prod_${i}`);
     const sb = allowed.has(sortBy) ? sortBy : 'Dia';
     const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
     if (sb === 'Dia') qb.orderBy('r.Dia', sd).addOrderBy('r.Hora', sd as any);
@@ -461,10 +465,10 @@ app.post('/api/relatorio/paginate', async (req, res) => {
     // Mapear rows para o mesmo formato do GET (values, valuesRaw, unidades)
     const produtosAtivos = true ? null : await getProdutosAtivos();
     const mappedRows = rows.map((row: any) => {
-      const values: string[] = new Array(40);
-      const valuesRaw: number[] = new Array(40);
-      const unidades: string[] = new Array(40);
-      for (let i = 1; i <= 40; i++) {
+      const values: string[] = new Array(65);
+      const valuesRaw: number[] = new Array(65);
+      const unidades: string[] = new Array(65);
+      for (let i = 1; i <= 65; i++) {
         const prodValue = row[`Prod_${i}`];
         let v = typeof prodValue === 'number' ? prodValue : prodValue != null ? Number(prodValue) : 0;
         const materia = materiasByNum[i];
@@ -930,8 +934,8 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
       console.log('[api/db/import-legacy] Dump sanitized with warnings:', warnings);
     }
 
-    // Save dump to temporary file for import
-    const tmpDumpPath = path.join(TMP_DIR, `import_${Date.now()}.sql`);
+    // Save dump to temporary file for import (use collector temp base)
+    const tmpDumpPath = path.join(TMP_DIR_BASE, `import_${Date.now()}.sql`);
     fs.writeFileSync(tmpDumpPath, finalContent, 'utf-8');
 
     console.log(`[api/db/import-legacy] Dump saved to: ${tmpDumpPath}`);
@@ -1187,7 +1191,8 @@ app.get("/api/file/process", async (req, res) => {
 });
 
 // Upload CSV and import into DB. Form field: `file` (multipart/form-data)
-const upload = multer({ dest: TMP_DIR });
+// Ensure multer writes to the configured temp base dir
+const upload = multer({ dest: TMP_DIR_BASE });
 app.post("/api/file/upload", upload.single("file"), async (req, res) => {
   const startTime = Date.now();
   try {
@@ -1528,7 +1533,7 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       // "processedFile",
     ]);
     // Also allow Prod_1 through Prod_40
-    for (let i = 1; i <= 40; i++) {
+    for (let i = 1; i <= 65; i++) {
       allowed.add(`Prod_${i}`);
     }
     const sb = allowed.has(sortBy) ? sortBy : "Dia";
@@ -1579,7 +1584,7 @@ app.get("/api/relatorio/paginate", async (req, res) => {
         .json({ error: "Database query failed", details: queryError?.message });
     }
 
-  // Map rows to include values array from Prod_1 to Prod_40
+  // Map rows to include values array from Prod_1 to Prod_65
   // Normalize product values according to MateriaPrima.measure (grams->kg)
   // OTIMIZAÇÃO: Usar cache em vez de consultar banco a cada request
     
@@ -1588,11 +1593,11 @@ app.get("/api/relatorio/paginate", async (req, res) => {
 
     // OTIMIZAÇÃO: Pré-alocar arrays com tamanho fixo
     const mappedRows = rows.map((row: any) => {
-      const values: string[] = new Array(40);
-      const valuesRaw: number[] = new Array(40);
-      const unidades: string[] = new Array(40);
+      const values: string[] = new Array(65);
+      const valuesRaw: number[] = new Array(65);
+      const unidades: string[] = new Array(65);
       
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         const prodValue = row[`Prod_${i}`];
         let v =
           typeof prodValue === "number"
@@ -1719,7 +1724,7 @@ app.get("/api/relatorio/pdf-data", async (req, res) => {
 
     // Sort
     const allowed = new Set(["Dia", "Hora", "Nome", "Form1", "Form2"]);
-    for (let i = 1; i <= 40; i++) allowed.add(`Prod_${i}`);
+    for (let i = 1; i <= 65; i++) allowed.add(`Prod_${i}`);
     const sb = allowed.has(sortBy) ? sortBy : "Dia";
     const sd = sortDir === "ASC" ? "ASC" : "DESC";
     if (sb === 'Dia') {
@@ -1751,7 +1756,7 @@ app.get("/api/relatorio/pdf-data", async (req, res) => {
     const produtoTotals: Record<number, number> = {};
     
     for (const row of rows) {
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         const val = row[`Prod_${i}`];
         let v = typeof val === "number" ? val : (val != null ? Number(val) : 0);
         if (v < 0) v = 0;
@@ -1764,7 +1769,7 @@ app.get("/api/relatorio/pdf-data", async (req, res) => {
     // Gerar array de produtos com totais calculados e formatados
     // Importante: para o PDF queremos os cálculos como se o flag `ignorarCalculos` não existisse,
     // porém devemos excluir produtos que estejam explicitamente desativados (materia.ativo === false).
-    for (let i = 1; i <= 40; i++) {
+    for (let i = 1; i <= 65; i++) {
       const total = produtoTotals[i] || 0;
       if (total === 0) continue; // Skip produtos sem uso
 
@@ -1922,7 +1927,7 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Relatorio");
 
-    // Header row: Dia, Hora, Nome, Codigo, Numero, Prod_1 ... Prod_40
+    // Header row: Dia, Hora, Nome, Codigo, Numero, Prod_1 ... Prod_65
     const headers = [
       "Dia",
       "Hora",
@@ -1930,7 +1935,7 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
       "Codigo do programa",
       "Codigo do cliente",
     ];
-    for (let i = 1; i <= 40; i++) {
+    for (let i = 1; i <= 65; i++) {
       // get product name if available
       const mp = materiasByNum[i];
       const unidade = mp?.unidade  ?? (mp && Number(mp.medida) === 0 ? "kg" : "g");
@@ -1946,7 +1951,7 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
       rowArr.push(r.Nome || "");
       rowArr.push(r.Form1 ?? "");
       rowArr.push(r.Form2 ?? "");
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         let v =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
@@ -1961,7 +1966,7 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     }
 
     // Set number format for product columns
-    for (let col = 6; col < 6 + 40; col++) {
+    for (let col = 6; col < 6 + 65; col++) {
       const column = ws.getColumn(col);
       column.numFmt = "#,##0.##";
     }
@@ -2062,7 +2067,7 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Relatorio");
     const headers = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
-    for (let i = 1; i <= 40; i++) headers.push(`Prod_${i}`);
+    for (let i = 1; i <= 65; i++) headers.push(`Prod_${i}`);
     ws.addRow(headers);
     for (const r of rows) {
       const rowArr: any[] = [];
@@ -2071,7 +2076,7 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
       rowArr.push(r.Nome || "");
       rowArr.push(r.Form1 ?? "");
       rowArr.push(r.Form2 ?? "");
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         let v =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
@@ -2357,6 +2362,47 @@ app.post('/api/admin/sync-schema', async (req, res) => {
   } catch (e: any) {
     console.error('[admin/sync-schema] error', e);
     return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// Quick IHM connectivity test: attempts a TCP connect to the given IP/port (default 21)
+app.post('/api/ihm/test', async (req, res) => {
+  try {
+    const { ip, port } = req.body || {};
+    if (!ip) return res.status(400).json({ ok: false, error: 'ip required' });
+    const targetPort = Number(port || 21);
+
+    const start = Date.now();
+    let done = false;
+    const socket = new net.Socket();
+
+    socket.setTimeout(3000);
+    socket.once('connect', () => {
+      const latency = Date.now() - start;
+      try { socket.destroy(); } catch (e) {}
+      if (done) return;
+      done = true;
+      return res.json({ ok: true, latency, ip, port: targetPort });
+    });
+
+    socket.once('timeout', () => {
+      try { socket.destroy(); } catch (e) {}
+      if (done) return;
+      done = true;
+      return res.status(504).json({ ok: false, error: 'timeout', ip, port: targetPort });
+    });
+
+    socket.once('error', (err: any) => {
+      try { socket.destroy(); } catch (e) {}
+      if (done) return;
+      done = true;
+      return res.status(502).json({ ok: false, error: String(err), ip, port: targetPort });
+    });
+
+    socket.connect(targetPort, String(ip));
+  } catch (e: any) {
+    console.error('[api/ihm/test] error', e);
+    return res.status(500).json({ ok: false, error: e?.message || 'internal' });
   }
 });
 
@@ -2810,9 +2856,9 @@ app.post("/api/file/processContent", async (req, res) => {
         .json({ error: "filePath and content are required" });
     }
 
-    // For now, just save content to a temp file and process it
+    // For now, just save content to a temp file and process it (use TMP_DIR_BASE)
     const fs = require("fs");
-    const tempPath = `${TMP_DIR}/temp_${Date.now()}.csv`;
+    const tempPath = path.join(TMP_DIR_BASE, `temp_${Date.now()}.csv`);
     fs.writeFileSync(tempPath, content);
 
     const r = await fileProcessorService.processFile(tempPath);
@@ -3294,7 +3340,7 @@ app.get("/api/chartdata", async (req, res) => {
     const mapped = rows.map((r: any) => {
       const values: number[] = [];
       const units: Record<string, string> = {};
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         const v =
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
@@ -3412,7 +3458,7 @@ app.get("/api/chartdata/formulas", async (req, res) => {
 
       // compute row total normalized to kg
       let rowTotalKg = 0;
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         // Ignorar produtos inativos
         if (!produtosAtivos.has(i)) continue;
 
@@ -3544,7 +3590,7 @@ app.get("/api/chartdata/produtos", async (req, res) => {
     const productUnits: Record<string, string> = {};
 
     for (const r of rows) {
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         // Ignorar produtos inativos
         if (!produtosAtivos.has(i)) continue;
 
@@ -3686,7 +3732,7 @@ app.get("/api/chartdata/horarios", async (req, res) => {
 
       // compute row total normalized to kg
       let rowTotalKg = 0;
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         // Ignorar produtos inativos
         if (!produtosAtivos.has(i)) continue;
 
@@ -3937,7 +3983,7 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
 
       // compute row total normalized to kg
       let rowTotalKg = 0;
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         // Ignorar produtos inativos
         if (!produtosAtivos.has(i)) continue;
 
@@ -4064,7 +4110,7 @@ app.get("/api/chartdata/stats", async (req, res) => {
     let totalGeralKg = 0;
     for (const r of rows) {
       let rowTotalKg = 0;
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         // Ignorar produtos que não devem entrar em cálculos
         if (!produtosAtivos.has(i)) continue;
 
@@ -4223,7 +4269,7 @@ app.get("/api/chartdata/semana", async (req, res) => {
       // Calcular total da linha normalizado para kg somando TODOS os produtos
       let rowTotalKg = 0;
       
-      for (let i = 1; i <= 40; i++) {
+      for (let i = 1; i <= 65; i++) {
         // Ignorar produtos que não devem entrar em cálculos
         if (!produtosAtivosSemana.has(i)) continue;
         // Sempre lê do Prod_N no banco
@@ -4393,7 +4439,7 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
         
         // Calcular total da linha normalizado para kg
         let rowTotalKg = 0;
-        for (let i = 1; i <= 40; i++) {
+        for (let i = 1; i <= 65; i++) {
           // Ignorar produtos que não devem entrar em cálculos
           if (!produtosAtivos.has(i)) continue;
 

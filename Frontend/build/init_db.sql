@@ -76,6 +76,31 @@ CREATE TABLE IF NOT EXISTS `relatorio` (
   Prod_38 INTEGER NOT NULL DEFAULT 0,
   Prod_39 INTEGER NOT NULL DEFAULT 0,
   Prod_40 INTEGER NOT NULL DEFAULT 0,
+  Prod_41 INTEGER NOT NULL DEFAULT 0,
+  Prod_42 INTEGER NOT NULL DEFAULT 0,
+  Prod_43 INTEGER NOT NULL DEFAULT 0,
+  Prod_44 INTEGER NOT NULL DEFAULT 0,
+  Prod_45 INTEGER NOT NULL DEFAULT 0,
+  Prod_46 INTEGER NOT NULL DEFAULT 0,
+  Prod_47 INTEGER NOT NULL DEFAULT 0,
+  Prod_48 INTEGER NOT NULL DEFAULT 0,
+  Prod_49 INTEGER NOT NULL DEFAULT 0,
+  Prod_50 INTEGER NOT NULL DEFAULT 0,
+  Prod_51 INTEGER NOT NULL DEFAULT 0,
+  Prod_52 INTEGER NOT NULL DEFAULT 0,
+  Prod_53 INTEGER NOT NULL DEFAULT 0,
+  Prod_54 INTEGER NOT NULL DEFAULT 0,
+  Prod_55 INTEGER NOT NULL DEFAULT 0,
+  Prod_56 INTEGER NOT NULL DEFAULT 0,
+  Prod_57 INTEGER NOT NULL DEFAULT 0,
+  Prod_58 INTEGER NOT NULL DEFAULT 0,
+  Prod_59 INTEGER NOT NULL DEFAULT 0,
+  Prod_60 INTEGER NOT NULL DEFAULT 0,
+  Prod_61 INTEGER NOT NULL DEFAULT 0,
+  Prod_62 INTEGER NOT NULL DEFAULT 0,
+  Prod_63 INTEGER NOT NULL DEFAULT 0,
+  Prod_64 INTEGER NOT NULL DEFAULT 0,
+  Prod_65 INTEGER NOT NULL DEFAULT 0,
   processedFile TEXT
 );
 
@@ -85,6 +110,42 @@ VALUES ('admin', 'admin', 1, 'Administrador');
 
 -- Re-enable foreign key checks
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- Create Amendoim tables (pesagens e raw lines)
+CREATE TABLE IF NOT EXISTS `amendoim` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tipo` varchar(10) NOT NULL DEFAULT 'entrada',
+  `dia` varchar(10) NOT NULL,
+  `hora` varchar(8) NOT NULL,
+  `codigoProduto` varchar(50) NULL,
+  `codigoCaixa` varchar(50) NULL,
+  `nomeProduto` varchar(255) NULL,
+  `peso` decimal(10,3) NULL,
+  `balanca` varchar(10) NULL,
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  INDEX `idx_amendoim_dia_hora` (`dia`,`hora`),
+  INDEX `idx_amendoim_codigoProduto` (`codigoProduto`),
+  INDEX `idx_amendoim_tipo` (`tipo`),
+  INDEX `idx_amendoim_tipo_dia` (`tipo`,`dia`),
+  UNIQUE KEY `unique_record` (`tipo`,`dia`,`hora`,`codigoProduto`,`peso`)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `amendoim_raw` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `tipo` varchar(10) NOT NULL DEFAULT 'entrada',
+  `dia` varchar(10) NOT NULL,
+  `hora` varchar(8) NOT NULL,
+  `codigoProduto` varchar(50) NULL,
+  `codigoCaixa` varchar(50) NULL,
+  `nomeProduto` varchar(255) NULL,
+  `peso` decimal(10,3) NULL,
+  `balanca` varchar(10) NULL,
+  `sourceIhm` varchar(50) NULL,
+  `rawLine` text NULL,
+  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS `batch` (
   `id` varchar(36) NOT NULL,
@@ -169,3 +230,7 @@ VALUES
   ('proprietario', 'Proprietário'),
   ('db-config', '{"serverDB":"localhost","port":"3306","userDB":"root","passwordDB":"root","database":"cadastro"}'),
   ('ihm-config', '{"ip":"192.168.5.254","user":"","password":"","localCSV":"","metodoCSV":"1","habilitarCSV":false}');
+
+-- Default amendoim configuration (used by AmendoimConfigService)
+INSERT IGNORE INTO `setting` (`key`, `value`) 
+VALUES ('amendoim-config', '{"ip":"","user":"anonymous","password":"","caminhoRemoto":"/InternalStorage/data/","duasIHMs":false}');

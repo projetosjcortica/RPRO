@@ -189,7 +189,7 @@ export const AmendoimPDFDocument = ({
   filtros = {},
   estatisticas,
   comentarios = [],
-  tabelasSeparadas = false,
+  tabelasSeparadas = true,
   fontSize = "media",
   ordenacao = "data",
   agruparPorProduto = false,

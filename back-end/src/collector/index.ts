@@ -12,8 +12,10 @@ import { CSVFormatDetector } from '../services/csvFormatDetector';
 import { AmendoimService } from '../services/AmendoimService';
 
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
-const TMP_DIR = path.resolve(process.cwd(), process.env.COLLECTOR_TMP || 'tmp');
-if (!fs.existsSync(TMP_DIR)) fs.mkdirSync(TMP_DIR, { recursive: true });
+const os = require('os');
+// Base temp dir: runtime config -> env var -> OS temp dir
+const TMP_BASE = path.resolve(getRuntimeConfig('collector_tmp') || process.env.COLLECTOR_TMP || os.tmpdir());
+if (!fs.existsSync(TMP_BASE)) fs.mkdirSync(TMP_BASE, { recursive: true });
 
 let STOP = false;
 
@@ -58,7 +60,13 @@ class Collector {
     try {
       console.log('[Collector] Iniciando ciclo de coleta...');
 
-      const downloaded = await this.ihmService.findAndDownloadNewFiles(TMP_DIR); 
+      // Create per-IHM subdirectory under TMP_BASE to avoid filename collisions
+      const runtimeIhmCfg = getRuntimeConfig('ihm-config') || {};
+      const ihmIpForDir = (runtimeIhmCfg.ip || process.env.IHM_IP || 'local').toString().replace(/\./g, '_');
+      const perIhmDir = path.join(TMP_BASE, `ihm_${ihmIpForDir}`);
+      if (!fs.existsSync(perIhmDir)) fs.mkdirSync(perIhmDir, { recursive: true });
+
+      const downloaded = await this.ihmService.findAndDownloadNewFiles(perIhmDir);
       
       if (downloaded.length === 0) {
         console.log('[Collector] Nenhum arquivo novo encontrado');

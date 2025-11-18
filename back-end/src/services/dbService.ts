@@ -65,6 +65,16 @@ export class DBService extends BaseService {
     const finalDb = runtimeDb.database ?? process.env.MYSQL_DB ?? 'cadastro';
 
     try {
+      // Build list of available entities and allow runtime selection via 'db-schemas' setting
+      const allEntities: any[] = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw];
+      const schemaCfg = getRuntimeConfig('db-schemas');
+      let selectedEntities = allEntities;
+      if (Array.isArray(schemaCfg) && schemaCfg.length > 0) {
+        const names = schemaCfg.map((s: any) => String(s).trim()).filter(Boolean);
+        selectedEntities = allEntities.filter((e) => names.includes(e.name));
+        console.info('[DBService] Using selected entities from runtime config:', names);
+      }
+
       if (this.useMysql) {
         // First ensure database exists
         await this.createDatabaseIfNotExists(finalHost, finalPort, finalUser, finalPass, finalDb);
@@ -79,49 +89,49 @@ export class DBService extends BaseService {
           database: finalDb,
           synchronize: true, // This will create/update tables automatically
           logging: ['error', 'schema'], // Log only errors and schema changes
-          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw],
+          entities: selectedEntities,
         });
       } else {
+        // Explicitly requested sqlite as primary environment
         const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
         const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
         this.sqlitePath = absPath;
-        // Always enable TypeORM schema synchronization by default so schemas are auto-applied.
-        // You can disable it by setting TYPEORM_SYNC=false in the environment if needed.
         const typeormSync = process.env.TYPEORM_SYNC !== 'false';
         this.ds = new DataSource({
           type: 'sqlite',
           database: absPath,
           synchronize: typeormSync,
           logging: false,
-          entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw],
+          entities: selectedEntities,
         });
       }
       await this.ds.initialize();
       return;
     } catch (err) {
-      console.error('[DBService] MySQL initialization failed:', err);
+      console.error('[DBService] Database initialization failed:', err);
       console.info('[DBService] Connection details:', {
         host: finalHost,
         port: finalPort,
         user: finalUser,
-        database: finalDb
+        database: finalDb,
       });
 
-      if (this.useMysql) {
-        console.info('[DBService] Attempting fallback to SQLite...');
+      // By default do NOT fallback to SQLite. Allow fallback only when explicitly enabled
+      // through environment variable `ALLOW_SQLITE_FALLBACK=true`.
+      if (this.useMysql && process.env.ALLOW_SQLITE_FALLBACK === 'true') {
+        console.info('[DBService] ALLOW_SQLITE_FALLBACK=true — attempting fallback to SQLite');
         try {
           const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
           const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
           this.sqlitePath = absPath;
           const shouldSync = !fs.existsSync(absPath) || process.env.FORCE_SQLITE_SYNC === 'true';
-          
           console.info(`[DBService] Initializing SQLite at ${absPath} (sync: ${shouldSync})`);
           this.ds = new DataSource({
             type: 'sqlite',
             database: absPath,
             synchronize: true,
             logging: ['error', 'schema'],
-            entities: [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw],
+            entities: allEntities,
           });
           await this.ds.initialize();
           this.useMysql = false;
@@ -132,7 +142,8 @@ export class DBService extends BaseService {
           throw new Error(`Database initialization failed - MySQL error: ${err}\nSQLite error: ${err2}`);
         }
       }
-      throw new Error(`MySQL initialization failed: ${err}`);
+
+      throw new Error(`MySQL initialization failed and fallback disabled: ${err}`);
     }
   }
   async insertRelatorioRows(rows: any[], processedFile: string) {
@@ -212,6 +223,31 @@ export class DBService extends BaseService {
       Prod_38: r.Prod_38 ?? r.values?.[37] ?? 0,
       Prod_39: r.Prod_39 ?? r.values?.[38] ?? 0,
       Prod_40: r.Prod_40 ?? r.values?.[39] ?? 0,
+      Prod_41: r.Prod_41 ?? r.values?.[40] ?? 0,
+      Prod_42: r.Prod_42 ?? r.values?.[41] ?? 0,
+      Prod_43: r.Prod_43 ?? r.values?.[42] ?? 0,
+      Prod_44: r.Prod_44 ?? r.values?.[43] ?? 0,
+      Prod_45: r.Prod_45 ?? r.values?.[44] ?? 0,
+      Prod_46: r.Prod_46 ?? r.values?.[45] ?? 0,
+      Prod_47: r.Prod_47 ?? r.values?.[46] ?? 0,
+      Prod_48: r.Prod_48 ?? r.values?.[47] ?? 0,
+      Prod_49: r.Prod_49 ?? r.values?.[48] ?? 0,
+      Prod_50: r.Prod_50 ?? r.values?.[49] ?? 0,
+      Prod_51: r.Prod_51 ?? r.values?.[50] ?? 0,
+      Prod_52: r.Prod_52 ?? r.values?.[51] ?? 0,
+      Prod_53: r.Prod_53 ?? r.values?.[52] ?? 0,
+      Prod_54: r.Prod_54 ?? r.values?.[53] ?? 0,
+      Prod_55: r.Prod_55 ?? r.values?.[54] ?? 0,
+      Prod_56: r.Prod_56 ?? r.values?.[55] ?? 0,
+      Prod_57: r.Prod_57 ?? r.values?.[56] ?? 0,
+      Prod_58: r.Prod_58 ?? r.values?.[57] ?? 0,
+      Prod_59: r.Prod_59 ?? r.values?.[58] ?? 0,
+      Prod_60: r.Prod_60 ?? r.values?.[59] ?? 0,
+      Prod_61: r.Prod_61 ?? r.values?.[60] ?? 0,
+      Prod_62: r.Prod_62 ?? r.values?.[61] ?? 0,
+      Prod_63: r.Prod_63 ?? r.values?.[62] ?? 0,
+      Prod_64: r.Prod_64 ?? r.values?.[63] ?? 0,
+      Prod_65: r.Prod_65 ?? r.values?.[64] ?? 0,
     }));
 
     // ✅ OTIMIZADO: Bulk insert/upsert em lotes para melhor performance
