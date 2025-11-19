@@ -150,11 +150,13 @@ const App = () => {
     {
       title: "Início",
       icon: HomeIcon,
+      classname:"size-9",
       path: user?.userType === 'amendoim' ? '/amendoim-home' : '/'
     },
     {
       title: "Relatórios",
       icon: Sheet,
+      classname:"size-9",
       path: '/report'
     }
   ];
@@ -250,14 +252,13 @@ const App = () => {
     <div id="app" className="flex w-screen h-dvh overflow-hidden">
       <div id="sidebar" className="h-full">
         <SidebarProvider>
-          {/* ✅ Adicionado "group" para permitir group-data-[state=collapsed] */}
           <Sidebar
             collapsible="icon"
             variant="inset"
-            className="group bg-sidebar-red-600 shadow-2xl h-full px-0"
+            className="group flex flex-col bg-sidebar-red-600 shadow-2xl h-full px-0"
           >
-            <div className='flex justify-end transform0 md:translate-y-9.5 2xl:translate-y-11 3xl:translate-y-16 translate-x-8'>
-              <SidebarTrigger className='absolute' />
+            <div className="flex justify-end">
+              <SidebarTrigger/>
             </div>
             <SidebarHeader className="pt-6 px-0">
               <div className="flex items-center gap-3">
@@ -284,7 +285,7 @@ const App = () => {
                 <SidebarGroupContent className="pl-2.5">
                   <SidebarMenu>
                     {items.map((item) => (
-                      <SidebarMenuItem key={item.title}>
+                      <SidebarMenuItem key={item.title} className='h-9'>
                         <SidebarMenuButton
                           onClick={() => {
                             if (!user) return navigate('/login');
@@ -297,7 +298,7 @@ const App = () => {
                               : 'hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
                           }`}
                         >
-                          <item.icon />
+                          <item.icon className='h-6 w-6'/>
                           <span>{item.title}</span>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

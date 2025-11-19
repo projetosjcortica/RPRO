@@ -250,6 +250,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
       toast.error('Erro ao atualizar admin');
     }
   };
+  console.log(handleToggleAdmin);
 
 
   return (
