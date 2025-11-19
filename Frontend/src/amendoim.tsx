@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button, buttonVariants } from "./components/ui/button";
 import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { DonutChartWidget, BarChartWidget } from "./components/Widgets";
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
 import { AmendoimExport } from "./components/AmendoimExport";
@@ -166,23 +165,13 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   
   // Tipo para upload
   const [uploadTipo, setUploadTipo] = useState<"entrada" | "saida">("entrada");
-
-  // Calcular últimos 30 dias para filtros padrão (para garantir que capture dados recentes)
-  const getUltimosDias = () => {
-    const hoje = new Date();
-    const inicio = new Date();
-    inicio.setDate(hoje.getDate() - 30); // Últimos 30 dias
-    
-    return {
-      dataInicio: inicio.toISOString().split('T')[0], // YYYY-MM-DD
-      dataFim: hoje.toISOString().split('T')[0],
-    };
-  };
+ 
+  
 
   console.log(error)
 
   // Filtros ativos (inicializar com últimos 30 dias)
-  const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>(getUltimosDias());
+  const [filtrosAtivos, setFiltrosAtivos] = useState<FiltrosAmendoim>({});
   
   // Estados para ordenação de colunas
   const [sortColumn, setSortColumn] = useState<'dia' | 'hora' | 'codigoProduto' | 'balanca' | 'nomeProduto' | 'peso' | 'tipo' | null>('dia');
@@ -220,8 +209,6 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     startWidth: number;
   } | null>(null);
   
-  // Drawer de gráficos
-  const [chartsOpen, setChartsOpen] = useState(false);
   // Seção de análises expandida
   const [analisesExpanded, setAnalisesExpanded] = useState(false);
   // Modal de configuração
@@ -556,6 +543,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     } else {
       console.log('[Amendoim] Modo', viewMode, '- não busca métricas de rendimento');
     }
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, filtrosAtivos, viewMode, sortColumn, sortDirection]);
 
@@ -597,7 +585,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   const handleAplicarFiltros = (filtros: FiltrosAmendoim) => {
     setFiltrosAtivos(filtros);
     setPage(1); // Resetar para primeira página ao aplicar filtros
-    setChartsOpen(true); // Abrir gráficos ao buscar
+    // setChartsOpen(true); // Abrir gráficos ao buscar
   };
 
   const fetchCollectorStatus = useCallback(async () => {
@@ -767,6 +755,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     validationErrors: validationErrors.length,
     ihmConfig: ihmConfig ? 'presente' : 'ausente'
   });
+  
 
   return (
     <div className="flex flex-col gap-12.5 w-full h-full justify-start">
@@ -1171,97 +1160,6 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         </Button>
       </div>
         {/* Drawer de gráficos compacto, por trás do sideinfo */}
-        {chartsOpen && (
-          <div
-            className="absolute top-0 right-full mr-2 h-full w-96 bg-white border rounded-l-lg shadow-lg overflow-hidden"
-            style={{ zIndex: 1 }}
-          >
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3 border-b">
-                <div className="text-base font-bold text-gray-900">
-                  Gráficos de Amendoim
-                </div>
-              </div>
-              <div
-                className="p-4 space-y-4 overflow-auto scrollbar-hide"
-                style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-              >
-                {/* Produtos Donut */}
-                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">
-                      Produtos (Top 20)
-                    </div>
-                  </div>
-                  <div className="h-[420px] px-3 py-3 relative">
-                    
-                    <DonutChartWidget
-                      fetchUrl={`http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams({
-                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
-                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
-                        ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
-                        ...(viewMode !== 'comparativo' && { tipo: viewMode }),
-                      })}`}
-                      unit="kg"
-                      compact
-                    />
-                  </div>
-                </div>
-
-                {/* Caixas Donut */}
-                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">
-                      Caixas
-                    </div>
-                  </div>
-                  <div className="h-[420px] px-3 py-3 relative">
-                    <DonutChartWidget
-                      fetchUrl={`http://localhost:3000/api/amendoim/chartdata/caixas?${new URLSearchParams({
-                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
-                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
-                        ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
-                        ...(viewMode !== 'comparativo' && { tipo: viewMode }),
-                      })}`}
-                      unit="kg"
-                      compact
-                    />
-                  </div>
-                </div>
-
-                {/* Horários Bar */}
-                <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
-                  <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                    <div className="text-sm font-bold text-gray-800">
-                      Horários
-                    </div>
-                  </div>
-                  <div className="h-[420px] px-3 py-3 relative">
-                    <BarChartWidget
-                      fetchUrl={`http://localhost:3000/api/amendoim/chartdata/horarios?${new URLSearchParams({
-                        ...(filtrosAtivos.dataInicio && { dataInicio: filtrosAtivos.dataInicio }),
-                        ...(filtrosAtivos.dataFim && { dataFim: filtrosAtivos.dataFim }),
-                        ...(filtrosAtivos.codigoProduto && { codigoProduto: filtrosAtivos.codigoProduto }),
-                        ...(viewMode !== 'comparativo' && { tipo: viewMode }),
-                      })}`}
-                      unit="kg"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Botão para abrir/fechar drawer */}
-        <button
-          className="absolute -left-6 top-1/2 -translate-y-1/2 bg-white border border-gray-300 rounded-l px-1.5 py-2 shadow hover:bg-gray-50"
-          onClick={() => setChartsOpen((s) => !s)}
-          title={chartsOpen ? "Ocultar gráficos" : "Mostrar gráficos"}
-          style={{ zIndex: 7 }}
-        >
-          {chartsOpen ? "▶" : "◀"}
-        </button>
 
         {/* Conteúdo do sideinfo - Estatísticas */}
         <div className="flex-1 overflow-auto" style={{ zIndex: 15 }}>

@@ -11,6 +11,13 @@ class ConfigService {
   }
 
   async setSetting(key: string, value: string): Promise<void> {
+    // validate key
+    if (!key || String(key).trim() === '') {
+      // Do not persist empty keys — log and ignore
+      console.warn('[ConfigService] Ignoring attempt to set empty setting key');
+      return;
+    }
+
     await this.ensureInitialized();
     const repo = AppDataSource.getRepository(Setting);
     let setting = await repo.findOne({ where: { key } });
@@ -29,6 +36,11 @@ class ConfigService {
     await this.ensureInitialized();
     const repo = AppDataSource.getRepository(Setting);
     for (const k of Object.keys(obj)) {
+      // ignore empty keys which could create primary-key collisions
+      if (!k || String(k).trim() === '') {
+        console.warn('[ConfigService] Skipping empty config key during setSettings');
+        continue;
+      }
       const v = typeof obj[k] === 'string' ? obj[k] : JSON.stringify(obj[k]);
       let s = await repo.findOne({ where: { key: k } });
       if (s) { s.value = v; } else { s = repo.create({ key: k, value: v }); }

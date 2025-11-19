@@ -4,7 +4,7 @@ import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
 import { Avatar, AvatarFallback } from "./components/ui/avatar";
-import { FileUp, Loader2, Plus, Upload } from 'lucide-react';
+import { FileUp, Loader2, Plus } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
 import { getProcessador } from "./Processador";
@@ -22,12 +22,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
-<<<<<<< HEAD
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './components/ui/dialog';
-import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
-import { cn } from "./lib/utils";
-=======
->>>>>>> f7f544553b1b81b8d25613d039f67573f96ae8ee
+// Popover and `cn` not used in this file; imports removed to satisfy build
 import toastManager from "./lib/toastManager";
 
 export const initialFormData = {

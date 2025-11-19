@@ -33,6 +33,7 @@ interface ChangeDetectionRecord {
 export class AmendoimCollectorService {
   private static intervalId: NodeJS.Timeout | null = null;
   private static isRunning = false;
+  private static stopRequested: boolean = false;
   private static ihmService: IHMService | null = null;
   // Use runtime-config 'collector_tmp' if set, otherwise prefer OS temp directory.
   private static TMP_DIR = ((): string => {
@@ -301,7 +302,8 @@ export class AmendoimCollectorService {
   static getStatus(): { running: boolean } {
     return {
       running: this.isRunning,
-    };
+      stopRequested: this.stopRequested,
+    } as any;
   }
 
   /**
@@ -324,6 +326,7 @@ export class AmendoimCollectorService {
     }
 
     this.isRunning = true;
+    this.stopRequested = false;
     console.log(`[AmendoimCollector] Iniciando coletor (intervalo: ${intervalMinutes} minutos)`);
 
     // Garantir que o diretório temporário existe
@@ -350,12 +353,13 @@ export class AmendoimCollectorService {
       console.log('[AmendoimCollector] Coletor não está rodando');
       return;
     }
+    // Signal running tasks to stop as soon as possible
+    this.stopRequested = true;
 
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
     }
-
     this.isRunning = false;
     console.log('[AmendoimCollector] Coletor parado');
   }
@@ -450,13 +454,10 @@ export class AmendoimCollectorService {
       }
       
       // Valores padrão para evitar erros
-      const ipPadrao = ihmCfg.ip || process.env.IHM_IP || '192.168.5.250';
+      const ipPadrao = ihmCfg.ip || process.env.IHM_IP || '';
       const userPadrao = ihmCfg.user || process.env.IHM_USER || 'anonymous';
       const passwordPadrao = ihmCfg.password || process.env.IHM_PASSWORD || '';
       const caminhoPadrao = ihmCfg.caminhoRemoto || '/InternalStorage/data/';
-      
-      console.log('[AmendoimCollector] ========================================');
-      console.log('[AmendoimCollector] 🔧 NOVA LÓGICA: Coleta por Balança');
       console.log('[AmendoimCollector] ========================================');
       console.log(`  - duasIHMs: ${ihmCfg.duasIHMs}`);
       console.log(`  - IHM1 IP: ${ipPadrao}`);
@@ -473,8 +474,7 @@ export class AmendoimCollectorService {
         console.log(`  - IHM2: NÃO CONFIGURADA`);
       }
       console.log('[AmendoimCollector] ========================================');
-      console.log('[AmendoimCollector] ========================================');
-
+      console.log('[AmendoimCollector]: ', ihmCfg);
       // Criar IHM1 (principal)
       const ihm1Service = new IHMService(ipPadrao, userPadrao, passwordPadrao, caminhoPadrao);
       console.log(`[AmendoimCollector] ✓ IHM1 criada - IP: ${ipPadrao}`);
@@ -584,8 +584,18 @@ export class AmendoimCollectorService {
       console.log(`[AmendoimCollector] 📊 Total de arquivos CSV para processar: ${arquivosParaColetar.length}`);
       arquivosParaColetar.forEach(a => console.log(`  - ${a.ihmLabel}: ${a.arquivo}`));
 
+      // If a stop has been requested, abort before starting heavy work
+      if (this.stopRequested) {
+        console.log('[AmendoimCollector] Stop requested before starting tasks - aborting collectOnce');
+        return result;
+      }
+
       // Executar downloads e processamento em paralelo
       const tasks = arquivosParaColetar.map(async (arquivoInfo) => {
+        if (this.stopRequested) {
+          console.log(`[AmendoimCollector] Stop requested - skipping ${arquivoInfo.arquivo}`);
+          return DEFAULT_RESULT;
+        }
         try {
           console.log(`[AmendoimCollector] ⚡ Iniciando coleta da ${arquivoInfo.ihmLabel}: ${arquivoInfo.arquivo}`);
 

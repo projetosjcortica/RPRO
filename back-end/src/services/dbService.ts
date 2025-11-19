@@ -27,6 +27,9 @@ export class DBService extends BaseService {
       port,
       username: user,
       password: pass,
+      // ensure connection uses utf8mb4 to preserve all unicode characters
+      // use charset 'utf8mb4' (not the collation string) so the driver sets the proper character set
+      charset: 'utf8mb4',
       synchronize: false,
       logging: false,
     });
@@ -41,7 +44,8 @@ export class DBService extends BaseService {
 
       if (dbExists.length === 0) {
         console.info(`[DBService] Creating database '${dbName}'...`);
-        await tempDs.query(`CREATE DATABASE IF NOT EXISTS ${dbName}`);
+        // Create with utf8mb4 charset and unicode collation to preserve all characters
+        await tempDs.query(`CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
         console.info(`[DBService] Database '${dbName}' created successfully`);
       }
     } finally {
@@ -86,6 +90,9 @@ export class DBService extends BaseService {
           username: finalUser,
           password: finalPass,
           database: finalDb,
+          // ensure connection uses utf8mb4 to preserve all unicode characters
+          // use charset 'utf8mb4' so the driver sends proper SET NAMES
+          charset: 'utf8mb4',
           synchronize: true, // This will create/update tables automatically
           logging: ['error', 'schema'], // Log only errors and schema changes
           entities: selectedEntities,
@@ -105,6 +112,27 @@ export class DBService extends BaseService {
         });
       }
       await this.ds.initialize();
+
+      // Optionally convert existing database/tables to utf8mb4 if explicitly requested.
+      // This is a potentially destructive operation (changes column encodings) so it is
+      // only performed when env var `FORCE_CONVERT_TO_UTF8MB4=true` is set.
+      if (this.useMysql && process.env.FORCE_CONVERT_TO_UTF8MB4 === 'true') {
+        try {
+          console.info('[DBService] FORCE_CONVERT_TO_UTF8MB4=true — converting database and tables to utf8mb4');
+          await this.ds.query(`ALTER DATABASE \`${finalDb}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+          const tables: any[] = await this.ds.query(`SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '${finalDb}' AND TABLE_TYPE='BASE TABLE'`);
+          for (const t of tables) {
+            const tableName = t.TABLE_NAME || Object.values(t)[0];
+            console.info(`[DBService] Converting table ${tableName} to utf8mb4`);
+            await this.ds.query(`ALTER TABLE \`${tableName}\` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+          }
+          console.info('[DBService] Conversion to utf8mb4 complete');
+        } catch (convErr) {
+          console.error('[DBService] Failed to convert database/tables to utf8mb4:', convErr);
+          // Do not abort startup; conversion failure shouldn't prevent normal operation.
+        }
+      }
+
       return;
     } catch (err) {
       console.error('[DBService] Database initialization failed:', err);

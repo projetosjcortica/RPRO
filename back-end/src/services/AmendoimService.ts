@@ -66,6 +66,8 @@ export class AmendoimService {
 
     try {
       // Parse CSV sem header
+      // Caracteres Diferentes tem que ser processados evitar acontecer 
+      // manter sempre "Amendoim Exportação" nunca "Amendoim Exporta��o"
       const records = parse(csvContent, {
         skip_empty_lines: true,
         relax_column_count: true,
@@ -145,9 +147,8 @@ export class AmendoimService {
           registro.dia = diaStr;
           registro.hora = horaStr;
           // MUDANÇA: codigoProduto agora vem da coluna 5 (antes era codigoCaixa)
-          registro.codigoProduto = codigoProduto ? String(codigoProduto).trim() : "";
-          // codigoCaixa mantido por compatibilidade do banco, mas populado com mesmo valor
-          registro.codigoCaixa = codigoProduto ? String(codigoProduto).trim() : "";
+          registro.codigoProduto = codigoProduto ? String(codigoProduto).trim() : ""; 
+          registro.codigoCaixa = "";
           
           // Log de debug: formato de data sendo salvo
           if (i === 0) {
@@ -157,7 +158,6 @@ export class AmendoimService {
           // Fallback para nome do produto vazio
           const nomeProcessado = nomeProduto ? String(nomeProduto).trim() : "";
           registro.nomeProduto = nomeProcessado || "Sem nome";
-          
           registro.peso = Number(peso) || 0;
           registro.balanca = balanca ? String(balanca).trim() : undefined;
 
@@ -691,6 +691,8 @@ export class AmendoimService {
     
     return dateStr;
   }
+ 
+
 
   /**
    * Retorna dados de análise pré-processados para gráficos.

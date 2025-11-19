@@ -143,6 +143,31 @@ export default function Report() {
     };
   });
 
+  // Clear filters when entering the Report page so the table shows all data
+  // by default. This ensures users don't need to click "Limpar" manually.
+  useEffect(() => {
+    try {
+      // Replicate the exact behavior of `handleLimpar` in `searchBar.tsx`:
+      // set the date range to the last 30 days and apply empty name/code/number filters.
+      const filtrosLimpos: Filtros = {
+        dataInicio: '',
+        dataFim: '',
+        nomeFormula: '',
+        codigo: '',
+        numero: '',
+      };
+
+      // Apply exactly as the button would: reset to page 1, set filtros and open charts
+      setPage(1);
+      setFiltros(filtrosLimpos);
+      setChartsOpen(true);
+    } catch (e) {
+      // ignore
+    }
+    // run only once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [colLabels, setColLabels] = useState<{ [key: string]: string }>({});
   const [produtosInfo, setProdutosInfo] = useState<
     Record<string, { nome?: string; unidade?: string; num?: number; ativo?: boolean }>

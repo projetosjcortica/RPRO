@@ -235,22 +235,6 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
     }
   };
 
-  const handleToggleAdmin = async (uname: string, id: number, isAdmin: boolean) => {
-    try {
-      const p = getProcessador();
-      const res = await p.toggleAdmin(uname, id, isAdmin);
-      if (res && res.ok) {
-        toast.success(isAdmin ? 'Usuário promovido a admin' : 'Admin revogado');
-        await fetchUsers();
-      } else {
-        toast.error('Falha ao atualizar admin');
-      }
-    } catch (e) {
-      console.error('toggle admin', e);
-      toast.error('Erro ao atualizar admin');
-    }
-  };
-
 
   return (
     <div id="adm" className="flex flex-col gap-4 bg-white">

@@ -2136,10 +2136,24 @@ app.post("/api/auth/register", async (req, res) => {
     // If there are no users yet, make this one admin
     const usersCount = await repo.count();
     const isAdmin = usersCount === 0;
+    let photoPath;
+    if (!isAdmin) {
+      // get this admin photo
+      const adminUser = await repo.findOne({ where: { isAdmin: true } });
+      if (adminUser && adminUser.photoPath) {
+        // copy admin photo to new user
+        const adminPhotoPath = path.join(photosBase, path.basename(adminUser.photoPath));
+        const newPhotoName = `${username}_${Date.now()}${path.extname(adminPhotoPath)}`;
+        const newPhotoPath = path.join(photosBase, newPhotoName);
+        fs.copyFileSync(adminPhotoPath, newPhotoPath);
+        photoPath = `/user_photos/${newPhotoName}`;
+      }
+    }
     const u = repo.create({
       username,
       password: password,
       displayName: displayName || null,
+      photoPath,
       userType: userType || 'racao',
       isAdmin,
     });
@@ -4871,10 +4885,10 @@ app.get('/api/amendoim/config', async (req, res) => {
       console.log('[api/amendoim/config GET] ✅ Config migrada e salva:', config.ihm2);
     }
     
-    console.log('[api/amendoim/config GET] Config completo:', JSON.stringify(config, null, 2));
-    console.log('[api/amendoim/config GET] config.duasIHMs:', config.duasIHMs);
-    console.log('[api/amendoim/config GET] config.ihm2:', config.ihm2);
-    console.log('[api/amendoim/config GET] config.ihm2?.ip:', config.ihm2?.ip);
+    // console.log('[api/amendoim/config GET] Config completo:', JSON.stringify(config, null, 2));
+    // console.log('[api/amendoim/config GET] config.duasIHMs:', config.duasIHMs);
+    // console.log('[api/amendoim/config GET] config.ihm2:', config.ihm2);
+    // console.log('[api/amendoim/config GET] config.ihm2?.ip:', config.ihm2?.ip);
     
     // Validar configuração
     const validation = {

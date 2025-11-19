@@ -134,17 +134,17 @@ export class ParserService extends BaseService {
   async processFile(filePath: string, opts?: { sinceTs?: string }): Promise<ParserResult> {
     console.log(`Processing file: ${filePath}`);
     const buffer = fs.readFileSync(filePath);
-
+    
     // Try UTF-8 first. If the decoded text contains replacement chars, fall back to latin1.
     let raw = buffer.toString('utf8');
-    if (raw.includes('\uFFFD')) {
-      console.warn('UTF-8 decoding produced replacement characters, falling back to latin1');
-      raw = buffer.toString('latin1');
-    }
+    // if (raw.includes('\uFFFD')) {
+    //   console.warn('UTF-8 decoding produced replacement characters, falling back to latin1');
+    //   raw = buffer.toString('latin1');
+    // }
 
     // Strip common BOMs and normalize
     if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1);
-    try { raw = raw.normalize('NFC'); } catch (e) { /* ignore if not supported */ }
+    // try { raw = raw.normalize('NFC'); } catch (e) { /* ignore if not supported */ }
 
     // Remove control characters except common whitespace (tab, LF, CR)
     raw = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
@@ -201,7 +201,7 @@ export class ParserService extends BaseService {
     return { 
       processedPath, 
       rowsCount: rowsToReturn.length, 
-      rows: rowsToReturn,
+      rows: rowsToReturn, 
       isLegacyFormat: isLegacy 
     };
   }
