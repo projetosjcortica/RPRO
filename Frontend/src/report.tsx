@@ -1528,7 +1528,7 @@ export default function Report() {
   return (
     <div className="flex flex-col gap-1.5 w-full h-full">
       <div className="h-[10dvh] flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-1 h-[10dvh] ml-6">
+        <div className="flex flex-row items-end gap-1 h-[10dvh]">
           <Button 
             onClick={() => setView("table")} 
             className={view === "table" ? "bg-red-800 border border-gray-300" : ""}
