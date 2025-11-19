@@ -22,9 +22,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
+<<<<<<< HEAD
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
 import { cn } from "./lib/utils";
+=======
+>>>>>>> f7f544553b1b81b8d25613d039f67573f96ae8ee
 import toastManager from "./lib/toastManager";
 
 export const initialFormData = {
@@ -989,6 +992,8 @@ interface Estatisticas {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       if (!file) return;
+
+      console.log(uploading);
   
       setUploading(true);
       setError(null);
@@ -1036,6 +1041,7 @@ interface Estatisticas {
         event.target.value = '';
       }
     };
+    console.log(handleFileUpload);
 
     const fetchRegistros = async () => {
     setLoading(true);
