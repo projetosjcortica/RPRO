@@ -9,7 +9,12 @@
       "date": "17/12/2025",
       "title": "Atualização 1.3.7 — Novas funcionalidades e melhorias no Amendoim",
       "changes": [
-        "Correções de bugs menores em várias áreas do aplicativo."
+        "Correções de bugs menores em várias áreas do aplicativo.",
+        "Adicionado controle administrativo para habilitar edição estendida de produtos (Produto 1..65).",
+        "Interface de Produtos atualizada para suportar edição e adição de produtos além do 40 padrão quando opção habilitada.",
+        "Backend atualizado: suporte a 65 produtos (Prod_1..Prod_65), importador CSV preenche zeros quando colunas faltam e exportações (Excel/PDF) ajustadas.",
+        "Label de exportação atualizada: 'Silos (Prod_1...65)'.",
+        "Adicionado persistência em localStorage para integração frontend/admin."
       ]
     },
     {

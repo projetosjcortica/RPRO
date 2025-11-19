@@ -26,7 +26,6 @@ import {
 import { CircleQuestionMark, CircleUser, GalleryThumbnails, HatGlasses, HomeIcon, Settings, Sheet} from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
 import { resolvePhotoUrl } from './lib/photoUtils';
-import ProfileAdminModal from './ProfileAdminModal';
 import { ToastContainer } from 'react-toastify';
 import './index.css';
 import { Factory } from 'lucide-react';
@@ -132,37 +131,18 @@ const App = () => {
     };
   }, [user, updateUser]);
 
-  // SidebarAvatar component: shows avatar and opens admin modal after 5 clicks
+  // SidebarAvatar component: shows avatar (no hidden admin modal)
   function SidebarAvatar() {
     const { user } = useAuth();
-    const [clicks, setClicks] = useState(0);
-    const [open, setOpen] = useState(false);
-
-    useEffect(() => {
-      if (clicks === 0) return;
-      const to = setTimeout(() => setClicks(0), 1500);
-      return () => clearTimeout(to);
-    }, [clicks]);
-
-    useEffect(() => {
-      if (clicks >= 5) {
-        setOpen(true);
-        setClicks(0);
-      }
-    }, [clicks]);
-
     return (
-      <>
-        <div onClick={() => setClicks(c => c + 1)}>
-          <Avatar className="h-12 w-12 ml-2 cursor-pointer">
-            <AvatarImage src={user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo} alt="Profile" className="object-cover w-full h-full" />
-            <AvatarFallback>
-              <Factory />
-            </AvatarFallback>
-          </Avatar>
-        </div>
-        <ProfileAdminModal open={open} onClose={() => setOpen(false)} />
-      </>
+      <div>
+        <Avatar className="h-12 w-12 ml-2">
+          <AvatarImage src={user?.photoPath ? resolvePhotoUrl(user.photoPath) : logo} alt="Profile" className="object-cover w-full h-full" />
+          <AvatarFallback>
+            <Factory />
+          </AvatarFallback>
+        </Avatar>
+      </div>
     );
   }
   

@@ -82,6 +82,14 @@ export default function Report() {
           const resolved = resolvePhotoUrl((user as any).photoPath);
           setLogoUrl(resolved ? `${resolved}?t=${Date.now()}` : undefined);
         }
+        // If still no logo, but admin set a default user photo, use it
+        if (!p && (!user || !(user as any).photoPath) && mounted) {
+          const defaultPhoto = localStorage.getItem('default-user-photo');
+          if (defaultPhoto) {
+            const resolved = resolvePhotoUrl(defaultPhoto);
+            setLogoUrl(resolved ? `${resolved}?t=${Date.now()}` : undefined);
+          }
+        }
       } catch (e) {
         // ignore
       }
@@ -95,8 +103,10 @@ export default function Report() {
     };
 
     window.addEventListener('report-logo-updated', handlePhotoUpdate);
+    window.addEventListener('user-photos-updated', handlePhotoUpdate);
     return () => {
       window.removeEventListener('report-logo-updated', handlePhotoUpdate);
+      window.removeEventListener('user-photos-updated', handlePhotoUpdate);
       mounted = false;
     };
   }, [user]);
@@ -244,7 +254,7 @@ export default function Report() {
   
   const { filters: advancedFilters, setFiltersState } = useAdvancedFilters();
 
-  const { dados, loading, error, total, refetch} = useReportData(
+  const { dados, loading, error, total, refetch, refetchSilent } = useReportData(
     filtros,
     page,
     pageSize,
@@ -302,17 +312,48 @@ export default function Report() {
 
   const fetchCollectorStatus = useCallback(async () => {
     try {
+      // show a short-lived loading toast while querying
+      toastManager.showLoading('collector-status', 'Verificando status do coletor...');
+
       const res = await fetch("http://localhost:3000/api/collector/status", {
         method: "GET",
       });
-      if (!res.ok)
-        throw new Error("Não foi possível obter o status do coletor.");
+      if (!res.ok) {
+        const msg = `Falha ao consultar coletor (HTTP ${res.status}). Verifique backend e rede.`;
+        toastManager.updateError('collector-status', msg);
+        setCollectorRunning(false);
+        setCollectorError(msg);
+        return;
+      }
+
       const status = await res.json();
       const isRunning = Boolean(status?.running);
       setCollectorRunning(isRunning);
-      setCollectorError(status?.lastError ?? null);
-    } catch (err) {
+
+      const lastError = status?.lastError ?? null;
+      setCollectorError(lastError);
+
+      if (lastError) {
+        // Categorize and suggest remediation
+        let suggestion = 'Verifique conexão com a IHM (IP/porta), credenciais e regras de firewall.';
+        if (/ECONNREFUSED|ENOTFOUND|ENETUNREACH|EHOSTUNREACH|ETIMEDOUT/i.test(String(lastError))) {
+          suggestion = 'Acesso à IHM recusado ou inacessível. Confirme IP/porta e regras de firewall.';
+        } else if (/auth|senha|credential|login/i.test(String(lastError))) {
+          suggestion = 'Erro de autenticação. Verifique usuário/senha nas configurações da IHM.';
+        } else if (/timeout/i.test(String(lastError))) {
+          suggestion = 'Tempo de resposta excedido. Verifique latência de rede e disponibilidade da IHM.';
+        }
+
+        toastManager.updateError('collector-status', `Coletor: ${String(lastError)} — ${suggestion}`);
+      } else {
+        toastManager.updateSuccess('collector-status', 'Coletor: online', 1500);
+      }
+    } catch (err: any) {
       console.error("Erro ao buscar status do coletor:", err);
+      const message = err?.message || String(err) || 'Erro desconhecido';
+      toastManager.updateError('collector-status', `Erro de comunicação com o coletor: ${message}. Verifique se o backend está rodando e se existe bloqueio de firewall.`);
+      setCollectorRunning(false);
+      setCollectorError(message);
     }
   }, []);
 
@@ -769,11 +810,48 @@ export default function Report() {
       if (autoRefreshTimer.current) {
         window.clearInterval(autoRefreshTimer.current);
       }
-      refetch();
-      refreshResumo();
+      // Use silent refetches while collector is running to avoid UI flicker
+      try { if (typeof refetchSilent === 'function') { refetchSilent(); } else { refetch(); } } catch(e) {}
+      // silent resumo fetch (only update if changed)
+      const fetchResumoSilent = async () => {
+        try {
+          const processador = getProcessador();
+          const dateStart = filtros.dataInicio || undefined;
+          const dateEnd = filtros.dataFim || undefined;
+          const formula = filtros.nomeFormula || undefined;
+          const areaId = (filtros as any).areaId || undefined;
+
+          const result = await processador.getResumo(
+            areaId as string | undefined,
+            formula as string | undefined,
+            dateStart as string | undefined,
+            dateEnd as string | undefined,
+            filtros && filtros.codigo !== undefined && filtros.codigo !== "" ? filtros.codigo : undefined,
+            filtros && filtros.numero !== undefined && filtros.numero !== "" ? filtros.numero : undefined,
+            advancedFilters
+          );
+
+          // Only update resumo if changed to avoid re-renders
+          try {
+            const oldJson = JSON.stringify(resumo || {});
+            const newJson = JSON.stringify(result || {});
+            if (oldJson !== newJson) {
+              setResumo(result || null);
+            }
+          } catch (e) {
+            setResumo(result || null);
+          }
+        } catch (e) {
+          // silent failure: don't set loading/error to avoid flicker
+          console.error('fetchResumoSilent error', e);
+        }
+      };
+
+      fetchResumoSilent();
+
       autoRefreshTimer.current = window.setInterval(() => {
-        refetch();
-        refreshResumo();
+        try { if (typeof refetchSilent === 'function') { refetchSilent(); } else { refetch(); } } catch(e) {}
+        void fetchResumoSilent();
       }, 5000);
     } else if (autoRefreshTimer.current) {
       window.clearInterval(autoRefreshTimer.current);

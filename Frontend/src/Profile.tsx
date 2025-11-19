@@ -11,15 +11,17 @@ interface ProfileProps {
   externalPreview?: string | null;
   file?: File | null;
   onUpload?: () => Promise<void>;
+  showLogoutButton?: boolean;
 }
 
-const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) => {
+const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload, showLogoutButton = true }) => {
   const { user, logout, updateUser } = useAuth();
 
   // Hooks sempre declarados no topo
   const [displayName, setDisplayName] = useState(user?.displayName || "");
   const [preview, setPreview] = useState<string | null>(
-    user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
+    // prefer user's own photo; if missing, use admin-set default stored in localStorage
+    user?.photoPath ? resolvePhotoUrl(user.photoPath) : (localStorage.getItem('default-user-photo') ? resolvePhotoUrl(localStorage.getItem('default-user-photo') || undefined) : null)
   );
 
   // Use external preview if provided, otherwise use internal
@@ -28,9 +30,30 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) =>
   useEffect(() => {
     setDisplayName(user?.displayName || "");
     if (externalPreview === undefined) {
-      setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : null);
+      // if user has photo use it; otherwise fall back to stored default (if any)
+      const defaultPhoto = localStorage.getItem('default-user-photo');
+      setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : (defaultPhoto ? resolvePhotoUrl(defaultPhoto) : null));
     }
   }, [user, externalPreview]);
+
+  // Listen to admin updates for default user photo
+  useEffect(() => {
+    const handler = (ev: any) => {
+      try {
+        const path = ev?.detail?.path;
+        if (path) {
+          try { localStorage.setItem('default-user-photo', String(path)); } catch (e) {}
+        }
+        // update preview only if user has no custom photo
+        if (!user?.photoPath) {
+          const resolved = resolvePhotoUrl(path || localStorage.getItem('default-user-photo') || undefined);
+          setPreview(resolved);
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('user-photos-updated', handler as any);
+    return () => window.removeEventListener('user-photos-updated', handler as any);
+  }, [user]);
 
   useEffect(() => {
     const handler = async () => {
@@ -106,11 +129,13 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload }) =>
               </div>
             )}
           </div>
-          <div className="flex-shrink-0">
-            <Button variant="destructive" size="sm" onClick={() => { logout(); try { window.dispatchEvent(new Event('profile-logged-out')); } catch (e) {}; try { toast.info('Você saiu'); } catch (e) {} }}>
-              Sair
-            </Button>
-          </div>
+          {showLogoutButton && (
+            <div className="flex-shrink-0">
+              <Button variant="destructive" size="sm" onClick={() => { logout(); try { window.dispatchEvent(new Event('profile-logged-out')); } catch (e) {}; try { toast.info('Você saiu'); } catch (e) {} }}>
+                Sair
+              </Button>
+            </div>
+          )}
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 h-full">

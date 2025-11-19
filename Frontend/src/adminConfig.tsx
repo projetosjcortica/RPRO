@@ -36,6 +36,7 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
   const [discovering, setDiscovering] = useState(false);
   const [discoverResults, setDiscoverResults] = useState<any | null>(null);
   const [usersList, setUsersList] = useState<any[] | null>(null);
+  const [editing, setEditing] = useState<Record<number, { displayName?: string; isAdmin?: boolean }>>({});
   const [discoverPaths, setDiscoverPaths] = useState<string>('/,/visu,/visu/index.html');
 
   // Local alias to the Electron preload API. Typed as any so callers don't error when optional.
@@ -191,6 +192,33 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
     }
   };
 
+  const saveUser = async (u: any) => {
+    try {
+      const updates = editing[u.id] || {};
+      // update displayName if present
+      if (typeof updates.displayName !== 'undefined') {
+        await fetch('/api/auth/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u.username, displayName: updates.displayName }),
+        });
+      }
+      // update admin flag if present
+      if (typeof updates.isAdmin !== 'undefined') {
+        await fetch('/api/admin/toggle-admin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u.username, isAdmin: !!updates.isAdmin }),
+        });
+      }
+      toast.success('Usuário salvo');
+      await fetchUsers();
+    } catch (err) {
+      console.error('Failed to save user', err);
+      toast.error('Falha ao salvar usuário');
+    }
+  };
+
   const handleDeleteUser = async (uname: string, id?: number) => {
     try {
       const p = getProcessador();
@@ -232,9 +260,9 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
       <div className="mb-6 p-4 border-2 border-yellow-400 rounded-lg bg-yellow-50">
         <div className="flex items-center justify-between">
           <div>
-            <Label className="font-medium text-gray-900 text-base">
+            {/* <Label className="font-medium text-gray-900 text-base">
               🧪 Funcionalidades Experimentais
-            </Label>
+            </Label> */}
             <p className="text-sm text-gray-600 mt-1">
               Habilita recursos em teste (ignorar produtos, botões de reset)
             </p>
@@ -425,10 +453,17 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
                   <li key={u.username} className="flex items-center justify-between py-1">
                     <div className="flex items-center gap-3">
                       <img src={u.photoPath ? resolvePhotoUrl(u.photoPath) : ''} alt="avatar" className="h-7 w-7 rounded-full border" />
-                      <div>{u.displayName || u.username} {u.isAdmin ? '(ADMIN)' : ''}</div>
+                      <div className="flex flex-col">
+                        <div className="font-medium">{u.username}</div>
+                        <input className="text-sm mt-0.5" value={editing[u.id]?.displayName ?? u.displayName ?? ''} onChange={(e) => setEditing(s => ({ ...s, [u.id]: { ...(s[u.id]||{}), displayName: e.target.value } }))} placeholder="Nome exibido" />
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" onClick={() => handleToggleAdmin(u.username, u.id, !u.isAdmin)}>{u.isAdmin ? 'Remover Admin' : 'Tornar Admin'}</Button>
+                    <div className="flex gap-2 items-center">
+                      <label className="flex items-center gap-2">
+                        <input type="checkbox" checked={editing[u.id]?.isAdmin ?? !!u.isAdmin} onChange={(e) => setEditing(s => ({ ...s, [u.id]: { ...(s[u.id]||{}), isAdmin: e.target.checked } }))} />
+                        <span className="text-sm">Admin</span>
+                      </label>
+                      <Button size="sm" onClick={() => saveUser(u)}>Salvar</Button>
                       <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(u.username, u.id)}>Excluir</Button>
                     </div>
                   </li>

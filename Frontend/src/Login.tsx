@@ -62,18 +62,18 @@ const Login: React.FC = () => {
                   <RadioGroup value={userType} onValueChange={(value) => setUserType(value as 'racao' | 'amendoim')}>
                       <label className='flex items-center gap-2 cursor-pointer'>
                       <RadioGroupItem value="racao"/> 
-                      Ração</label>
+                      Fábrica de Ração</label>
                       <label className='flex items-center gap-2 cursor-pointer'>
                       <RadioGroupItem value="amendoim"/>  
-                      Amendoim</label>
+                      Benefício Amendoim</label>
                   </RadioGroup>
               </div>
             </>
           )}
           {error && <div className="text-red-600">{error}</div>}
           <div className="flex items-center justify-between">
-            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded">{isRegister ? 'Registrar' : 'Entrar'}</button>
-            <button type="button" onClick={() => setIsRegister(!isRegister)} className="text-sm text-blue-600">{isRegister ? 'Já tenho conta' : 'Criar conta'}</button>
+            <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded cursor-pointer">{isRegister ? 'Registrar' : 'Entrar'}</button>
+            <button type="button" onClick={() => setIsRegister(!isRegister)} className="text-sm text-blue-600 cursor-pointer">{isRegister ? 'Já tenho conta' : 'Criar conta'}</button>
           </div>
         </form>
       </div>

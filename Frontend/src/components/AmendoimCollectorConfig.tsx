@@ -4,6 +4,7 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { Loader2, PlayCircle, StopCircle, RefreshCw, TestTube2, Trash2, Database } from "lucide-react";
+import toastManager from "../lib/toastManager";
 
 interface CollectorConfig {
   host: string;
@@ -63,6 +64,7 @@ export function AmendoimCollectorConfig() {
       }
     } catch (err) {
       console.error("Erro ao carregar configuração:", err);
+      toastManager.updateError('amendoim-collector-config', `Erro ao carregar configuração do coletor: ${(err as any)?.message || String(err)}. Verifique rede e backend.`);
     }
   };
 
@@ -75,6 +77,7 @@ export function AmendoimCollectorConfig() {
       }
     } catch (err) {
       console.error("Erro ao carregar status:", err);
+      toastManager.updateError('amendoim-collector-status', `Erro ao carregar status do coletor: ${(err as any)?.message || String(err)}. Verifique IHM, credenciais e firewall.`);
     }
   };
 
@@ -116,11 +119,14 @@ export function AmendoimCollectorConfig() {
 
       if (result.success) {
         setMessage({ type: "success", text: result.message });
+        toastManager.updateSuccess('amendoim-test-conn', result.message, 4000);
       } else {
         setMessage({ type: "error", text: result.message });
+        toastManager.updateError('amendoim-test-conn', `${result.message}. Verifique host/porta/usuário/senha e regras de firewall.`);
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Erro ao testar conexão" });
+      toastManager.updateError('amendoim-test-conn', `Erro ao testar conexão: ${err?.message || String(err)}. Verifique rede e IHM.`);
     } finally {
       setTesting(false);
     }
@@ -139,13 +145,16 @@ export function AmendoimCollectorConfig() {
 
       if (response.ok) {
         setMessage({ type: "success", text: "Coletor iniciado com sucesso!" });
+        toastManager.updateSuccess('amendoim-collector-start', 'Coletor iniciado com sucesso', 3000);
         await loadStatus();
       } else {
         const error = await response.json();
         setMessage({ type: "error", text: error.error || "Erro ao iniciar coletor" });
+        toastManager.updateError('amendoim-collector-start', error.error || "Erro ao iniciar coletor. Verifique logs e configuração da IHM.");
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Erro ao iniciar coletor" });
+      toastManager.updateError('amendoim-collector-start', `Erro ao iniciar coletor: ${err?.message || String(err)}. Verifique backend e conectividade.`);
     } finally {
       setLoading(false);
     }
@@ -162,13 +171,16 @@ export function AmendoimCollectorConfig() {
 
       if (response.ok) {
         setMessage({ type: "success", text: "Coletor parado com sucesso!" });
+        toastManager.updateSuccess('amendoim-collector-stop', 'Coletor parado com sucesso', 3000);
         await loadStatus();
       } else {
         const error = await response.json();
         setMessage({ type: "error", text: error.error || "Erro ao parar coletor" });
+        toastManager.updateError('amendoim-collector-stop', error.error || "Erro ao parar coletor. Verifique backend.");
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Erro ao parar coletor" });
+      toastManager.updateError('amendoim-collector-stop', `Erro ao parar coletor: ${err?.message || String(err)}.`);
     } finally {
       setLoading(false);
     }
@@ -190,14 +202,17 @@ export function AmendoimCollectorConfig() {
           type: "success",
           text: `Coleta concluída! ${result.filesProcessed} arquivo(s), ${result.recordsSaved} registro(s) salvos.`,
         });
+        toastManager.updateSuccess('amendoim-collector-collect', `Coleta concluída: ${result.filesProcessed} arquivo(s), ${result.recordsSaved} registro(s) salvos.`, 4000);
       } else {
         setMessage({
           type: "error",
           text: `Coleta com erros: ${result.errors.join(", ")}`,
         });
+        toastManager.updateError('amendoim-collector-collect', `Coleta com erros: ${result.errors.join(", ")}. Verifique logs e configuração da IHM.`);
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Erro ao executar coleta" });
+      toastManager.updateError('amendoim-collector-collect', `Erro ao executar coleta: ${err?.message || String(err)}.`);
     } finally {
       setCollecting(false);
     }
@@ -230,13 +245,16 @@ export function AmendoimCollectorConfig() {
 
       if (response.ok) {
         setMessage({ type: "success", text: "Cache limpo com sucesso!" });
+        toastManager.updateSuccess('amendoim-collector-clearcache', 'Cache limpo com sucesso', 3000);
         await loadCacheStats();
       } else {
         const error = await response.json();
         setMessage({ type: "error", text: error.error || "Erro ao limpar cache" });
+        toastManager.updateError('amendoim-collector-clearcache', error.error || 'Erro ao limpar cache');
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Erro ao limpar cache" });
+      toastManager.updateError('amendoim-collector-clearcache', `Erro ao limpar cache: ${err?.message || String(err)}`);
     } finally {
       setLoading(false);
     }

@@ -1286,10 +1286,10 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                 </div>
 
                 {/* Grid Entrada/Saída */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2">
                   <div className="shadow-md rounded-lg p-2">
-                    <div className="text-xs font-medium">Entrada</div>
-                    <div className="text-sm font-bold">
+                    <div className="text-base font-medium">Entrada</div>
+                    <div className="text-lg font-bold">
                       {metricasRendimento.pesoEntrada.toLocaleString('pt-BR', {
                         minimumFractionDigits: 3,
                         maximumFractionDigits: 3,
@@ -1297,8 +1297,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                     </div>
                   </div>
                   <div className="shadow-md rounded-lg p-2">
-                    <div className="text-xs font-medium">Saída</div>
-                    <div className="text-sm font-bold">
+                    <div className="text-base font-medium">Saída</div>
+                    <div className="text-lg font-bold">
                       {metricasRendimento.pesoSaida.toLocaleString('pt-BR', {
                         minimumFractionDigits: 3,
                         maximumFractionDigits: 3,
@@ -1309,8 +1309,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
                 {/* Perda */}
                 <div className="shadow-md rounded-lg p-2">
-                  <div className="text-xs text-red-600 font-medium">Perda de material</div>
-                  <div className="text-lg font-bold text-red-800">
+                  <div className="text-lg text-red-600 font-medium">Perda de material</div>
+                  <div className="text-2xl font-bold text-red-800">
                     {metricasRendimento.perda.toLocaleString('pt-BR', {
                       minimumFractionDigits: 3,
                       maximumFractionDigits: 3,

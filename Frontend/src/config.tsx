@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
+import { Avatar, AvatarFallback } from "./components/ui/avatar";
 import { FileUp, Loader2, Plus, Upload } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
@@ -21,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from "./components/ui/popover";
 import { cn } from "./lib/utils";
 import toastManager from "./lib/toastManager";
@@ -349,7 +351,7 @@ export function ProfileConfig({
 }) {
   // ✅ TODOS OS HOOKS PRIMEIRO, SEM CONDICIONAIS
   const { formData, isLoading, onChange, onSave } = usePersistentForm(configKey);
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(
     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
@@ -399,8 +401,10 @@ export function ProfileConfig({
           if (defaultRes.ok) {
             toast.success("Foto atualizada para todos os usuários");
             const dd = await defaultRes.json().catch(() => ({}));
-            // trigger event with the new default path so other components can update
-            window.dispatchEvent(new CustomEvent('user-photos-updated', { detail: { path: dd.path || (data as any).photoPath } }));
+            // persist default photo path and trigger event so other components can update
+            const newPath = dd.path || (data as any).photoPath;
+            try { localStorage.setItem('default-user-photo', String(newPath)); } catch (e) {}
+            window.dispatchEvent(new CustomEvent('user-photos-updated', { detail: { path: newPath } }));
           }
         }
       } catch (err) {
@@ -497,7 +501,7 @@ export function ProfileConfig({
   // ✅ AGORA SIM O RETURN FINAL
   return (
     <div id="geral" className="flex flex-col gap-4 bg-white">
-  <Profile externalPreview={preview} file={file} onUpload={uploadPhoto} />
+  <Profile externalPreview={preview} file={file} onUpload={uploadPhoto} showLogoutButton={false} />
       
       {user?.isAdmin && (
         <div className="mt-4 border border-gray-300 flex flex-col gap-4 rounded p-3 bg-white">
@@ -540,6 +544,10 @@ export function ProfileConfig({
       )}
 
       <div className="flex gap-2 justify-end mt-6">
+        <Button variant="outline" onClick={() => { try { logout(); window.dispatchEvent(new Event('profile-logged-out')); } catch(e){} }}>
+          Sair
+        </Button>
+
         <Button
           id="save"
           onClick={async () => {
@@ -912,6 +920,64 @@ interface Estatisticas {
 
   const { user } = useAuth();
 
+  // --- User management (migrated from ProfileAdminModal) ---
+  type UserItem = {
+    id: number;
+    username: string;
+    displayName?: string | null;
+    photoPath?: string | null;
+    isAdmin?: boolean;
+    userType?: string | null;
+  };
+
+  const [adminUsers, setAdminUsers] = useState<UserItem[]>([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [adminEditing, setAdminEditing] = useState<Record<number, Partial<UserItem>>>({});
+  const [adminModalOpen, setAdminModalOpen] = useState(false);
+
+  const fetchAdminUsers = async () => {
+    setAdminUsersLoading(true);
+    try {
+      const res = await fetch('/api/admin/users');
+      if (!res.ok) throw new Error(String(res.status));
+      const j = await res.json();
+      setAdminUsers(Array.isArray(j.users) ? j.users : []);
+    } catch (e) {
+      console.error(e);
+      toast.error('Erro ao carregar usuários');
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  };
+
+  const saveAdminUser = async (u: UserItem) => {
+    try {
+      if (adminEditing[u.id] && typeof adminEditing[u.id].displayName !== 'undefined') {
+        await fetch('/api/auth/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username, displayName: adminEditing[u.id].displayName }) });
+      }
+      if (adminEditing[u.id] && typeof adminEditing[u.id].isAdmin !== 'undefined') {
+        await fetch('/api/admin/toggle-admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username, isAdmin: !!adminEditing[u.id].isAdmin }) });
+      }
+      toast.success('Usuário salvo');
+      fetchAdminUsers();
+    } catch (e) {
+      console.error(e);
+      toast.error('Falha ao salvar usuário');
+    }
+  };
+
+  const deleteAdminUser = async (u: UserItem) => {
+    if (!confirm(`Remover usuário ${u.username}?`)) return;
+    try {
+      await fetch('/api/admin/delete-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username }) });
+      toast.success('Usuário removido');
+      fetchAdminUsers();
+    } catch (e) {
+      console.error(e);
+      toast.error('Falha ao remover usuário');
+    }
+  };
+
   const [page,] = useState(1);
   const [, setTotal] = useState(0);
   const pageSize = 50;
@@ -1110,7 +1176,7 @@ interface Estatisticas {
       </h2>
 
       {/* Funcionalidades Experimentais - TOPO */}
-      <div className="mb-6 p-4 border-2 border-yellow-400 rounded-lg bg-yellow-50">
+      {/* <div className="mb-6 p-4 border-2 border-yellow-400 rounded-lg bg-yellow-50">
         <div className="flex items-center justify-between">
           <div>
             <Label className="font-medium text-gray-900 text-base">🧪 Funcionalidades Experimentais</Label>
@@ -1120,7 +1186,7 @@ interface Estatisticas {
             <Switch checked={!!(localStorage.getItem('experimental-features') === 'true')} onCheckedChange={(v) => { try { localStorage.setItem('experimental-features', String(!!v)); window.dispatchEvent(new CustomEvent('experimental-features-changed', { detail: { enabled: !!v } })); toast.info(!!v ? '🧪 Funcionalidades experimentais ATIVADAS' : '🔒 Funcionalidades experimentais DESATIVADAS'); } catch (e) {} }} />
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Habilitar edição estendida de produtos (até 65) */}
       <div className="mb-6 p-4 border-2 border-sky-400 rounded-lg bg-sky-50">
@@ -1675,6 +1741,71 @@ interface Estatisticas {
         </div>
         )}
       </div>
+
+      {/* Button to open modal with user management */}
+      <div className="mt-6 p-4 border rounded bg-white flex items-center justify-between">
+        <div>
+          <Label className="font-medium text-gray-900 text-base">Perfis registrados</Label>
+          <p className="text-sm text-gray-600">Gerencie usuários, fotos e privilégios</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button onClick={() => { setAdminModalOpen(true); fetchAdminUsers(); }} className="bg-gray-100">Gerenciar usuários</Button>
+        </div>
+      </div>
+
+      {/* Admin users modal */}
+      <Dialog open={adminModalOpen} onOpenChange={(v) => { setAdminModalOpen(!!v); }}>
+        <DialogContent className="max-w-[1100px]">
+          <DialogHeader>
+            <div className="flex items-center justify-between mb-2 w-full">
+              <DialogTitle>Perfis registrados</DialogTitle>
+            </div>
+            <DialogDescription>Gerencie usuários, fotos e privilégios</DialogDescription>
+          </DialogHeader>
+
+          {adminUsersLoading ? (
+            <div>Carregando...</div>
+          ) : (
+            <div className="flex flex-col gap-3 mt-3">
+              {adminUsers.map((u) => (
+                <div key={u.id} className="flex flex-col md:flex-row items-start md:items-center gap-3 border rounded p-3">
+                  <div>
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback>{(u.displayName || u.username || 'U').charAt(0)}</AvatarFallback>
+                    </Avatar>
+                  </div>
+                  <div className="flex-1 w-full min-w-0">
+                    <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+                      <div className="w-36 flex-shrink-0">
+                        <Label>Usuário</Label>
+                        <div className="text-sm truncate" title={u.username}>{u.username}</div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <Label>Nome exibido</Label>
+                        <Input className="w-full min-w-0" value={adminEditing[u.id]?.displayName ?? u.displayName ?? ''} onChange={(e) => setAdminEditing(s => ({ ...s, [u.id]: { ...(s[u.id]||{}), displayName: e.target.value } }))} />
+                      </div>
+                      <div className="w-28 flex-shrink-0">
+                        <Label>Admin</Label>
+                        <div>
+                          <input type="checkbox" checked={adminEditing[u.id]?.isAdmin ?? !!u.isAdmin} onChange={(e) => setAdminEditing(s => ({ ...s, [u.id]: { ...(s[u.id]||{}), isAdmin: e.target.checked } }))} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Button onClick={() => saveAdminUser(u)}>Salvar</Button>
+                      <Button variant="destructive" onClick={() => deleteAdminUser(u)}>Remover</Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex justify-end mt-4">
+            <Button onClick={() => { fetchAdminUsers(); }} className="w-24">Atualizar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex gap-2 justify-end mt-6">
         {isEditing ? (

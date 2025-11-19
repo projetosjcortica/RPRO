@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Loader2, PlayCircle, StopCircle, RefreshCw, Trash2, Database } from "lucide-react";
+import toastManager from "../lib/toastManager";
 
 interface CollectorStatus {
   running: boolean;
@@ -35,6 +36,8 @@ export function AmendoimCollectorControl() {
       }
     } catch (err) {
       console.error("Erro ao carregar status:", err);
+      const msg = (err as any)?.message || String(err) || 'Erro ao comunicar com o coletor';
+      toastManager.updateError('amendoim-collector-status', `Erro ao carregar status do coletor: ${msg}. Verifique IHM, credenciais e regras de firewall.`);
     }
   };
 
@@ -102,14 +105,17 @@ export function AmendoimCollectorControl() {
           type: "success",
           text: `Coleta concluída! ${result.filesProcessed} arquivo(s), ${result.recordsSaved} registro(s) salvos.`,
         });
+        toastManager.updateSuccess('amendoim-collect-once', `Coleta concluída: ${result.filesProcessed} arquivo(s), ${result.recordsSaved} registro(s) salvos.`, 4000);
       } else {
         setMessage({
           type: "error",
           text: `Coleta com erros: ${result.errors.join(", ")}`,
         });
+        toastManager.updateError('amendoim-collect-once', `Coleta com erros: ${result.errors.join(", ")}. Verifique logs do coletor e conexão com a IHM.`);
       }
     } catch (err: any) {
       setMessage({ type: "error", text: err.message || "Erro ao executar coleta" });
+      toastManager.updateError('amendoim-collect-once', `Erro ao executar coleta: ${err?.message || String(err)}. Verifique backend e conectividade com a IHM.`);
     } finally {
       setCollecting(false);
     }

@@ -34,6 +34,57 @@ export function useReportData(
     setReloadFlag((flag) => flag + 1);
   }, []);
 
+  // Silent refetch: fetch data in background without toggling `loading` flag
+  const refetchSilent = useCallback(async () => {
+    if (!allowFetch) return;
+
+    // Build params similarly to effect
+    const params = new URLSearchParams();
+    params.set("page", String(page || 1));
+    params.set("pageSize", String(pageSize || 100));
+    if (sortBy) params.set('sortBy', String(sortBy));
+    if (sortDir) params.set('sortDir', String(sortDir));
+    if ((filtros as any).nomeFormula) params.set("formula", String((filtros as any).nomeFormula));
+    if ((filtros as any).dataInicio) params.set("dataInicio", String((filtros as any).dataInicio));
+    if ((filtros as any).dataFim) params.set("dataFim", String((filtros as any).dataFim));
+    if ((filtros as any).codigo) params.set("codigo", String((filtros as any).codigo));
+    if ((filtros as any).numero) params.set("numero", String((filtros as any).numero));
+    if (advancedFilters) {
+      try { params.set('advancedFilters', encodeURIComponent(JSON.stringify(advancedFilters))); } catch(e) {}
+    }
+
+    try {
+      const url = `http://localhost:3000/api/relatorio/paginate?${params.toString()}`;
+      const controller = new AbortController();
+      const signal = controller.signal;
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(url, { method: 'GET', signal, headers: { 'Cache-Control': 'no-cache', 'Connection': 'keep-alive', 'Accept': 'application/json' }, keepalive: true });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(`Erro ao buscar dados: ${res.status} ${res.statusText}`);
+      const body = await res.json();
+      const newRows = Array.isArray(body.rows) ? body.rows as any[] : [];
+      const newTotal = Number(body.total) || 0;
+
+      // Only update state if data changed to avoid re-renders
+      try {
+        const oldJson = JSON.stringify(dados);
+        const newJson = JSON.stringify(newRows);
+        if (oldJson !== newJson || newTotal !== total) {
+          setDados(newRows);
+          setTotal(newTotal);
+        }
+      } catch (e) {
+        // Fallback: always set if serialization fails
+        setDados(newRows);
+        setTotal(newTotal);
+      }
+    } catch (err) {
+      // silent: don't set error/loading, but log
+      // eslint-disable-next-line no-console
+      console.error('[useReportData] silent refetch error:', err);
+    }
+  }, [allowFetch, page, pageSize, sortBy, sortDir, filtros, advancedFilters, dados, total]);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     // Não buscar se não permitido
@@ -171,5 +222,5 @@ export function useReportData(
     };
   }, [fetchParams, reloadFlag, allowFetch, dados, total]);
 
-  return { dados, loading, error, total, refetch };
+  return { dados, loading, error, total, refetch, refetchSilent };
 }
