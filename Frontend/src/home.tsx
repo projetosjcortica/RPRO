@@ -548,7 +548,7 @@ export default function Home() {
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
             <div className="grid 2xl:grid-cols-3 2xl:grid-rows-2 grid-cols-2 grid-rows-3 gap-4 2xl:gap-y-4 mb-4 2xl:mb-0">
               <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
+                <CardHeader className="border-b border-gray-100 pb-2 px-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Entrada (período selecionado)</CardTitle>
                     <div className="flex items-center space-x-2">
@@ -589,7 +589,7 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                <CardContent className=" h-[calc(100%-60px)]">
                   {dadosEntradaPorDia.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dadosEntradaPorDia} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
@@ -618,7 +618,7 @@ export default function Home() {
               </Card>
 
               <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
+                <CardHeader className="border-b border-gray-100 px-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Saída (período selecionado)</CardTitle>
                     <div className="flex items-center space-x-2">
@@ -659,7 +659,7 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                <CardContent className="h-[calc(100%-60px)]">
                   {dadosSaidaPorDia.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={dadosSaidaPorDia} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
@@ -688,14 +688,14 @@ export default function Home() {
               </Card>
 
               <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3 h-18">
+                <CardHeader className="border-b border-gray-100 px-3 h-14">
                   <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
                 </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                <CardContent className=" h-[calc(100%-60px)]">
                   {(entradaSum !== null && saidaSum !== null) && (entradaSum > 0 || saidaSum > 0) ? (
                     <div className="space-y-4">
                       {/* Porcentagem de Aproveitamento */}
-                      <div className="bg-white rounded-lg p-4 shadow-md flex flex-col items-center justify-center">
+                      <div className="bg-white rounded-lg pb-4 shadow-md flex flex-col items-center justify-center">
                         <div className="text-sm text-gray-500 font-medium">Aproveitamento</div>
                         <div className="text-3xl font-bold">
                           {entradaSum > 0 
@@ -708,13 +708,13 @@ export default function Home() {
                       <div className="grid grid-cols-2 gap-2">
                         <div className="shadow-md rounded-lg p-4">
                           <div className="text-sm text-gray-500 font-medium">Entrada</div>
-                          <div className="text-lg font-bold">
+                          <div className="text-base font-bold">
                             {entradaSum.toLocaleString('pt-BR', {  minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           </div>
                         </div>
                         <div className="shadow-md rounded-lg p-4">
                           <div className="text-sm text-gray-500 font-medium">Saída</div>
-                          <div className="text-lg font-bold">
+                          <div className="text-base font-bold">
                             {saidaSum.toLocaleString('pt-BR', {  minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           </div>
                         </div>
@@ -722,8 +722,8 @@ export default function Home() {
 
                       {/* Perda */}
                       <div className="shadow-md rounded-lg p-5">
-                        <div className="text-xs text-red-600 font-medium">Perda de Material</div>
-                        <div className="text-3xl font-bold text-red-800">
+                        <div className="text-sm text-red-600 font-medium">Perda de Material</div>
+                        <div className="text-lg font-bold text-red-800">
                           {(entradaSum - saidaSum).toLocaleString('pt-BR', { minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           <span className="text-sm ml-2">
                             ({entradaSum > 0 
@@ -746,8 +746,8 @@ export default function Home() {
 
               {/* Card de Cálculo de Conflito/Rendimento */}
               
-              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[450px]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[470px]">
+                <CardHeader className="border-b border-gray-100 pb-2 px-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Horário de Produção</CardTitle>
                     <div className="flex items-center space-x-2">
@@ -788,7 +788,7 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                <CardContent className=" h-[calc(100%-60px)]">
                   <div className="w-full h-full">
                     <ChartEntradaSaidaPorHorario dados={dadosHorarios} bare />
                   </div>
@@ -797,7 +797,7 @@ export default function Home() {
 
               {/* Produção Semanal */}
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
-                <CardHeader className="border-b border-gray-100 pb-3">
+                <CardHeader className="border-b border-gray-100 pb-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Produção Semanal</CardTitle>
                     <div className="flex items-center gap-1">
@@ -868,7 +868,7 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                <CardContent className=" h-[calc(100%-60px)]">
                   <div className="w-full h-full">
                     <ChartFluxoSemanal dados={dadosSemanal} bare />
                   </div>
@@ -876,7 +876,7 @@ export default function Home() {
               </Card>
 
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
-                <CardHeader className="border-b border-gray-100 pb-2 px-3">
+                <CardHeader className="border-b border-gray-100 pb-2 px-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto</CardTitle>
                     <div className="flex items-center gap-1">
@@ -917,7 +917,7 @@ export default function Home() {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="pt-4 h-[calc(100%-60px)]">
+                <CardContent className="h-[calc(100%-60px)]">
                   <DonutChartWidget
                     fetchUrl={(() => {
                       // Build params but ensure single-day ranges include that day by expanding dataFim by +1 day
