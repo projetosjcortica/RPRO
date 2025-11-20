@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Button, buttonVariants } from "./components/ui/button";
-import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Loader2, Play, Square, Scale, ArrowBigDown, ArrowBigUp, ChevronLeft, ChevronRight } from "lucide-react";
+import AmendoimTable from './AmendoimTable';
 import FiltrosAmendoimBar from "./components/FiltrosAmendoim";
 import AmendoimConfig from "./components/AmendoimConfig";
 import { AmendoimExport } from "./components/AmendoimExport";
@@ -202,12 +203,11 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     }
     return DEFAULT_WIDTHS;
   });
+
+  // Key that increments when parent requests a reset of columns — passed to child
+  const [columnsResetKey, setColumnsResetKey] = useState<number>(0);
   
-  const [resizing, setResizing] = useState<{
-    columnKey: string;
-    startX: number;
-    startWidth: number;
-  } | null>(null);
+  
   
   // Seção de análises expandida
   const [analisesExpanded, setAnalisesExpanded] = useState(false);
@@ -302,27 +302,6 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
   console.log(setAnalisesExpanded.name, setUploadTipo.name, uploading);
 
-  // Handlers para redimensionamento de colunas
-  const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
-    e.preventDefault();
-    setResizing({
-      columnKey,
-      startX: e.clientX,
-      startWidth: columnWidths[columnKey] || DEFAULT_WIDTHS.dia,
-    });
-  }, [columnWidths]);
-
-  const handleResizeMove = useCallback((e: MouseEvent) => {
-    if (!resizing) return;
-    const diff = e.clientX - resizing.startX;
-    const newWidth = Math.max(50, resizing.startWidth + diff);
-    setColumnWidths((prev) => ({ ...prev, [resizing.columnKey]: newWidth }));
-  }, [resizing]);
-
-  const handleResizeEnd = useCallback(() => {
-    setResizing(null);
-  }, []);
-
   // Salvar larguras no localStorage
   useEffect(() => {
     try {
@@ -332,40 +311,18 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     }
   }, [columnWidths]);
 
-  // Event listeners para redimensionamento
-  useEffect(() => {
-    if (resizing) {
-      window.addEventListener("mousemove", handleResizeMove);
-      window.addEventListener("mouseup", handleResizeEnd);
-      return () => {
-        window.removeEventListener("mousemove", handleResizeMove);
-        window.removeEventListener("mouseup", handleResizeEnd);
-      };
-    }
-  }, [resizing, handleResizeMove, handleResizeEnd]);
-
   // Handler para ordenação
   const handleSort = useCallback((column: typeof sortColumn) => {
     console.log('[Amendoim] handleSort - Coluna:', column, '| Atual:', sortColumn, sortDirection);
-    
     if (sortColumn === column) {
-      // Toggle direction ou reset
-      if (sortDirection === 'asc') {
-        console.log('[Amendoim] Toggle ASC → DESC');
-        setSortDirection('desc');
-      } else {
-        // Reset para padrão (dia desc)
-        console.log('[Amendoim] Reset para Dia DESC');
-        setSortColumn('dia');
-        setSortDirection('desc');
-      }
+      // Toggle between asc/desc when clicking the same column
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
-      // Nova coluna: começar com DESC (mais recente/maior primeiro)
-      console.log('[Amendoim] Nova coluna:', column, '→ DESC');
+      // New column: default to DESC
       setSortColumn(column);
       setSortDirection('desc');
     }
-  }, [sortColumn, sortDirection]);
+  }, [sortColumn]);
 
   // Função para formatar datas
   const formatDate = (raw: string): string => {
@@ -549,37 +506,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
   // resumoTable removed; summary rendering is handled in the PDF component only
 
-  // Helper: render detailed rows com larguras dinâmicas
-  function detailedRows(items: AmendoimRecord[]) {
-    return (
-      <div>
-        {items.map((r) => {
-          // Manter padrão zebrado independente do modo
-          const bgColor = r.id % 2 === 0 ? 'bg-white' : 'bg-gray-50';
-          
-          return (
-            <div key={r.id} className={`flex items-center border-y ${bgColor}`}>
-              <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.dia}px`, minWidth: `${columnWidths.dia}px` }}>{formatDate(r.dia)}</div>
-              <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.hora}px`, minWidth: `${columnWidths.hora}px` }}>{r.hora}</div>
-              <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.codigoProduto}px`, minWidth: `${columnWidths.codigoProduto}px` }}>{r.codigoProduto}</div>
-              <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.balanca}px`, minWidth: `${columnWidths.balanca}px` }}>{r.balanca ?? '-'}</div>
-              <div className="border-x py-2 pl-2 flex justify-start" style={{ width: `${columnWidths.nomeProduto}px`, minWidth: `${columnWidths.nomeProduto}px`, overflow: 'hidden' }}>{r.nomeProduto}</div>
-              <div className="border-x pr-2 py-2 flex justify-end" style={{ width: `${columnWidths.peso}px`, minWidth: `${columnWidths.peso}px` }}>{Number(r.peso || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
-              <div className="border-x py-2 flex justify-center" style={{ width: `${columnWidths.tipo}px`, minWidth: `${columnWidths.tipo}px` }}>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  r.tipo === 'entrada' 
-                    ? 'bg-green-600 text-white' 
-                    : 'bg-blue-600 text-white'
-                }`}>
-                  {r.tipo}
-                </span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
+  // detailedRows removed — using AmendoimTable component instead
 
   // Handler para aplicar filtros
   const handleAplicarFiltros = (filtros: FiltrosAmendoim) => {
@@ -628,6 +555,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     try {
       setColumnWidths(DEFAULT_WIDTHS);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_WIDTHS));
+      // notify child to reset its local widths as well
+      setColumnsResetKey((k) => k + 1);
       // Forçar re-render leve para atualizar UI se necessário
       // (não mexemos nos filtros para evitar piscar a tabela)
     } catch (e) {
@@ -731,7 +660,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
   // Gerar array de páginas para renderização (mesmo padrão do report.tsx)
   const pages = (() => {
-    const maxVisible = 5;
+    const maxVisible = 10;
     const result: number[] = [];
     
     if (totalPages <= maxVisible) {
@@ -826,7 +755,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
           {/* Table */}
           <div className="flex w-full h-[74vh] 3xl:h-[74.90vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
-        {loading ? (
+        {loading && registros.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[54vh] w-full text-center">
             <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
             <p className="text-lg font-medium text-gray-700">Carregando dados...</p>
@@ -846,186 +775,23 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           <div className="w-full h-full flex flex-col relative">
             <div className=" overflow-auto 2xl:overflow-x-hidden flex-1 thin-red-scrollbar">
               <div className="min-w-max w-full">
-                {/* Cabeçalho com ordenação e redimensionamento */}
-                <div className="sticky top-0 z-10 bg-gray-200 border-b border-gray-300">
-                  <div className="flex">
-                    {/* Dia */}
-                    <div 
-                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
-                      style={{ width: `${columnWidths.dia}px`, minWidth: `${columnWidths.dia}px` }}
-                      onClick={() => handleSort('dia')}
-                    >
-                      <span className="flex items-center gap-1 pointer-events-none">
-                        Dia
-                        {sortColumn === 'dia' ? (
-                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </span>
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleResizeStart(e, 'dia');
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-
-                    {/* Hora */}
-                    <div 
-                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
-                      style={{ width: `${columnWidths.hora}px`, minWidth: `${columnWidths.hora}px` }}
-                      onClick={() => handleSort('hora')}
-                    >
-                      <span className="flex items-center gap-1 pointer-events-none">
-                        Hora
-                        {sortColumn === 'hora' ? (
-                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </span>
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleResizeStart(e, 'hora');
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-
-                    {/* Cód. Produto */}
-                    <div 
-                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
-                      style={{ width: `${columnWidths.codigoProduto}px`, minWidth: `${columnWidths.codigoProduto}px` }}
-                      onClick={() => handleSort('codigoProduto')}
-                    >
-                      <span className="flex items-center gap-1 pointer-events-none">
-                        Cód. Produto
-                        {sortColumn === 'codigoProduto' ? (
-                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </span>
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleResizeStart(e, 'codigoProduto');
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-
-                    {/* Balança */}
-                    <div 
-                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
-                      style={{ width: `${columnWidths.balanca}px`, minWidth: `${columnWidths.balanca}px` }}
-                      onClick={() => handleSort('balanca')}
-                    >
-                      <span className="flex items-center gap-1 pointer-events-none">
-                        Balança
-                        {sortColumn === 'balanca' ? (
-                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </span>
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleResizeStart(e, 'balanca');
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-
-                    {/* Nome do Produto */}
-                    <div 
-                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
-                      style={{ width: `${columnWidths.nomeProduto}px`, minWidth: `${columnWidths.nomeProduto}px` }}
-                      onClick={() => handleSort('nomeProduto')}
-                    >
-                      <span className="flex items-center gap-1 pointer-events-none">
-                        Nome do Produto
-                        {sortColumn === 'nomeProduto' ? (
-                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </span>
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleResizeStart(e, 'nomeProduto');
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-
-                    {/* Peso (kg) */}
-                    <div 
-                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
-                      style={{ width: `${columnWidths.peso}px`, minWidth: `${columnWidths.peso}px` }}
-                      onClick={() => handleSort('peso')}
-                    >
-                      <span className="flex items-center gap-1 pointer-events-none">
-                        Peso (kg)
-                        {sortColumn === 'peso' ? (
-                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </span>
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleResizeStart(e, 'peso');
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-
-                    {/* Tipo */}
-                    <div 
-                      className="relative flex items-center justify-center py-2 px-3 border-r border-gray-300 font-semibold text-sm bg-gray-200 cursor-pointer hover:bg-gray-300 transition-colors select-none" 
-                      style={{ width: `${columnWidths.tipo}px`, minWidth: `${columnWidths.tipo}px` }}
-                      onClick={() => handleSort('tipo')}
-                    >
-                      <span className="flex items-center gap-1 pointer-events-none">
-                        Tipo
-                        {sortColumn === 'tipo' ? (
-                          sortDirection === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                        ) : (
-                          <ArrowUpDown className="h-3 w-3 opacity-40" />
-                        )}
-                      </span>
-                      <div
-                        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-red-500 transition-colors z-10"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          handleResizeStart(e, 'tipo');
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                  </div>
-                </div>
+                {/* Cabeçalho movido para AmendoimTable (mantido lá para evitar duplicação) */}
 
                 {/* Corpo da   — visão detalhada (ordenação aplicada no backend) */}
                 <div>
-                  {registros && registros.length > 0 ? (
-                    detailedRows(registros)
-                  ) : (
-                    <div className="p-6 text-center text-sm text-gray-500">Sem registros para exibir</div>
-                  )}
+                  {/* Use AmendoimTable for consistent rendering and to avoid flicker */}
+                  <AmendoimTable
+                    registros={registros}
+                    loading={loading}
+                    error={error}
+                    page={page}
+                    pageSize={pageSize}
+                    onSort={(col) => handleSort(col as any)}
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onResetColumns={resetTableColumns}
+                    resetKey={columnsResetKey}
+                  />
                 </div>
               </div>
             </div>

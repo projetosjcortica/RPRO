@@ -243,9 +243,6 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
       <div className="mb-6 p-4 border-2 border-yellow-400 rounded-lg bg-yellow-50">
         <div className="flex items-center justify-between">
           <div>
-            {/* <Label className="font-medium text-gray-900 text-base">
-              🧪 Funcionalidades Experimentais
-            </Label> */}
             <p className="text-sm text-gray-600 mt-1">
               Habilita recursos em teste (ignorar produtos, botões de reset)
             </p>

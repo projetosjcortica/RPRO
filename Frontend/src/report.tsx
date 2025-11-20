@@ -338,7 +338,7 @@ export default function Report() {
   const fetchCollectorStatus = useCallback(async () => {
     try {
       // show a short-lived loading toast while querying
-      toastManager.showLoading('collector-status', 'Verificando status do coletor...');
+      // toastManager.showLoading('collector-status', 'Verificando status do coletor...');
 
       const res = await fetch("http://localhost:3000/api/collector/status", {
         method: "GET",
@@ -371,7 +371,7 @@ export default function Report() {
 
         toastManager.updateError('collector-status', `Coletor: ${String(lastError)} — ${suggestion}`);
       } else {
-        toastManager.updateSuccess('collector-status', 'Coletor: online', 1500);
+        // toastManager.updateSuccess('collector-status', 'Coletor: online', 1500);
       }
     } catch (err: any) {
       console.error("Erro ao buscar status do coletor:", err);
@@ -893,7 +893,7 @@ export default function Report() {
 
   useEffect(() => {
     if (!collectorRunning && prevCollectorRunning.current) {
-      refetch();
+      try { if (typeof refetchSilent === 'function') { refetchSilent(); } else { refetch(); } } catch (e) {}
       refreshResumo();
     }
     prevCollectorRunning.current = collectorRunning;
@@ -1038,9 +1038,9 @@ export default function Report() {
       // Recarregar produtos info para pegar novo status ativo
       loadFromBackend();
       
-      // Recarregar dados para refletir mudanças
+      // Recarregar dados para refletir mudanças (silencioso para evitar flicker)
       setTimeout(() => {
-        refetch();
+        try { if (typeof refetchSilent === 'function') { refetchSilent(); } else { refetch(); } } catch (e) {}
         refreshResumo();
       }, 500);
     };

@@ -65,6 +65,22 @@ function getLastTimestamp(arr: any[]): string {
   return "";
 }
 
+const getStableRowKey = (row: any, idx: number): string => {
+  try {
+    const d = safeString(row.Dia || row.date || "");
+    const h = safeString(row.Hora || row.time || "");
+    const num = safeString(row.Numero || row.numero || "");
+    const codigo = safeString(row.Codigo || row.codigo || "");
+    const maybeId = row.id || row.Id || row._id || "";
+    const valuesHash = Array.isArray(row.values) ? String(row.values.length) + '|' + JSON.stringify(row.values?.slice(0,3) || []) : '';
+    const parts = [maybeId, d, h, num, codigo, valuesHash].filter(Boolean);
+    if (parts.length === 0) return `r_${idx}`;
+    return parts.join("|");
+  } catch (e) {
+    return `r_${idx}`;
+  }
+};
+
 const safeString = (value: any): string => {
   if (value == null) return "";
   if (typeof value === "string") return value;
@@ -239,9 +255,18 @@ export function TableComponent({
   useEffect(() => {
     if (!useExternalData) return;
     const newDados = Array.isArray(dadosProp) ? dadosProp : [];
-    // Atualização instantânea: sempre aplicar novos dados imediatamente
+    // Evitar setState desnecessário para prevenir re-renders/flicker
+    try {
+      const prevTs = getLastTimestamp(dadosAtual as any[]);
+      const newTs = getLastTimestamp(newDados as any[]);
+      if ((dadosAtual?.length || 0) === newDados.length && prevTs === newTs) {
+        return;
+      }
+    } catch (e) {
+      // swallow
+    }
     setDadosAtual(newDados);
-  }, [dadosProp, useExternalData]);
+  }, [dadosProp, useExternalData, dadosAtual]);
 
   // Table will re-render when filtros/dados change. Do not auto-refresh on produtos-updated here.
   // Product updates are applied by the parent (`report.tsx`) when navigating away or clicking outside.
@@ -323,7 +348,12 @@ export function TableComponent({
   const loading = useExternalData ? Boolean(loadingProp ?? loadingFromHook) : loadingFromHook;
   const error = useExternalData ? errorProp ?? null : errorFromHook;
 
-  if (loading)
+  // If we are loading or have an error but already have data, keep rendering
+  // the table to avoid flicker / full re-mounts. Only show the full-screen
+  // placeholders when there is no existing data to display.
+  const hasData = Array.isArray(dados) && dados.length > 0;
+
+  if (loading && !hasData)
     return (
       <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[50vh] w-full text-center">
         <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
@@ -332,7 +362,7 @@ export function TableComponent({
       </div>
     );
 
-  if (error)
+  if (error && !hasData)
     return (
       <div className="flex flex-col items-center justify-center p-8 space-y-3 h-[50vh] w-full text-center">
         <div className="text-gray-700 font-semibold text-lg">Erro ao carregar dados</div>
@@ -346,7 +376,7 @@ export function TableComponent({
       </div>
     );
 
-  if (!dados || dados.length === 0)
+  if (!hasData)
     return (
       <div className="flex flex-col items-center justify-center p-8 h-[50vh] w-full text-center">
         <div className="text-gray-700 font-semibold text-lg">Nenhum dado encontrado</div>
@@ -362,6 +392,18 @@ export function TableComponent({
 
   return (
     <div ref={tableRef} className="w-full h-full flex flex-col relative">
+      {/* Lightweight indicators: keep table rendered while updating */}
+      {loading && hasData && (
+        <div className="absolute top-2 right-2 z-20 flex items-center gap-2 bg-white/90 p-2 rounded shadow">
+          <Loader2 className="h-5 w-5 animate-spin text-red-600" />
+          <span className="text-xs text-gray-700">Atualizando...</span>
+        </div>
+      )}
+      {error && hasData && (
+        <div className="absolute left-2 top-2 right-2 z-20 bg-yellow-50 border border-yellow-200 text-yellow-800 p-2 rounded text-sm">
+          <strong>Erro ao atualizar:</strong>&nbsp;{error}
+        </div>
+      )}
       <div className="overflow-auto flex-1 thin-red-scrollbar h-[calc(100vh-200px)]">
         <div id="Table" className="min-w-max w-full">
           {/* Cabeçalho */}
@@ -420,7 +462,7 @@ export function TableComponent({
                 const isActiveSortCol = (filtros as any)?.sortBy === backendField;
                 return (
                   <div
-                    key={`${colKey}-${idx}`}
+                    key={colKey}
                     className="relative flex items-center justify-center py-1 px-2 md:py-2 md:px-3 text-center border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
                     style={{
                       width: `${width}px`,
@@ -461,7 +503,7 @@ export function TableComponent({
           <div>
             {dados.map((row, rowIdx) => (
               <div
-                key={rowIdx}
+                key={getStableRowKey(row, rowIdx)}
                 className={`flex border-b border-gray-300 hover:bg-gray-50 ${
                   rowIdx % 2 === 0 ? "bg-white" : "bg-gray-100"
                 }`}
@@ -479,7 +521,7 @@ export function TableComponent({
 
                   return (
                     <div
-                      key={`${rowIdx}-${colIdx}`}
+                      key={`${getStableRowKey(row, rowIdx)}-${colIdx}`}
                       className={`flex items-center p-1 md:p-2 max-h-20 cursor-pointer select-none text-xs md:text-sm border-r border-gray-300 overflow-hidden ${textAlign}`}
                       style={{ width: `${width}px`, minWidth: `${width}px` }}
                       title={displayValue}
@@ -498,7 +540,7 @@ export function TableComponent({
 
                   return (
                     <div
-                      key={`${rowIdx}-${colKey}-${dynIdx}`}
+                      key={`${getStableRowKey(row, rowIdx)}-${colKey}-${dynIdx}`}
                       className="flex items-center justify-end p-1 md:p-2 cursor-pointer select-none text-right text-xs md:text-sm border-r border-gray-300 overflow-hidden"
                       style={{ width: `${width}px`, minWidth: `${width}px` }}
                       title={formattedValue}
