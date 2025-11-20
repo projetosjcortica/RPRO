@@ -682,10 +682,10 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   
 
   return (
-    <div className="flex flex-col gap-12.5 w-full h-full justify-start">
+    <div className="flex flex-col gap-5 w-full h-full justify-start">
       {/* Header */}
-      <div className="h-[10dvh] flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-1 h-[10dvh]">
+      <div className=" flex flex-row justify-between mt-4 w-full">
+        <div className="flex flex-row items-end gap-1">
           {/* Resetar colunas: posição alinhada com o relatório (ração) */}
           <div>
             <Button
@@ -746,10 +746,10 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
       <div className="flex flex-row gap-2 justify-start w-full">
           {/* Conteúdo principal */}
-          <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-206 w-[68px]">
+          <div className="flex-1 flex flex-col gap-1 items-start justify-start h-fit w-[68px]">
 
           {/* Table */}
-          <div className="flex w-full h-[74vh] 3xl:h-[74.90vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
+          <div className="flex w-full h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
         {loading && registros.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[54vh] w-full text-center">
             <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
@@ -864,7 +864,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
       {/* Side Info com drawer de gráficos */}
       <div
-        className="relative w-87 3xl:h-[74.90vh] h-[74vh] flex flex-col shadow-xl rounded border border-gray-300 flex-shrink-0"
+        className="relative w-87 h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] flex flex-col shadow-xl rounded border border-gray-300 flex-shrink-0"
         style={{ zIndex: 10 }}
       >
       <div className="flex flex-col p-2 gap-2 justify-center items-center flex-1 overflow-hidden">

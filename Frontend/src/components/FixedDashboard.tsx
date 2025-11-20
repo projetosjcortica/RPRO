@@ -311,7 +311,7 @@ const formatShortDate = (raw?: string | null) => {
   return (
     <div className="w-full h-full 2xl:overflow-hidden pb-277 2xl:pb-0">
       <div className="flex gap-1.5 h-full justify-between">
-        <div className="flex w-full 2xl:gap-x-5 2xl:grid-rows-2 2xl:grid-cols-2 2xl:overflow-auto grid grid-cols-1 3xl:grid-rows-20">
+        <div className="flex w-full 2xl:gap-x-2 2xl:grid-rows-2 2xl:grid-cols-2 2xl:overflow-auto grid grid-cols-1 3xl:grid-rows-20">
           {/* First row: Formulas Donut */}
           <Card className=" shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 w-full 2xl:h-98 3xl:h-100 2xl:col-span-2 3xl:row-span-8">
             <CardHeader className="border-b border-gray-100">

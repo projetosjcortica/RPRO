@@ -268,7 +268,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           <Button
             variant="outline"
             className={cn(
-              "justify-between text-left font-normal border border-gray-300",
+              "justify-between text-left font-normal border border-gray-500",
               !dateRange && "text-gray-400"
             )}
           >
@@ -323,7 +323,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBuscar}
-                className="h-9 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-9 w-full rounded-md border border-gray-500 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             {/* Combobox Código */}
@@ -336,7 +336,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   variant="outline"
                   role="combobox"
                   aria-expanded={openCodigoDesktop}
-                  className=" justify-between border-gray-300 font-normal text-gray-400 mb-4"
+                  className=" justify-between border-gray-500 font-normal text-gray-500 mb-4"
                 >
                   {filtrosTemporarios.codigo
                     ? filtrosTemporarios.codigo === '__all'
@@ -415,7 +415,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   variant="outline"
                   role="combobox"
                   aria-expanded={openNumeroDesktop}
-                  className=" justify-between border-gray-300 font-normal text-gray-400 mb-4"
+                  className=" justify-between border-gray-500 font-normal text-gray-400 mb-4"
                 >
                   {filtrosTemporarios.numero 
                     ? filtrosTemporarios.numero === '__all'
@@ -519,7 +519,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                 onChange={(e) => handleInputChange('nomeFormula', e.target.value)}
                 onKeyDown={handleKeyDown}
                 onBlur={handleBuscar}
-                className="h-9 w-full rounded-md border border-gray-300 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-9 w-full rounded-md border border-gray-500 bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             {/* DatePicker */}
@@ -649,7 +649,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
                   onMouseDown={(e) => safeStopImmediate(e)}
                   role="combobox"
                   aria-expanded={openNumeroMobile}
-                  className="w-52 justify-between border-black font-normal text-gray-400"
+                  className="w-52 justify-between border-gray-500 font-normal text-gray-400"
                 >
                   {filtrosTemporarios.numero
                     ? filtrosTemporarios.numero === '__all'

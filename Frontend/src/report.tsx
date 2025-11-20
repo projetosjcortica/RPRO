@@ -1530,8 +1530,8 @@ export default function Report() {
 
   return (
     <div className="flex flex-col gap-1.5 w-full h-full">
-      <div className="h-[10dvh] flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-1 h-[10dvh]">
+      <div className="flex flex-row justify-between w-full">
+        <div className="flex flex-row items-end gap-1">
           <Button 
             onClick={() => setView("table")} 
             className={view === "table" ? "bg-red-800 border border-gray-300" : ""}
@@ -1589,8 +1589,8 @@ export default function Report() {
             </div>
           )}
       <div className="flex flex-row gap-2 justify-start w-full">
-        <div className="flex-1 flex flex-col gap-3.5 items-start justify-start h-[90vh] 3xl:h-206 w-[68px]">
-          <div className="flex w-full h-[74vh] 3xl:h-201 overflow-hidden shadow-xl rounded flex border border-gray-300">
+        <div className="flex-1 flex flex-col items-start justify-start h-fit">
+          <div className="flex w-full h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
             {content}
           </div>
 
@@ -1670,7 +1670,7 @@ export default function Report() {
 
         {/* Side Info com drawer de gráficos atrás */}
         <div
-          className="relative w-87 3xl:h-[76vh] h-[74vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+          className="relative w-87 h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
           style={{ zIndex: 10 }}
         >
           {/* Drawer de gráficos compacto, por trás do sideinfo */}

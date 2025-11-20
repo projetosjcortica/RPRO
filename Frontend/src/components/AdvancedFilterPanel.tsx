@@ -164,14 +164,14 @@ export default function AdvancedFilterPanel({ filters, onChange, colLabels }: Ad
   };
 
   return (
-    <aside style={{ width: 320, maxWidth: 360, marginBottom: 10, background: 'var(--surface)', borderLeft: '1px solid var(--muted)' }}>
+    <aside style={{ width: 345, maxWidth: 360, marginBottom: 10, background: 'var(--surface)', borderLeft: '1px solid var(--muted)' }}>
       <div style={{ marginBottom: 12 }}>
         <strong>{filters.isFixed ? 'Filtros avançados' : 'Filtros avançados'}</strong>
         <div style={{ fontSize: 12, color: "black" }}>{`${filters.includeProductCodes.length + filters.excludeProductCodes.length} produtos configurados — ${filters.includeProductNames.length + filters.excludeProductNames.length} nomes`}</div>
       </div>
 
       {/* Visualização dos filtros aplicados vs excluídos */}
-      <section style={{ marginBottom: 12, padding: 8, borderRadius: 6, background: '#fafafa', border: '1px solid rgba(0,0,0,0.04)' }}>
+      <section style={{ marginBottom: 12, padding: 8, borderRadius: 6, background: '#fafafa' }} className='border border-gray-500'  >
         <Label>Filtros aplicados</Label>
         <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
           <div style={{ flex: 1 }}>
@@ -227,7 +227,7 @@ export default function AdvancedFilterPanel({ filters, onChange, colLabels }: Ad
       <section style={{ marginBottom: 12 }}>
         <Label> Códigos de Produto (1-40) </Label>
         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-          <Input value={productCodeInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProductCodeInput(e.target.value)} placeholder="ex: 1,2,10" />
+          <Input value={productCodeInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProductCodeInput(e.target.value)} placeholder="ex: 1,2,10" className='border border-gray-500'/>
           <Button size="sm" onClick={addProductCode}>Incluir</Button>
           <Button size="sm" onClick={addExcludeProductCode}>Excluir</Button>
         </div>
@@ -244,7 +244,7 @@ export default function AdvancedFilterPanel({ filters, onChange, colLabels }: Ad
       <section style={{ marginBottom: 12 }}>
         <Label> Nomes de Produto </Label>
         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-          <Input value={productNameInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProductNameInput(e.target.value)} placeholder="Adicionar nome" />
+          <Input value={productNameInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setProductNameInput(e.target.value)} placeholder="Adicionar nome" className='border border-gray-500'/>
           <Button size="sm" onClick={addProductName}>Incluir</Button>
           <Button size="sm" onClick={addExcludeProductName}>Excluir</Button>
         </div>
@@ -261,7 +261,7 @@ export default function AdvancedFilterPanel({ filters, onChange, colLabels }: Ad
       <section style={{ marginBottom: 12 }}>
         <Label> Códigos de Fórmula </Label>
         <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-          <Input value={formulaCodeInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormulaCodeInput(e.target.value)} placeholder="ex: 1,2" />
+          <Input value={formulaCodeInput} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormulaCodeInput(e.target.value)} placeholder="ex: 1,2" className='border border-gray-500'/>
           <Button size="sm" onClick={() => {
             const nums = formulaCodeInput.split(/[,;\s]+/).map(s => Number(s)).filter(n => !Number.isNaN(n));
             if (!nums.length) { setFormulaCodeInput(''); return; }
