@@ -1172,7 +1172,7 @@ interface Estatisticas {
 
   // ✅ RETURN FINAL
   return (
-    <div id="adm" className="flex flex-col gap-3 h-[70vh] overflow-auto bg-white">
+    <div id="adm" className="flex flex-col gap-3 h-[65vh] overflow-auto bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
       </h2>

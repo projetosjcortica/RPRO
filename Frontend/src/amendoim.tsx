@@ -658,24 +658,19 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
   const totalPages = Math.ceil(total / pageSize);
 
-  // Gerar array de páginas para renderização (mesmo padrão do report.tsx)
+  // Gerar array de páginas para renderização (janela deslizante até 10 páginas)
   const pages = (() => {
-    const maxVisible = 10;
-    const result: number[] = [];
-    
-    if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) result.push(i);
-    } else {
-      if (page <= 3) {
-        for (let i = 1; i <= maxVisible; i++) result.push(i);
-      } else if (page >= totalPages - 2) {
-        for (let i = totalPages - maxVisible + 1; i <= totalPages; i++) result.push(i);
-      } else {
-        for (let i = page - 2; i <= page + 2; i++) result.push(i);
-      }
+    const maxVisiblePages = 10;
+    const tp = Math.max(1, totalPages);
+
+    let startPage = Math.max(1, page - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(tp, startPage + maxVisiblePages - 1);
+
+    if (endPage - startPage < maxVisiblePages - 1) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
     }
-    
-    return result;
+
+    return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
   })();
 
   // Log de debug do estado do modal
@@ -835,10 +830,10 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                         className={cn(
                           buttonVariants({ variant: "default" }),
                           isActive
-                            ? "bg-red-600 text-white"
+                            ? "bg-red-600 text-white max-w-10"
                             : loading && p !== page
-                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
+                              ? "bg-gray-200 text-gray-500 max-w-10 cursor-not-allowed"
+                              : "bg-gray-300 text-black  max-w-10 hover:bg-gray-400 transition-colors cursor-pointer"
                         )}
                       >
                         {p}

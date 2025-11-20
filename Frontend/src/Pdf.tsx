@@ -276,26 +276,35 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // Use conservative estimates for rows per page to avoid accidental overflow
   // when some cells wrap into multiple lines. These values can be tuned if
   // you know the typical content length.
-  const rowsPerPageByFont: Record<string, number> = {
-    // increased defaults to allow more rows per page for formula tables
-    // These values assume typical row content — tune down if you see wrapping issues.
+  const rowsPerPageFormulasByFont: Record<string, number> = {
+    // defaults for formula tables
     small: 28,
-    medium: 23,
+    medium: 19,
     large: 18,
   };
-  const rowsPerPage = rowsPerPageByFont[pdfCustomization.fontSize] || 5;
+  const rowsPerPageFormulas = rowsPerPageFormulasByFont[pdfCustomization.fontSize] || 5;
 
-  // Reserve a modest space on the first page for header/metadata so the
-  // first chunk is larger than before and continuations are fuller.
-  const reserveForHeaderAndInfo = 20; // estimated rows taken by header/other content
-  const firstChunkSize = Math.max(11, rowsPerPage - reserveForHeaderAndInfo);
+  // Reserve a modest space on the first page for header/metadata for formulas
+  const reserveForHeaderAndInfoFormulas = 20; // estimated rows taken by header/other content
+  const firstChunkSizeFormulas = Math.max(11, rowsPerPageFormulas - reserveForHeaderAndInfoFormulas);
+
+  // Separate controls for produtos pagination so products first chunk can be
+  // independent from formulas (requested change).
+  const rowsPerPageProdutosByFont: Record<string, number> = {
+    small: 28,
+    medium: 20,
+    large: 18,
+  };
+  const rowsPerPageProdutos = rowsPerPageProdutosByFont[pdfCustomization.fontSize] || 5;
+  const reserveForHeaderAndInfoProdutos = 6; // products typically share less header space
+  const firstChunkSizeProdutos = Math.max(20, rowsPerPageProdutos - reserveForHeaderAndInfoProdutos);
 
   const formulaChunks: typeof formulasOrdenadas[] = [];
   if (formulasOrdenadas.length > 0) {
-    // first chunk limited to firstChunkSize
-    formulaChunks.push(formulasOrdenadas.slice(0, firstChunkSize));
-    for (let i = firstChunkSize; i < formulasOrdenadas.length; i += rowsPerPage) {
-      formulaChunks.push(formulasOrdenadas.slice(i, i + rowsPerPage));
+    // first chunk limited to firstChunkSizeFormulas
+    formulaChunks.push(formulasOrdenadas.slice(0, firstChunkSizeFormulas));
+    for (let i = firstChunkSizeFormulas; i < formulasOrdenadas.length; i += rowsPerPageFormulas) {
+      formulaChunks.push(formulasOrdenadas.slice(i, i + rowsPerPageFormulas));
     }
   }
 
@@ -306,6 +315,27 @@ export const MyDocument: FC<MyDocumentProps> = ({
     produtosPorCategoria[cat].push(p);
   });
   const categorias = Object.keys(produtosPorCategoria).sort();
+
+  // Flatten products into a single list (preserve category order) and prepare
+  // pagination chunks using the same rows-per-page logic as formulas so that
+  // products table breaks pages in the same way and repeats header/title.
+  const produtosList: Produto[] = [];
+  for (const cat of categorias) {
+    const list = produtosPorCategoria[cat] || [];
+    // Optionally insert a category header row as a pseudo-row? For now keep
+    // plain items to match formula table behavior exactly.
+    for (const p of list) produtosList.push(p);
+  }
+
+  const produtoChunks: Produto[][] = [];
+  if (produtosList.length > 0) {
+    // Use produto-specific pagination values so first chunk and continuation
+    // sizes can differ from formulas.
+    produtoChunks.push(produtosList.slice(0, firstChunkSizeProdutos));
+    for (let i = firstChunkSizeProdutos; i < produtosList.length; i += rowsPerPageProdutos) {
+      produtoChunks.push(produtosList.slice(i, i + rowsPerPageProdutos));
+    }
+  }
 
   // Prepare chart source outside of JSX so it's available during render
   const _chartSource: { name: string; value: number }[] = [];
@@ -322,7 +352,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // em páginas subsequentes com o sufixo "(continuação)".
   const chartRowsPerPageByFont: Record<string, number> = {
     small: 28,
-    medium: 22,
+    medium: 19,
     large: 12,
   };
   const chartRowsPerPage = chartRowsPerPageByFont[pdfCustomization.fontSize] || 18;
@@ -809,21 +839,40 @@ export const MyDocument: FC<MyDocumentProps> = ({
   <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>Tabela de produtos</Text>
-          {categorias.map((cat, idx) => (
-            <View key={idx} style={{ marginBottom: 15 }}>
-              {renderTable(produtosPorCategoria[cat], (p) => {
-                const valueNum = Number(p.qtd) || 0;
-                return {
-                  col1: p.nome,
-                  col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`,
-                };
-              })}
-            </View>
-          ))}
+          {produtoChunks.length > 0 ? (
+            // render first chunk inline (may share the page with previous content)
+            renderTable(produtoChunks[0], (p) => {
+              const valueNum = Number(p.qtd) || 0;
+              return {
+                col1: p.nome,
+                col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
+              };
+            })
+          ) : (
+            <Text style={{ fontSize: currentFontSizes.base }}>Nenhum produto para exibir.</Text>
+          )}
         </View>
 
         {renderRodape()}
       </Page>
+
+      {/* Páginas dedicadas para a tabela de produtos (cada chunk em sua própria página) */}
+      {produtoChunks.length > 1 && produtoChunks.slice(1).filter(c => c && c.length > 0).map((chunk, idx) => (
+        <Page key={`produtos-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Tabela de produtos</Text>
+            {renderTable(chunk, (p) => {
+              const valueNum = Number(p.qtd) || 0;
+              return {
+                col1: p.nome,
+                col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
+              };
+            })}
+          </View>
+
+          {renderRodape()}
+        </Page>
+      ))}
       {/* Página 3 */}
   <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
 
