@@ -1195,7 +1195,7 @@ interface Estatisticas {
         <div className="flex items-center justify-between">
           <div>
             <Label className="font-medium text-gray-900 text-base">🧾 Habilitar edição de Produtos (até 65)</Label>
-            <p className="text-sm text-gray-600 mt-1">Permite editar e adicionar produtos além do 40 padrão (expande para Produto 41-65).</p>
+            {/* <p className="text-sm text-gray-600 mt-1">Permite editar e adicionar produtos além do 40 padrão (expande para Produto 41-65).</p> */}
           </div>
           <Switch checked={enableExtendedProducts} onCheckedChange={(v) => handleToggleExtended(!!v)} className="data-[state=checked]:bg-sky-600" />
         </div>
@@ -1745,7 +1745,7 @@ interface Estatisticas {
       </div>
 
       {/* Button to open modal with user management */}
-      <div className="mt-6 p-4 border shadow-lg rounded rounded-lg bg-white flex items-center justify-between">
+      {/* <div className="mt-6 p-4 border shadow-lg rounded rounded-lg bg-white flex items-center justify-between">
         <div>
           <Label className="font-medium text-gray-900 text-base">Perfis registrados</Label>
           <p className="text-sm text-gray-600">Gerencie usuários, fotos e privilégios</p>
@@ -1753,7 +1753,7 @@ interface Estatisticas {
         <div className="flex items-center gap-2">
           <Button onClick={() => { setAdminModalOpen(true); fetchAdminUsers(); }} className="bg-red-500">Gerenciar usuários</Button>
         </div>
-      </div>
+      </div> */}
 
       {/* Admin users modal */}
       <Dialog open={adminModalOpen} onOpenChange={(v) => { setAdminModalOpen(!!v); }}>

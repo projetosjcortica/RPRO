@@ -1,7 +1,7 @@
 {
   "name": "cortez",
   "private": true,
-  "version": "1.3.7beta",
+  "version": "1.4.0beta",
   "author": "J.Cortica, Kaua Okuma, Miguel Dias",
   "description": "Sistema Cortez",
   "type": "module",
