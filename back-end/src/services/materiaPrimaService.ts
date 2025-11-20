@@ -13,7 +13,7 @@ export class MateriaPrimaService extends BaseService {
     const repo = AppDataSource.getRepository(MateriaPrima);
     // Ensure there is a sensible default set of materia prima records.
     // Frontend expects product nums starting at 1 (col6 => Produto 1) up to a default range.
-    const DEFAULT_COUNT = 45; // Matches frontend default END_COL (col6..col50 => 45 products)
+    const DEFAULT_COUNT = 65; // Ensure 65 products by default (col6..col70 => 65 products)
 
     const existing = await repo.find({ order: { num: 'ASC' } });
 
