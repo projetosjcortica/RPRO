@@ -147,7 +147,7 @@ export class AmendoimService {
           registro.dia = diaStr;
           registro.hora = horaStr;
           // MUDANÇA: codigoProduto agora vem da coluna 5 (antes era codigoCaixa)
-          registro.codigoProduto = codigoProduto ? String(codigoProduto).trim() : ""; 
+          registro.codigoProduto = codigoProduto ? this.fixEncoding(String(codigoProduto).trim()) : ""; 
           registro.codigoCaixa = "";
           
           // Log de debug: formato de data sendo salvo
@@ -155,11 +155,11 @@ export class AmendoimService {
             console.log(`[AmendoimService] 🔍 Formato de data SALVO: "${diaStr}" | Hora: "${horaStr}" | Tipo: ${tipoRegistro} (Balança: ${balanca})`);
           }
           
-          // Fallback para nome do produto vazio
-          const nomeProcessado = nomeProduto ? String(nomeProduto).trim() : "";
+          // Fallback para nome do produto vazio — normalizar texto recebido da IHM
+          const nomeProcessado = this.fixEncoding(nomeProduto ? String(nomeProduto).trim() : "");
           registro.nomeProduto = nomeProcessado || "Sem nome";
           registro.peso = Number(peso) || 0;
-          registro.balanca = balanca ? String(balanca).trim() : undefined;
+          registro.balanca = balanca ? this.fixEncoding(String(balanca).trim()) : undefined;
 
           registrosParaSalvar.push(registro);
 
@@ -174,7 +174,7 @@ export class AmendoimService {
               peso: registro.peso,
               balanca: registro.balanca,
               sourceIhm: options.sourceIhm,
-              rawLine: row.join(',')
+              rawLine: this.fixEncoding(row.join(','))
             });
           }
         } catch (err: any) {
@@ -690,6 +690,42 @@ export class AmendoimService {
     }
     
     return dateStr;
+  }
+  
+  /**
+   * Normalize and attempt to repair text received from IHM so DB stores coherent UTF-8.
+   * Strategies:
+   * - NFC normalization
+   * - If replacement characters or common latin1->utf8 garble is detected,
+   *   try re-decoding from latin1 to utf8 and a reverse attempt as fallback.
+   */
+  private static fixEncoding(text?: string): string {
+    if (!text) return "";
+    let s = String(text);
+
+    try { s = s.normalize('NFC'); } catch (e) { /* ignore if not supported */ }
+
+    // Quick heuristics for garbled sequences or replacement char
+    const hasReplacement = s.includes('\uFFFD') || s.indexOf('�') !== -1;
+    const likelyLatin1Garble = /Ã|Â|Ã©|Ã¡|Ã£|Ã§|Ãª|Ãµ|Ãº/.test(s);
+
+    if (hasReplacement || likelyLatin1Garble) {
+      try {
+        const attempt = Buffer.from(s, 'latin1').toString('utf8');
+        if (attempt && !attempt.includes('\uFFFD')) s = attempt;
+      } catch (e) { /* ignore */ }
+
+      if (s.includes('\uFFFD') || s.indexOf('�') !== -1) {
+        try {
+          const attempt2 = Buffer.from(s, 'utf8').toString('latin1');
+          if (attempt2 && !attempt2.includes('\uFFFD')) s = attempt2;
+        } catch (e) { /* ignore */ }
+      }
+    }
+
+    // Remove any leftover replacement chars and trim
+    s = s.replace(/\uFFFD/g, '').replace(/�/g, '').trim();
+    return s;
   }
  
 
