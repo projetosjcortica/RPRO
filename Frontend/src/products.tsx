@@ -19,6 +19,10 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   const [produtosAtivos, setProdutosAtivos] = useState<{ [key: string]: boolean }>({});
   const [produtosIgnorarCalculos, setProdutosIgnorarCalculos] = useState<{ [key: string]: boolean }>({});
   const [togglingProduct, setTogglingProduct] = useState<string | null>(null);
+  const [resettingUnits, setResettingUnits] = useState(false);
+  // Controls the global action button: 'set-g' means next click will set all to grams,
+  // 'set-kg' means next click will reset all to kilograms
+  const [globalNextAction, setGlobalNextAction] = useState<'set-g' | 'set-kg'>('set-g');
   // const [resettingAll, setResettingAll] = useState(false);
   // const [resettingUnits, setResettingUnits] = useState(false);
 
@@ -73,6 +77,10 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
       labels[key] = entry && entry.nome ? entry.nome : `Produto ${i - 5}`;
       unidadesObj[key] = entry && entry.unidade ? entry.unidade : "kg";
     }
+
+    // Define default global action: if all are kg then next action is set-g, else reset to kg
+    const allAreKg = Object.values(unidadesObj).every(u => u === 'kg');
+    setGlobalNextAction(allAreKg ? 'set-g' : 'set-kg');
 
     setColLabels(labels);
     setUnidades(unidadesObj);
@@ -201,6 +209,11 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
 
     // Call callback so UI labels update as before
     onLabelChange(colKey, nomeAtual, novaUnidade);
+
+    // If user changed an individual product to grams, default the global button
+    // to reset all to kg. If after change all are kg, set the button to set-g.
+    const anyIsGram = Object.values(updatedUnidades).some(u => u === 'g');
+    setGlobalNextAction(anyIsGram ? 'set-kg' : 'set-g');
   };
 
   const handleToggleAtivo = async (colKey: string) => {
@@ -357,47 +370,67 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   //   }
   // };
 
-  // const handleResetUnitsToKg = async () => {
-  //   if (!confirm('Deseja realmente RESETAR todas as unidades para KG? Esta ação não pode ser desfeita.')) {
-  //     return;
-  //   }
+  // Global toggle to set all units to grams or kilograms depending on `globalNextAction`.
+  const handleToggleAllUnits = async () => {
+    const target = globalNextAction === 'set-g' ? 'g' : 'kg';
 
-  //   setResettingUnits(true);
-    
-  //   try {
-  //     console.log('[products] Resetando todas as unidades para kg...');
-      
-  //     // Atualizar localStorage
-  //     if (typeof window !== "undefined") {
-  //       const raw = localStorage.getItem("produtosInfo");
-  //       let parsed: { [key: string]: { nome: string; unidade: string } } = {};
-        
-  //       if (raw) {
-  //         try {
-  //           const p = JSON.parse(raw);
-  //           if (p && typeof p === 'object' && !Array.isArray(p)) {
-  //             parsed = p as any;
-  //           }
-  //         } catch (e) {
-  //           console.warn('[products] Erro ao parsear produtosInfo', e);
-  //         }
-  //       }
+    if (!confirm(`Deseja realmente ${target === 'g' ? 'definir TODAS as unidades para GRAMAS (g)' : 'resetar TODAS as unidades para QUILOS (kg)'}?`)) {
+      return;
+    }
 
-  //       // Atualizar todas as unidades para kg
-  //       for (let i = START_COL; i <= END_COL; i++) {
-  //         const key = `col${i}`;
-  //         if (parsed[key]) {
-  //           parsed[key].unidade = 'kg';
-  //         } else {
-  //           parsed[key] = {
-  //             nome: `Produto ${i - 5}`,
-  //             unidade: 'kg'
-  //           };
-  //         }
-  //       }
+    setResettingUnits(true);
+    try {
+      // Load existing produtosInfo, update all unidades locally then persist
+      const raw = localStorage.getItem("produtosInfo");
+      let parsed: { [key: string]: { nome: string; unidade: string } } = {};
+      if (raw) {
+        try {
+          const p = JSON.parse(raw);
+          if (p && typeof p === 'object' && !Array.isArray(p)) parsed = p as any;
+        } catch (e) { parsed = {}; }
+      }
 
-  //       localStorage.setItem("produtosInfo", JSON.stringify(parsed));
-  //       console.log('[products] localStorage atualizado com unidades em kg');
+      // Update parsed and state
+      const novasUnidades: { [key: string]: string } = {};
+      for (let i = START_COL; i <= END_COL; i++) {
+        const key = `col${i}`;
+        const nome = (parsed[key] && parsed[key].nome) ? parsed[key].nome : `Produto ${i - 5}`;
+        parsed[key] = { nome, unidade: target };
+        novasUnidades[key] = target;
+      }
+
+      localStorage.setItem("produtosInfo", JSON.stringify(parsed));
+      setUnidades(novasUnidades);
+
+      // Persist each to backend (PATCH /api/materiaprima/{num})
+      const requests: Promise<any>[] = [];
+      for (let i = START_COL; i <= END_COL; i++) {
+        const key = `col${i}`;
+        const num = i - 5;
+        const nome = parsed[key]?.nome || `Produto ${num}`;
+        const medida = target === 'g' ? 0 : 1;
+        requests.push(fetch(`http://localhost:3000/api/materiaprima/${num}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ produto: nome, medida }),
+        }).catch(e => { console.warn('[products] persist unit error', e); }));
+      }
+
+      await Promise.all(requests);
+
+      // After apply, update globalNextAction to the opposite
+      setGlobalNextAction(target === 'g' ? 'set-kg' : 'set-g');
+
+      try { window.dispatchEvent(new CustomEvent('produtos-updated', { detail: { resetUnits: true, unidade: target, immediate: true } })); } catch (e) {}
+
+      alert(`✅ Todas as unidades foram definidas para ${target.toUpperCase()}`);
+    } catch (e) {
+      console.error('[products] Erro ao aplicar toggle global de unidades:', e);
+      alert(`Erro ao aplicar mudança nas unidades: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setResettingUnits(false);
+    }
+  };
 
   //       // Atualizar estado local
   //       const novasUnidades: { [key: string]: string } = {};
@@ -447,6 +480,18 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
       <div className="flex-1 flex flex-col">
         <div className="flex justify-between items-center ml-4 mb-6 mt-3">
           <h2 className="text-2xl md:text-3xl font-semibold">Editar Produtos</h2>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleToggleAllUnits}
+              disabled={resettingUnits}
+              className="h-9 px-3"
+              title={globalNextAction === 'set-g' ? 'Definir todas as unidades para gramas (g)' : 'Resetar todas as unidades para quilos (kg)'}
+            >
+              {resettingUnits ? '⏳ Aplicando...' : (globalNextAction === 'set-g' ? 'Setar todos para g' : 'Resetar para kg')}
+            </Button>
+          </div>
         </div>
         <div className="overflow-auto flex-1 min-h-0 thin-red-scrollbar">
           <div className="rounded p-3 w-full grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-7 shadow-xl/20 pb-8">
