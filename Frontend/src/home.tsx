@@ -542,12 +542,12 @@ export default function Home() {
   if (tipoHome === "amendoim") {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-1 overflow-hidden ">
-          <div className="p-4 space">
+        <div className="flex-1 overflow-auto 2xl:overflow-hidden">
+          <div className=" space">
 
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
-            <div className="grid grid-cols-3 gap-4 mb-4 ">
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px] 3xl:h-[450px]">
+            <div className="grid 2xl:grid-cols-3 2xl:grid-rows-2 grid-cols-2 grid-rows-3 gap-4 2xl:gap-y-4 mb-4 2xl:mb-0">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Entrada (período selecionado)</CardTitle>
@@ -617,7 +617,7 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px] 3xl:h-[450px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Saída (período selecionado)</CardTitle>
@@ -687,8 +687,8 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[350px] 3xl:h-[450px]">
-                <CardHeader className="border-b border-gray-100 pt-2 h-17">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
+                <CardHeader className="border-b border-gray-100 pb-2 px-3 h-18">
                   <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
                 </CardHeader>
                 <CardContent className="pt-4 h-[calc(100%-60px)]">
@@ -742,16 +742,12 @@ export default function Home() {
               </Card>
 
               
-            </div>
-
-            {/* Gráficos de barras Entrada e Saída + Card de Rendimento */}
-            <div className="grid grid-cols-3 gap-4 mb-4">
                    
 
               {/* Card de Cálculo de Conflito/Rendimento */}
               
-              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
-                <CardHeader className="border-b border-gray-100 pb-3">
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[450px]">
+                <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Horário de Produção</CardTitle>
                     <div className="flex items-center space-x-2">
@@ -801,7 +797,7 @@ export default function Home() {
 
               {/* Produção Semanal */}
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
-                <CardHeader className="border-b border-gray-100 pb-3 h-17">
+                <CardHeader className="border-b border-gray-100 pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Produção Semanal</CardTitle>
                     <div className="flex items-center gap-1">
@@ -880,7 +876,7 @@ export default function Home() {
               </Card>
 
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
-                <CardHeader className="border-b border-gray-100 h-18 pt-2">
+                <CardHeader className="border-b border-gray-100 pb-2 px-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto</CardTitle>
                     <div className="flex items-center gap-1">

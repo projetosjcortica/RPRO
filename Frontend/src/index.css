@@ -2,32 +2,26 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
-
-/* globals.css ou no seu arquivo de estilos */
-/* Thin Red Scrollbar */
-.thin-red-scrollbar::-webkit-scrollbar {
-  width: 3px; /* Vertical scrollbar width */
-  height: 3px; /* Horizontal scrollbar height (if needed) */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+  margin: 3px;
 }
 
-.thin-red-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-red-500 rounded-full;
+::-webkit-scrollbar-thumb {
+  background-color: #232323;
   border-radius: 999px;
 }
 
-.thin-red-scrollbar::-webkit-scrollbar-track {
-  @apply bg-transparent;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* Optional: Hide scrollbar in Firefox (it doesn't support styling well) */
-.thin-red-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: #504f4f transparent; /* red-500 */
+::-webkit-scrollbar-button {
+  display: flex;
 }
 
-html {
-  overflow: visible;
-}
+
 
 body {
   margin: 0;
@@ -179,8 +173,8 @@ h1 {
   --sidebar-foreground: hsl(240 5.3% 26.1%);
   --sidebar-primary: hsl(240 5.9% 10%);
   --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-accent: hsl(0, 52%, 51%);
+  --sidebar-accent-foreground: hsl(0, 0%, 100%);
   --sidebar-border: hsl(220 13% 91%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }

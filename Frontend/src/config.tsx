@@ -503,7 +503,7 @@ export function ProfileConfig({
   <Profile externalPreview={preview} file={file} onUpload={uploadPhoto} showLogoutButton={false} />
       
       {user?.isAdmin && (
-        <div className="mt-4 border border-gray-300 flex flex-col gap-4 rounded p-3 bg-white">
+        <div className="mt-4 shadow-xl border border-gray-400 flex flex-col gap-4 rounded-lg p-3 bg-white">
           <Label>
             Nome da empresa
             <Input
@@ -703,7 +703,7 @@ export function IHMConfig({
                 value={(formData as any)[ipKey] ?? ''}
                 onChange={(e) => onChange(ipKey as any, e.target.value)}
                 disabled={!isEditing}
-                className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="mt-2 p-3 border border-gray-400 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </Label>
 
@@ -714,7 +714,7 @@ export function IHMConfig({
                 value={(formData as any)[userKey] ?? ''}
                 onChange={(e) => onChange(userKey as any, e.target.value)}
                 disabled={!isEditing}
-                className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="mt-2 p-3 border border-gray-400 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </Label>
 
@@ -725,7 +725,7 @@ export function IHMConfig({
                 value={(formData as any)[passKey] ?? ''}
                 onChange={(e) => onChange(passKey as any, e.target.value)}
                 disabled={!isEditing}
-                className="mt-2 p-3 border rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="mt-2 p-3 border border-gray-400 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </Label>
 
@@ -811,7 +811,7 @@ export function IHMConfig({
             id="test-ihm"
             size="sm"
             onClick={() => testIhm()}
-            className="bg-gray-100 text-gray-800"
+            className="bg-gray-100 text-gray-800 hover:text-white"
           >
             Testar IHM
           </Button>
@@ -1172,7 +1172,7 @@ interface Estatisticas {
 
   // ✅ RETURN FINAL
   return (
-    <div id="adm" className="flex flex-col gap-3 bg-white">
+    <div id="adm" className="flex flex-col gap-3 h-[70vh] overflow-auto bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
       </h2>
@@ -1191,7 +1191,7 @@ interface Estatisticas {
       </div> */}
 
       {/* Habilitar edição estendida de produtos (até 65) */}
-      <div className="mb-6 p-4 border-2 border-sky-400 rounded-lg bg-sky-50">
+      <div className=" p-4 border-2 border-sky-400 rounded-lg bg-sky-50">
         <div className="flex items-center justify-between">
           <div>
             <Label className="font-medium text-gray-900 text-base">🧾 Habilitar edição de Produtos (até 65)</Label>
@@ -1200,7 +1200,7 @@ interface Estatisticas {
           <Switch checked={enableExtendedProducts} onCheckedChange={(v) => handleToggleExtended(!!v)} className="data-[state=checked]:bg-sky-600" />
         </div>
       </div>
-      <div id="CfgAdvancedDB" className="my-4">
+      <div id="CfgAdvancedDB" className="">
         <div className="dir flex flex-col gap-5">
           {/* <div className="flex-col">
             <Label className="font-medium text-gray-700">Local do SQL</Label>
@@ -1276,7 +1276,7 @@ interface Estatisticas {
         </div>
       </div>
 
-      <div id="CmdAdvancedDB" className="mb-4 flex flex-col gap-5">
+      <div id="CmdAdvancedDB" className=" flex flex-col gap-5">
         {/* Importar Dump */}
         <AlertDialog>
           <AlertDialogTrigger asChild disabled={!isEditing}>
@@ -1553,7 +1553,7 @@ interface Estatisticas {
 
       <div
         id="containerMFC"
-        className="flex flex-col md:flex-row justify-center items-center gap-4 p-4 border rounded-lg bg-gray-50 mt-4"
+        className="flex flex-col md:flex-row justify-center items-center gap-4 p-4 shadow-lg border rounded-lg bg-gray-50 mt-4"
       >
         {/* <div
           id="CsvMethod"
@@ -1745,13 +1745,13 @@ interface Estatisticas {
       </div>
 
       {/* Button to open modal with user management */}
-      <div className="mt-6 p-4 border rounded bg-white flex items-center justify-between">
+      <div className="mt-6 p-4 border shadow-lg rounded rounded-lg bg-white flex items-center justify-between">
         <div>
           <Label className="font-medium text-gray-900 text-base">Perfis registrados</Label>
           <p className="text-sm text-gray-600">Gerencie usuários, fotos e privilégios</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => { setAdminModalOpen(true); fetchAdminUsers(); }} className="bg-gray-100">Gerenciar usuários</Button>
+          <Button onClick={() => { setAdminModalOpen(true); fetchAdminUsers(); }} className="bg-red-500">Gerenciar usuários</Button>
         </div>
       </div>
 

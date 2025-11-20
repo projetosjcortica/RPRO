@@ -151,7 +151,7 @@ export function ExportDropdown({
 
       {/* Modal PDF */}
       <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
-        <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto thin-red-scrollbar">
+        <DialogContent className="w-200 max-h-[90vh] overflow-y-auto thin-red-scrollbar">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle>Pré-visualização do PDF</DialogTitle>

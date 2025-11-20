@@ -56,15 +56,15 @@ export default function HomeRelatorio() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <p className="mt-4 text-gray-600 text-lg">Carregando...</p>
+          <p className=" text-gray-600 text-lg">Carregando...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen overflow-auto thin-red-scrollbar">
-      <div className="h-full pt-4">
+    <div className="min-h-screen overflow-auto">
+      <div className="h-full">
         <FixedDashboard rows={rows} filters={filtros} />
       </div>
     </div>

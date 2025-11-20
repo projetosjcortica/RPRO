@@ -16,7 +16,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { CheckIcon } from "lucide-react";
+import { CheckIcon, Funnel} from "lucide-react";
 
 interface FiltrosAmendoim {
   dataInicio?: string;
@@ -197,122 +197,108 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
   }, [filtrosTemporarios.codigoProduto, codigosOptions]);
 
   return (
-    <div className="flex flex-row items-end justify-end gap-1">
-      {/* Nome do Produto - Input comum */}
-      <div className="relative w-50">
-        <input
-          type="text"
-          placeholder="Digite o nome do produto"
-          value={filtrosTemporarios.nomeProduto}
-          onChange={(e) => handleInputChange('nomeProduto', e.target.value)}
-          onKeyDown={handleKeyDown}
-          onBlur={handleBuscar}
-          className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-        />
-      </div>
-
-      {/* DatePicker */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            className={cn(
-              "w-50 justify-between text-left font-normal border border-black",
-              !dateRange && "text-gray-400"
-            )}
-          >
-            {dateRange?.from ? (
-              dateRange.to ? (
-                <>
-                  {format(dateRange.from, "dd/MM/yy")} -{" "}
-                  {format(dateRange.to, "dd/MM/yy")}
-                </>
-              ) : (
-                format(dateRange.from, "dd/MM/yyyy")
-              )
-            ) : (
-              <span>Selecione a data</span>
-            )}
-            <CalendarIcon className="h-4 w-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" onInteractOutside={handleBuscar}>
-          <Calendar
-            autoFocus
-            mode="range"
-            locale={pt}
-            defaultMonth={dateRange?.from}
-            selected={dateRange}
-            onSelect={handleDateChange}
-            numberOfMonths={1}
+    <Popover>
+    <PopoverTrigger>
+      <Button variant="outline" className="w-full justify-between text-left font-normal border border-black">
+        <Funnel/>
+        Filtros
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent className="w-fit">
+      <div  className="flex flex-col items-end justify-between gap-1">
+        {/* Nome do Produto - Input comum */}
+        <div className="relative w-52">
+          <input
+            type="text"
+            placeholder="Digite o nome do produto"
+            value={filtrosTemporarios.nomeProduto}
+            onChange={(e) => handleInputChange('nomeProduto', e.target.value)}
+            onKeyDown={handleKeyDown}
+            onBlur={handleBuscar}
+            className="h-9 w-full rounded-md border border-black bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
-        </PopoverContent>
-      </Popover>
+        </div>
 
-      {/* Combobox Código do Produto */}
-      <Popover open={openCodigo} onOpenChange={setOpenCodigo}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={openCodigo}
-            className="w-52 justify-between border-black font-normal text-gray-400"
-          >
-            {filtrosTemporarios.codigoProduto
-              ? filtrosTemporarios.codigoProduto === '__all'
-                ? 'Todos'
-                : filtrosTemporarios.codigoProduto
-              : loadingFiltros
-              ? 'Carregando...'
-              : 'Selecionar código produto'}
-            <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}>
-          <Command>
-            <CommandInput
-              placeholder="Selecionar código..."
-              value={filtrosTemporarios.codigoProduto === '__all' ? '' : filtrosTemporarios.codigoProduto}
-              onValueChange={(value) => {
-                if (value === '') {
-                  setFiltrosTemporarios(prev => ({ ...prev, codigoProduto: '' }));
-                } else {
-                  setFiltrosTemporarios(prev => ({ ...prev, codigoProduto: value }));
-                }
-              }}
-              onKeyDown={handleKeyDown}
-              disabled={loadingFiltros}
+        {/* DatePicker */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                "w-52 justify-between text-left font-normal border border-black",
+                !dateRange && "text-gray-400"
+              )}
+            >
+              {dateRange?.from ? (
+                dateRange.to ? (
+                  <>
+                    {format(dateRange.from, "dd/MM/yy")} -{" "}
+                    {format(dateRange.to, "dd/MM/yy")}
+                  </>
+                ) : (
+                  format(dateRange.from, "dd/MM/yyyy")
+                )
+              ) : (
+                <span>Selecione a data</span>
+              )}
+              <CalendarIcon className="h-4 w-4" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" onInteractOutside={handleBuscar}>
+            <Calendar
+              autoFocus
+              mode="range"
+              locale={pt}
+              defaultMonth={dateRange?.from}
+              selected={dateRange}
+              onSelect={handleDateChange}
+              numberOfMonths={1}
             />
-            <CommandList>
-              <CommandEmpty>{loadingFiltros ? 'Carregando...' : 'Nenhum código encontrado.'}</CommandEmpty>
-              <CommandGroup>
-                <CommandItem
-                  key="__all"
-                  value="__all"
-                  onSelect={() => {
-                    const novosFiltros = { ...filtrosTemporarios, codigoProduto: '__all' };
-                    setFiltrosTemporarios(novosFiltros);
-                    setOpenCodigo(false);
-                    aplicarFiltros(novosFiltros);
-                  }}
-                >
-                  <CheckIcon
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      filtrosTemporarios.codigoProduto === '__all' ? "opacity-100" : "opacity-0"
-                    )}
-                  />
-                  Todos
-                </CommandItem>
-                {filteredCodigos.map((codigo) => (
+          </PopoverContent>
+        </Popover>
+
+        {/* Combobox Código do Produto */}
+        <Popover open={openCodigo} onOpenChange={setOpenCodigo}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={openCodigo}
+              className="w-52 justify-between border-black font-normal text-gray-400"
+            >
+              {filtrosTemporarios.codigoProduto
+                ? filtrosTemporarios.codigoProduto === '__all'
+                  ? 'Todos'
+                  : filtrosTemporarios.codigoProduto
+                : loadingFiltros
+                ? 'Carregando...'
+                : 'Selecionar código produto'}
+              <ChevronDownIcon className="h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-0 thin-red-scrollbar" onInteractOutside={handleBuscar}>
+            <Command>
+              <CommandInput
+                placeholder="Selecionar código..."
+                value={filtrosTemporarios.codigoProduto === '__all' ? '' : filtrosTemporarios.codigoProduto}
+                onValueChange={(value) => {
+                  if (value === '') {
+                    setFiltrosTemporarios(prev => ({ ...prev, codigoProduto: '' }));
+                  } else {
+                    setFiltrosTemporarios(prev => ({ ...prev, codigoProduto: value }));
+                  }
+                }}
+                onKeyDown={handleKeyDown}
+                disabled={loadingFiltros}
+              />
+              <CommandList>
+                <CommandEmpty>{loadingFiltros ? 'Carregando...' : 'Nenhum código encontrado.'}</CommandEmpty>
+                <CommandGroup>
                   <CommandItem
-                    key={codigo}
-                    value={codigo}
-                    onSelect={(currentValue) => {
-                      const novosFiltros = {
-                        ...filtrosTemporarios,
-                        codigoProduto: currentValue
-                      };
+                    key="__all"
+                    value="__all"
+                    onSelect={() => {
+                      const novosFiltros = { ...filtrosTemporarios, codigoProduto: '__all' };
                       setFiltrosTemporarios(novosFiltros);
                       setOpenCodigo(false);
                       aplicarFiltros(novosFiltros);
@@ -321,32 +307,58 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
                     <CheckIcon
                       className={cn(
                         "mr-2 h-4 w-4",
-            filtrosTemporarios.codigoProduto === codigo ? "opacity-100" : "opacity-0"
+                        filtrosTemporarios.codigoProduto === '__all' ? "opacity-100" : "opacity-0"
                       )}
                     />
-                    {codigo}
+                    Todos
                   </CommandItem>
-                ))}
-                {loadingFiltros && filteredCodigos.length === 0 && (
-                  <CommandItem disabled>Carregando códigos...</CommandItem>
-                )}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+                  {filteredCodigos.map((codigo) => (
+                    <CommandItem
+                      key={codigo}
+                      value={codigo}
+                      onSelect={(currentValue) => {
+                        const novosFiltros = {
+                          ...filtrosTemporarios,
+                          codigoProduto: currentValue
+                        };
+                        setFiltrosTemporarios(novosFiltros);
+                        setOpenCodigo(false);
+                        aplicarFiltros(novosFiltros);
+                      }}
+                    >
+                      <CheckIcon
+                        className={cn(
+                          "mr-2 h-4 w-4",
+              filtrosTemporarios.codigoProduto === codigo ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {codigo}
+                    </CommandItem>
+                  ))}
+                  {loadingFiltros && filteredCodigos.length === 0 && (
+                    <CommandItem disabled>Carregando códigos...</CommandItem>
+                  )}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
 
-      {/* Botões Buscar e Limpar */}
-      <Button onClick={handleBuscar} variant="outline">
-        Buscar
-      </Button>
-      <Button
-        onClick={handleLimpar}
-        variant="outline"
-        className="border-black hover:bg-gray-100"
-      >
-        Limpar
-      </Button>
-    </div>
+        {/* Botões Buscar e Limpar */}
+        <div className="flex flex-row w-52 gap-2 justify-evenly">
+          <Button onClick={handleBuscar} variant="outline">
+            Buscar
+          </Button>
+          <Button
+            onClick={handleLimpar}
+            variant="outline"
+            className="border-black hover:bg-gray-100"
+          >
+            Limpar
+          </Button>
+        </div>
+      </div>
+    </PopoverContent>
+  </Popover>
   );
 }

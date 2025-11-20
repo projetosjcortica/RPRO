@@ -104,7 +104,7 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload, show
   }; 
 
   return (
-    <div className="w-full h-full bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <div className="w-full h-full bg-white rounded-lg border shadow-xl border-gray-400 overflow-hidden">
       <div className="p-6 h-full">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
           <div className="flex-shrink-0 relative">
@@ -145,7 +145,7 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload, show
               <Input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="border border-gray-300"
+                className="border border-gray-500"
                 placeholder="Seu nome"
               />
             </div>
