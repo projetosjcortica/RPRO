@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   titleContainer: { flex: 1 },
   // ensure title can wrap under logo when space is constrained
   titleWrapper: { flexGrow: 1, minWidth: 100, display:"flex", justifyContent:"center"},
-  title: { fontSize: 24, fontWeight: "bold", color: "#af1e1eff", marginBottom: 4 },
+  title: { fontSize: 24, fontWeight: "bold", color: "#af1e1eff", marginBottom: 5 },
   subtitle: { fontSize: 14, color: "#6f6f6fff", marginTop: 4, marginBottom: 5 },
   section: { marginBottom: 0, flexDirection: "column" },
   sectionTitle: {

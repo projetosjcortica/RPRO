@@ -543,7 +543,7 @@ export function ProfileConfig({
       )}
 
       <div className="flex gap-2 justify-end mt-6">
-        <Button variant="outline" onClick={() => { try { logout(); window.dispatchEvent(new Event('profile-logged-out')); } catch(e){} }}>
+        <Button variant="destructive" onClick={() => { try { logout(); window.dispatchEvent(new Event('profile-logged-out')); } catch(e){} }}>
           Sair
         </Button>
 

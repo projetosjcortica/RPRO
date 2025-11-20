@@ -310,7 +310,7 @@ const App = () => {
                     <div className="block group-data-[state=collapsed]:hidden">
                       <Collapsible>
                         <SidebarMenuItem>
-                          <CollapsibleTrigger className="w-full ml-1.5" >
+                          <CollapsibleTrigger className='hover:opacity-75'>
                             <SidebarMenuButton>
                               <Settings />
                               <span>Configurações</span>
@@ -319,7 +319,7 @@ const App = () => {
                           <CollapsibleContent className="text-popover-foreground flex flex-col outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
                             <Dialog open={profileDialogOpen} onOpenChange={(v) => setProfileDialogOpen(v)}>
                               <DialogTrigger asChild>
-                                <SidebarMenuSubButton> <CircleUser stroke='black' />Perfil</SidebarMenuSubButton>
+                                <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <CircleUser/>Perfil</SidebarMenuSubButton>
                               </DialogTrigger>
                               <DialogContent>
                                 <DialogHeader>
@@ -334,7 +334,7 @@ const App = () => {
 
                             <Dialog>
                               <DialogTrigger asChild>
-                                <SidebarMenuSubButton> <CircleQuestionMark stroke='black' /> Sobre</SidebarMenuSubButton>
+                                <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <CircleQuestionMark/> Sobre</SidebarMenuSubButton>
                               </DialogTrigger>
                               <DialogContent className=' h-[90%]  flex items-center'>
                                 <div style={styles.container} className='thin-red-scrollbar'>
@@ -373,7 +373,7 @@ const App = () => {
                               <>
                                 <Dialog>
                                   <DialogTrigger asChild>
-                                    <SidebarMenuSubButton><GalleryThumbnails stroke='black' />IHM</SidebarMenuSubButton>
+                                    <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'><GalleryThumbnails/>IHM</SidebarMenuSubButton>
                                   </DialogTrigger>
                                   <DialogContent>
                                     <DialogHeader>
@@ -387,7 +387,7 @@ const App = () => {
                                 </Dialog>
                                 <Dialog>
                                   <DialogTrigger asChild>
-                                    <SidebarMenuSubButton> <HatGlasses stroke='black'/> ADM</SidebarMenuSubButton>
+                                    <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <HatGlasses/> ADM</SidebarMenuSubButton>
                                   </DialogTrigger>
                                   <DialogContent>
                                     <AdminConfig />

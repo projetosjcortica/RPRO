@@ -311,9 +311,9 @@ const formatShortDate = (raw?: string | null) => {
   return (
     <div className="w-full h-full 2xl:overflow-hidden pb-277 2xl:pb-0">
       <div className="flex gap-1.5 h-full justify-between">
-        <div className="flex w-full 2xl:gap-x-5 gap-1.5 2xl:grid-rows-2 2xl:grid-cols-2 2xl:overflow-auto grid grid-cols-1 3xl:grid-rows-20">
+        <div className="flex w-full 2xl:gap-x-5 2xl:grid-rows-2 2xl:grid-cols-2 2xl:overflow-auto grid grid-cols-1 3xl:grid-rows-20">
           {/* First row: Formulas Donut */}
-          <Card className=" shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 w-full 2xl:h-98 3xl:h-112 2xl:col-span-2 3xl:row-span-9">
+          <Card className=" shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 w-full 2xl:h-98 3xl:h-100 2xl:col-span-2 3xl:row-span-8">
             <CardHeader className="border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
@@ -398,7 +398,7 @@ const formatShortDate = (raw?: string | null) => {
           </Card>
 
           {/* Second row: Horarios & Weekly */}
-            <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 2xl:h-86.5 3xl:h-125">
+            <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 2xl:h-88.5 3xl:h-135 mt-3">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -451,7 +451,7 @@ const formatShortDate = (raw?: string | null) => {
             </Card>
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 2xl:h-86.5 3xl:h-125">
+            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 2xl:h-88.5 3xl:h-135 mt-3">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -530,8 +530,8 @@ const formatShortDate = (raw?: string | null) => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-col 3xl:pt-7">
-                <div className="flex-1 min-h-[250px] 3xl:h-300 3xl:pb-0 pb-5 pr-2 3xl:pr-5">
+              <CardContent className="flex flex-col">
+                <div className="flex-1 min-h-[250px] 3xl:h-300">
                   <WeeklyChartWidget rows={filteredRowsForWeek} weekStart={weeklyDateRange?.from} />
                 </div>
               </CardContent>

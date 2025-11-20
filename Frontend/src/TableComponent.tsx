@@ -495,7 +495,8 @@ export function TableComponent({
                     />
                   </div>
                 );
-              })}
+              console.log(idx)})}
+              
             </div>
           </div>
 

@@ -484,6 +484,7 @@ export default function Report() {
 
     return chips.slice(0, 20); // limit display
   }, [advancedFilters, formulaLabels, colLabels, filtros]);
+  console.log('[report] activeFilterChips:', activeFilterChips);
 
   const removeChip = useCallback((chip: { type: string; value: any }) => {
     try {
@@ -524,6 +525,7 @@ export default function Report() {
       console.warn('Failed to remove chip', e);
     }
   }, [advancedFilters, setFiltersState]);
+  console.log(removeChip)
 
   // Listener para eventos explícitos de atualização de configuração
   useEffect(() => {
@@ -1941,7 +1943,7 @@ export default function Report() {
             </div>
 
           {/* Active advanced filters preview */}
-          <div className="w-83 rounded-lg p-2 shadow-md/16 bg-white">
+          {/* <div className="w-83 rounded-lg p-2 shadow-md/16 bg-white">
             <p className="text-sm font-semibold text-center">Filtros aplicados</p>
             <div className="mt-2 flex flex-wrap gap-2 justify-center">
               {activeFilterChips.length === 0 && (
@@ -1968,7 +1970,7 @@ export default function Report() {
                 </div>
               ))}
             </div>
-          </div>
+          </div> */}
           </div>
 
           {/* Produtos */}

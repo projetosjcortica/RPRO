@@ -116,7 +116,6 @@ export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPo
             let numericValue: number;
 
             if (Array.isArray(value)) {
-              // Se for um array, pegue o último valor (ou o que for relevante)
               numericValue = Number(value[value.length - 1]);
             } else {
               numericValue = Number(value);
@@ -125,7 +124,8 @@ export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPo
             if (isNaN(numericValue)) return ['', ''];
 
             const formattedValue = `${formatBR(numericValue)} kg`;
-            const label = name === 'entrada' ? 'Entrada' : 'Saída';
+            const nm = String(name || '').toLowerCase();
+            const label = nm.includes('entrada') ? 'Entrada' : nm.includes('saída') || nm.includes('saida') ? 'Saída' : String(name || '');
             return [formattedValue, label];
           }}
         />
@@ -242,7 +242,6 @@ export function ChartFluxoSemanal({ dados, bare }: ChartFluxoSemanalProps) {
             let numericValue: number;
 
             if (Array.isArray(value)) {
-              // Se for um array, pegue o último valor (ou o que for relevante)
               numericValue = Number(value[value.length - 1]);
             } else {
               numericValue = Number(value);
@@ -251,7 +250,8 @@ export function ChartFluxoSemanal({ dados, bare }: ChartFluxoSemanalProps) {
             if (isNaN(numericValue)) return ['', ''];
 
             const formattedValue = `${formatBR(numericValue)} kg`;
-            const label = name === 'entrada' ? 'Entrada' : 'Saída';
+            const nm = String(name || '').toLowerCase();
+            const label = nm.includes('entrada') ? 'Entrada' : nm.includes('saída') || nm.includes('saida') ? 'Saída' : String(name || '');
             return [formattedValue, label];
           }}
         />
@@ -369,7 +369,6 @@ export function ChartPerdaAcumulada({ dados }: ChartPerdaAcumuladaProps) {
                 let numericValue: number;
 
                 if (Array.isArray(value)) {
-                  // Se for um array, pegue o último valor (ou o que for relevante)
                   numericValue = Number(value[value.length - 1]);
                 } else {
                   numericValue = Number(value);
@@ -378,7 +377,8 @@ export function ChartPerdaAcumulada({ dados }: ChartPerdaAcumuladaProps) {
                 if (isNaN(numericValue)) return ['', ''];
 
                 const formattedValue = `${formatBR(numericValue)} kg`;
-                const label = name === 'entrada' ? 'Entrada' : 'Saída';
+                const nm = String(name || '').toLowerCase();
+                const label = nm.includes('entrada') ? 'Entrada' : nm.includes('saída') || nm.includes('saida') ? 'Saída' : String(name || '');
                 return [formattedValue, label];
               }}
             />            
