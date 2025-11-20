@@ -600,7 +600,7 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
   const displayUnit = unit || "kg";
 
   return (
-    <div className="h-full w-full relative">
+    <div className="3xl:h-100 h-54 flex flex-col relative">
       <div className="text-gray-700 font-semibold z-10">
         {displayTitle}
       </div>
@@ -683,12 +683,12 @@ export const WeeklyChartWidget = React.memo(({ rows, weekStart }: { rows: Entry[
   }, [rows, currentWeekStart]);
 
   return (
-    <div className="h-full flex flex-col relative">
+    <div className="3xl:h-95 h-54 flex flex-col relative">
       <div className=" text-gray-700 font-semibold z-10">
         Produção (kg)
       </div>
       <div className="flex-1">
-        <ResponsiveContainer width="100%" height="85%">
+        <ResponsiveContainer width="100%" height="100%">
           <BarChart data={weekData} margin={{ top: 35 }}>
             <XAxis dataKey="name" />
             <YAxis />

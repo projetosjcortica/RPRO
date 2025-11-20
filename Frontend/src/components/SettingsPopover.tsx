@@ -1,5 +1,4 @@
 import { Button } from "./ui/button";
-import React from "react";
 import { Popover, PopoverTrigger, PopoverContent } from "./ui/popover";
 import {
   Dialog,
@@ -38,12 +37,12 @@ export default function SettingsPopover({
     <div>
       <Popover>
         <PopoverTrigger asChild>
-          <button className="ml-1.5 w-full">
+          <button className="hover:bg-destructive h-11 w-11 rounded-lg [&>svg]:stroke-black hover:[&>svg]:stroke-white m-auto flex items-center justify-center">
             <Settings />
           </button>
         </PopoverTrigger>
         <PopoverContent
-          className="w-48 p-0"
+          className="w-48 bg-white p-2 flex flex-col gap-1"
           side="right"
           sideOffset={6}
           align="start"
@@ -53,7 +52,7 @@ export default function SettingsPopover({
             onOpenChange={(v) => setProfileDialogOpen(v)}
           >
             <DialogTrigger asChild>
-              <Button className="w-full justify-start">
+              <Button className="w-full border border-gray-400 bg-gray text-black justify-start hover:bg-red-600">
                 <CircleUser className="mr-2 h-4 w-4" />
                 Perfil
               </Button>
@@ -71,7 +70,7 @@ export default function SettingsPopover({
 
           <Dialog>
             <DialogTrigger asChild>
-              <Button className="w-full justify-start">
+              <Button className="w-full border border-gray-400 bg-gray text-black justify-start hover:bg-red-600">
                 <CircleQuestionMark className="mr-2 h-4 w-4" />
                 Sobre
               </Button>
@@ -147,7 +146,7 @@ export default function SettingsPopover({
             <>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="w-full justify-start">
+                  <Button className="w-full border border-gray-400 bg-gray text-black justify-start hover:bg-destructive">
                     <GalleryThumbnails className="mr-2 h-4 w-4" />
                     IHM
                   </Button>
@@ -162,7 +161,7 @@ export default function SettingsPopover({
               </Dialog>
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button className="w-full justify-start">
+                  <Button className="w-full border border-gray-400 bg-gray text-black justify-start hover:bg-red-600">
                     <HatGlasses className="mr-2 h-4 w-4" />
                     ADM
                   </Button>

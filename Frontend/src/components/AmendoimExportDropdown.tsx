@@ -424,10 +424,10 @@ export function AmendoimExportDropdown({
                   <RadioGroupItem value="medium" id="font-medium" />
                   <Label htmlFor="font-medium" className="cursor-pointer font-normal">Média (Padrão)</Label>
                 </div>
-                <div className="flex items-center space-x-2">
+                {/* <div className="flex items-center space-x-2">
                   <RadioGroupItem value="large" id="font-large" />
                   <Label htmlFor="font-large" className="cursor-pointer font-normal">Grande</Label>
-                </div>
+                </div> */}
               </RadioGroup>
             </div>
 
