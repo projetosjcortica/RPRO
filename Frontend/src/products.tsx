@@ -90,7 +90,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   // Carrega status ativo/inativo do backend
   const loadProdutosAtivos = async () => {
     try {
-      const response = await fetch("http://localhost:3000/api/materiaprima/labels");
+      const response = await fetch("http://localhost:3001/api/materiaprima/labels");
       const data = await response.json();
       
       const ativosObj: { [key: string]: boolean } = {};
@@ -192,7 +192,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
         const colIndex = Number(match[1]);
         const num = colIndex - 5;
         if (!Number.isNaN(num) && num > 0) {
-          await fetch("http://localhost:3000/api/db/setupMateriaPrima", {
+          await fetch("http://localhost:3001/api/db/setupMateriaPrima", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ items: [{ num, produto: nomeAtual, medida: novaUnidade === 'g' ? 0 : 1 }] }),
@@ -231,7 +231,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
 
       console.log(`[products] Toggle produto ${num} (${colKey})`);
 
-      const response = await fetch(`http://localhost:3000/api/materiaprima/${num}/toggle`, {
+      const response = await fetch(`http://localhost:3001/api/materiaprima/${num}/toggle`, {
         method: "PATCH",
       });
 
@@ -287,7 +287,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
 
       console.log(`[products] Toggle ignorar cálculos produto ${num} (${colKey})`);
 
-      const response = await fetch(`http://localhost:3000/api/materiaprima/${num}/toggle-ignorar-calculos`, {
+      const response = await fetch(`http://localhost:3001/api/materiaprima/${num}/toggle-ignorar-calculos`, {
         method: "PATCH",
       });
 
@@ -336,7 +336,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   //   try {
   //     console.log('[products] Reativando todos os produtos...');
       
-  //     const response = await fetch('http://localhost:3000/api/materiaprima/reset-all', {
+  //     const response = await fetch('http://localhost:3001/api/materiaprima/reset-all', {
   //       method: 'POST',
   //     });
 
@@ -410,7 +410,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   //       const num = i - 5;
   //       const nome = parsed[key]?.nome || `Produto ${num}`;
   //       const medida = target === 'g' ? 0 : 1;
-  //       requests.push(fetch(`http://localhost:3000/api/materiaprima/${num}`, {
+  //       requests.push(fetch(`http://localhost:3001/api/materiaprima/${num}`, {
   //         method: "PATCH",
   //         headers: { "Content-Type": "application/json" },
   //         body: JSON.stringify({ produto: nome, medida }),
@@ -448,7 +448,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
   //         const nome = parsed[key]?.nome || `Produto ${num}`;
           
   //         requests.push(
-  //           fetch(`http://localhost:3000/api/materiaprima/${num}`, {
+  //           fetch(`http://localhost:3001/api/materiaprima/${num}`, {
   //             method: "PATCH",
   //             headers: { "Content-Type": "application/json" },
   //             body: JSON.stringify({ produto: nome, medida: 1 }), // medida 1 = kg

@@ -68,7 +68,7 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
     const fetchInitialCodigos = async () => {
       setLoadingFiltros(true);
       try {
-        const resp = await fetch('http://localhost:3000/api/amendoim/filtrosDisponiveis');
+        const resp = await fetch('http://localhost:3001/api/amendoim/filtrosDisponiveis');
         if (!resp.ok) throw new Error('Failed to fetch initial filtros');
         const body = await resp.json() as FiltrosResponse;
         const cods = Array.isArray(body.codigosProduto) ? body.codigosProduto.map(c => String(c)) : [];
@@ -95,7 +95,7 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
         if (filtrosTemporarios.dataInicio) params.set('dataInicio', filtrosTemporarios.dataInicio);
         if (filtrosTemporarios.dataFim) params.set('dataFim', filtrosTemporarios.dataFim);
         
-        const url = `http://localhost:3000/api/amendoim/filtrosDisponiveis?${params.toString()}`;
+        const url = `http://localhost:3001/api/amendoim/filtrosDisponiveis?${params.toString()}`;
         const resp = await fetch(url);
         if (!resp.ok) throw new Error('Failed to fetch filtros disponíveis');
         const body = await resp.json() as FiltrosResponse;

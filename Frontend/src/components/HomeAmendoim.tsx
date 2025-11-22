@@ -59,13 +59,13 @@ export default function HomeAmendoim() {
         console.log('[HomeAmendoim] 📅 Carregando dados dos últimos 30 dias:', filtro30Dias);
 
         // Carregar dados de análise pré-processados com filtro de 30 dias
-        const resAnalise = await fetch(`http://localhost:3000/api/amendoim/analise?${params}`);
+        const resAnalise = await fetch(`http://localhost:3001/api/amendoim/analise?${params}`);
         const analise = await resAnalise.json();
         console.log('[HomeAmendoim] 📊 Dados de análise recebidos:', analise);
         setDadosAnalise(analise);
 
         // Carregar métricas de rendimento com filtro de 30 dias
-        const resMetricas = await fetch(`http://localhost:3000/api/amendoim/metricas/rendimento?${params}`);
+        const resMetricas = await fetch(`http://localhost:3001/api/amendoim/metricas/rendimento?${params}`);
         const metricas = await resMetricas.json();
         console.log('[HomeAmendoim] 📈 Métricas de rendimento recebidas:', metricas);
         setMetricas(metricas);
@@ -78,7 +78,7 @@ export default function HomeAmendoim() {
             dataInicio: filtro30Dias.dataInicio,
             dataFim: filtro30Dias.dataFim,
           });
-          const resRegs = await fetch(`http://localhost:3000/api/amendoim/registros?${tableParams}`);
+          const resRegs = await fetch(`http://localhost:3001/api/amendoim/registros?${tableParams}`);
           if (resRegs.ok) {
             const json = await resRegs.json();
             // transformar para colunas esperadas pela TableComponent

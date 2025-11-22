@@ -193,7 +193,7 @@ function getBackendScriptPath(): string {
   //   return path.join(projectRoot, "back-end", "dist", "index.js");
   // }
   // if (!app.isPackaged) {
-    return path.join("backend", "index.js")
+  return path.join("backend", "index.js")
   // }
 }
 
@@ -345,7 +345,7 @@ function startBackendMonitor({ intervalMs = 15000 }: { intervalMs?: number } = {
 
   backendMonitorInterval = setInterval(async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/ping");
+      const res = await fetch("http://localhost:3001/api/ping");
       if (res && res.ok) {
         // healthy
         // console.log('[main.monitor] backend healthy');
@@ -610,7 +610,7 @@ function createWindow() {
 
 async function tryForkBackend(): Promise<boolean> {
   try {
-    const res = await fetch("http://localhost:3000/api/ping");
+    const res = await fetch("http://localhost:3001/api/ping");
     if (res && res.ok) {
       console.log("[main] backend is alive");
       return true;
@@ -746,17 +746,17 @@ app.whenReady().then(() => {
           "[main] failed to auto-fork backend in dev:",
           (e as Error).message || e
         );
-      }  
+      }
     }
 
-      // Start background monitor to keep backend alive and auto-refork if it dies
-      try {
-        startBackendMonitor({ intervalMs: 15000 });
-      } catch (e) {
-        console.warn('[main] failed to start backend monitor', e);
-      }
+    // Start background monitor to keep backend alive and auto-refork if it dies
+    try {
+      startBackendMonitor({ intervalMs: 15000 });
+    } catch (e) {
+      console.warn('[main] failed to start backend monitor', e);
+    }
 
-      createWindow();
+    createWindow();
   })();
 });
 
@@ -767,7 +767,7 @@ app.on("window-all-closed", () => {
 
 app.on("before-quit", () => {
   // stop monitor when quitting
-  try { stopBackendMonitor(); } catch (e) {}
+  try { stopBackendMonitor(); } catch (e) { }
   // ensure spawned backend is terminated
   try {
     if (spawnedBackend && !spawnedBackend.killed) {

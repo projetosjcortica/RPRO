@@ -8,6 +8,7 @@ import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './conf
 import Report from './report';
 import Estoque from './estoque';
 import Amendoim from './amendoim';
+import ComponentShowcase from './ComponentShowcase';
 import {
   Sidebar,
   SidebarFooter,
@@ -110,7 +111,7 @@ const App = () => {
           updateUser({ ...user, photoPath: path });
           return;
         }
-      } catch (err) {}
+      } catch (err) { }
       if (user) {
         updateUser({ ...user });
       }
@@ -153,6 +154,12 @@ const App = () => {
       icon: Sheet,
       classname: "size-9",
       path: '/report'
+    },
+    {
+      title: "Showcase",
+      icon: GalleryThumbnails,
+      classname: "size-9",
+      path: '/showcase'
     }
   ];
 
@@ -251,7 +258,7 @@ const App = () => {
             <div className="flex justify-end">
               <SidebarTrigger onClick={() => {
                 setSideBarOpen(!sideBarOpen);
-              }}/>
+              }} />
             </div>
             <SidebarHeader className='flex justify-center'>
               <div className="flex items-center gap-3">
@@ -284,12 +291,11 @@ const App = () => {
                             if (!user) return navigate('/login');
                             navigate(item.path);
                           }}
-                          className={`flex items-center gap-2 transition-colors ${
-                            location.pathname === item.path ||
+                          className={`flex items-center gap-2 transition-colors ${location.pathname === item.path ||
                             (item.path === '/' && location.pathname === '/home')
-                              ? 'bg-sidebar-accent text-sidebar-accent-foreground inset-shadow-sm'
-                              : 'hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
-                          }`}
+                            ? 'bg-sidebar-accent text-sidebar-accent-foreground inset-shadow-sm'
+                            : 'hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground'
+                            }`}
                         >
                           <item.icon />
                           <span>{item.title}</span>
@@ -319,7 +325,7 @@ const App = () => {
                           <CollapsibleContent className="text-popover-foreground flex flex-col outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95">
                             <Dialog open={profileDialogOpen} onOpenChange={(v) => setProfileDialogOpen(v)}>
                               <DialogTrigger asChild>
-                                <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <CircleUser/>Perfil</SidebarMenuSubButton>
+                                <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <CircleUser />Perfil</SidebarMenuSubButton>
                               </DialogTrigger>
                               <DialogContent>
                                 <DialogHeader>
@@ -334,7 +340,7 @@ const App = () => {
 
                             <Dialog>
                               <DialogTrigger asChild>
-                                <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <CircleQuestionMark/> Sobre</SidebarMenuSubButton>
+                                <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <CircleQuestionMark /> Sobre</SidebarMenuSubButton>
                               </DialogTrigger>
                               <DialogContent className=' h-[90%]  flex items-center'>
                                 <div style={styles.container} className='thin-red-scrollbar'>
@@ -373,7 +379,7 @@ const App = () => {
                               <>
                                 <Dialog>
                                   <DialogTrigger asChild>
-                                    <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'><GalleryThumbnails/>IHM</SidebarMenuSubButton>
+                                    <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'><GalleryThumbnails />IHM</SidebarMenuSubButton>
                                   </DialogTrigger>
                                   <DialogContent>
                                     <DialogHeader>
@@ -387,7 +393,7 @@ const App = () => {
                                 </Dialog>
                                 <Dialog>
                                   <DialogTrigger asChild>
-                                    <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <HatGlasses/> ADM</SidebarMenuSubButton>
+                                    <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <HatGlasses /> ADM</SidebarMenuSubButton>
                                   </DialogTrigger>
                                   <DialogContent>
                                     <AdminConfig />
@@ -435,6 +441,7 @@ const App = () => {
               </RequireAuth>
             }
           />
+          <Route path="/showcase" element={<RequireAuth><ComponentShowcase /></RequireAuth>} />
           <Route path="/about" element={<RequireAuth><About /></RequireAuth>} />
           <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />
         </Routes>

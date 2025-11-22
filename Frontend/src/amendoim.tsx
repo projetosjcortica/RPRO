@@ -54,7 +54,7 @@ function AmendoimChartsContainer({
           ...(filtros.dataFim && { dataFim: filtros.dataFim }),
         });
         
-        const response = await fetch(`http://localhost:3000/api/amendoim/analise?${params}`);
+        const response = await fetch(`http://localhost:3001/api/amendoim/analise?${params}`);
         const dados = await response.json();
         
         setDadosChart(dados[chartType] || []);
@@ -225,7 +225,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     let mounted = true;
     const loadLogo = async () => {
       try {
-        const res = await fetch("http://localhost:3000/api/report/logo");
+        const res = await fetch("http://localhost:3001/api/report/logo");
         if (!res.ok) return;
         const js = await res.json().catch(() => ({}));
         const p = js?.path;
@@ -251,7 +251,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     const loadIhmConfig = async () => {
       try {
         console.log('[Amendoim] 🔄 Carregando configuração IHM...');
-        const res = await fetch('http://localhost:3000/api/amendoim/config');
+        const res = await fetch('http://localhost:3001/api/amendoim/config');
         if (!res.ok) {
           console.warn('[Amendoim] ⚠️ Falha ao carregar config:', res.status);
           return;
@@ -390,7 +390,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         console.log('[Amendoim] fetchRegistros - Ordenando por:', sortColumn, sortDirection === 'asc' ? 'ASC' : 'DESC');
       }
 
-      const url = `http://localhost:3000/api/amendoim/registros?${params}`;
+      const url = `http://localhost:3001/api/amendoim/registros?${params}`;
       console.log('[Amendoim] Buscando:', url);
       
       const res = await fetch(url);
@@ -424,7 +424,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         params.set('tipo', viewMode);
       }
 
-      const res = await fetch(`http://localhost:3000/api/amendoim/estatisticas?${params}`);
+      const res = await fetch(`http://localhost:3001/api/amendoim/estatisticas?${params}`);
       if (res.ok) {
         const data = await res.json();
         setEstatisticas(data);
@@ -443,7 +443,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       if (filtrosAtivos.codigoProduto) params.set('codigoProduto', filtrosAtivos.codigoProduto);
       if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
 
-      const res = await fetch(`http://localhost:3000/api/amendoim/metricas/rendimento?${params}`);
+      const res = await fetch(`http://localhost:3001/api/amendoim/metricas/rendimento?${params}`);
       if (res.ok) {
         const data = await res.json();
         setMetricasRendimento(data);
@@ -463,7 +463,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       if (filtrosAtivos.codigoProduto) params.set('codigoProduto', filtrosAtivos.codigoProduto);
       if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
 
-      const res = await fetch(`http://localhost:3000/api/amendoim/analise?${params}`);
+      const res = await fetch(`http://localhost:3001/api/amendoim/analise?${params}`);
       if (res.ok) {
         const data = await res.json();
         setDadosAnalise(data);
@@ -517,7 +517,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
   const fetchCollectorStatus = useCallback(async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/amendoim/collector/status", { method: "GET" });
+      const res = await fetch("http://localhost:3001/api/amendoim/collector/status", { method: "GET" });
       if (!res.ok) return;
       const status = await res.json().catch(() => ({}));
   const isRunning = !!(status && status.running);
@@ -569,7 +569,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   setCollectorLoading(true);
     try {
   if (collectorRunning) {
-        const res = await fetch("http://localhost:3000/api/amendoim/collector/stop", { method: "POST" });
+        const res = await fetch("http://localhost:3001/api/amendoim/collector/stop", { method: "POST" });
         if (!res.ok) throw new Error("Falha ao interromper o coletor.");
         await res.json().catch(() => ({}));
         await fetchCollectorStatus();
@@ -590,7 +590,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         
   // Start amendoim collector (will collect both entrada and saida as configured)
   try { toastManager.showLoading('collector-toggle', 'Iniciando coletor Amendoim...'); } catch(e){}
-        const res = await fetch("http://localhost:3000/api/amendoim/collector/start", {
+        const res = await fetch("http://localhost:3001/api/amendoim/collector/start", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ intervalMinutes: 5 }),

@@ -26,7 +26,7 @@ export default function AdvancedFilterPanel({ filters, onChange, colLabels }: Ad
       try {
         // Load formula labels
         try {
-          const fRes = await fetch('http://localhost:3000/api/formulas/labels');
+          const fRes = await fetch('http://localhost:3001/api/formulas/labels');
           if (fRes.ok) {
             const fJs = await fRes.json();
             if (mounted) setFormulaLabels(fJs);
@@ -36,7 +36,7 @@ export default function AdvancedFilterPanel({ filters, onChange, colLabels }: Ad
         }
 
         // Load materia labels
-        const res = await fetch('http://localhost:3000/api/materiaprima/labels');
+        const res = await fetch('http://localhost:3001/api/materiaprima/labels');
         if (!res.ok) return;
         const js = await res.json();
         if (!mounted) return;

@@ -22,13 +22,13 @@ export class Processador {
   private eventHandlers: Map<string, (payload: any) => void> = new Map();
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'connected';
   private baseURL: string;
-  
+
   // OTIMIZAÇÃO: Cache de requisições em memória (TTL de 5s)
   private requestCache: Map<string, { data: any; timestamp: number }> = new Map();
   private cacheTTL: number = 5000; // 5 segundos
 
   constructor(port: number) {
-    this.port = port || 3000;
+    this.port = port || 3001;
     this.baseURL = `http://localhost:${this.port}`;
     this.connectionState = 'connected';
     console.log(`[Processador] HTTP client initialized for ${this.baseURL}`);
@@ -59,7 +59,7 @@ export class Processador {
 
   // Método makeRequest corrigido - SEMPRE usa URL absoluta
   private async makeRequest(endpoint: string, method = 'GET', data?: any): Promise<any> {
-    
+
     let url: string;
     if (/^https?:\/\//i.test(endpoint)) {
       url = endpoint;
@@ -79,17 +79,17 @@ export class Processador {
 
     console.log(`[Processador] 🌐 Request para ${url} (${method})`);
 
-    const headers: Record<string, string> = { 
+    const headers: Record<string, string> = {
       'Accept': 'application/json',
       'Connection': 'keep-alive', // Reutilizar conexões
     };
-    
+
     // Ensure summary/resumo endpoints are never cached by browsers or intermediate proxies
     if (/\/api\/resumo$/.test(url) || /\/api\/resumo\?/.test(url)) {
       headers['Cache-Control'] = 'no-cache';
     }
-    const config: RequestInit = { 
-      method, 
+    const config: RequestInit = {
+      method,
       headers,
       keepalive: true // Manter conexão ativa
     };
@@ -111,12 +111,12 @@ export class Processador {
       const response = await fetch(url, config);
       if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       const result = await response.json();
-      
+
       // OTIMIZAÇÃO: Salvar no cache se for GET
       if (method === 'GET') {
         this.requestCache.set(url, { data: result, timestamp: Date.now() });
       }
-      
+
       return result;
     } catch (error) {
       console.error(`[Processador] Request failed to ${url}:`, error);
@@ -200,11 +200,11 @@ export class Processador {
     pageSize = 100,
     filters: FilterOptions & { advancedFilters?: any } = {}
   ): Promise<any> {
-    const params: any = { 
-      page, 
-      pageSize 
+    const params: any = {
+      page,
+      pageSize
     };
-    
+
     if (filters.nomeFormula && filters.nomeFormula !== '') {
       params.nomeFormula = filters.nomeFormula;
     }
@@ -258,7 +258,7 @@ export class Processador {
     return this.makeRequest('/api/ihm/fetchLatest', 'GET', { ip, user, password });
   }
 
-  public discoverIhms(method: 'node' | 'powershell' = 'node', ports: number[] = [80,443,502], timeoutMs = 800, paths: string[] = ['/', '/visu', '/visu/index.html']) {
+  public discoverIhms(method: 'node' | 'powershell' = 'node', ports: number[] = [80, 443, 502], timeoutMs = 800, paths: string[] = ['/', '/visu', '/visu/index.html']) {
     return this.makeRequest('/api/ihm/discover', 'POST', { method, ports, timeoutMs, paths });
   }
 
@@ -298,9 +298,9 @@ export class Processador {
   // Database helpers
   public listBatches() { return this.dbListBatches(); }
   public getMateriaPrimaLabels() { return this.makeRequest('/api/materiaprima/labels', 'GET'); }
-  
-  public setupMateriaPrimaItems(items: Array<{ num: number; produto: string; medida: number }>) { 
-    return this.dbSetupMateriaPrima(items); 
+
+  public setupMateriaPrimaItems(items: Array<{ num: number; produto: string; medida: number }>) {
+    return this.dbSetupMateriaPrima(items);
   }
 
   public getMateriaPrima() {
@@ -334,7 +334,7 @@ export class Processador {
 
     console.log(`[Processador] Making request to ${url} with method ${method} (with signal)`, data);
 
-  const headers: Record<string, string> = { 'Accept': 'application/json', 'Cache-Control': 'no-cache' };
+    const headers: Record<string, string> = { 'Accept': 'application/json', 'Cache-Control': 'no-cache' };
     const config: RequestInit = { method, headers, signal };
 
     // GET → colocar parâmetros na URL
@@ -376,7 +376,7 @@ export class Processador {
 
     return this.makeRequest('/api/resumo', 'GET', params);
   }
-  
+
   // Nova versão com suporte a AbortSignal
   public getResumoWithSignal(signal: AbortSignal, areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string, advancedFilters?: any) {
     const params: any = {};
@@ -565,14 +565,14 @@ export class Processador {
   // ✅ NOVO: Método para aguardar o backend ficar pronto
   public async waitForBackendReady(timeoutMs: number = 30000): Promise<boolean> {
     const startTime = Date.now();
-    
+
     while (Date.now() - startTime < timeoutMs) {
       if (await this.checkBackendHealth()) {
         return true;
       }
       await new Promise(resolve => setTimeout(resolve, 2000)); // Aguarda 2 segundos entre tentativas
     }
-    
+
     return false;
   }
 
@@ -582,7 +582,7 @@ export class Processador {
     formData.append('file', file);
 
     const url = `${this.baseURL}/api/file/upload`;
-    
+
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -603,8 +603,8 @@ export class Processador {
   }
 
   // ✅ NOVO: Método para converter CSV legado
-  public async convertLegacyCSV(file: File): Promise<{ 
-    ok: boolean; 
+  public async convertLegacyCSV(file: File): Promise<{
+    ok: boolean;
     rowsProcessed: number;
     rowsConverted: number;
     errors: string[];
@@ -614,7 +614,7 @@ export class Processador {
     formData.append('file', file);
 
     const url = `${this.baseURL}/api/file/convert`;
-    
+
     try {
       const response = await fetch(url, {
         method: 'POST',
@@ -632,14 +632,14 @@ export class Processador {
       throw error;
     }
   }
-} 
+}
 
 // Singleton instance
 let globalProcessadorInstance: Processador | null = null;
 
 export function getProcessador(): Processador {
   if (!globalProcessadorInstance) {
-    globalProcessadorInstance = new Processador(3000);
+    globalProcessadorInstance = new Processador(3001);
   }
   return globalProcessadorInstance;
 }

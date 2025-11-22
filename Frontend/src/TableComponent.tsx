@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { format as formatDateFn } from "date-fns";
 import { Filtros, ReportRow } from "./components/types";
 import { useReportData } from "./hooks/useReportData";
-import { Loader2 } from "lucide-react";
+import { DataTable, Column } from "./components/ui/data-table/DataTable";
 
 // ================
 // TIPOS E CONSTANTES
@@ -24,17 +24,7 @@ interface TableComponentProps {
   onToggleSort?: (col: string) => void;
 }
 
-const DEFAULT_WIDTHS = {
-  dia: 90,
-  hora: 70,
-  nome: 200,
-  codigo: 100,
-  numero: 100,
-  dynamic: 110,
-};
-
 const STORAGE_KEY = "rpro-table-column-widths";
-const FIXED_COLUMNS = ["Dia", "Hora", "Nome", "Codigo", "Numero"];
 
 // ================
 // FUNÇÕES AUXILIARES
@@ -72,7 +62,7 @@ const getStableRowKey = (row: any, idx: number): string => {
     const num = safeString(row.Numero || row.numero || "");
     const codigo = safeString(row.Codigo || row.codigo || "");
     const maybeId = row.id || row.Id || row._id || "";
-    const valuesHash = Array.isArray(row.values) ? String(row.values.length) + '|' + JSON.stringify(row.values?.slice(0,3) || []) : '';
+    const valuesHash = Array.isArray(row.values) ? String(row.values.length) + '|' + JSON.stringify(row.values?.slice(0, 3) || []) : '';
     const parts = [maybeId, d, h, num, codigo, valuesHash].filter(Boolean);
     if (parts.length === 0) return `r_${idx}`;
     return parts.join("|");
@@ -93,12 +83,6 @@ const safeString = (value: any): string => {
   return "";
 };
 
-const getColumnHeader = (col: string, idx: number): React.ReactNode => {
-  if (idx === 3) return <div className="text-center">Código do programa</div>;
-  if (idx === 4) return <div className="text-center">Código do cliente</div>;
-  return safeString(col);
-};
-
 const formatDate = (raw: string): string => {
   try {
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
@@ -111,7 +95,7 @@ const formatDate = (raw: string): string => {
     }
     const parsed = new Date(raw);
     if (!isNaN(parsed.getTime())) return formatDateFn(parsed, "dd/MM/yyyy");
-  } catch {}
+  } catch { }
   return raw;
 };
 
@@ -133,112 +117,20 @@ export function TableComponent({
   sortDir: sortDirProp,
   onToggleSort,
 }: TableComponentProps) {
-  // ================
-  // REFS & STATE
-  // ================
-  const tableRef = useRef<HTMLDivElement>(null);
+
   const [dadosAtual, setDadosAtual] = useState<ReportRow[]>(dadosProp);
-
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed && typeof parsed === "object") return parsed;
-      }
-    } catch (e) {
-      console.warn("Erro ao carregar larguras das colunas:", e);
-    }
-    return {
-      dia: DEFAULT_WIDTHS.dia,
-      hora: DEFAULT_WIDTHS.hora,
-      nome: DEFAULT_WIDTHS.nome,
-      codigo: DEFAULT_WIDTHS.codigo,
-      numero: DEFAULT_WIDTHS.numero,
-    };
-  });
-
-  const [resizing, setResizing] = useState<{
-    columnKey: string;
-    startX: number;
-    startWidth: number;
-  } | null>(null);
-
-  // ================
-  // CALLBACKS
-  // ================
-
-  const resetColumnWidths = useCallback(() => {
-    const defaults = {
-      dia: DEFAULT_WIDTHS.dia,
-      hora: DEFAULT_WIDTHS.hora,
-      nome: DEFAULT_WIDTHS.nome,
-      codigo: DEFAULT_WIDTHS.codigo,
-      numero: DEFAULT_WIDTHS.numero,
-    };
-    setColumnWidths(defaults);
-    localStorage.removeItem(STORAGE_KEY);
-  }, []);
-
-  const handleResizeStart = useCallback((e: React.MouseEvent, columnKey: string) => {
-    e.preventDefault();
-    setResizing({
-      columnKey,
-      startX: e.clientX,
-      startWidth: columnWidths[columnKey] || DEFAULT_WIDTHS.dynamic,
-    });
-  }, [columnWidths]);
-
-  const handleResizeMove = useCallback((e: MouseEvent) => {
-    if (!resizing) return;
-    const diff = e.clientX - resizing.startX;
-    const newWidth = Math.max(50, resizing.startWidth + diff);
-    setColumnWidths((prev) => ({ ...prev, [resizing.columnKey]: newWidth }));
-  }, [resizing]);
-
-  const handleResizeEnd = useCallback(() => {
-    setResizing(null);
-  }, []);
-
-  // ================
-  // EFFECTS
-  // ================
-
-  useEffect(() => {
-    if (onResetColumnsReady) onResetColumnsReady(resetColumnWidths);
-  }, [onResetColumnsReady, resetColumnWidths]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(columnWidths));
-    } catch (e) {
-      console.warn("Erro ao salvar larguras das colunas:", e);
-    }
-  }, [columnWidths]);
-
-  useEffect(() => {
-    if (resizing) {
-      window.addEventListener("mousemove", handleResizeMove);
-      window.addEventListener("mouseup", handleResizeEnd);
-      return () => {
-        window.removeEventListener("mousemove", handleResizeMove);
-        window.removeEventListener("mouseup", handleResizeEnd);
-      };
-    }
-  }, [resizing, handleResizeMove, handleResizeEnd]);
 
   // ================
   // DADOS DA TABELA
   // ================
 
-  // Quando useExternalData é true, não usar o hook interno
   const shouldFetchData = !useExternalData;
   const internalSortBy = sortByProp || 'Dia';
   const internalSortDir = sortDirProp || 'DESC';
-  
+
   const { dados: dadosFromHook, loading: loadingFromHook, error: errorFromHook } = useReportData(
-    filtros as any, 
-    page || 1, 
+    filtros as any,
+    page || 1,
     pageSize || 100,
     internalSortBy,
     internalSortDir,
@@ -248,322 +140,147 @@ export function TableComponent({
   useEffect(() => {
     if (useExternalData) return;
     const newDados = Array.isArray(dadosFromHook) ? dadosFromHook : [];
-    // Atualização instantânea: sempre aplicar novos dados imediatamente
     setDadosAtual(newDados);
   }, [dadosFromHook, useExternalData]);
 
   useEffect(() => {
     if (!useExternalData) return;
     const newDados = Array.isArray(dadosProp) ? dadosProp : [];
-    // Evitar setState desnecessário para prevenir re-renders/flicker
     try {
       const prevTs = getLastTimestamp(dadosAtual as any[]);
       const newTs = getLastTimestamp(newDados as any[]);
       if ((dadosAtual?.length || 0) === newDados.length && prevTs === newTs) {
         return;
       }
-    } catch (e) {
-      // swallow
-    }
+    } catch (e) { }
     setDadosAtual(newDados);
   }, [dadosProp, useExternalData, dadosAtual]);
 
-  // Table will re-render when filtros/dados change. Do not auto-refresh on produtos-updated here.
-  // Product updates are applied by the parent (`report.tsx`) when navigating away or clicking outside.
-
   const produtosInfo = produtosInfoProp || {};
   const dados = useExternalData ? dadosAtual : dadosFromHook;
-
-  // ================
-  // COLUNAS DINÂMICAS
-  // ================
-
-  const dynamicColumns = React.useMemo(() => {
-    if (!dados?.length) return [];
-    const maxValues = Math.max(...dados.map((row) => row.values?.length || 0));
-    const allCols = Array.from({ length: maxValues }, (_, i) => `col${6 + i}`);
-    
-    // ⚠️ FILTRO: Remover produtos inativos
-    return allCols.filter(colKey => {
-      const info = produtosInfo[colKey];
-      // Se ativo é undefined ou true, mostrar. Se false, ocultar
-      return info?.ativo !== false;
-    });
-  }, [dados, produtosInfo]);
-
-  // ================
-  // FORMATAÇÃO
-  // ================
-
-  const converterValor = (valor: any, _colKey?: string): any => {
-    // Backend agora envia valores já formatados como string com 3 casas decimais
-    // Se vier string, usar direto; se vier number (legado), formatar
-    if (typeof valor === "string" && valor.trim() !== "") {
-      return valor; // Já formatado pelo backend (ex: "0.800", "1.234")
-    }
-    
-    let n: number;
-    if (typeof valor === "number") {
-      n = valor;
-    } else {
-      return valor;
-    }
-
-    // Fallback: se ainda for número, formatar localmente
-    return n;
-  };
-
-  const formatValue = (v: unknown, colKey: string): string => {
-    // Se valor já vier como string formatada do backend, usar direto
-    if (typeof v === "string" && v.trim() !== "") {
-      return v;
-    }
-    
-    // Fallback: formatar se vier como número
-    if (typeof v === "number") {
-      const valorConvertido = converterValor(v, colKey);
-      if (typeof valorConvertido === "string") return valorConvertido;
-      return valorConvertido.toLocaleString("pt-BR", {
-        minimumFractionDigits: 3,
-        maximumFractionDigits: 3,
-      });
-    }
-    return safeString(v);
-  };
-
-  const getColumnLabel = (colKey: string): string => {
-    if (FIXED_COLUMNS.includes(colKey)) return colKey;
-    if (colKey.startsWith("col")) {
-      const label = produtosInfo[colKey]?.nome;
-      const colNum = parseInt(colKey.replace("col", ""), 10);
-      return safeString(label) || `Produto ${colNum - 5}`;
-    }
-    return safeString(colKey);
-  };
-
-  // ================
-  // LOADING / ERRO / VAZIO
-  // ================
-
   const loading = useExternalData ? Boolean(loadingProp ?? loadingFromHook) : loadingFromHook;
   const error = useExternalData ? errorProp ?? null : errorFromHook;
 
-  // If we are loading or have an error but already have data, keep rendering
-  // the table to avoid flicker / full re-mounts. Only show the full-screen
-  // placeholders when there is no existing data to display.
-  const hasData = Array.isArray(dados) && dados.length > 0;
-
-  if (loading && !hasData)
-    return (
-      <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[50vh] w-full text-center">
-        <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
-        <p className="text-lg font-medium">Carregando dados...</p>
-        <p className="text-sm text-gray-500">Os dados estão sendo processados, por favor aguarde.</p>
-      </div>
-    );
-
-  if (error && !hasData)
-    return (
-      <div className="flex flex-col items-center justify-center p-8 space-y-3 h-[50vh] w-full text-center">
-        <div className="text-gray-700 font-semibold text-lg">Erro ao carregar dados</div>
-        <div className="text-sm text-gray-600 max-w-md mx-auto">{error}</div>
-        <button
-          className="mt-2 px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700 transition-colors mx-auto"
-          onClick={() => window.location.reload()}
-        >
-          Tentar novamente
-        </button>
-      </div>
-    );
-
-  if (!hasData)
-    return (
-      <div className="flex flex-col items-center justify-center p-8 h-[50vh] w-full text-center">
-        <div className="text-gray-700 font-semibold text-lg">Nenhum dado encontrado</div>
-        <div className="text-sm text-gray-600 mt-1 max-w-md mx-auto">
-          Tente ajustar os filtros para ver mais resultados.
-        </div>
-      </div>
-    );
-
   // ================
-  // RENDERIZAÇÃO
+  // COLUNAS
   // ================
+
+  const columns = useMemo<Column<ReportRow>[]>(() => {
+    const cols: Column<ReportRow>[] = [
+      {
+        accessorKey: 'Dia',
+        header: 'Dia',
+        width: 90,
+        sortable: true,
+        cell: ({ value }) => formatDate(safeString(value)),
+        align: 'center',
+      },
+      {
+        accessorKey: 'Hora',
+        header: 'Hora',
+        width: 70,
+        sortable: true,
+        align: 'center',
+      },
+      {
+        accessorKey: 'Nome',
+        header: 'Nome',
+        width: 200,
+        sortable: true,
+        align: 'left',
+      },
+      {
+        accessorKey: 'Codigo',
+        header: 'Código do programa',
+        width: 100,
+        sortable: true,
+        sortKey: 'Form1',
+        align: 'right',
+      },
+      {
+        accessorKey: 'Numero',
+        header: 'Código do cliente',
+        width: 100,
+        sortable: true,
+        sortKey: 'Form2',
+        align: 'right',
+      },
+    ];
+
+    // Dynamic Columns
+    if (dados?.length) {
+      const maxValues = Math.max(...dados.map((row) => row.values?.length || 0));
+      const allCols = Array.from({ length: maxValues }, (_, i) => `col${6 + i}`);
+
+      const activeCols = allCols.filter(colKey => {
+        const info = produtosInfo[colKey];
+        return info?.ativo !== false;
+      });
+
+      activeCols.forEach(colKey => {
+        const info = produtosInfo[colKey];
+        const label = info?.nome || `Produto ${parseInt(colKey.replace("col", ""), 10) - 5}`;
+        const prodNum = parseInt(colKey.replace('col', ''), 10) - 5;
+        const backendField = `Prod_${prodNum}`;
+        const dynIdx = parseInt(colKey.replace('col', ''), 10) - 6; // col6 -> index 0
+
+        cols.push({
+          accessorKey: colKey,
+          header: label,
+          width: 110,
+          sortable: true,
+          sortKey: backendField,
+          align: 'right',
+          cell: ({ row }) => {
+            const val = row.values?.[dynIdx];
+            if (typeof val === "string" && val.trim() !== "") return val;
+            if (typeof val === "number") {
+              return val.toLocaleString("pt-BR", {
+                minimumFractionDigits: 3,
+                maximumFractionDigits: 3,
+              });
+            }
+            return safeString(val);
+          },
+        });
+      });
+    }
+
+    return cols;
+  }, [dados, produtosInfo]);
+
+  // Expose reset capability via ref/callback pattern (legacy support)
+  // Note: The new DataTable handles persistence internally via useDataTable,
+  // but we need to bridge the reset command if the parent component expects it.
+  // Since useDataTable is inside DataTable, we can't easily expose it upwards without ref forwarding.
+  // For now, we'll assume the parent might re-mount or we can implement a simple reset via key if needed.
+  // However, the original code passed a callback to `onResetColumnsReady`.
+  // To support this strictly, we would need to lift the state up or use a ref.
+  // Given the constraints, clearing localStorage is the most effective "reset".
+
+  useEffect(() => {
+    if (onResetColumnsReady) {
+      onResetColumnsReady(() => {
+        localStorage.removeItem(STORAGE_KEY);
+        window.location.reload(); // Simple brute-force reset for now to ensure UI updates
+      });
+    }
+  }, [onResetColumnsReady]);
 
   return (
-    <div ref={tableRef} className="w-full h-full flex flex-col relative">
-      {/* Lightweight indicators: keep table rendered while updating */}
-      {loading && hasData && (
-        <div className="absolute top-2 right-2 z-20 flex items-center gap-2 bg-white/90 p-2 rounded shadow">
-          <Loader2 className="h-5 w-5 animate-spin text-red-600" />
-          <span className="text-xs text-gray-700">Atualizando...</span>
-        </div>
-      )}
-      {error && hasData && (
-        <div className="absolute left-2 top-2 right-2 z-20 bg-yellow-50 border border-yellow-200 text-yellow-800 p-2 rounded text-sm">
-          <strong>Erro ao atualizar:</strong>&nbsp;{error}
-        </div>
-      )}
-      <div className="overflow-auto flex-1 thin-red-scrollbar h-[calc(100vh-200px)]">
-        <div id="Table" className="min-w-max w-full">
-          {/* Cabeçalho */}
-          <div id="TableHeader" className="sticky top-0 z-10 bg-gray-200 border-b border-gray-300">
-            <div id="TableRow" className="flex">
-              {FIXED_COLUMNS.map((col, idx) => {
-                const key = col.toLowerCase();
-                const width = columnWidths[key] || DEFAULT_WIDTHS[key as keyof typeof DEFAULT_WIDTHS] || DEFAULT_WIDTHS.dynamic;
-
-                // Map user-facing column labels to backend sortable fields
-                let backendField = col;
-                if (col === 'Codigo') backendField = 'Form1';
-                if (col === 'Numero') backendField = 'Form2';
-
-                const isActive = ((filtros as any)?.sortBy === backendField);
-
-                return (
-                  <div
-                    key={idx}
-                    className="relative flex items-center justify-center py-1 px-1 md:py-2 md:px-3 border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
-                    style={{
-                      width: `${width}px`,
-                      minWidth: `${width}px`,
-                      whiteSpace: idx === 2 ? "normal" : "nowrap",
-                      wordWrap: idx === 2 ? "break-word" : "normal",
-                      overflow: "hidden",
-                    }}
-                    title={typeof getColumnHeader(col, idx) === "string" ? getColumnHeader(col, idx) as string : ""}
-                  >
-                    <div className="max-w-full break-words flex items-center justify-center gap-2" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
-                      <div style={{ cursor: 'pointer' }} onClick={() => onToggleSort?.(backendField)} onDoubleClick={(e) => { e.stopPropagation(); onToggleSort?.(backendField); }}>
-                        {getColumnHeader(col, idx)}
-                      </div>
-                      {/* Sort arrow */}
-                      { isActive && (
-                        <div className="text-xs text-gray-600" title={`Ordenado por ${col} (${(filtros as any)?.sortDir || 'DESC'})`}>
-                          {( (filtros as any)?.sortDir === 'ASC' ) ? '\u2191' : '\u2193'}
-                        </div>
-                      ) }
-                    </div>
-                    <div
-                      className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-red-500 transition-colors"
-                      onMouseDown={(e) => handleResizeStart(e, key)}
-                      style={{ userSelect: "none" }}
-                    />
-                  </div>
-                );
-              })}
-
-              {dynamicColumns.map((colKey, idx) => {
-                const label = getColumnLabel(colKey);
-                const width = columnWidths[colKey] || DEFAULT_WIDTHS.dynamic;
-                // Map colKey (e.g. col6) to backend field (e.g. Prod_1)
-                const prodNum = parseInt(colKey.replace('col', ''), 10) - 5;
-                const backendField = `Prod_${prodNum}`;
-                const isActiveSortCol = (filtros as any)?.sortBy === backendField;
-                return (
-                  <div
-                    key={colKey}
-                    className="relative flex items-center justify-center py-1 px-2 md:py-2 md:px-3 text-center border-r border-gray-300 font-semibold text-xs md:text-sm bg-gray-200"
-                    style={{
-                      width: `${width}px`,
-                      minWidth: `${width}px`,
-                      whiteSpace: "normal",
-                      wordWrap: "break-word",
-                      overflow: "hidden",
-                    }}
-                    title={label}
-                  >
-                    <div className="flex items-center justify-center gap-2 max-w-full">
-                      <span
-                        className="text-center break-words cursor-pointer"
-                        style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal", display: "block" }}
-                        onClick={() => onToggleSort?.(backendField)}
-                        onDoubleClick={(e) => { e.stopPropagation(); onToggleSort?.(backendField); }}
-                      >
-                        {label}
-                      </span>
-                      {isActiveSortCol && (
-                        <div className="text-xs text-gray-600" title={`Ordenado por ${label} (${(filtros as any)?.sortDir || 'DESC'})`}>
-                          {((filtros as any)?.sortDir === 'ASC') ? '↑' : '↓'}
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-red-500 transition-colors"
-                      onMouseDown={(e) => handleResizeStart(e, colKey)}
-                      style={{ userSelect: "none" }}
-                    />
-                  </div>
-                );
-              console.log(idx)})}
-              
-            </div>
-          </div>
-
-          {/* Corpo da tabela com linhas alternadas */}
-          <div>
-            {dados.map((row, rowIdx) => (
-              <div
-                key={getStableRowKey(row, rowIdx)}
-                className={`flex border-b border-gray-300 hover:bg-gray-50 ${
-                  rowIdx % 2 === 0 ? "bg-white" : "bg-gray-100"
-                }`}
-              >
-                {FIXED_COLUMNS.map((col, colIdx) => {
-                  const key = col.toLowerCase();
-                  const width = columnWidths[key] || DEFAULT_WIDTHS[key as keyof typeof DEFAULT_WIDTHS] || DEFAULT_WIDTHS.dynamic;
-
-                  let textAlign = "text-center";
-                  if (colIdx === 2) textAlign = "text-left";
-                  else if (colIdx >= 3) textAlign = "text-right";
-
-                  const cellValue = row[col as keyof ReportRow];
-                  const displayValue = col === "Dia" ? formatDate(safeString(cellValue)) : safeString(cellValue);
-
-                  return (
-                    <div
-                      key={`${getStableRowKey(row, rowIdx)}-${colIdx}`}
-                      className={`flex items-center p-1 md:p-2 max-h-20 cursor-pointer select-none text-xs md:text-sm border-r border-gray-300 overflow-hidden ${textAlign}`}
-                      style={{ width: `${width}px`, minWidth: `${width}px` }}
-                      title={displayValue}
-                    >
-                      <div className="w-full break-words" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
-                        {displayValue}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {dynamicColumns.map((colKey, dynIdx) => {
-                  const rawValue = row.values?.[dynIdx];
-                  const width = columnWidths[colKey] || DEFAULT_WIDTHS.dynamic;
-                  const formattedValue = formatValue(rawValue, colKey);
-
-                  return (
-                    <div
-                      key={`${getStableRowKey(row, rowIdx)}-${colKey}-${dynIdx}`}
-                      className="flex items-center justify-end p-1 md:p-2 cursor-pointer select-none text-right text-xs md:text-sm border-r border-gray-300 overflow-hidden"
-                      style={{ width: `${width}px`, minWidth: `${width}px` }}
-                      title={formattedValue}
-                    >
-                      <div className="w-full break-words text-right" style={{ wordBreak: "break-word", overflowWrap: "break-word", whiteSpace: "normal" }}>
-                        {formattedValue}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+    <DataTable
+      data={dados || []}
+      columns={columns}
+      loading={loading}
+      error={error}
+      storageKey={STORAGE_KEY}
+      sortBy={sortByProp}
+      sortDir={sortDirProp}
+      onSort={onToggleSort}
+      getRowKey={getStableRowKey}
+    />
   );
 }
-
-// ================
-// MEMOIZATION
-// ================
 
 export default React.memo(TableComponent, (prevProps, nextProps) => {
   if (prevProps.useExternalData !== nextProps.useExternalData) return false;

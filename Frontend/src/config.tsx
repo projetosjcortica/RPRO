@@ -94,7 +94,7 @@ type FormDataOptionalKey = keyof FormDataOptional;
 const configService = {
   async loadConfig(key: string, inputsOnly: boolean = true): Promise<FormData | null> {
     try {
-      const url = `http://localhost:3000/api/config/${encodeURIComponent(key)}` + (inputsOnly ? '?inputs=true' : '');
+      const url = `http://localhost:3001/api/config/${encodeURIComponent(key)}` + (inputsOnly ? '?inputs=true' : '');
       const response = await fetch(url);
       if (!response.ok) {
         if (response.status === 404) {
@@ -114,7 +114,7 @@ const configService = {
     try {
       const payload: any = {};
       payload[key] = data;
-      const response = await fetch("http://localhost:3000/api/config/split", {
+      const response = await fetch("http://localhost:3001/api/config/split", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -146,7 +146,7 @@ const configService = {
 
       for (const k of keys) {
         try {
-          const res = await fetch(`http://localhost:3000/api/config/${encodeURIComponent(k)}`);
+          const res = await fetch(`http://localhost:3001/api/config/${encodeURIComponent(k)}`);
           if (!res.ok) continue;
           const js = await res.json();
           if (js && js.value !== undefined) combined[k] = js.value;
@@ -164,7 +164,7 @@ const configService = {
 
       if (Object.keys(combined).length === 0) return true;
 
-      const response = await fetch("http://localhost:3000/api/config/split", {
+      const response = await fetch("http://localhost:3001/api/config/split", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(combined),
@@ -184,7 +184,7 @@ const configService = {
 
   async cleanDB(): Promise<boolean> {
     try {
-      const response = await fetch("http://localhost:3000/api/database/clean", {
+      const response = await fetch("http://localhost:3001/api/database/clean", {
         method: "POST",
       });
 
@@ -202,7 +202,7 @@ const configService = {
 
   async cleanProductionData(): Promise<boolean> {
     try {
-      const response = await fetch("http://localhost:3000/api/clear/production", {
+      const response = await fetch("http://localhost:3001/api/clear/production", {
         method: "POST",
       });
 
@@ -378,7 +378,7 @@ export function ProfileConfig({
       const fd = new FormData();
       fd.append("username", user.username);
       fd.append("photo", file);
-      const res = await fetch("http://localhost:3000/api/auth/photo", {
+      const res = await fetch("http://localhost:3001/api/auth/photo", {
         method: "POST",
         body: fd,
       });
@@ -392,7 +392,7 @@ export function ProfileConfig({
       // Also attempt to set this uploaded photo as default for all users
       try {
         if ((data as any)?.photoPath) {
-          const defaultRes = await fetch("http://localhost:3000/api/admin/set-default-photo", {
+          const defaultRes = await fetch("http://localhost:3001/api/admin/set-default-photo", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ path: (data as any).photoPath }),
@@ -482,7 +482,7 @@ export function ProfileConfig({
 
       const fd = new FormData();
       fd.append("photo", blob, file?.name || "logo.png");
-      const res = await fetch("http://localhost:3000/api/report/logo/upload", {
+      const res = await fetch("http://localhost:3001/api/report/logo/upload", {
         method: "POST",
         body: fd,
       });
@@ -998,7 +998,7 @@ interface Estatisticas {
       const formData = new FormData();
       formData.append('file', file);
   
-        const res = await fetch('http://localhost:3000/api/amendoim/upload', {
+        const res = await fetch('http://localhost:3001/api/amendoim/upload', {
           method: 'POST',
           body: formData,
         });
@@ -1060,7 +1060,7 @@ interface Estatisticas {
         params.set('tipo', viewMode);
       }
 
-      const res = await fetch(`http://localhost:3000/api/amendoim/registros?${params}`);
+      const res = await fetch(`http://localhost:3001/api/amendoim/registros?${params}`);
       
       if (!res.ok) {
         throw new Error(`Erro ao buscar registros: ${res.status}`);
@@ -1145,7 +1145,7 @@ interface Estatisticas {
         params.set('tipo', viewMode);
       }
 
-      const res = await fetch(`http://localhost:3000/api/amendoim/estatisticas?${params}`);
+      const res = await fetch(`http://localhost:3001/api/amendoim/estatisticas?${params}`);
       if (res.ok) {
         const data = await res.json();
         setEstatisticas(data);
@@ -1331,7 +1331,7 @@ interface Estatisticas {
                       try {
                         toast.info('Processando dump...');
                         
-                        const url = new URL('http://localhost:3000/api/db/import-legacy');
+                        const url = new URL('http://localhost:3001/api/db/import-legacy');
                         url.searchParams.set('clearBefore', 'true');
                         url.searchParams.set('skipCreateTable', 'true');
 
@@ -1386,7 +1386,7 @@ interface Estatisticas {
                       try {
                         toast.info('Processando dump...');
                         
-                        const url = new URL('http://localhost:3000/api/db/import-legacy');
+                        const url = new URL('http://localhost:3001/api/db/import-legacy');
                         url.searchParams.set('clearBefore', 'false');
                         url.searchParams.set('skipCreateTable', 'true');
 
@@ -1447,7 +1447,7 @@ interface Estatisticas {
               try {
                 toast.info('Gerando dump SQL...');
                 
-                const response = await fetch('http://localhost:3000/api/db/export-sql', {
+                const response = await fetch('http://localhost:3001/api/db/export-sql', {
                   method: 'GET',
                 });
 

@@ -32,7 +32,7 @@ export function RefreshButton({
       password: ihmConfig.password || '',
     });
 
-    const response = await fetch(`http://localhost:3000/api/ihm/fetchLatest?${params}`);
+    const response = await fetch(`http://localhost:3001/api/ihm/fetchLatest?${params}`);
     if (!response.ok) {
       throw new Error(`Erro ao buscar dados da IHM: ${response.statusText}`);
     }

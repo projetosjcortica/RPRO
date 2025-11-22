@@ -180,7 +180,7 @@ export { Processador, getProcessador, setProcessador };
 
 // --- Lógica para conectar ao backend HTTP existente ---
 // Assume que o backend está rodando em uma porta conhecida, por exemplo, 3000 (padrão do backend.md)
-const BACKEND_PORT = 3000; // Ou defina via variável de ambiente: process.env.REACT_APP_BACKEND_PORT
+const BACKEND_PORT = 3001; // Ou defina via variável de ambiente: process.env.REACT_APP_BACKEND_PORT
 const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 console.log(`Attempting to connect to backend at ${BACKEND_URL}...`);

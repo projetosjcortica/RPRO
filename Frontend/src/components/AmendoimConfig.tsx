@@ -87,7 +87,7 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
   const fetchConfig = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:3000/api/amendoim/config");
+      const res = await fetch("http://localhost:3001/api/amendoim/config");
       if (res.ok) {
         const data = await res.json();
         
@@ -183,7 +183,7 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
         };
       }
 
-      const res = await fetch("http://localhost:3000/api/amendoim/config", {
+      const res = await fetch("http://localhost:3001/api/amendoim/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

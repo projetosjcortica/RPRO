@@ -82,7 +82,7 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload, show
 
   const saveName = async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/auth/update", {
+      const res = await fetch("http://localhost:3001/api/auth/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: user.username, displayName }),

@@ -39,7 +39,7 @@ export const useChartData = (chartType: ChartType, config?: any) => {
   useEffect(() => {
     let isMounted = true;
     let retryTimeout: ReturnType<typeof setTimeout> | null = null;
-    
+
     const fetchData = async () => {
       if (!isMounted) return;
 
@@ -49,7 +49,7 @@ export const useChartData = (chartType: ChartType, config?: any) => {
 
       // Construir parâmetros de consulta (parâmetros simples)
       const params = new URLSearchParams();
-  // advancedFilters key will be composed later once params are filled
+      // advancedFilters key will be composed later once params are filled
 
       try {
         setLoading(true);
@@ -67,55 +67,55 @@ export const useChartData = (chartType: ChartType, config?: any) => {
         if (filtersObj?.codigo && String(filtersObj.codigo).trim()) params.set('codigo', String(filtersObj.codigo));
         if (filtersObj?.numero && String(filtersObj.numero).trim()) params.set('numero', String(filtersObj.numero));
 
-    // Do NOT use in-memory cache for charts by default. Always fetch fresh.
-  const now = Date.now();
-        
+        // Do NOT use in-memory cache for charts by default. Always fetch fresh.
+        const now = Date.now();
+
         // If advancedFilters present, add as a JSON-encoded query parameter to the URL
-        let url = `http://localhost:3000/api/chartdata/${chartType}`;
+        let url = `http://localhost:3001/api/chartdata/${chartType}`;
         const qs = params.toString();
         if (qs) url += `?${qs}`;
         if (advancedFilters) {
           const enc = encodeURIComponent(JSON.stringify(advancedFilters));
           url += (qs ? '&' : '?') + `advancedFilters=${enc}`;
         }
-  console.log(`[useChartData] Fetching ${chartType} with filters:`, filtersObj, 'advancedFilters:', advancedFilters);
-  console.log(`[useChartData] Fetching from: ${url}`);
+        console.log(`[useChartData] Fetching ${chartType} with filters:`, filtersObj, 'advancedFilters:', advancedFilters);
+        console.log(`[useChartData] Fetching from: ${url}`);
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 20000); // Aumentado para 20 segundos timeout
-        
+
         try {
-          const res = await fetch(url, { 
+          const res = await fetch(url, {
             signal: controller.signal,
             headers: { 'Cache-Control': 'no-cache' }
           });
-          
+
           clearTimeout(timeoutId);
-          
+
           console.log(`[useChartData] Response status: ${res.status} ${res.statusText}`);
-          
+
           if (!res.ok) throw new Error(`Erro HTTP ${res.status} ${res.statusText}`);
-          
+
           const body = await res.json();
           if (!isMounted) return;
-          
+
           console.log(`[useChartData] ${chartType} response body:`, body);
-          
+
           // Verificar se os dados estão realmente presentes
           if (!body || !body.chartData) {
             console.warn(`[useChartData] Resposta inválida ou vazia para ${chartType}`);
             throw new Error("Dados inválidos ou incompletos");
           }
-          
+
           // Garantir que o chartData seja um array válido
           const chartData = Array.isArray(body.chartData) ? body.chartData : [];
-          
+
           console.log(`[useChartData] ${chartType} chartData:`, chartData);
-          
+
           // Verificar se o array tem elementos
           if (chartData.length === 0) {
             console.warn(`[useChartData] Array vazio de chartData para ${chartType}`);
           }
-          
+
           // Store a fallback snapshot (not used for actual display) in case of subsequent network errors
           const advKeyForStore = advancedFilters ? encodeURIComponent(JSON.stringify(advancedFilters)) : '';
           const computedCacheKey = `${chartType}:${qs}:adv:${advKeyForStore}`;
@@ -135,9 +135,9 @@ export const useChartData = (chartType: ChartType, config?: any) => {
         }
       } catch (err: any) {
         if (!isMounted) return;
-        
+
         console.error(`[useChartData] Erro ao buscar dados de ${chartType}:`, err);
-        
+
         // Tentar novamente até 3 vezes em caso de erro de rede
         if (retryCount < 3 && (err.name === 'AbortError' || err.message.includes('network') || err.message.includes('failed'))) {
           setRetryCount(prev => prev + 1);
@@ -147,9 +147,9 @@ export const useChartData = (chartType: ChartType, config?: any) => {
           }, 2000); // espera 2 segundos antes de tentar novamente
           return;
         }
-        
+
         setError(err.message || 'Erro ao carregar dados');
-        
+
         // Se houver dados em cache, usar mesmo vencido em caso de erro
         const fallbackParams = new URLSearchParams();
         if (filtersObj?.nomeFormula && String(filtersObj.nomeFormula).trim()) {
@@ -161,15 +161,15 @@ export const useChartData = (chartType: ChartType, config?: any) => {
         if (filtersObj?.dataFim && String(filtersObj.dataFim).trim()) fallbackParams.set('dataFim', String(filtersObj.dataFim));
         if (filtersObj?.codigo && String(filtersObj.codigo).trim()) fallbackParams.set('codigo', String(filtersObj.codigo));
         if (filtersObj?.numero && String(filtersObj.numero).trim()) fallbackParams.set('numero', String(filtersObj.numero));
-  const fallbackAdvKey = advancedFilters ? encodeURIComponent(JSON.stringify(advancedFilters)) : '';
-  const fallbackCacheKey = `${chartType}:${fallbackParams.toString()}:adv:${fallbackAdvKey}`;
+        const fallbackAdvKey = advancedFilters ? encodeURIComponent(JSON.stringify(advancedFilters)) : '';
+        const fallbackCacheKey = `${chartType}:${fallbackParams.toString()}:adv:${fallbackAdvKey}`;
 
         const cachedItem = chartDataCache[fallbackCacheKey];
         if (cachedItem) {
           console.log(`[useChartData] Usando cache de fallback devido a erro`);
           setData(cachedItem.data);
           setStats(cachedItem.stats);
-          
+
           // Definir um tempo mais longo para tentar novamente em segundo plano
           retryTimeout = setTimeout(() => {
             if (isMounted) {
@@ -189,7 +189,7 @@ export const useChartData = (chartType: ChartType, config?: any) => {
     if (chartType) {
       void fetchData();
     }
-    
+
     // Limpeza ao desmontar componente
     return () => {
       isMounted = false;
@@ -214,7 +214,7 @@ const CustomTooltip = ({ active, payload, stats, unit: customUnit }: any) => {
   const count = data.count || stats?.totalRecords || 0;
   const average = data.average || 0;
   const unit = customUnit || data.unit || 'kg';
-  
+
   const total = stats?.total || payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
   const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
 
@@ -252,7 +252,7 @@ const CustomTooltip = ({ active, payload, stats, unit: customUnit }: any) => {
 //   const value = data.value || 0;
 //   const count = data.count || 0;
 //   const average = data.average || 0;
-  
+
 //   const total = stats?.total || 0;
 //   const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
 
@@ -288,7 +288,7 @@ const CompactDonutTooltip = ({ active, payload, stats }: any) => {
   const data = payload[0].payload;
   const value = data.value || 0;
   const unit = data.unit || 'kg';
-  
+
   const total = stats?.total || payload.reduce((sum: number, entry: any) => sum + entry.value, 0);
   const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
 
@@ -314,7 +314,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
 
   useEffect(() => {
     if (!fetchUrl) return;
-    
+
     const fetchData = async () => {
       setDirectLoading(true);
       setDirectError(null);
@@ -330,16 +330,19 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
         setDirectLoading(false);
       }
     };
-    
+
     fetchData();
   }, [fetchUrl]);
 
   const hookResult = useChartData(chartType, config);
-  
-  const data = fetchUrl ? directData : hookResult.data;
-  const loading = fetchUrl ? directLoading : hookResult.loading;
-  const stats = fetchUrl ? directStats : hookResult.stats;
-  const error = fetchUrl ? directError : hookResult.error;
+
+  // Se config.skipFetch for true e config.chartData existir, usar dados diretos
+  const useDirectData = config?.skipFetch && config?.chartData;
+
+  const data = useDirectData ? (config.chartData || []) : (fetchUrl ? directData : hookResult.data);
+  const loading = useDirectData ? false : (fetchUrl ? directLoading : hookResult.loading);
+  const stats = useDirectData ? { total: config.total || 0 } : (fetchUrl ? directStats : hookResult.stats);
+  const error = useDirectData ? null : (fetchUrl ? directError : hookResult.error);
   const refetch = hookResult.refetch;
   const [retryAttempt, setRetryAttempt] = useState(0);
 
@@ -348,7 +351,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
     if (!data || !Array.isArray(data)) return 0;
     return data.reduce((s, d) => s + (d.value || 0), 0);
   }, [data]);
-    console.log(displayTotal);
+  console.log(displayTotal);
 
   // ✅ OTIMIZAÇÃO: Callbacks memoizados
   const handleMouseLeave = useCallback((e: any) => {
@@ -365,19 +368,19 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
   // Efeito para tentar recarregar automaticamente em caso de erro
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    
+
     if (error && (!data || data.length === 0) && retryAttempt < 3) {
       timeoutId = setTimeout(() => {
         refetch();
         setRetryAttempt(prev => prev + 1);
       }, 3000);
     }
-    
+
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [error, data, retryAttempt, refetch]);
-  
+
   if (loading) {
     return (
       <div className="h-full w-full flex items-center justify-center">
@@ -388,7 +391,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
       </div>
     );
   }
-  
+
   if (error && (!data || data.length === 0)) {
     return (
       <div className="h-full w-full flex items-center justify-center">
@@ -420,7 +423,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
           {displayTitle}
         </div>
       )}
-      
+
       {!compact && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
@@ -468,7 +471,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
               );
             })}
           </Pie>
-          <Tooltip 
+          <Tooltip
             content={compact ? <CompactDonutTooltip stats={stats} /> : <CustomTooltip stats={stats} />}
             cursor={{ fill: 'transparent' }}
           />
@@ -479,7 +482,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
 });
 
 // COMPONENTE: BarChart
-export const BarChartWidget = React.memo(({ chartType = "formulas", config, title, fetchUrl, unit }: { chartType?: ChartType; config?: any; title?: string; fetchUrl?: string; unit?: string }) => {
+export const BarChartWidget = React.memo(({ chartType = "horarios", config, title, fetchUrl, unit }: { chartType?: ChartType; config?: any; title?: string; fetchUrl?: string; unit?: string }) => {
   // Se fetchUrl for fornecido, usar fetch direto; caso contrário, usar useChartData
   const [directData, setDirectData] = useState<ChartDatum[]>([]);
   const [directLoading, setDirectLoading] = useState(false);
@@ -488,7 +491,7 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
 
   useEffect(() => {
     if (!fetchUrl) return;
-    
+
     const fetchData = async () => {
       setDirectLoading(true);
       setDirectError(null);
@@ -504,23 +507,26 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
         setDirectLoading(false);
       }
     };
-    
+
     fetchData();
   }, [fetchUrl]);
 
   const hookResult = useChartData(chartType, config);
-  
-  const data = fetchUrl ? directData : hookResult.data;
-  const loading = fetchUrl ? directLoading : hookResult.loading;
-  const stats = fetchUrl ? directStats : hookResult.stats;
-  const error = fetchUrl ? directError : hookResult.error;
+
+  // Se config.skipFetch for true e config.chartData existir, usar dados diretos
+  const useDirectData = config?.skipFetch && config?.chartData;
+
+  const data = useDirectData ? (config.chartData || []) : (fetchUrl ? directData : hookResult.data);
+  const loading = useDirectData ? false : (fetchUrl ? directLoading : hookResult.loading);
+  const stats = useDirectData ? { total: config.total || 0 } : (fetchUrl ? directStats : hookResult.stats);
+  const error = useDirectData ? null : (fetchUrl ? directError : hookResult.error);
   const refetch = hookResult.refetch;
   const [retryAttempt, setRetryAttempt] = useState(0);
-  
+
   // Efeito para tentar recarregar automaticamente em caso de erro
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
-    
+
     if (error && (!data || data.length === 0) && retryAttempt < 5) {
       timeoutId = setTimeout(() => {
         console.log(`[BarChartWidget] Tentativa automática de recarga #${retryAttempt + 1}`);
@@ -528,12 +534,12 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
         setRetryAttempt(prev => prev + 1);
       }, Math.min(3000 + (retryAttempt * 1000), 10000)); // Backoff progressivo, máximo 10s
     }
-    
+
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [error, data, retryAttempt, refetch]);
-  
+
   if (loading) {
     return (
       <div className="h-full w-full flex items-center justify-center">
@@ -544,11 +550,11 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
       </div>
     );
   }
-  
+
   // Em caso de erro, mostrar mensagem sutil (retentativas já estão configuradas no useEffect)
   if (error && (!data || data.length === 0)) {
     console.warn(`[BarChartWidget] Erro ao carregar dados: ${error}`);
-    
+
     return (
       <div className="h-full w-full flex items-center justify-center">
         <div className="text-center">
@@ -591,7 +597,7 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
   const { xLabel, yLabel } = getAxisLabels();
 
   console.log(xLabel, yLabel);
-  
+
   // Usar tooltip compacto para horários
   const isHorarios = chartType === "horarios";
   console.log(isHorarios);
@@ -604,7 +610,7 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
       <div className="text-gray-700 font-semibold z-10">
         {displayTitle}
       </div>
-      <ResponsiveContainer  width="100%" height="87%">
+      <ResponsiveContainer width="100%" height="87%">
         <BarChart data={data} layout="horizontal" margin={{ left: 20, top: 35 }}>
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
@@ -649,13 +655,13 @@ export const WeeklyChartWidget = React.memo(({ rows, weekStart }: { rows: Entry[
 
   const weekData = useMemo(() => {
     if (!rows) return [];
-    
+
     const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     const totals = Array(7).fill(0);
-    
+
     const startOfWeek = new Date(currentWeekStart);
     startOfWeek.setHours(0, 0, 0, 0);
-    
+
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(endOfWeek.getDate() + 6);
     endOfWeek.setHours(23, 59, 59, 999);
@@ -664,7 +670,7 @@ export const WeeklyChartWidget = React.memo(({ rows, weekStart }: { rows: Entry[
       if (!r.Dia) continue;
       const date = parseDia(r.Dia);
       if (!date) continue;
-      
+
       if (date >= startOfWeek && date <= endOfWeek) {
         const dayIndex = date.getDay();
         // Somar TODOS os valores da linha (Prod_1 até Prod_40), não apenas o primeiro
@@ -678,7 +684,7 @@ export const WeeklyChartWidget = React.memo(({ rows, weekStart }: { rows: Entry[
         totals[dayIndex] += rowTotal;
       }
     }
-    
+
     return weekdays.map((name, idx) => ({ name, value: totals[idx] }));
   }, [rows, currentWeekStart]);
 
@@ -700,4 +706,3 @@ export const WeeklyChartWidget = React.memo(({ rows, weekStart }: { rows: Entry[
     </div>
   );
 });
- 

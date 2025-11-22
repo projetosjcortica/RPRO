@@ -131,7 +131,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
   const handleExcelExport = async () => {
     try {
-      const backendPort = 3000;
+      const backendPort = 3001;
       const base = `http://localhost:${backendPort}`;
       const params = new URLSearchParams();
 
@@ -204,7 +204,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   const handleLoadPdfData = async () => {
     try {
       setLoadingPdf(true);
-      const backendPort = 3000;
+      const backendPort = 3001;
       const base = `http://localhost:${backendPort}`;
       const params = new URLSearchParams();
 

@@ -54,7 +54,7 @@ export function useReportData(
     }
 
     try {
-      const url = `http://localhost:3000/api/relatorio/paginate?${params.toString()}`;
+      const url = `http://localhost:3001/api/relatorio/paginate?${params.toString()}`;
       const controller = new AbortController();
       const signal = controller.signal;
       const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -170,7 +170,7 @@ export function useReportData(
           }
         }
 
-        const url = `http://localhost:3000/api/relatorio/paginate?${params.toString()}`;
+        const url = `http://localhost:3001/api/relatorio/paginate?${params.toString()}`;
         
         const timeoutId = setTimeout(() => controller.abort(), 15000);
         

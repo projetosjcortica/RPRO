@@ -332,7 +332,7 @@ export default function Home() {
   // Fetch por gráfico
   const fetchAnaliseFor = async (fi: { dataInicio?: string; dataFim?: string }) => {
     const params = new URLSearchParams({ ...(fi.dataInicio ? { dataInicio: fi.dataInicio } : {}), ...(fi.dataFim ? { dataFim: fi.dataFim } : {}) });
-    const url = `http://localhost:3000/api/amendoim/analise?${params.toString()}`;
+    const url = `http://localhost:3001/api/amendoim/analise?${params.toString()}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
@@ -392,8 +392,8 @@ export default function Home() {
 
         const fmt = (d: Date) => formatDate(d, 'yyyy-MM-dd');
 
-        const urlCurr = `http://localhost:3000/api/amendoim/metricas/rendimento?dataInicio=${encodeURIComponent(start)}&dataFim=${encodeURIComponent(end)}`;
-        const urlPrev = `http://localhost:3000/api/amendoim/metricas/rendimento?dataInicio=${fmt(prevStart)}&dataFim=${fmt(prevEnd)}`;
+        const urlCurr = `http://localhost:3001/api/amendoim/metricas/rendimento?dataInicio=${encodeURIComponent(start)}&dataFim=${encodeURIComponent(end)}`;
+        const urlPrev = `http://localhost:3001/api/amendoim/metricas/rendimento?dataInicio=${fmt(prevStart)}&dataFim=${fmt(prevEnd)}`;
 
         const [resCurr, resPrev] = await Promise.all([fetch(urlCurr), fetch(urlPrev)]);
         if (!resCurr.ok || !resPrev.ok) {
@@ -429,7 +429,7 @@ export default function Home() {
 
         // Fetch entrada data
         if (eStart && eEnd) {
-          const urlEntrada = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(eStart)}&dataFim=${encodeURIComponent(eEnd)}`;
+          const urlEntrada = `http://localhost:3001/api/amendoim/analise?dataInicio=${encodeURIComponent(eStart)}&dataFim=${encodeURIComponent(eEnd)}`;
           const resEntrada = await fetch(urlEntrada);
           if (resEntrada.ok) {
             const dataEntrada = await resEntrada.json();
@@ -453,7 +453,7 @@ export default function Home() {
 
         // Fetch saida data
         if (sStart && sEnd) {
-          const urlSaida = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}`;
+          const urlSaida = `http://localhost:3001/api/amendoim/analise?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}`;
           const resSaida = await fetch(urlSaida);
           if (resSaida.ok) {
             const dataSaida = await resSaida.json();
@@ -504,7 +504,7 @@ export default function Home() {
         const today = new Date();
         const prev = new Date();
         prev.setDate(prev.getDate() - 29);
-        const url = `http://localhost:3000/api/amendoim/analise?dataInicio=${formatDate(prev, 'yyyy-MM-dd')}&dataFim=${formatDate(today, 'yyyy-MM-dd')}`;
+        const url = `http://localhost:3001/api/amendoim/analise?dataInicio=${formatDate(prev, 'yyyy-MM-dd')}&dataFim=${formatDate(today, 'yyyy-MM-dd')}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = await res.json();
@@ -942,7 +942,7 @@ export default function Home() {
                         }
                       }
                       paramsObj.tipo = 'saida';
-                      const url = `http://localhost:3000/api/amendoim/chartdata/produtos?${new URLSearchParams(paramsObj).toString()}`;
+                      const url = `http://localhost:3001/api/amendoim/chartdata/produtos?${new URLSearchParams(paramsObj).toString()}`;
                       return url;
                     })()}
                     compact

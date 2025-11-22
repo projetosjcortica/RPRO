@@ -5,8 +5,8 @@ export interface ReportRow {
   Nome: string;
   Codigo: number;
   Numero: number;
-  values: number[];
-  
+  values: (string | number)[];
+
 }
 
 export interface ReportData {

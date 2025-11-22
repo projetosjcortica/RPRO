@@ -57,7 +57,7 @@ export function AmendoimCollectorConfig() {
 
   const loadConfig = async () => {
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/config");
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/config");
       if (response.ok) {
         const data = await response.json();
         setConfig(data);
@@ -70,7 +70,7 @@ export function AmendoimCollectorConfig() {
 
   const loadStatus = async () => {
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/status");
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/status");
       if (response.ok) {
         const data = await response.json();
         setStatus(data);
@@ -86,7 +86,7 @@ export function AmendoimCollectorConfig() {
     setMessage(null);
 
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/configure", {
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/configure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(config),
@@ -111,7 +111,7 @@ export function AmendoimCollectorConfig() {
     setMessage(null);
 
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/test", {
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/test", {
         method: "POST",
       });
 
@@ -137,7 +137,7 @@ export function AmendoimCollectorConfig() {
     setMessage(null);
 
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/start", {
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ intervalMinutes }),
@@ -165,7 +165,7 @@ export function AmendoimCollectorConfig() {
     setMessage(null);
 
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/stop", {
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/stop", {
         method: "POST",
       });
 
@@ -191,7 +191,7 @@ export function AmendoimCollectorConfig() {
     setMessage(null);
 
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/collect", {
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/collect", {
         method: "POST",
       });
 
@@ -220,7 +220,7 @@ export function AmendoimCollectorConfig() {
 
   const loadCacheStats = async () => {
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/cache/stats");
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/cache/stats");
       if (response.ok) {
         const data = await response.json();
         setCacheStats(data);
@@ -239,7 +239,7 @@ export function AmendoimCollectorConfig() {
     setMessage(null);
 
     try {
-      const response = await fetch("http://localhost:3000/api/amendoim/collector/cache", {
+      const response = await fetch("http://localhost:3001/api/amendoim/collector/cache", {
         method: "DELETE",
       });
 

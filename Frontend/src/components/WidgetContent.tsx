@@ -73,7 +73,7 @@ const useChartData = (chartType: ChartType, filters?: any) => {
           return;
         }
         
-        const url = `http://localhost:3000/api/chartdata/${chartType}?${params.toString()}`;
+        const url = `http://localhost:3001/api/chartdata/${chartType}?${params.toString()}`;
         console.log(`[useChartData] Fetching ${chartType} with filters:`, filters);
         
         const controller = new AbortController();
@@ -422,7 +422,7 @@ export default function WidgetContent({ type, rows, chartType = "produtos", onCh
           if (config?.filters?.codigo) params.set('codigo', String(config.filters.codigo));
           if (config?.filters?.numero) params.set('numero', String(config.filters.numero));
 
-          const url = `http://localhost:3000/api/chartdata/stats?${params.toString()}`;
+          const url = `http://localhost:3001/api/chartdata/stats?${params.toString()}`;
           const res = await fetch(url);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           
@@ -481,7 +481,7 @@ export default function WidgetContent({ type, rows, chartType = "produtos", onCh
           if (config?.filters?.codigo) params.set('codigo', String(config.filters.codigo));
           if (config?.filters?.numero) params.set('numero', String(config.filters.numero));
 
-          const url = `http://localhost:3000/api/chartdata/stats?${params.toString()}`;
+          const url = `http://localhost:3001/api/chartdata/stats?${params.toString()}`;
           const res = await fetch(url);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           

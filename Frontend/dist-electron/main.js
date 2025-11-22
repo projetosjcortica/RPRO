@@ -15472,6 +15472,7 @@ ipcMain$1.handle(
       return { ok: false, reason: "backend-script-not-found" };
     }
     try {
+      lastScriptPath = scriptPath;
       const child = fork(scriptPath, args, {
         stdio: ["pipe", "pipe", "ipc"],
         cwd: path.dirname(scriptPath),
@@ -15563,6 +15564,70 @@ ipcMain$1.handle(
     }
   }
 );
+let backendMonitorInterval = null;
+function startBackendMonitor({ intervalMs = 15e3 } = {}) {
+  if (backendMonitorInterval) return;
+  console.log(`[main] starting backend monitor (interval ${intervalMs}ms)`);
+  backendMonitorInterval = setInterval(async () => {
+    try {
+      const res = await fetch("http://localhost:3001/api/ping");
+      if (res && res.ok) {
+        return;
+      }
+    } catch (e) {
+      console.warn("[main.monitor] backend ping failed");
+    }
+    console.warn("[main.monitor] backend appears down — attempting restart/refork");
+    try {
+      for (const [pid, child] of Array.from(children.entries())) {
+        try {
+          console.log(`[main.monitor] killing child PID ${pid}`);
+          child.kill("SIGTERM");
+        } catch (e) {
+          console.warn("[main.monitor] error killing child", e);
+        }
+        children.delete(pid);
+      }
+      if (lastScriptPath && fs$1.existsSync(lastScriptPath)) {
+        const backendDir = path.dirname(lastScriptPath);
+        const refork = fork(lastScriptPath, [], {
+          stdio: ["pipe", "pipe", "ipc"],
+          cwd: backendDir,
+          env: { ...process.env }
+        });
+        const newPid = refork.pid;
+        if (typeof newPid === "number") {
+          children.set(newPid, refork);
+          console.log("[main.monitor] reforked backend PID", newPid);
+          if (win && !win.isDestroyed()) {
+            win.webContents.send("child-message", { pid: newPid, msg: { type: "event", event: "monitor-reforked" } });
+          }
+          refork.on("message", (msg) => {
+            if (win && !win.isDestroyed()) win.webContents.send("child-message", { pid: newPid, msg });
+          });
+          if (refork.stdout) refork.stdout.on("data", (c) => {
+            if (win && !win.isDestroyed()) win.webContents.send("child-stdout", { pid: newPid, data: c.toString() });
+            console.log("[refork stdout]", c.toString());
+          });
+          if (refork.stderr) refork.stderr.on("data", (c) => {
+            if (win && !win.isDestroyed()) win.webContents.send("child-stderr", { pid: newPid, data: c.toString() });
+            console.error("[refork stderr]", c.toString());
+          });
+        }
+      } else {
+        console.warn("[main.monitor] lastScriptPath not set or not found — cannot refork automatically");
+      }
+    } catch (e) {
+      console.error("[main.monitor] failed to refork backend", e);
+    }
+  }, intervalMs);
+}
+function stopBackendMonitor() {
+  if (!backendMonitorInterval) return;
+  clearInterval(backendMonitorInterval);
+  backendMonitorInterval = null;
+  console.log("[main] backend monitor stopped");
+}
 ipcMain$1.handle(
   "start-collector-fork",
   async (_event, { args = [] } = {}) => {
@@ -15734,7 +15799,7 @@ function createWindow() {
 }
 async function tryForkBackend() {
   try {
-    const res = await fetch("http://localhost:3000/api/ping");
+    const res = await fetch("http://localhost:3001/api/ping");
     if (res && res.ok) {
       console.log("[main] backend is alive");
       return true;
@@ -15863,6 +15928,11 @@ app$1.whenReady().then(() => {
         );
       }
     }
+    try {
+      startBackendMonitor({ intervalMs: 15e3 });
+    } catch (e) {
+      console.warn("[main] failed to start backend monitor", e);
+    }
     createWindow();
   })();
 });
@@ -15870,6 +15940,10 @@ app$1.on("window-all-closed", () => {
   if (process.platform !== "darwin") app$1.quit();
 });
 app$1.on("before-quit", () => {
+  try {
+    stopBackendMonitor();
+  } catch (e) {
+  }
   try {
     if (spawnedBackend && !spawnedBackend.killed) {
       spawnedBackend.kill();
