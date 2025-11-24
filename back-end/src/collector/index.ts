@@ -10,6 +10,7 @@ import { fileProcessorService } from '../services/fileProcessorService';
 import { changeDetectionService } from '../services/changeDetectionService';
 import { CSVFormatDetector } from '../services/csvFormatDetector';
 import { AmendoimService } from '../services/AmendoimService';
+import iconv from 'iconv-lite';
 
 const POLL_INTERVAL = Number(process.env.POLL_INTERVAL_MS || '60000');
 const os = require('os');
@@ -67,50 +68,61 @@ class Collector {
       if (!fs.existsSync(perIhmDir)) fs.mkdirSync(perIhmDir, { recursive: true });
 
       const downloaded = await this.ihmService.findAndDownloadNewFiles(perIhmDir);
-      
+
       if (downloaded.length === 0) {
         console.log('[Collector] Nenhum arquivo novo encontrado');
         return;
       }
-      
+
       console.log(`[Collector] ${downloaded.length} arquivo(s) baixado(s)`);
 
       for (const f of downloaded) {
         if (STOP) break;
         console.log(`[Collector] Processando arquivo: ${f.name} -> ${f.localPath}`);
-        
+
         try {
           // 🔍 Detectar mudanças no arquivo
           const changeInfo = await changeDetectionService.detectChanges(f.localPath);
-          
+
           if (changeInfo.hasChanged || changeInfo.changeType === 'new_file') {
             console.log(`📊 [Collector] Mudança detectada: ${changeInfo.changeType}`);
-            
+
             // 🔎 Detectar formato do CSV (ração ou amendoim)
-            const csvContent = fs.readFileSync(f.localPath, 'utf-8');
+            // 🔎 Detectar formato do CSV (ração ou amendoim)
+            // Ler como buffer para detectar encoding
+            const buffer = fs.readFileSync(f.localPath);
+
+            // Tentar decodificar como UTF-8 primeiro
+            let csvContent = iconv.decode(buffer, 'utf8');
+
+            // Se contiver caracteres de substituição (\uFFFD), provavelmente é Latin1/Windows-1252
+            if (csvContent.includes('\uFFFD')) {
+              console.log(`[Collector] ⚠️ Detectado possível problema de encoding (UTF-8 inválido). Tentando Latin1...`);
+              csvContent = iconv.decode(buffer, 'win1252'); // win1252 é superset do latin1 e muito comum
+            }
             const format = CSVFormatDetector.detect(csvContent);
-            
+
             console.log(`[Collector] Formato detectado: ${format}`);
-            
+
             if (format === 'amendoim') {
               // Processar como amendoim
               console.log(`🥜 [Collector] Processando como AMENDOIM: ${f.name}`);
-              
+
               const resultado = await AmendoimService.processarCSV(csvContent);
-              
+
               await this.backup.backupFile({
                 originalname: f.name,
                 path: f.localPath,
                 mimetype: 'text/csv',
                 size: fs.statSync(f.localPath).size,
               }, 'RACAO'); // Prefixo RACAO para diferenciar do coletor de amendoim
-              
+
               console.log(`✅ [Collector] Amendoim processado: ${resultado.salvos} registros salvos`);
-              
+
             } else if (format === 'racao') {
               // Processar como ração (comportamento padrão)
               console.log(`🌾 [Collector] Processando como RAÇÃO: ${f.name}`);
-              
+
               const result = await this.fileProcessor.processFile(f.localPath);
 
               await this.backup.backupFile({
@@ -121,7 +133,7 @@ class Collector {
               }, 'RACAO'); // Prefixo RACAO para diferenciar do coletor de amendoim
 
               console.log(`✅ [Collector] Ração processada: ${result.parsed.rowsCount} registros`);
-              
+
             } else {
               console.warn(`⚠️  [Collector] Formato desconhecido, pulando: ${f.name}`);
             }
@@ -151,14 +163,14 @@ const collector = new Collector(
 
 export async function startCollector() {
   console.log(`[Collector] Starting collector with ${POLL_INTERVAL}ms interval`);
-  
+
   while (!STOP) {
     try {
       await collector.start();
     } catch (error) {
       console.error('[Collector] Error during collection cycle:', error);
     }
-    
+
     if (!STOP) {
       console.log(`[Collector] Waiting ${POLL_INTERVAL}ms before next cycle...`);
       // cancellable sleep
