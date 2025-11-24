@@ -30,6 +30,7 @@ import multer from "multer";
 import { configService } from "./services/configService";
 import { setRuntimeConfigs, getRuntimeConfig } from "./core/runtimeConfig";
 import { csvConverterService } from "./services/csvConverterService";
+import iconv from 'iconv-lite';
 import { changeDetectionService } from "./services/changeDetectionService";
 import { statsLogger, statsMiddleware } from "./services/statsLogger";
 import { cacheService } from "./services/CacheService";
@@ -57,26 +58,26 @@ const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 async function getMateriaPrimaCache(): Promise<Record<number, any>> {
   const now = Date.now();
-  
+
   // Retornar cache se ainda válido
   if (materiaPrimaCache && (now - materiaPrimaCacheTime) < CACHE_TTL_MS) {
     return materiaPrimaCache;
   }
-  
+
   // Buscar do banco e atualizar cache
   const materias = await materiaPrimaService.getAll();
   const cache: Record<number, any> = {};
-  
+
   for (const m of materias) {
     const n = typeof m.num === "number" ? m.num : Number(m.num);
     if (!Number.isNaN(n)) {
       cache[n] = m;
     }
   }
-  
+
   materiaPrimaCache = cache;
   materiaPrimaCacheTime = now;
-  
+
   return cache;
 }
 
@@ -91,8 +92,8 @@ export function invalidateMateriaPrimaCache() {
 // Prefer runtime-config values (set via POST /api/config) and fall back to environment variables
 const POLL_INTERVAL = Number(
   getRuntimeConfig("poll_interval_ms") ??
-    process.env.POLL_INTERVAL_MS ??
-    "60000"
+  process.env.POLL_INTERVAL_MS ??
+  "60000"
 );
 
 // Base temp dir for collector: prefer runtime config -> env var -> OS temp dir
@@ -316,9 +317,9 @@ async function getProdutosAtivos(excludeIgnorarCalculos = false): Promise<Set<nu
   try {
     // 🔄 SEMPRE buscar direto do banco para garantir dados atualizados
     // (não usar cache pois pode estar desatualizado após toggle)
-  const materias = await materiaPrimaService.getAll();
+    const materias = await materiaPrimaService.getAll();
     const ativosSet = new Set<number>();
-    
+
     for (const mp of materias) {
       // Se ativo não está definido (null/undefined) ou é true, considerar ativo
       if (mp.ativo === false) continue; // explicit inactive
@@ -327,8 +328,8 @@ async function getProdutosAtivos(excludeIgnorarCalculos = false): Promise<Set<nu
       if (excludeIgnorarCalculos && mp.ignorarCalculos === true) continue;
       ativosSet.add(mp.num);
     }
-    
-  console.log(`[getProdutosAtivos] ${ativosSet.size} produtos ativos (excludeIgnorar=${excludeIgnorarCalculos}):`, Array.from(ativosSet).sort((a,b) => a-b));
+
+    console.log(`[getProdutosAtivos] ${ativosSet.size} produtos ativos (excludeIgnorar=${excludeIgnorarCalculos}):`, Array.from(ativosSet).sort((a, b) => a - b));
     return ativosSet;
   } catch (e) {
     console.error('[getProdutosAtivos] Erro:', e);
@@ -340,12 +341,12 @@ async function getProdutosAtivos(excludeIgnorarCalculos = false): Promise<Set<nu
 // Helper: Filtrar colunas de produtos inativos de um objeto de relatório
 async function filtrarProdutosInativos(obj: any): Promise<any> {
   const produtosAtivos = await getProdutosAtivos();
-  
+
   // Se set vazio (erro), retornar objeto original
   if (produtosAtivos.size === 0) return obj;
-  
+
   const filtered = { ...obj };
-  
+
   // Zerar produtos inativos (Prod_1 até Prod_65)
   for (let i = 1; i <= 65; i++) {
     if (!produtosAtivos.has(i)) {
@@ -355,7 +356,7 @@ async function filtrarProdutosInativos(obj: any): Promise<any> {
       }
     }
   }
-  
+
   return filtered;
 }
 
@@ -445,16 +446,16 @@ app.post('/api/relatorio/paginate', async (req, res) => {
     }
 
     // Ordenação seguro
-    const allowed = new Set(['Dia','Hora','Nome','Form1','Form2']);
+    const allowed = new Set(['Dia', 'Hora', 'Nome', 'Form1', 'Form2']);
     for (let i = 1; i <= 65; i++) allowed.add(`Prod_${i}`);
     const sb = allowed.has(sortBy) ? sortBy : 'Dia';
     const sd = sortDir === 'ASC' ? 'ASC' : 'DESC';
     if (sb === 'Dia') qb.orderBy('r.Dia', sd).addOrderBy('r.Hora', sd as any);
     else qb.orderBy(`r.${sb}`, sd);
 
-  // Carregar materias e aplicar advancedFilters
-  const materiasByNum = await getMateriaPrimaCache();
-  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+    // Carregar materias e aplicar advancedFilters
+    const materiasByNum = await getMateriaPrimaCache();
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
 
     const offset = (pageNum - 1) * pageSizeNum;
     qb.offset(offset).limit(pageSizeNum);
@@ -527,7 +528,7 @@ app.use((req, res, next) => {
       res.setHeader(
         "Access-Control-Allow-Headers",
         req.headers["access-control-request-headers"] ||
-          "Content-Type,Authorization"
+        "Content-Type,Authorization"
       );
       res.setHeader("Access-Control-Max-Age", "600");
       return res.status(204).end();
@@ -571,11 +572,11 @@ function normalizeDateParam(d: any): string | null {
 app.get("/api/materiaprima/labels", async (req, res) => {
   try {
     await ensureDatabaseConnection();
-    
+
     // 🔄 Sempre buscar dados frescos do banco (não usar cache)
     // pois esta API é chamada ao carregar produtos e precisa estar atualizada
     const materias = await materiaPrimaService.getAll();
-    
+
     // Map MateriaPrima records to frontend-friendly keys.
     // Assumes `num` is the product index (1..n) and product columns in table start at col6 = Prod_1.
     const mapping: any = {};
@@ -591,8 +592,8 @@ app.get("/api/materiaprima/labels", async (req, res) => {
           typeof m.medida === "number"
             ? m.medida
             : m.medida
-            ? Number(m.medida)
-            : 1,
+              ? Number(m.medida)
+              : 1,
         ativo: m.ativo ?? true,
       };
     }
@@ -634,45 +635,45 @@ app.patch("/api/materiaprima/:num/toggle", async (req, res) => {
   try {
     await ensureDatabaseConnection();
     const num = parseInt(req.params.num);
-    
+
     console.log(`[MateriaPrima Toggle] Recebido request para produto num=${num}`);
-    
+
     if (isNaN(num)) {
       console.error(`[MateriaPrima Toggle] Número inválido: ${req.params.num}`);
       return res.status(400).json({ error: "Número de produto inválido" });
     }
-    
+
     const repo = AppDataSource.getRepository(MateriaPrima);
     const produto = await repo.findOne({ where: { num } });
-    
+
     console.log(`[MateriaPrima Toggle] Produto encontrado:`, produto);
-    
+
     if (!produto) {
       console.error(`[MateriaPrima Toggle] Produto ${num} não encontrado no banco`);
       return res.status(404).json({ error: "Produto não encontrado" });
     }
-    
+
     const antigoStatus = produto.ativo;
     produto.ativo = !produto.ativo;
-    
+
     console.log(`[MateriaPrima Toggle] Alterando status: ${antigoStatus} → ${produto.ativo}`);
-    
+
     await repo.save(produto);
-    
+
     // 🔄 Invalidar cache para forçar reload nos próximos requests
     invalidateMateriaPrimaCache();
-    
+
     // Verificar se salvou corretamente
     const verificacao = await repo.findOne({ where: { num } });
     console.log(`[MateriaPrima Toggle] Verificação pós-save:`, verificacao);
-    
+
     console.log(`[MateriaPrima Toggle] ✅ Produto ${num} (${produto.produto}) ${produto.ativo ? 'ATIVADO' : 'DESATIVADO'}`);
-    
-    return res.json({ 
-      success: true, 
+
+    return res.json({
+      success: true,
       num: produto.num,
       produto: produto.produto,
-      ativo: produto.ativo 
+      ativo: produto.ativo
     });
   } catch (e: any) {
     console.error("Failed to toggle materia prima status", e);
@@ -685,45 +686,45 @@ app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => 
   try {
     await ensureDatabaseConnection();
     const num = parseInt(req.params.num);
-    
+
     console.log(`[MateriaPrima ToggleIgnorarCalculos] Recebido request para produto num=${num}`);
-    
+
     if (isNaN(num)) {
       console.error(`[MateriaPrima ToggleIgnorarCalculos] Número inválido: ${req.params.num}`);
       return res.status(400).json({ error: "Número de produto inválido" });
     }
-    
+
     const repo = AppDataSource.getRepository(MateriaPrima);
     const produto = await repo.findOne({ where: { num } });
-    
+
     console.log(`[MateriaPrima ToggleIgnorarCalculos] Produto encontrado:`, produto);
-    
+
     if (!produto) {
       console.error(`[MateriaPrima ToggleIgnorarCalculos] Produto ${num} não encontrado no banco`);
       return res.status(404).json({ error: "Produto não encontrado" });
     }
-    
+
     const antigoStatus = produto.ignorarCalculos;
     produto.ignorarCalculos = !produto.ignorarCalculos;
-    
+
     console.log(`[MateriaPrima ToggleIgnorarCalculos] Alterando status: ${antigoStatus} → ${produto.ignorarCalculos}`);
-    
+
     await repo.save(produto);
-    
+
     // 🔄 Invalidar cache para forçar reload nos próximos requests
     invalidateMateriaPrimaCache();
-    
+
     // Verificar se salvou corretamente
     const verificacao = await repo.findOne({ where: { num } });
     console.log(`[MateriaPrima ToggleIgnorarCalculos] Verificação pós-save:`, verificacao);
-    
+
     console.log(`[MateriaPrima ToggleIgnorarCalculos] ✅ Produto ${num} (${produto.produto}) ${produto.ignorarCalculos ? 'REMOVIDO dos CÁLCULOS' : 'INCLUÍDO nos CÁLCULOS'}`);
-    
-    return res.json({ 
-      success: true, 
+
+    return res.json({
+      success: true,
       num: produto.num,
       produto: produto.produto,
-      ignorarCalculos: produto.ignorarCalculos 
+      ignorarCalculos: produto.ignorarCalculos
     });
   } catch (e: any) {
     console.error("Failed to toggle ignorar calculos status", e);
@@ -735,28 +736,28 @@ app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => 
 app.post("/api/materiaprima/reset-all", async (req, res) => {
   try {
     await ensureDatabaseConnection();
-    
+
     console.log('[MateriaPrima Reset] Reativando todos os produtos...');
-    
+
     const repo = AppDataSource.getRepository(MateriaPrima);
-    
+
     // Buscar todos os produtos e atualizar um por um
     const allProducts = await repo.find();
-    
+
     for (const product of allProducts) {
       product.ativo = true;
       await repo.save(product);
     }
-    
+
     // Invalidar cache
     invalidateMateriaPrimaCache();
-    
+
     console.log(`[MateriaPrima Reset] ✅ ${allProducts.length} produtos reativados`);
-    
-    return res.json({ 
-      success: true, 
+
+    return res.json({
+      success: true,
       total: allProducts.length,
-      message: `${allProducts.length} produtos reativados com sucesso` 
+      message: `${allProducts.length} produtos reativados com sucesso`
     });
   } catch (e: any) {
     console.error("Failed to reset products", e);
@@ -801,16 +802,16 @@ app.get("/api/db/status", async (req, res) => {
 app.post("/api/db/sync-schema", async (req, res) => {
   try {
     await dbService.init();
-    
+
     // Forçar adição da coluna 'ativo' na tabela materia_prima se não existir
     const queryRunner = AppDataSource.createQueryRunner();
     await queryRunner.connect();
-    
+
     try {
       // Verificar se a coluna existe
       const table = await queryRunner.getTable('materia_prima');
       const ativoColumn = table?.columns.find(col => col.name === 'ativo');
-      
+
       if (!ativoColumn) {
         console.log('[sync-schema] Coluna "ativo" não existe, adicionando...');
         await queryRunner.query(`ALTER TABLE materia_prima ADD COLUMN ativo TINYINT(1) DEFAULT 1`);
@@ -821,7 +822,7 @@ app.post("/api/db/sync-schema", async (req, res) => {
     } finally {
       await queryRunner.release();
     }
-    
+
     await dbService.synchronizeSchema();
     return res.json({ ok: true, message: "Schema synchronized successfully" });
   } catch (e: any) {
@@ -884,7 +885,7 @@ app.post("/api/db/import", async (req, res) => {
 });
 
 // Upload and import SQL dump (supports both legacy DD/MM/YY and modern YYYY-MM-DD formats)
-const dumpUpload = multer({ 
+const dumpUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
@@ -928,7 +929,7 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
     const sanitized = dumpConverterService.sanitizeDump(finalContent);
     finalContent = sanitized.sanitized;
     warnings = sanitized.warnings;
-    
+
     if (warnings.length > 0) {
       console.log('[api/db/import-legacy] Dump sanitized with warnings:', warnings);
     }
@@ -945,7 +946,7 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
 
     // Execute SQL dump using dbService
     await dbService.init();
-    
+
     // Import the SQL file with options
     const result = await dbService.executeSqlFile(tmpDumpPath, {
       failOnError: false,
@@ -974,9 +975,9 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
     });
   } catch (e: any) {
     console.error("[api/db/import-legacy] error", e);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: e?.message || "Erro ao importar dump",
-      details: e?.stack 
+      details: e?.stack
     });
   }
 });
@@ -986,11 +987,11 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
 app.get("/api/db/export-sql", async (req, res) => {
   try {
     await dbService.init();
-    
+
     console.log('[api/db/export-sql] Generating SQL dump...');
-    
+
     const result = await dbService.exportSqlDump();
-    
+
     console.log(`[api/db/export-sql] Dump generated: ${result.filePath}, ${(result.size / 1024).toFixed(2)} KB`);
 
     // Read the file and send it as download
@@ -1000,13 +1001,13 @@ app.get("/api/db/export-sql", async (req, res) => {
     res.setHeader('Content-Type', 'application/sql');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Content-Length', result.size);
-    
+
     return res.send(fileContent);
   } catch (e: any) {
     console.error("[api/db/export-sql] error", e);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: e?.message || "Erro ao exportar dump",
-      details: e?.stack 
+      details: e?.stack
     });
   }
 });
@@ -1137,7 +1138,7 @@ app.post("/api/clear/production", async (req, res) => {
         await cacheService.clearAll();
         console.log('[api/clear/production] collector cache cleared');
       }
-      
+
       // Clear AmendoimCollector change detection cache (in-memory)
       AmendoimCollectorService.clearChangeCache();
     } catch (e) {
@@ -1165,7 +1166,7 @@ app.post("/api/clear/production", async (req, res) => {
 app.get("/api/backup/list", async (req, res) => {
   try {
     await ensureDatabaseConnection();
-    const data = await backupSvc.listBackups(); 
+    const data = await backupSvc.listBackups();
     return res.json(data);
   } catch (e) {
     console.error(e);
@@ -1470,8 +1471,8 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       });
     }
 
-  const repo = AppDataSource.getRepository(Relatorio);
-  let qb = repo.createQueryBuilder("r");
+    const repo = AppDataSource.getRepository(Relatorio);
+    let qb = repo.createQueryBuilder("r");
 
     // Apply separate numeric filters when provided
     if (codigoRaw != null && String(codigoRaw) !== "") {
@@ -1562,9 +1563,9 @@ app.get("/api/relatorio/paginate", async (req, res) => {
       }
     }
 
-  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
 
-    
+
 
     let rows: any[] = [];
     let total = 0;
@@ -1583,41 +1584,41 @@ app.get("/api/relatorio/paginate", async (req, res) => {
         .json({ error: "Database query failed", details: queryError?.message });
     }
 
-  // Map rows to include values array from Prod_1 to Prod_65
-  // Normalize product values according to MateriaPrima.measure (grams->kg)
-  // OTIMIZAÇÃO: Usar cache em vez de consultar banco a cada request
-    
-  // 🔍 Obter produtos ativos para filtrar inativos (a menos que client peça incluir todos via includeIgnored)
-  const produtosAtivos = includeIgnored ? null : await getProdutosAtivos();
+    // Map rows to include values array from Prod_1 to Prod_65
+    // Normalize product values according to MateriaPrima.measure (grams->kg)
+    // OTIMIZAÇÃO: Usar cache em vez de consultar banco a cada request
+
+    // 🔍 Obter produtos ativos para filtrar inativos (a menos que client peça incluir todos via includeIgnored)
+    const produtosAtivos = includeIgnored ? null : await getProdutosAtivos();
 
     // OTIMIZAÇÃO: Pré-alocar arrays com tamanho fixo
     const mappedRows = rows.map((row: any) => {
       const values: string[] = new Array(65);
       const valuesRaw: number[] = new Array(65);
       const unidades: string[] = new Array(65);
-      
+
       for (let i = 1; i <= 65; i++) {
         const prodValue = row[`Prod_${i}`];
         let v =
           typeof prodValue === "number"
             ? prodValue
             : prodValue != null
-            ? Number(prodValue)
-            : 0;
+              ? Number(prodValue)
+              : 0;
         const materia = materiasByNum[i];
-        
+
         // ⚠️ FILTRO: Se produto está inativo, zerar valor (aplica somente quando produtosAtivos foi carregado)
         if (produtosAtivos && !produtosAtivos.has(i)) {
           v = 0;
         }
-        
+
         // Garantir que não há valores negativos (dados corrompidos)
         if (v < 0) v = 0;
-        
+
         // valuesRaw: SEMPRE valor original do banco de dados (sem conversão, sem negativos)
         const idx = i - 1;
         valuesRaw[idx] = v;
-        
+
         // Determinar unidade e formatar valor com 3 casas decimais
         // OTIMIZAÇÃO: Usar acesso direto ao índice em vez de push
         if (materia && Number(materia.medida) === 0) {
@@ -1746,20 +1747,20 @@ app.get("/api/relatorio/pdf-data", async (req, res) => {
     const produtosAtivos = await getProdutosAtivos(true);
     console.log(`[api/chartdata/semana] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
 
-  // 🔁 manter comportamento antigo: não excluir produtos marcados como ignorarCalculos para relatórios/PDF
+    // 🔁 manter comportamento antigo: não excluir produtos marcados como ignorarCalculos para relatórios/PDF
 
     // PROCESSAR DADOS PARA PDF: Calcular totais, formatar valores, gráficos
     const produtos: Array<{ nome: string; qtd: number; unidade: string; valorFormatado: string }> = [];
-    
+
     // Mapa: produto index -> total acumulado
     const produtoTotals: Record<number, number> = {};
-    
+
     for (const row of rows) {
       for (let i = 1; i <= 65; i++) {
         const val = row[`Prod_${i}`];
         let v = typeof val === "number" ? val : (val != null ? Number(val) : 0);
         if (v < 0) v = 0;
-        
+
         if (!produtoTotals[i]) produtoTotals[i] = 0;
         produtoTotals[i] += v;
       }
@@ -1823,7 +1824,7 @@ app.get("/api/relatorio/pdf-data", async (req, res) => {
     // Dados de resumo
     const primeiroRow = rows[0];
     const ultimoRow = rows[rows.length - 1];
-    
+
     const resumo = {
       totalRegistros: rows.length,
       dataInicio: primeiroRow?.Dia || '',
@@ -1937,7 +1938,7 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     for (let i = 1; i <= 65; i++) {
       // get product name if available
       const mp = materiasByNum[i];
-      const unidade = mp?.unidade  ?? (mp && Number(mp.medida) === 0 ? "kg" : "g");
+      const unidade = mp?.unidade ?? (mp && Number(mp.medida) === 0 ? "kg" : "g");
       if (mp && mp.produto) headers.push(`${mp.produto} (${unidade})`);
       else headers.push(`Prod_${i} (${unidade})`);
     }
@@ -1955,8 +1956,8 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
+              ? Number(r[`Prod_${i}`])
+              : 0;
         const mp = materiasByNum[i];
         // if (mp && Number(mp.medida) === 0 && v) v = v / 1000; // grams -> kg
         rowArr.push(v);
@@ -2080,8 +2081,8 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
+              ? Number(r[`Prod_${i}`])
+              : 0;
         const mp = materiasByNum[i];
         // If product is stored in grams, keep raw for export but mark that it was grams (do not multiply)
         // The frontend and consumers should interpret units via materiaPrimaService
@@ -2392,21 +2393,21 @@ app.post('/api/ihm/test', async (req, res) => {
     socket.setTimeout(3000);
     socket.once('connect', () => {
       const latency = Date.now() - start;
-      try { socket.destroy(); } catch (e) {}
+      try { socket.destroy(); } catch (e) { }
       if (done) return;
       done = true;
       return res.json({ ok: true, latency, ip, port: targetPort });
     });
 
     socket.once('timeout', () => {
-      try { socket.destroy(); } catch (e) {}
+      try { socket.destroy(); } catch (e) { }
       if (done) return;
       done = true;
       return res.status(504).json({ ok: false, error: 'timeout', ip, port: targetPort });
     });
 
     socket.once('error', (err: any) => {
-      try { socket.destroy(); } catch (e) {}
+      try { socket.destroy(); } catch (e) { }
       if (done) return;
       done = true;
       return res.status(502).json({ ok: false, error: String(err), ip, port: targetPort });
@@ -2565,8 +2566,8 @@ app.get("/api/resumo", async (req, res) => {
         numericFormula != null
           ? numericFormula
           : formula !== null && formula !== ""
-          ? Number(formula)
-          : null,
+            ? Number(formula)
+            : null,
       formulaName: numericFormula == null ? nomeFormula : null,
       codigo: Number.isFinite(codigo) ? codigo : null,
       numero: Number.isFinite(numero) ? numero : null,
@@ -2611,8 +2612,8 @@ app.post('/api/resumo', async (req, res) => {
         numericFormula != null
           ? numericFormula
           : formula !== null && formula !== ""
-          ? Number(formula)
-          : null,
+            ? Number(formula)
+            : null,
       formulaName: numericFormula == null ? nomeFormula : null,
       codigo: Number.isFinite(codigo) ? codigo : null,
       numero: Number.isFinite(numero) ? numero : null,
@@ -2736,7 +2737,7 @@ app.get("/api/collector/status", async (_req, res) => {
 // IHM network discovery — runs tools/ihm-discovery/discover.js (Node) or scan.ps1 on Windows
 app.post('/api/ihm/discover', async (req, res) => {
   try {
-  const { method = 'node', ports = [80,443,502], timeoutMs = 800, paths = [ '/visu', '/visu/index.html'] } = req.body || {};
+    const { method = 'node', ports = [80, 443, 502], timeoutMs = 800, paths = ['/visu', '/visu/index.html'] } = req.body || {};
     const toolsDir = path.resolve(process.cwd(), 'tools', 'ihm-discovery');
     const outFile = path.join(toolsDir, 'results.json');
 
@@ -2750,7 +2751,7 @@ app.post('/api/ihm/discover', async (req, res) => {
 
     if (String(method).toLowerCase() === 'powershell' && process.platform === 'win32') {
       cmd = 'powershell.exe';
-  args = ['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File', path.join(toolsDir, 'scan.ps1'), '-TimeoutMs', String(timeoutMs), '-Ports', String((ports || []).join(',')), '-Paths', String((paths || []).join(',')), '-OutFile', outFile];
+      args = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path.join(toolsDir, 'scan.ps1'), '-TimeoutMs', String(timeoutMs), '-Ports', String((ports || []).join(',')), '-Paths', String((paths || []).join(',')), '-OutFile', outFile];
     } else {
       // Default to Node script
       cmd = process.execPath; // Node binary
@@ -2776,7 +2777,7 @@ app.post('/api/ihm/discover', async (req, res) => {
     let partial = {};
     try {
       if (fs.existsSync(outFile)) partial = JSON.parse(fs.readFileSync(outFile, 'utf8'));
-    } catch (_) {}
+    } catch (_) { }
     return res.status(500).json({ ok: false, error: String(e), results: partial });
   }
 });
@@ -2793,7 +2794,7 @@ app.get('/api/ihm/discover/last', async (_req, res) => {
   }
 });
 
-app.get("/api/relatorioPdf", async (req, res) => {});
+app.get("/api/relatorioPdf", async (req, res) => { });
 
 app.get("/api/filtrosAvaliable", async (req, res) => {
   try {
@@ -2879,7 +2880,7 @@ app.post("/api/file/processContent", async (req, res) => {
     // Clean up temp file
     try {
       fs.unlinkSync(tempPath);
-    } catch {}
+    } catch { }
 
     return res.json({ meta: r.meta, rowsCount: r.parsed.rowsCount });
   } catch (e) {
@@ -3188,8 +3189,8 @@ app.get("/api/config/:key", async (req, res) => {
               out[f] !== undefined
                 ? out[f]
                 : knownDefaults[key] && knownDefaults[key][f] !== undefined
-                ? knownDefaults[key][f]
-                : "";
+                  ? knownDefaults[key][f]
+                  : "";
           }
           out = filtered;
         }
@@ -3207,7 +3208,7 @@ app.get("/api/config/:key", async (req, res) => {
       try {
         // Build a base IHM config from the parsed value or known defaults
         const baseIhm = (out && typeof out === 'object') ? { ...(knownDefaults['ihm-config'] || {}), ...out } : { ...(knownDefaults['ihm-config'] || {}) };
-        
+
         // Read amendoim-config and copy secondary IHM credentials if provided
         try {
           const amCfg = (await Promise.resolve().then(() => require('./services/AmendoimConfigService')).then(m => m.AmendoimConfigService.getConfig()));
@@ -3358,8 +3359,8 @@ app.get("/api/chartdata", async (req, res) => {
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
+              ? Number(r[`Prod_${i}`])
+              : 0;
         // If product is inactive for charts (including ignorarCalculos), hide its value (0)
         const showInCharts = produtosAtivos.has(i);
         const valueToPush = showInCharts ? v : 0;
@@ -3453,13 +3454,13 @@ app.get("/api/chartdata/formulas", async (req, res) => {
         console.warn('[chartdata/formulas] Erro ao parsear advancedFilters:', e);
       }
     }
-  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
 
     const rows = await qb.getMany();
 
-  // Filtrar produtos inativos e produtos marcados para ignorar cálculos
-  const produtosAtivos = await getProdutosAtivos(true);
-  console.log(`[chartdata/formulas] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
+    // Filtrar produtos inativos e produtos marcados para ignorar cálculos
+    const produtosAtivos = await getProdutosAtivos(true);
+    console.log(`[chartdata/formulas] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
 
     // Agregar por fórmula (Nome) using per-row normalized total (kg)
     const sums: Record<string, number> = {};
@@ -3479,17 +3480,17 @@ app.get("/api/chartdata/formulas", async (req, res) => {
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
-        
+              ? Number(r[`Prod_${i}`])
+              : 0;
+
         // Garantir que não há valores negativos
         if (raw < 0) raw = 0;
-        
+
         if (!raw || raw === 0) continue;
-        
+
         const mp = materiasByNum[i];
         let valueKg = raw;
-        
+
         if (mp) {
           const medida = typeof mp.medida === 'number' ? mp.medida : Number(mp.medida || 1);
           if (medida === 0) {
@@ -3500,7 +3501,7 @@ app.get("/api/chartdata/formulas", async (req, res) => {
             valueKg = raw;
           }
         }
-        
+
         rowTotalKg += valueKg;
       }
 
@@ -3590,13 +3591,13 @@ app.get("/api/chartdata/produtos", async (req, res) => {
         console.warn('[chartdata/produtos] Erro ao parsear advancedFilters:', e);
       }
     }
-  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
 
     const rows = await qb.getMany();
 
-  // Filtrar produtos inativos e também produtos marcados para ignorar cálculos
-  const produtosAtivos = await getProdutosAtivos(true);
-  console.log(`[chartdata/produtos] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
+    // Filtrar produtos inativos e também produtos marcados para ignorar cálculos
+    const produtosAtivos = await getProdutosAtivos(true);
+    console.log(`[chartdata/produtos] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
 
     // Agregar por produto (Prod_1, Prod_2, etc.)
     const productSums: Record<string, number> = {};
@@ -3611,17 +3612,17 @@ app.get("/api/chartdata/produtos", async (req, res) => {
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
+              ? Number(r[`Prod_${i}`])
+              : 0;
 
         // Garantir que não há valores negativos
         if (v < 0) v = 0;
-        
+
         if (v <= 0) continue;
 
         const mp = materiasByNum[i];
         const productKey = mp?.produto || `Produto ${i}`;
-        
+
         // Calcular valor em kg considerando a unidade de armazenagem
         let valueKg = v;
         if (mp) {
@@ -3634,7 +3635,7 @@ app.get("/api/chartdata/produtos", async (req, res) => {
             valueKg = v;
           }
         }
-        
+
         const unidade = "kg";
 
         productSums[productKey] = (productSums[productKey] || 0) + valueKg;
@@ -3726,7 +3727,7 @@ app.get("/api/chartdata/horarios", async (req, res) => {
       }
     }
 
-  if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
 
     const rows = await qb.getMany();
 
@@ -3753,8 +3754,8 @@ app.get("/api/chartdata/horarios", async (req, res) => {
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
+              ? Number(r[`Prod_${i}`])
+              : 0;
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
@@ -3787,8 +3788,8 @@ app.get("/api/chartdata/horarios", async (req, res) => {
       peakHour:
         chartData.length > 0
           ? chartData.reduce((max, item) =>
-              item.value > max.value ? item : max
-            ).name
+            item.value > max.value ? item : max
+          ).name
           : null,
       ts: new Date().toISOString(),
     });
@@ -3869,7 +3870,7 @@ app.get('/api/about/info', async (req, res) => {
           if (!stat.isFile()) continue;
           const content = await fs.promises.readFile(full, 'utf8');
           filesOut.push({ filename: f, content });
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
@@ -3954,9 +3955,9 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
 
     const rows = await qb.getMany();
 
-  // Filtrar produtos inativos e produtos marcados para ignorar cálculos
-  const produtosAtivos = await getProdutosAtivos(true);
-  console.log(`[chartdata/diasSemana] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
+    // Filtrar produtos inativos e produtos marcados para ignorar cálculos
+    const produtosAtivos = await getProdutosAtivos(true);
+    console.log(`[chartdata/diasSemana] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivos.size}`);
 
     // Helper para parsear datas
     const parseDia = (dia?: string): Date | null => {
@@ -4004,8 +4005,8 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
+              ? Number(r[`Prod_${i}`])
+              : 0;
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
@@ -4040,8 +4041,8 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
       peakDay:
         chartData.length > 0
           ? chartData.reduce((max, item) =>
-              item.value > max.value ? item : max
-            ).name
+            item.value > max.value ? item : max
+          ).name
           : null,
       ts: new Date().toISOString(),
     });
@@ -4131,8 +4132,8 @@ app.get("/api/chartdata/stats", async (req, res) => {
           typeof r[`Prod_${i}`] === "number"
             ? r[`Prod_${i}`]
             : r[`Prod_${i}`] != null
-            ? Number(r[`Prod_${i}`])
-            : 0;
+              ? Number(r[`Prod_${i}`])
+              : 0;
         if (!raw || raw <= 0) continue;
         const mp = materiasByNum[i];
         if (mp && Number(mp.medida) === 0) {
@@ -4264,12 +4265,12 @@ app.get("/api/chartdata/semana", async (req, res) => {
     const weekdayTotals = Array(7).fill(0);
     const weekdayCounts = Array(7).fill(0);
 
-  // Also build a per-date total map (YYYY-MM-DD) so callers can get totals for specific dates
-  const perDateTotals: Record<string, number> = {};
+    // Also build a per-date total map (YYYY-MM-DD) so callers can get totals for specific dates
+    const perDateTotals: Record<string, number> = {};
 
-  // Produtos ativos para esta rota (exclui os marcados como ignorarCalculos)
-  const produtosAtivosSemana = await getProdutosAtivos(true);
-  console.log(`[api/chartdata/semana] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivosSemana.size}`);
+    // Produtos ativos para esta rota (exclui os marcados como ignorarCalculos)
+    const produtosAtivosSemana = await getProdutosAtivos(true);
+    console.log(`[api/chartdata/semana] Produtos ativos (excluindo ignorarCalculos): ${produtosAtivosSemana.size}`);
 
     for (const r of rows) {
       if (!r.Dia) continue;
@@ -4277,11 +4278,11 @@ app.get("/api/chartdata/semana", async (req, res) => {
       if (!date) continue;
 
       const dayIndex = date.getDay();
-      const isoDay = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+      const isoDay = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 
       // Calcular total da linha normalizado para kg somando TODOS os produtos
       let rowTotalKg = 0;
-      
+
       for (let i = 1; i <= 65; i++) {
         // Ignorar produtos que não devem entrar em cálculos
         if (!produtosAtivosSemana.has(i)) continue;
@@ -4294,14 +4295,14 @@ app.get("/api/chartdata/semana", async (req, res) => {
 
         // Garantir que não há valores negativos
         if (raw < 0) raw = 0;
-        
+
         // Pular zeros
         if (!raw || raw === 0) continue;
 
         const mp = materiasByNum[i];
         // Conversão baseada no tipo de unidade do produto
         let valueKg = raw;
-        
+
         if (mp) {
           const medida = typeof mp.medida === 'number' ? mp.medida : Number(mp.medida || 1);
           if (medida === 0) {
@@ -4315,7 +4316,7 @@ app.get("/api/chartdata/semana", async (req, res) => {
           // Se não achar metadata, assume kg (segurança)
           valueKg = raw;
         }
-        
+
         rowTotalKg += valueKg;
       }
 
@@ -4449,7 +4450,7 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
         const date = parseDia(r.Dia);
         if (!date) continue;
         const dayIndex = date.getDay();
-        
+
         // Calcular total da linha normalizado para kg
         let rowTotalKg = 0;
         for (let i = 1; i <= 65; i++) {
@@ -4460,8 +4461,8 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
             typeof r[`Prod_${i}`] === "number"
               ? r[`Prod_${i}`]
               : r[`Prod_${i}`] != null
-              ? Number(r[`Prod_${i}`])
-              : 0;
+                ? Number(r[`Prod_${i}`])
+                : 0;
           if (!raw || raw <= 0) continue;
           const mp = materiasByNum[i];
           if (mp && Number(mp.medida) === 0) {
@@ -4471,7 +4472,7 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
             rowTotalKg += raw;
           }
         }
-        
+
         if (isNaN(rowTotalKg) || rowTotalKg <= 0) continue;
         weekdayTotals[dayIndex] += rowTotalKg;
         weekdayCounts[dayIndex] += 1;
@@ -4514,16 +4515,16 @@ app.post("/api/chartdata/semana/bulk", async (req, res) => {
 app.get('/api/stats', async (req, res) => {
   try {
     const { startDate, endDate, endpoint, limit } = req.query;
-    
+
     const options: any = {};
     if (startDate) options.startDate = new Date(String(startDate));
     if (endDate) options.endDate = new Date(String(endDate));
     if (endpoint) options.endpoint = String(endpoint);
     if (limit) options.limit = Number(limit);
-    
+
     const entries = statsLogger.readStats(options);
     const metrics = statsLogger.getMetrics(entries);
-    
+
     return res.json({
       entries,
       metrics,
@@ -4542,15 +4543,15 @@ app.get('/api/stats', async (req, res) => {
 app.get('/api/stats/metrics', async (req, res) => {
   try {
     const { startDate, endDate, endpoint } = req.query;
-    
+
     const options: any = {};
     if (startDate) options.startDate = new Date(String(startDate));
     if (endDate) options.endDate = new Date(String(endDate));
     if (endpoint) options.endpoint = String(endpoint);
-    
+
     const entries = statsLogger.readStats(options);
     const metrics = statsLogger.getMetrics(entries);
-    
+
     return res.json(metrics);
   } catch (e: any) {
     console.error('[api/stats/metrics] error', e);
@@ -4586,7 +4587,13 @@ app.post('/api/amendoim/upload', amendoimUpload.single('file'), async (req, res)
       return res.status(400).json({ error: 'Nenhum arquivo enviado' });
     }
 
-    const csvContent = req.file.buffer.toString('utf-8');
+    // const csvContent = req.file.buffer.toString('utf-8');
+    const buffer = req.file.buffer;
+    let csvContent = iconv.decode(buffer, 'utf8');
+    if (csvContent.includes('\uFFFD')) {
+      console.log(`[API Upload] ⚠️ Detectado possível problema de encoding (UTF-8 inválido). Tentando Latin1...`);
+      csvContent = iconv.decode(buffer, 'win1252');
+    }
     const resultado = await AmendoimService.processarCSV(csvContent);
 
     return res.json({
@@ -4869,7 +4876,7 @@ app.get('/api/amendoim/chartdata/horarios', async (req, res) => {
 app.get('/api/amendoim/config', async (req, res) => {
   try {
     let config = getRuntimeConfig('ihm-config') || {};
-    
+
     // 🔄 MIGRAÇÃO AUTOMÁTICA: Converter ip2/user2/password2 para ihm2.ip
     if (config.duasIHMs && !config.ihm2 && config.ip2) {
       console.log('[api/amendoim/config GET] 🔄 Migrando config antiga (ip2) para nova estrutura (ihm2)');
@@ -4884,31 +4891,31 @@ app.get('/api/amendoim/config', async (req, res) => {
       await setRuntimeConfigs({ 'ihm-config': config });
       console.log('[api/amendoim/config GET] ✅ Config migrada e salva:', config.ihm2);
     }
-    
+
     // console.log('[api/amendoim/config GET] Config completo:', JSON.stringify(config, null, 2));
     // console.log('[api/amendoim/config GET] config.duasIHMs:', config.duasIHMs);
     // console.log('[api/amendoim/config GET] config.ihm2:', config.ihm2);
     // console.log('[api/amendoim/config GET] config.ihm2?.ip:', config.ihm2?.ip);
-    
+
     // Validar configuração
     const validation = {
       isValid: true,
       errors: [] as string[],
       needsIhmSelection: false,
     };
-    
+
     // // Se IHM1 não configurada
     // if (!config.ip || !config.ip.trim()) {
     //   validation.isValid = false;
     //   validation.errors.push('IP da IHM1 é obrigatório.');
     // }
-    
+
     // ⚠️ Validação IHM2 temporariamente desabilitada para testes
     // if (config.duasIHMs && (!config.ihm2?.ip || !config.ihm2.ip.trim())) {
     //   validation.isValid = false;
     //   validation.errors.push('IHM2 não configurada. Configure o IP da IHM2 ou desmarque "Usar duas IHMs".');
     // }
-      
+
     // Backwards-compat: return top-level keys for legacy scripts/tools
     // e.g. scripts/check-amendoim-config.ps1 expects fields at root
     const flat: Record<string, any> = { ...(config || {}) };
@@ -4940,7 +4947,7 @@ app.get('/api/amendoim/chartdata/last30', async (req, res) => {
     const prev = new Date();
     prev.setDate(prev.getDate() - 29);
 
-    const fmt = (d: Date) => `${d.getFullYear().toString().padStart(4,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const fmt = (d: Date) => `${d.getFullYear().toString().padStart(4, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
     const dados = await AmendoimService.obterDadosAnalise({ dataInicio: fmt(prev), dataFim: fmt(today) });
 
@@ -4966,7 +4973,7 @@ app.post('/api/amendoim/config', async (req, res) => {
   try {
     // Salvar configuração diretamente no ihm-config
     const configData = req.body;
-    
+
     // 🔍 DEBUG: Log da configuração recebida
     console.log('[api/amendoim/config POST] Configuração recebida:');
     console.log('  - payload completo:', JSON.stringify(configData, null, 2));
@@ -4975,14 +4982,14 @@ app.post('/api/amendoim/config', async (req, res) => {
     console.log('  - duasIHMs:', configData.duasIHMs);
     console.log('  - ihm2:', JSON.stringify(configData.ihm2, null, 2));
     console.log('  - ihm2?.ip:', configData.ihm2?.ip);
-    
+
     await setRuntimeConfigs({ 'ihm-config': configData });
-    
+
     const savedConfig = getRuntimeConfig('ihm-config') || {};
     console.log('[api/amendoim/config POST] Config salvo:', JSON.stringify(savedConfig, null, 2));
     console.log('[api/amendoim/config POST] savedConfig.duasIHMs:', savedConfig.duasIHMs);
     console.log('[api/amendoim/config POST] savedConfig.ihm2:', savedConfig.ihm2);
-    
+
     return res.json({ success: true, config: savedConfig });
   } catch (e: any) {
     console.error('[api/amendoim/config] error', e);
@@ -5016,7 +5023,7 @@ app.get('/api/amendoim/metricas/rendimento', async (req, res) => {
 app.get('/api/amendoim/analise', async (req, res) => {
   try {
     await ensureDatabaseConnection();
-    
+
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
 
@@ -5057,9 +5064,9 @@ app.get('/api/amendoim/count', async (req, res) => {
     const total = await repo.count();
     const entrada = await repo.count({ where: { tipo: 'entrada' } });
     const saida = await repo.count({ where: { tipo: 'saida' } });
-    
+
     console.log('[api/amendoim/count]', { total, entrada, saida });
-    
+
     return res.json({ total, entrada, saida });
   } catch (e: any) {
     console.error('[api/amendoim/count] error', e);
@@ -5075,19 +5082,19 @@ app.get('/api/amendoim/datas', async (req, res) => {
       select: ['dia'],
       order: { dia: 'ASC' },
     });
-    
+
     if (registros.length === 0) {
       return res.json({ min: null, max: null, datas: [] });
     }
-    
+
     const datas = [...new Set(registros.map(r => r.dia))].sort();
-    
+
     console.log('[api/amendoim/datas]', { min: datas[0], max: datas[datas.length - 1], total: datas.length });
-    
-    return res.json({ 
-      min: datas[0], 
-      max: datas[datas.length - 1], 
-      datas 
+
+    return res.json({
+      min: datas[0],
+      max: datas[datas.length - 1],
+      datas
     });
   } catch (e: any) {
     console.error('[api/amendoim/datas] error', e);
@@ -5099,7 +5106,7 @@ app.get('/api/amendoim/datas', async (req, res) => {
 app.post('/api/amendoim/seed', async (req, res) => {
   try {
     console.log('[api/amendoim/seed] Gerando dados de teste...');
-    
+
     const hoje = new Date();
     const csvLines: string[] = [];
 
@@ -5143,7 +5150,7 @@ app.post('/api/amendoim/seed', async (req, res) => {
     const csvSaida = csvLinesSaida.join('\n');
     const resultSaida = await AmendoimService.processarCSV(csvSaida);
 
-    console.log('[api/amendoim/seed] Concluído!', { 
+    console.log('[api/amendoim/seed] Concluído!', {
       entrada: resultEntrada,
       saida: resultSaida
     });
@@ -5237,10 +5244,10 @@ app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
   try {
     const { fileName } = req.params;
     const deleted = await AmendoimCollectorService.clearFileCache(fileName);
-    return res.json({ 
-      success: true, 
+    return res.json({
+      success: true,
       deleted,
-      message: deleted ? 'Cache do arquivo limpo com sucesso' : 'Arquivo não encontrado no cache' 
+      message: deleted ? 'Cache do arquivo limpo com sucesso' : 'Arquivo não encontrado no cache'
     });
   } catch (e: any) {
     console.error('[api/amendoim/collector/cache/:fileName] error', e);
@@ -5254,7 +5261,7 @@ app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
 app.get('/api/amendoim/exportExcel', async (req, res) => {
   try {
     await dbService.init();
-    
+
     // Filtros
     const tipo = req.query.tipo ? String(req.query.tipo) : undefined;
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
@@ -5288,8 +5295,8 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
       qb.andWhere("a.codigoProduto = :codigoProduto", { codigoProduto });
     }
     if (nomeProduto) {
-      qb.andWhere("LOWER(a.nomeProduto) LIKE LOWER(:nomeProduto)", { 
-        nomeProduto: `%${nomeProduto}%` 
+      qb.andWhere("LOWER(a.nomeProduto) LIKE LOWER(:nomeProduto)", {
+        nomeProduto: `%${nomeProduto}%`
       });
     }
     // Handle date filters differently depending on DB engine.
@@ -5359,7 +5366,7 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
           if (parts.length !== 3) return false;
           const year = Number(parts[2]);
           const fullYear = year < 50 ? 2000 + year : 1900 + year;
-          const iso = `${fullYear}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+          const iso = `${fullYear}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
 
           if (startISO && iso < startISO) return false;
           if (endISOExclusive && iso >= endISOExclusive) return false;
@@ -5429,7 +5436,7 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-    
+
     // Generate filename with dataInicio and dataFim if available
     let filename = 'relatorio';
     if (dataInicio && dataFim) {
@@ -5439,12 +5446,12 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
     } else if (dataFim) {
       filename = `relatorio_ate_${dataFim}`;
     }
-    
+
     res.setHeader(
       "Content-Disposition",
       `attachment; filename=${filename}.xlsx`
     );
-    
+
     await wb.xlsx.write(res as any);
     res.end();
   } catch (e: any) {
@@ -5457,7 +5464,7 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
 app.post('/api/amendoim/exportExcel', async (req, res) => {
   try {
     await dbService.init();
-    
+
     // Filtros do body
     const tipo = req.body.tipo || undefined;
     const codigoProduto = req.body.codigoProduto || undefined;
@@ -5489,8 +5496,8 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
       qb.andWhere("a.codigoProduto = :codigoProduto", { codigoProduto });
     }
     if (nomeProduto) {
-      qb.andWhere("LOWER(a.nomeProduto) LIKE LOWER(:nomeProduto)", { 
-        nomeProduto: `%${nomeProduto}%` 
+      qb.andWhere("LOWER(a.nomeProduto) LIKE LOWER(:nomeProduto)", {
+        nomeProduto: `%${nomeProduto}%`
       });
     }
     const isMySQL = (AppDataSource.options as any)?.type === 'mysql';
@@ -5554,7 +5561,7 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
           if (parts.length !== 3) return false;
           const year = Number(parts[2]);
           const fullYear = year < 50 ? 2000 + year : 1900 + year;
-          const iso = `${fullYear}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}`;
+          const iso = `${fullYear}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
           if (startISO && iso < startISO) return false;
           if (endISOExclusive && iso >= endISOExclusive) return false;
           return true;
@@ -5623,7 +5630,7 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     );
-    
+
     // Generate filename with dataInicio and dataFim if available
     let filename = 'relatorio';
     if (dataInicio && dataFim) {
@@ -5633,12 +5640,12 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
     } else if (dataFim) {
       filename = `relatorio_ate_${dataFim}`;
     }
-    
+
     res.setHeader(
       "Content-Disposition",
       `attachment; filename=${filename}.xlsx`
     );
-    
+
     await wb.xlsx.write(res as any);
     res.end();
   } catch (e: any) {
@@ -5652,7 +5659,7 @@ app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
   try {
     const { fileName } = req.params;
     const deleted = AmendoimCollectorService.clearFileCache(fileName);
-    
+
     if (await deleted) {
       return res.json({ success: true, message: `Cache do arquivo ${fileName} limpo com sucesso` });
     } else {
@@ -5669,9 +5676,9 @@ app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
 // Start HTTP server (prefer runtime-config 'http_port' then env vars)
 const HTTP_PORT = Number(
   getRuntimeConfig("http_port") ??
-    process.env.FRONTEND_API_PORT ??
-    process.env.PORT ??
-    3000
+  process.env.FRONTEND_API_PORT ??
+  process.env.PORT ??
+  3000
 );
 
 // Setup file processor observer for notifications (simplified without WebSocket)
@@ -5685,16 +5692,16 @@ fileProcessorService.addObserver({
 (async () => {
   try {
     await ensureDatabaseConnection();
-    
+
     // 🔧 Garantir que a coluna 'ativo' existe na tabela materia_prima
     try {
       const queryRunner = AppDataSource.createQueryRunner();
       await queryRunner.connect();
-      
+
       try {
         const table = await queryRunner.getTable('materia_prima');
         const ativoColumn = table?.columns.find(col => col.name === 'ativo');
-        
+
         if (!ativoColumn) {
           console.log('[Startup] Adicionando coluna "ativo" na tabela materia_prima...');
           await queryRunner.query(`ALTER TABLE materia_prima ADD COLUMN ativo TINYINT(1) DEFAULT 1`);
@@ -5706,7 +5713,7 @@ fileProcessorService.addObserver({
     } catch (e) {
       console.warn('[Startup] Erro ao verificar/adicionar coluna "ativo":', e);
     }
-    
+
     const all = await configService.getAllSettings();
     setRuntimeConfigs(all);
     console.log(
