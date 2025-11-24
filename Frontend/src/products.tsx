@@ -510,7 +510,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                       <div className="relative flex-1">
                         <Input
                           id={`input-${col}`}
-                          className={`peer h-9 px-2 pt-4 text-sm border-b border-gray-400 rounded-lg focus:border-black focus:ring-0 ${savingProduct === col ? 'bg-gray-100' : ''}`}
+                          className={`peer h-9 px-2 pt-4 text-sm border-b border-gray-500 rounded-lg focus:border-black focus:ring-0 ${savingProduct === col ? 'bg-gray-100' : ''}`}
                           type="text"
                           value={labelValue}
                           onChange={(e) => handleLabelChange(col, e.target.value, unidadeAtual)}
@@ -528,7 +528,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                         </Label>
                       </div>
 
-                      <div className="flex items-center justify-center border border-gray-400 rounded-lg px-2 min-w-24">
+                      <div className="flex items-center justify-center border border-gray-500 rounded-lg px-2 min-w-24">
                         <RadioGroup
                           className="flex flex-row gap-3"
                           value={unidadeAtual === "g" ? "0" : "1"}
@@ -549,7 +549,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                         size="sm"
                         variant={isAtivo ? "outline" : "secondary"}
                         onClick={() => handleToggleAtivo(col)}
-                        className="h-9 px-2"
+                        className="h-9 px-2 border-gray-500 rounded-lg"
                         title={isAtivo ? "Desativar produto (ignorar nos cálculos)" : "Ativar produto"}
                         disabled={togglingProduct === col}
                       >
@@ -566,7 +566,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
                         size="sm"
                         variant={produtosIgnorarCalculos[col] ? "secondary" : "outline"}
                         onClick={() => handleToggleIgnorarCalculos(col)}
-                        className="h-9 px-2"
+                        className="h-9 px-2 border-gray-500 rounded-lg"
                         title={produtosIgnorarCalculos[col] ? "Incluir nos cálculos" : "Remover dos cálculos (mantém no relatório)"}
                         disabled={togglingProduct === col || !isAtivo}
                       >

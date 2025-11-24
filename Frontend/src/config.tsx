@@ -650,7 +650,7 @@ export function IHMConfig({
         <label className="inline-flex items-center gap-2">
           <input
             type="checkbox"
-            className="h-5 w-5 text-red-600 rounded"
+            className="h-5 w-5 text-red-600 rounded bg-gray-50"
             checked={!!(formData as any).duasIHMs}
             disabled={!isEditing}
             onChange={(e) => onChange("duasIHMs", !!e.target.checked)}
@@ -665,7 +665,7 @@ export function IHMConfig({
         <button
           type="button"
           onClick={() => onChange("selectedIhm", 1)}
-          className={`px-3 py-2 rounded-md border ${((formData as any).selectedIhm || 1) === 1 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700'}`}
+          className={`px-3 py-2 rounded-md border border-gray-500 ${((formData as any).selectedIhm || 1) === 1 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700'}`}
         >
           IHM 1
         </button>
@@ -673,7 +673,7 @@ export function IHMConfig({
           type="button"
           disabled={!(formData as any).duasIHMs}
           onClick={() => onChange("selectedIhm", 2)}
-          className={`px-3 py-2 rounded-md border ${((formData as any).selectedIhm || 1) === 2 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700'} ${!(formData as any).duasIHMs ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`px-3 py-2 rounded-md border border-gray-500 ${((formData as any).selectedIhm || 1) === 2 ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-700'} ${!(formData as any).duasIHMs ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           IHM 2
         </button>
@@ -762,6 +762,7 @@ export function IHMConfig({
                     checked={(formData as any)[metodoKey] === 'custom'}
                     disabled={!isEditing}
                     onChange={() => onChange(metodoKey as any, 'custom')}
+                    className="bg-gray-200 checked:bg-red-600"
                   />
                   Customizado
                 </label>
@@ -782,19 +783,6 @@ export function IHMConfig({
                       onChange={(e) => onChange(localKey as any, e.target.value)}
                       disabled={!isEditing}
                     />
-                    <Button
-                      disabled={!isEditing}
-                      onClick={async () => {
-                        try {
-                          const f = await configService.selectFile();
-                          if (f) onChange(localKey as any, f);
-                        } catch (err) {
-                          console.warn('file select failed', err);
-                        }
-                      }}
-                    >
-                      Selecionar
-                    </Button>
                   </div>
                 )}
               </div>

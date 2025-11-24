@@ -38,7 +38,7 @@ export default function SettingsPopover({
       <Popover>
         <PopoverTrigger asChild>
           <button className="hover:bg-destructive h-11 w-11 rounded-lg [&>svg]:stroke-black hover:[&>svg]:stroke-white m-auto flex items-center justify-center">
-            <Settings />
+            <Settings strokeWidth={1.5}/>
           </button>
         </PopoverTrigger>
         <PopoverContent
