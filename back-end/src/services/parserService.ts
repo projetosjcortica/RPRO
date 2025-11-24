@@ -255,6 +255,20 @@ export class ParserService extends BaseService {
         return Number.isFinite(n) ? n : 0;
       }); // Map Prod_1 to Prod_65
 
+      // FIX: Check if Label is empty AND Prod_2 (index 6) is NOT a number (likely text)
+      // If so, treat index 6 as the Label/Nome
+      // Note: Index 5 (Prod_1) seems to be a number (e.g. 12, 3) in these cases, we keep it as Prod_1 value.
+      const rawProd2 = parts[6];
+      if (!label && rawProd2 && isNaN(Number(rawProd2))) {
+         const potentialLabel = sanitize(rawProd2);
+         if (potentialLabel) {
+             // We found a label in Prod_2 column.
+             // We need to ensure values[1] (Prod_2) is 0 because it was text.
+             // The map above already converted it to 0 (NaN -> 0), so values[1] is correct.
+             return { date, time, label: potentialLabel, form1, form2, values };
+         }
+      }
+
       return { date, time, label, form1, form2, values };
     } catch (error: any) {
       console.error('Error parsing row:', parts, error);
