@@ -301,7 +301,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
       </Popover>
       <Drawer direction="right">
         <DrawerTrigger asChild>
-          <Button variant="outline">
+          <Button variant="outline" className="border-gray-500">
             <Funnel className=" h-4 w-4" />
             Filtros
           </Button>

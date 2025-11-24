@@ -143,23 +143,22 @@ export default function Report() {
     };
   });
 
-  // Clear filters when entering the Report page so the table shows all data
-  // by default. This ensures users don't need to click "Limpar" manually.
+  // On mount, apply default date filters (last 30 days) so the report
+  // shows a useful, constrained dataset immediately without user action.
   useEffect(() => {
     try {
-      // Replicate the exact behavior of `handleLimpar` in `searchBar.tsx`:
-      // set the date range to the last 30 days and apply empty name/code/number filters.
-      const filtrosLimpos: Filtros = {
-        dataInicio: '',
-        dataFim: '',
+      const { dataInicio, dataFim } = getDefaultReportDateRange(29);
+      const filtrosPadrao: Filtros = {
+        dataInicio,
+        dataFim,
         nomeFormula: '',
         codigo: '',
         numero: '',
       };
 
-      // Apply exactly as the button would: reset to page 1, set filtros and open charts
+      // Reset to first page and apply the default filtros
       setPage(1);
-      setFiltros(filtrosLimpos);
+      setFiltros(filtrosPadrao);
       setChartsOpen(true);
     } catch (e) {
       // ignore
@@ -1589,7 +1588,7 @@ export default function Report() {
             </div>
           )}
       <div className="flex flex-row gap-2 justify-start w-full">
-        <div className="flex-1 flex flex-col items-start justify-start h-fit">
+        <div className="flex-1 flex flex-col w-70 items-start justify-start h-fit">
           <div className="flex w-full h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
             {content}
           </div>
@@ -1810,7 +1809,7 @@ export default function Report() {
                           Distribuição por hora
                         </div>
                       </div>
-                      <div className="h-[280px] px-3 py-3 relative">
+                      <div className="h-fit px-2 pt-3 relative">
                         {resumoLoading && (
                           <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>

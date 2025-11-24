@@ -969,7 +969,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                 {/* Perda */}
                 <div className="shadow-md rounded-lg p-2">
                   <div className="text-lg text-red-600 font-medium">Perda de material</div>
-                  <div className="text-2xl font-bold text-red-800">
+                  <div className="text-xl font-bold text-red-800">
                     {metricasRendimento.perda.toLocaleString('pt-BR', {
                       minimumFractionDigits: 3,
                       maximumFractionDigits: 3,

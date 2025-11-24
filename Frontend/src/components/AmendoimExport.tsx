@@ -316,7 +316,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
       {/* Modal Excel */}
       <Dialog open={excelModalOpen} onOpenChange={setExcelModalOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[350px]">
           <DialogHeader>
             <DialogTitle>Exportar para Excel</DialogTitle>
             <DialogDescription>
@@ -334,7 +334,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                   <Button
                     variant="outline"
                     className={cn(
-                      "w-full justify-between text-left font-normal",
+                      "w-full justify-between text-left border border-gray-500 font-normal",
                       !excelDateRange && "text-gray-400"
                     )}
                   >
@@ -361,7 +361,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     defaultMonth={excelDateRange?.from}
                     selected={excelDateRange}
                     onSelect={setExcelDateRange}
-                    numberOfMonths={2}
+                    numberOfMonths={1}
                   />
                 </PopoverContent>
               </Popover>
@@ -388,6 +388,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     placeholder="Ex: 001"
                     value={codigoProduto}
                     onChange={(e) => setCodigoProduto(e.target.value)}
+                    className="border-gray-500"
                   />
                 </div>
                 <div className="grid gap-2">
@@ -398,6 +399,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                     placeholder="Ex: Amendoim"
                     value={nomeProduto}
                     onChange={(e) => setNomeProduto(e.target.value)}
+                    className="border-gray-500"
                   />
                 </div> 
               </div>
