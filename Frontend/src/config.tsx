@@ -503,7 +503,7 @@ export function ProfileConfig({
   <Profile externalPreview={preview} file={file} onUpload={uploadPhoto} showLogoutButton={false} />
       
       {user?.isAdmin && (
-        <div className="mt-4 shadow-xl border border-gray-400 flex flex-col gap-4 rounded-lg p-3 bg-white">
+        <div className="mt-4 shadow-xl border border-gray-500 flex flex-col gap-4 rounded-lg p-3 bg-white">
           <Label>
             Nome da empresa
             <Input
@@ -519,7 +519,7 @@ export function ProfileConfig({
             <div className="flex flex-col gap-2">
               <label
                 htmlFor="profile-upload"
-                className="cursor-pointer flex items-center gap-2 px-3 w-85 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                className="cursor-pointer flex items-center gap-2 px-3 w-85 py-2 border border-gray-500 rounded-lg hover:bg-gray-50 transition"
               >
                 <Plus className="h-4 w-4 text-red-600 flex-shrink-0" />
                 <span className="text-sm text-gray-700 font-medium">
@@ -696,36 +696,36 @@ export function IHMConfig({
 
         return (
           <div className="flex flex-col gap-3">
-            <Label className="font-medium text-gray-700">
-              IP da IHM ({sel})
+            <Label className="font-medium text-gray-700 flex flex-row justify-between items-center">
+              IP da IHM ({sel}):
               <Input
                 type="text"
                 value={(formData as any)[ipKey] ?? ''}
                 onChange={(e) => onChange(ipKey as any, e.target.value)}
                 disabled={!isEditing}
-                className="mt-2 p-3 border border-gray-400 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="mt-2 p-3 border w-92 border-gray-500 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </Label>
 
-            <Label className="font-medium text-gray-700">
-              Usuário
+            <Label className="font-medium text-gray-700 flex flex-row justify-between items-center">
+              Usuário:
               <Input
                 type="text"
                 value={(formData as any)[userKey] ?? ''}
                 onChange={(e) => onChange(userKey as any, e.target.value)}
                 disabled={!isEditing}
-                className="mt-2 p-3 border border-gray-400 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="mt-2 p-3 border w-92 border-gray-500 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </Label>
 
-            <Label className="font-medium text-gray-700">
-              Senha
+            <Label className="font-medium text-gray-700 flex flex-row justify-between items-center  ">
+              Senha:
               <Input
                 type="password"
                 value={(formData as any)[passKey] ?? ''}
                 onChange={(e) => onChange(passKey as any, e.target.value)}
                 disabled={!isEditing}
-                className="mt-2 p-3 border border-gray-400 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="mt-2 p-3 border w-92 border-gray-500 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </Label>
 
@@ -812,7 +812,7 @@ export function IHMConfig({
                 id="cancel"
                 onClick={onCancel}
                 variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-100"
+                className="border-gray-500 text-gray-700 hover:bg-gray-100"
               >
                 Cancelar
               </Button>
@@ -1804,7 +1804,7 @@ interface Estatisticas {
               id="cancel"
               onClick={onCancel}
               variant="outline"
-              className="border-gray-300 text-gray-700 hover:bg-gray-100"
+              className="border-gray-500 text-gray-700 hover:bg-gray-100"
             >
               Cancelar
             </Button>
