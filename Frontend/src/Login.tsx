@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import useAuth from './hooks/useAuth';
 import { toast } from 'react-toastify';
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group';
+import { Button } from './components/ui/button';
 
 const Login: React.FC = () => {
   const { login, register } = useAuth();
@@ -73,7 +74,7 @@ const Login: React.FC = () => {
           {error && <div className="text-red-600">{error}</div>}
           <div className="flex items-center justify-between">
             <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded cursor-pointer">{isRegister ? 'Registrar' : 'Entrar'}</button>
-            <button type="button" onClick={() => setIsRegister(!isRegister)} className="text-sm text-blue-600 cursor-pointer">{isRegister ? 'Já tenho conta' : 'Criar conta'}</button>
+            <Button variant="ghost" onClick={() => setIsRegister(!isRegister)} className="text-sm text-blue-600 rounded cursor-pointer underline hover:no-underline hover:text-black">{isRegister ? 'Já tenho conta' : 'Criar conta'}</Button>
           </div>
         </form>
       </div>
