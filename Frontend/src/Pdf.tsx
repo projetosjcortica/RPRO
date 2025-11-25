@@ -767,6 +767,39 @@ export const MyDocument: FC<MyDocumentProps> = ({
             )}
           </View>
 
+          {/* Principais Fórmulas e Tabela de Fórmulas (compacto) */}
+          {(formulasOrdenadas.length > 0 || (formulaSums && Object.keys(formulaSums).length > 0) || (chartData && chartData.length > 0)) && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 6 }]}>Principais Fórmulas</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                {(() => {
+                  const formulasFallback = formulasOrdenadas.length > 0
+                    ? formulasOrdenadas
+                    : (formulaSums && Object.keys(formulaSums).length > 0)
+                      ? Object.entries(formulaSums).map(([k, v]) => ({ nome: k, somatoriaTotal: Number(v) || 0 }))
+                      : (chartData || []).map((c: any) => ({ nome: c.name, somatoriaTotal: c.value }));
+                  return formulasFallback.slice(0, 6).map((f: any, i: number) => (
+                    <View key={i} style={{ width: '48%', backgroundColor: '#f9fafb', padding: 6, borderRadius: 4, marginBottom: 6 }}>
+                      <Text style={{ fontSize: currentFontSizes.table, fontWeight: 'bold', color: '#374151' }}>{f.nome}</Text>
+                      <Text style={{ fontSize: currentFontSizes.table, color: '#6b7280', marginTop: 4 }}>{Number((f.somatoriaTotal ?? f.value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+                    </View>
+                  ));
+                })()}
+              </View>
+
+              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop: 8, marginBottom: 6 }]}>Tabela de Fórmulas</Text>
+              {formulasOrdenadas.length > 0 ? (
+                renderFormulaTable(formulaChunks[0] || [])
+              ) : (
+                // fallback render from formulaSums or chartData
+                renderFormulaTable(((formulaSums && Object.keys(formulaSums).length > 0)
+                  ? Object.entries(formulaSums).map(([k, v], idx) => ({ numero: idx + 1, nome: k, quantidade: 0, porcentagem: 0, somatoriaTotal: Number(v) || 0 }))
+                  : (chartData || []).map((d: any, idx: number) => ({ numero: idx + 1, nome: d.name, quantidade: 0, porcentagem: 0, somatoriaTotal: d.value }))
+                ))
+              )}
+            </View>
+          )}
+
           {/* Se houver apenas 1 página de produtos, mostrar totais e comentários aqui */}
           {produtoChunks.length <= 1 && (
             <>
