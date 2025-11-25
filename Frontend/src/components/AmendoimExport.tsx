@@ -297,6 +297,9 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
     if (pdfModalOpen && !dataRefreshed) {
       void handleLoadPdfData();
+    } else if (!pdfModalOpen && dataRefreshed) {
+      // Reset refresh state when modal closes so next open triggers fetch
+      setDataRefreshed(false);
     }
     // Reload when modal opens (pdfTipo is now constant "comparativo")
     // eslint-disable-next-line react-hooks/exhaustive-deps
