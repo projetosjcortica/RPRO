@@ -33,7 +33,8 @@ import { format, parse } from "date-fns";
 import { pt } from "date-fns/locale";
 import { type DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
-import { PDFViewer, PDFDownloadLink } from "@react-pdf/renderer";
+// import { PDFViewer, PDFDownloadLink } from "@react-pdf/renderer";
+import { PDFViewer } from "@react-pdf/renderer";
 import { AmendoimPDFDocument } from "./AmendoimPDF";
 
 interface AmendoimExportProps {
