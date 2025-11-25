@@ -219,6 +219,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   // Modal de seleção de IHM
   const [showIhmModal, setShowIhmModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  // Estado para controlar se o modal de PDF está aberto (para pausar refresh)
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
   // Obter logo do usuário
   useEffect(() => {
@@ -535,7 +537,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
   // Atualizar dados automaticamente enquanto o coletor estiver rodando
   useEffect(() => {
-    if (!collectorRunning) return;
+    if (!collectorRunning || isPdfModalOpen) return;
     
     // Atualizar dados a cada 30 segundos quando o coletor está ativo
     // Em vez de tocar o state de filtros (que faz a tabela piscar), chamamos
@@ -548,7 +550,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
     }, 30000); // 30 segundos para capturar mudanças do coletor de 1min
 
     return () => clearInterval(intervalId);
-  }, [collectorRunning, fetchRegistros, fetchEstatisticas, fetchMetricasRendimento, viewMode]);
+  }, [collectorRunning, fetchRegistros, fetchEstatisticas, fetchMetricasRendimento, viewMode, isPdfModalOpen]);
 
   // Resetar larguras das colunas para padrão
   const resetTableColumns = () => {
@@ -926,15 +928,18 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         <div className="flex-1 overflow-auto" style={{ zIndex: 15 }}>
           
           {/* Card de Métricas de Rendimento (apenas no modo comparativo) */}
-          {viewMode === 'comparativo' && metricasRendimento && (
+          {viewMode === 'comparativo' && (
             <div className="mb-4 rounded-xl p-4">
               <div className="text-sm font-bold mb-3 flex items-center gap-2">
                 <Scale className="h-4 w-4"/>
                 Análise de Rendimento
               </div>
 
-              
-              
+              {!metricasRendimento ? (
+                 <div className="flex flex-col items-center justify-center p-4 bg-gray-50 rounded-lg border border-gray-200">
+                    <p className="text-sm text-gray-500">Sem dados para o período</p>
+                 </div>
+              ) : (
               <div className="space-y-3">
                 {/* Rendimento % - Destaque Principal */}
                 <div className="bg-white rounded-lg p-3 shadow-md flex flex-col items-center justify-center">
@@ -1005,6 +1010,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                 </div>
               </div>
               </div>
+              )}
             </div>
           )}
           
@@ -1152,6 +1158,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                 }}
                 logoUrl={logoUrl}
                 proprietario={proprietario}
+                onPdfModalOpenChange={setIsPdfModalOpen}
               />
             );
           })()}

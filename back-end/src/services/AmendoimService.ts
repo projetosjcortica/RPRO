@@ -929,7 +929,15 @@ export class AmendoimService {
 
     // Converter datas para formato do banco (DD/MM/YY)
     const dataInicioDB = params.dataInicio ? this.convertDateToDBFormat(params.dataInicio).replace(/-/g, '/') : undefined;
-    const dataFimDB = params.dataFim ? this.convertDateToDBFormat(params.dataFim).replace(/-/g, '/') : undefined;
+    
+    let dataFimDB: string | undefined = undefined;
+    if (params.dataFim) {
+      const normFim = this.normalizeDateToISOFormat(params.dataFim);
+      if (normFim) {
+        const proximoDia = this.calcularProximoDia(normFim);
+        dataFimDB = this.convertISODateToDBFormat(proximoDia);
+      }
+    }
 
     // Buscar peso de entrada
     const qbEntrada = repo.createQueryBuilder("amendoim");
@@ -1061,7 +1069,15 @@ export class AmendoimService {
 
     // Converter datas para formato do banco (DD/MM/YY)
     const dataInicioDB = params.dataInicio ? this.convertDateToDBFormat(params.dataInicio).replace(/-/g, '/') : undefined;
-    const dataFimDB = params.dataFim ? this.convertDateToDBFormat(params.dataFim).replace(/-/g, '/') : undefined;
+    
+    let dataFimDB: string | undefined = undefined;
+    if (params.dataFim) {
+      const normFim = this.normalizeDateToISOFormat(params.dataFim);
+      if (normFim) {
+        const proximoDia = this.calcularProximoDia(normFim);
+        dataFimDB = this.convertISODateToDBFormat(proximoDia);
+      }
+    }
 
     // Filtros
     if (params.tipo) {
