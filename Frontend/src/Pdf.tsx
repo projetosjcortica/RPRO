@@ -141,9 +141,11 @@ export interface PdfCustomization {
   fontSize: 'small' | 'medium' | 'large';
   sortOrder: 'alphabetic' | 'silo' | 'most-used';
   formulaSortOrder?: 'alphabetic' | 'code' | 'most-used';
+  simplifiedLayout?: boolean;
 }
 
 export interface MyDocumentProps {
+  simplifiedLayout?: boolean;
   logoUrl?: string;
   total?: number;
   batidas?: number;
@@ -191,8 +193,10 @@ export const MyDocument: FC<MyDocumentProps> = ({
   chartData = [],
   comentarios = [],
   showCharts = true,
-  pdfCustomization = { fontSize: 'medium', sortOrder: 'alphabetic', formulaSortOrder: 'alphabetic' },
+  pdfCustomization = { fontSize: 'medium', sortOrder: 'alphabetic', formulaSortOrder: 'alphabetic', simplifiedLayout: true },
+  simplifiedLayout = true,
   codigoCliente,
+
   codigoPrograma,
   // produtosChartData = [],
   // formulasChartData = [],
@@ -714,280 +718,210 @@ export const MyDocument: FC<MyDocumentProps> = ({
     </View>
   );
  
-  return (
+  // Render simplified layout when requested; otherwise render nothing for now
+  return simplifiedLayout ? (
     <Document>
-      {/* Página 1 */}
-  <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation}>
-        <View style={styles.header}>
-          {/* Logo à esquerda */}
-          {logoUrl && (
-            <Image
-              src={logoUrl}
-              style={styles.logo}
-              // preserve aspect ratio; react-pdf will scale width accordingly when only height provided
-            />
-          )}
-          <View style={styles.titleContainer}>
-            <View style={styles.titleWrapper}>
-              <Text style={[styles.title, { fontSize: currentFontSizes.title }]}>{empresa}</Text>
-              <Text style={[styles.subtitle, { fontSize: currentFontSizes.base + 2 }]}>
-                Relatório de Produção - {data}
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        {/* Informações gerais */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Informações Gerais</Text>
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-              Total:{" "}
-              <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>
-                {total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
-              </Text>
-            </Text>
-          </View>
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-              Batidas: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{batidas}</Text>
-            </Text>
-          </View>
-
-          {codigoCliente && (
-            <View style={{ marginBottom: 6 }}>
-              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-                Cód. Cliente: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{codigoCliente}</Text>
-              </Text>
-            </View>
-          )}
-
-          {codigoPrograma && (
-            <View style={{ marginBottom: 6 }}>
-              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-                Cód. Programa: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{codigoPrograma}</Text>
-              </Text>
-            </View>
-          )}
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-              Data inicial: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoInicioFormatado}</Text>
-            </Text>
-          </View>
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-              Data final: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoFimFormatado}</Text>
-            </Text>
-          </View>
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-              Hora inicial: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{horaInicial}</Text>
-            </Text>
-          </View>
-
-          <View style={{ marginBottom: 6 }}>
-            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
-              Hora final: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{horaFinal}</Text>
+    {/* Página 1 */}
+    <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation}>
+      <View style={styles.header}>
+        {/* Logo à esquerda */}
+        {logoUrl && (
+          <Image
+            src={logoUrl}
+            style={styles.logo}
+            // preserve aspect ratio; react-pdf will scale width accordingly when only height provided
+          />
+        )}
+        <View style={styles.titleContainer}>
+          <View style={styles.titleWrapper}>
+            <Text style={[styles.title, { fontSize: currentFontSizes.title }]}>{empresa}</Text>
+            <Text style={[styles.subtitle, { fontSize: currentFontSizes.base + 2 }]}>
+              Relatório de Produção - {data}
             </Text>
           </View>
         </View>
-        
+      </View>
 
-        {/* Fórmulas: renderiza um primeiro chunk na página atual e o resto em páginas dedicadas */}
-        {formulasOrdenadas.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>Tabela de fórmulas</Text>
-            {renderFormulaTable(formulaChunks[0] || [])}
+      {/* Informações gerais */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Informações Gerais</Text>
+
+        <View style={{ marginBottom: 6 }}>
+          <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+            Total:{" "}
+            <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>
+              {total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
+            </Text>
+          </Text>
+        </View>
+
+        <View style={{ marginBottom: 6 }}>
+          <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+            Batidas: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{batidas}</Text>
+          </Text>
+        </View>
+
+        {codigoCliente && (
+          <View style={{ marginBottom: 6 }}>
+            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+              Cód. Cliente: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{codigoCliente}</Text>
+            </Text>
           </View>
         )}
-{/* 
-        {Object.keys(formulaSums).length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Somatória por Fórmula (cálculo)
+
+        {codigoPrograma && (
+          <View style={{ marginBottom: 6 }}>
+            <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+              Cód. Programa: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{codigoPrograma}</Text>
             </Text>
-            {renderTable(Object.entries(formulaSums), ([nome, val]) => ({
-              col1: nome,
-              col2: (Number(val).toLocaleString("pt-BR", {
-                minimumFractionDigits: 3,
-              })+" kg"),
-            }))}
           </View>
-        )} */}
+        )}
 
-        {renderRodape()}
-        </Page>
-
-        {/* Páginas dedicadas para a tabela de fórmulas (cada chunk em sua própria página) */}
-        {formulasOrdenadas.length > 0 && formulaChunks.length > 1 && formulaChunks.slice(1).filter(c => c && c.length > 0).map((chunk, idx) => (
-          <Page key={`formulas-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Tabela de fórmulas</Text>
-              {renderFormulaTable(chunk)}
-            </View>
-
-            {renderRodape()}
-          </Page>
-        ))}
-
-      {/* Página 2 */}
-  <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>Tabela de produtos</Text>
-          {produtoChunks.length > 0 ? (
-            // render first chunk inline (may share the page with previous content)
-            renderTable(produtoChunks[0], (p) => {
-              const valueNum = Number(p.qtd) || 0;
-              return {
-                col1: p.nome,
-                col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
-              };
-            })
-          ) : (
-            <Text style={{ fontSize: currentFontSizes.base }}>Nenhum produto para exibir.</Text>
-          )}
+        <View style={{ marginBottom: 6 }}>
+          <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+            Data inicial: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoInicioFormatado}</Text>
+          </Text>
         </View>
 
-        {renderRodape()}
+        <View style={{ marginBottom: 6 }}>
+          <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+            Data final: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{periodoFimFormatado}</Text>
+          </Text>
+        </View>
+
+        <View style={{ marginBottom: 6 }}>
+          <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+            Hora inicial: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{horaInicial}</Text>
+          </Text>
+        </View>
+
+        <View style={{ marginBottom: 6 }}>
+          <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+            Hora final: <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>{horaFinal}</Text>
+          </Text>
+        </View>
+      </View>
+      
+
+      {/* Fórmulas: renderiza um primeiro chunk na página atual e o resto em páginas dedicadas */}
+      {formulasOrdenadas.length > 0 && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>Tabela de fórmulas</Text>
+          {renderFormulaTable(formulaChunks[0] || [])}
+        </View>
+      )}
+
+      {renderRodape()}
       </Page>
 
-      {/* Páginas dedicadas para a tabela de produtos (cada chunk em sua própria página) */}
-      {produtoChunks.length > 1 && produtoChunks.slice(1).filter(c => c && c.length > 0).map((chunk, idx) => (
-        <Page key={`produtos-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
+      {/* Páginas dedicadas para a tabela de fórmulas (cada chunk em sua própria página) */}
+      {formulasOrdenadas.length > 0 && formulaChunks.length > 1 && formulaChunks.slice(1).filter(c => c && c.length > 0).map((chunk, idx) => (
+        <Page key={`formulas-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Tabela de produtos</Text>
-            {renderTable(chunk, (p) => {
-              const valueNum = Number(p.qtd) || 0;
-              return {
-                col1: p.nome,
-                col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
-              };
-            })}
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Tabela de fórmulas</Text>
+            {renderFormulaTable(chunk)}
           </View>
 
           {renderRodape()}
         </Page>
       ))}
-      {/* Página 3 */}
-  <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
 
-        {/* Gráficos de Donut - Produtos */}
-        {/* {showCharts && produtosChartData && produtosChartData.length > 0 && (
-          <View style={styles.section}>
-            {renderDonutChart(produtosChartData, 'Distribuição de Produtos')}
-          </View>
-        )} */}
-
-        {/* Gráficos de Donut - Fórmulas */}
-        {/* {showCharts && formulasChartData && formulasChartData.length > 0 && (
-          <View style={styles.section}>
-            {renderDonutChart(formulasChartData, 'Distribuição de Fórmulas')}
-          </View>
-        )} */}
-
-        {/* Gráfico de Barras - Horários */}
-        {/* {showCharts && horariosChartData && horariosChartData.length > 0 && (
-          <View style={styles.section}>
-            {renderBarChart(horariosChartData, 'Horários de Produção')}
-          </View>
-        )} */}
-
-        {/* Gráfico de Barras - Produção Semanal */}
-        {/* {showCharts && semanaChartData && semanaChartData.length > 0 && (
-          <View style={styles.section}>
-            {renderVerticalBarChart(semanaChartData, 'Produção Semanal')}
-          </View>
-        )} */}
-
-        {/* Gráfico de Barras - Dias da Semana */}
-        {/* {showCharts && diasSemanaChartData && diasSemanaChartData.length > 0 && (
-          <View style={styles.section}>
-            {renderVerticalBarChart(diasSemanaChartData, 'Distribuição por Dia da Semana')}
-          </View>
-        )} */}
-
-        {/* (Comentários removidos daqui; serão renderizados ao final de todos os gráficos) */}
-
-        {/* Gráficos */}
-        {showCharts && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Análise de Produção</Text>
-            {(!chartChunks || chartChunks.length === 0) ? (
-              <Text style={styles.smallNote}>Nenhum dado de gráfico disponível.</Text>
-            ) : (
-              <View style={[styles.chartSection, { flexDirection: 'column' }]}>
-                <View style={{ marginTop: 4 }}>
-                  {chartChunks[0].map((row, i) => {
-                    const totalAll = chartDisplay.reduce((s, it) => s + it.value, 0) || 1;
-                    const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
-                    const color = palette[i % palette.length];
-                    return (
-                      <View key={`chart-row-0-${i}`} style={styles.chartRow}>
-                        <Text style={styles.chartLabel}>{row.name.length > 30 ? row.name.substring(0, 27) + '...' : row.name}</Text>
-                        <View style={styles.chartBarContainer}>
-                          {/* Ensure a small minimum visible width so tiny percentages still render visibly in print/PDF */}
-                          <View style={[styles.chartBarFill, { width: `${Math.max(4, Math.round(pct))}%`, backgroundColor: color }]} />
-                        </View>
-                        <Text style={styles.chartValue}>{Number(row.value).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</Text>
-                        <Text style={styles.chartPercent}>{pct.toFixed(1)}%</Text>
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            )}
-          </View>
+    {/* Página 2 */}
+    <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>Tabela de produtos</Text>
+        {produtoChunks.length > 0 ? (
+          // render first chunk inline (may share the page with previous content)
+          renderTable(produtoChunks[0], (p) => {
+            const valueNum = Number(p.qtd) || 0;
+            return {
+              col1: p.nome,
+              col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
+            };
+          })
+        ) : (
+          <Text style={{ fontSize: currentFontSizes.base }}>Nenhum produto para exibir.</Text>
         )}
+      </View>
 
-        {/* Se não houver páginas dedicadas de continuação dos gráficos, renderize os comentários
-            na mesma página (logo após o primeiro chunk de gráficos) */}
-        {chartChunks && chartChunks.length <= 1 && comentarios && comentarios.length > 0 && (
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
-            {comentarios.map((c, i) => (
-              <View key={`coment-${i}`} style={styles.comentarioContainer}>
-                <Text style={styles.comentarioMeta}>
-                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
-                  {c.autor && ` • ${c.autor}`}
-                </Text>
-                <Text style={styles.comentarioTexto}>{c.texto}</Text>
-              </View>
-            ))}
-          </View>
-        )}
+      {renderRodape()}
+    </Page>
 
-        {observacoes && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Observações</Text>
-            <Text>{observacoes}</Text>
-          </View>
-        )}
-          
+    {/* Páginas dedicadas para a tabela de produtos (cada chunk em sua própria página) */}
+    {produtoChunks.length > 1 && produtoChunks.slice(1).filter(c => c && c.length > 0).map((chunk, idx) => (
+      <Page key={`produtos-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Tabela de produtos</Text>
+          {renderTable(chunk, (p) => {
+            const valueNum = Number(p.qtd) || 0;
+            return {
+              col1: p.nome,
+              col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
+            };
+          })}
+        </View>
+
         {renderRodape()}
       </Page>
+    ))}
+    {/* Página 3 */}
+    <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
 
-      {/* Comentários serão renderizados após todas as páginas de gráfico (inseridos abaixo). */}
+      {/* Gráficos de Donut - Produtos */}
+      {/* {showCharts && produtosChartData && produtosChartData.length > 0 && (
+        <View style={styles.section}>
+          {renderDonutChart(produtosChartData, 'Distribuição de Produtos')}
+        </View>
+      )} */}
 
-      {/* Páginas dedicadas para continuação dos gráficos de barras */}
-      {showCharts && dedicatedChartChunks && dedicatedChartChunks.length > 0 && dedicatedChartChunks.map((chunk, idx) => (
-        <Page key={`charts-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Análise de Produção</Text>
+      {/* Gráficos de Donut - Fórmulas */}
+      {/* {showCharts && formulasChartData && formulasChartData.length > 0 && (
+        <View style={styles.section}>
+          {renderDonutChart(formulasChartData, 'Distribuição de Fórmulas')}
+        </View>
+      )} */}
+
+      {/* Gráfico de Barras - Horários */}
+      {/* {showCharts && horariosChartData && horariosChartData.length > 0 && (
+        <View style={styles.section}>
+          {renderBarChart(horariosChartData, 'Horários de Produção')}
+        </View>
+      )} */}
+
+      {/* Gráfico de Barras - Produção Semanal */}
+      {/* {showCharts && semanaChartData && semanaChartData.length > 0 && (
+        <View style={styles.section}>
+          {renderVerticalBarChart(semanaChartData, 'Produção Semanal')}
+        </View>
+      )} */}
+
+      {/* Gráfico de Barras - Dias da Semana */}
+      {/* {showCharts && diasSemanaChartData && diasSemanaChartData.length > 0 && (
+        <View style={styles.section}>
+          {renderVerticalBarChart(diasSemanaChartData, 'Distribuição por Dia da Semana')}
+        </View>
+      )} */}
+
+      {/* (Comentários removidos daqui; serão renderizados ao final de todos os gráficos) */}
+
+      {/* Gráficos */}
+      {showCharts && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Análise de Produção</Text>
+          {(!chartChunks || chartChunks.length === 0) ? (
+            <Text style={styles.smallNote}>Nenhum dado de gráfico disponível.</Text>
+          ) : (
             <View style={[styles.chartSection, { flexDirection: 'column' }]}>
               <View style={{ marginTop: 4 }}>
-                {chunk.map((row, i) => {
+                {chartChunks[0].map((row, i) => {
                   const totalAll = chartDisplay.reduce((s, it) => s + it.value, 0) || 1;
                   const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
                   const color = palette[i % palette.length];
                   return (
-                    <View key={`chart-row-${idx + 1}-${i}`} style={styles.chartRow}>
+                    <View key={`chart-row-0-${i}`} style={styles.chartRow}>
                       <Text style={styles.chartLabel}>{row.name.length > 30 ? row.name.substring(0, 27) + '...' : row.name}</Text>
                       <View style={styles.chartBarContainer}>
+                        {/* Ensure a small minimum visible width so tiny percentages still render visibly in print/PDF */}
                         <View style={[styles.chartBarFill, { width: `${Math.max(4, Math.round(pct))}%`, backgroundColor: color }]} />
                       </View>
                       <Text style={styles.chartValue}>{Number(row.value).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</Text>
@@ -997,27 +931,94 @@ export const MyDocument: FC<MyDocumentProps> = ({
                 })}
               </View>
             </View>
-          </View>
-
-          {/* Se for a última página dedicada de gráfico, renderize os comentários aqui */}
-          {idx === (dedicatedChartChunks.length - 1) && comentarios && comentarios.length > 0 && (
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
-              {comentarios.map((c, i) => (
-                <View key={`coment-last-${i}`} style={styles.comentarioContainer}>
-                  <Text style={styles.comentarioMeta}>{c.data ? formatarData(c.data) : new Date().toLocaleDateString('pt-BR')}{c.autor && ` • ${c.autor}`}</Text>
-                  <Text style={styles.comentarioTexto}>{c.texto}</Text>
-                </View>
-              ))}
-            </View>
           )}
+        </View>
+      )}
 
-          {renderRodape()}
-        </Page>
-      ))}
+      {/* Se não houver páginas dedicadas de continuação dos gráficos, renderize os comentários
+          na mesma página (logo após o primeiro chunk de gráficos) */}
+      {chartChunks && chartChunks.length <= 1 && comentarios && comentarios.length > 0 && (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
+          {comentarios.map((c, i) => (
+            <View key={`coment-${i}`} style={styles.comentarioContainer}>
+              <Text style={styles.comentarioMeta}>
+                {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
+                {c.autor && ` • ${c.autor}`}
+              </Text>
+              <Text style={styles.comentarioTexto}>{c.texto}</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
-      {/* Comentários serão renderizados inline na última página de gráficos */}
+      {observacoes && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Observações</Text>
+          <Text>{observacoes}</Text>
+        </View>
+      )}
+        
+      {renderRodape()}
+    </Page>
+
+    {/* Comentários serão renderizados após todas as páginas de gráfico (inseridos abaixo). */}
+
+    {/* Páginas dedicadas para continuação dos gráficos de barras */}
+    {showCharts && dedicatedChartChunks && dedicatedChartChunks.length > 0 && dedicatedChartChunks.map((chunk, idx) => (
+      <Page key={`charts-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Análise de Produção</Text>
+          <View style={[styles.chartSection, { flexDirection: 'column' }]}>
+            <View style={{ marginTop: 4 }}>
+              {chunk.map((row, i) => {
+                const totalAll = chartDisplay.reduce((s, it) => s + it.value, 0) || 1;
+                const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
+                const color = palette[i % palette.length];
+                return (
+                  <View key={`chart-row-${idx + 1}-${i}`} style={styles.chartRow}>
+                    <Text style={styles.chartLabel}>{row.name.length > 30 ? row.name.substring(0, 27) + '...' : row.name}</Text>
+                    <View style={styles.chartBarContainer}>
+                      <View style={[styles.chartBarFill, { width: `${Math.max(4, Math.round(pct))}%`, backgroundColor: color }]} />
+                    </View>
+                    <Text style={styles.chartValue}>{Number(row.value).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg</Text>
+                    <Text style={styles.chartPercent}>{pct.toFixed(1)}%</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+
+        {/* Se for a última página dedicada de gráfico, renderize os comentários aqui */}
+        {idx === (dedicatedChartChunks.length - 1) && comentarios && comentarios.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
+            {comentarios.map((c, i) => (
+              <View key={`coment-last-${i}`} style={styles.comentarioContainer}>
+                <Text style={styles.comentarioMeta}>{c.data ? formatarData(c.data) : new Date().toLocaleDateString('pt-BR')}{c.autor && ` • ${c.autor}`}</Text>
+                <Text style={styles.comentarioTexto}>{c.texto}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {renderRodape()}
+      </Page>
+    ))}
+
+    {/* Comentários serão renderizados inline na última página de gráficos */}
 
     </Document>
-  );
+ 
+    
+    ) : (
+    <>
+      <Document>
+        <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation}>
+          <Text>Layout completo não implementado ainda.</Text>
+        </Page>
+      </Document>
+    </>
+    );
 };

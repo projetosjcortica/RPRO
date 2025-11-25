@@ -27,6 +27,7 @@ import { pt } from 'date-fns/locale';
 import type { DateRange } from 'react-day-picker';
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import IhmProfilesConfig from "./IhmProfilesConfig";
+import { Switch } from "./ui/switch";
 
 interface Comment {
   id: string;
@@ -82,6 +83,7 @@ export function ExportDropdown({
   const [excelDateRange, setExcelDateRange] = useState<DateRange | undefined>(undefined);
   const [excelPopoverOpen, setExcelPopoverOpen] = useState(false);
 
+
   // Comentários no modal PDF
   const [showCommentEditor, setShowCommentEditor] = useState(false);
   const [newComment, setNewComment] = useState("");
@@ -91,6 +93,7 @@ export function ExportDropdown({
   const [localFontSize, setLocalFontSize] = useState(pdfCustomization.fontSize);
   const [localSortOrder, setLocalSortOrder] = useState(pdfCustomization.sortOrder);
   const [localFormulaSortOrder, setLocalFormulaSortOrder] = useState(pdfCustomization.formulaSortOrder || 'alphabetic');
+  const [localSimplifiedLayout, setLocalSimplifiedLayout] = useState(true);
 
   const handlePdfClick = () => {
     setPdfModalOpen(true);
@@ -401,6 +404,14 @@ export function ExportDropdown({
           </DialogHeader>
 
           <div className="space-y-6 py-4">
+            <div className="flex flex-row gap-2 items-center">
+              <Label className="text-sm font-medium">Layout Simplificado</Label>
+              <Switch
+                checked={localSimplifiedLayout}
+                onCheckedChange={(checked) => setLocalSimplifiedLayout(checked)}
+              />
+            </div>
+            
             {/* Tamanho da Fonte */}
             <div className="space-y-3">
               <Label className="text-sm font-medium">Tamanho da Fonte</Label>
