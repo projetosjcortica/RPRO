@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FileDown, FileSpreadsheet, MessageSquare, BarChart3, X, Plus, Settings } from "lucide-react";
 import { PDFViewer } from "@react-pdf/renderer";
 import {
@@ -96,7 +96,15 @@ export function ExportDropdown({
   const [localFontSize, setLocalFontSize] = useState(pdfCustomization.fontSize);
   const [localSortOrder, setLocalSortOrder] = useState(pdfCustomization.sortOrder);
   const [localFormulaSortOrder, setLocalFormulaSortOrder] = useState(pdfCustomization.formulaSortOrder || 'alphabetic');
-  const [localSimplifiedLayout, setLocalSimplifiedLayout] = useState(true);
+  const [localSimplifiedLayout, setLocalSimplifiedLayout] = useState<boolean>(pdfCustomization.simplifiedLayout ?? true);
+
+  // Sync local controls when pdfCustomization prop changes
+  useEffect(() => {
+    setLocalFontSize(pdfCustomization.fontSize);
+    setLocalSortOrder(pdfCustomization.sortOrder);
+    setLocalFormulaSortOrder(pdfCustomization.formulaSortOrder || 'alphabetic');
+    setLocalSimplifiedLayout(pdfCustomization.simplifiedLayout ?? true);
+  }, [pdfCustomization.fontSize, pdfCustomization.sortOrder, pdfCustomization.formulaSortOrder, pdfCustomization.simplifiedLayout]);
 
   const handlePdfClick = () => {
     setPdfModalOpen(true);

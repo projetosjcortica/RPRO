@@ -303,6 +303,7 @@ interface CustomReportDocumentProps {
   produtosInfo?: Record<string, { nome?: string; unidade?: string; total?: number; categoria?: string }>;
   totalProduction?: number;
   produtos?: Produto[];
+  formulas?: Array<{ numero?: number; codigo?: string; nome?: string; batidas?: number; somatoriaTotal?: number }>;
   comentarios?: ComentarioRelatorio[];
   usuario?: string;
   empresa?: string;
@@ -321,6 +322,7 @@ export const CustomReportDocument: FC<CustomReportDocumentProps> = ({
   produtosInfo = {}, 
   totalProduction = 0,
   produtos = [],
+  formulas = [],
   comentarios = [],
   usuario = "Sistema",
   periodoInicio = "-",
@@ -441,6 +443,137 @@ export const CustomReportDocument: FC<CustomReportDocumentProps> = ({
       })}
     </View>
   );
+
+  const renderFormulasTable = (
+    rows: Array<{ numero?: number; codigo?: string; nome?: string; batidas?: number; somatoriaTotal?: number }>
+  ) => (
+    <View style={styles.table}>
+      <View style={styles.tableRow}>
+        <Text style={[styles.tableColHeader, { fontSize: currentFontSizes.table }]}>#</Text>
+        <Text style={[styles.tableColHeader, { fontSize: currentFontSizes.table, width: '50%' }]}>Fórmula</Text>
+        <Text style={[styles.tableColHeaderSmall, { fontSize: currentFontSizes.table }]}>Batidas</Text>
+        <Text style={[styles.tableColHeaderSmall, { fontSize: currentFontSizes.table }]}>Total (kg)</Text>
+      </View>
+      {rows.map((row, i) => (
+        <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+          <Text style={[styles.tableCol, { fontSize: currentFontSizes.table, width: '10%' }]}>{row.numero ?? i + 1}</Text>
+          <Text style={[styles.tableCol, { fontSize: currentFontSizes.table, width: '50%' }]}>{row.nome || row.codigo || '-'}</Text>
+          <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{(row.batidas ?? '-')}</Text>
+          <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{Number(row.somatoriaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderTopFormulas = (rows: Array<{ nome?: string; somatoriaTotal?: number }>, max = 6) => {
+    const top = (rows || []).slice().sort((a: any, b: any) => (b.somatoriaTotal || 0) - (a.somatoriaTotal || 0)).slice(0, max);
+    return (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        {top.map((t, i) => (
+          <View key={i} style={{ width: '48%', backgroundColor: '#f9fafb', padding: 6, borderRadius: 4, marginBottom: 6 }}>
+            <Text style={{ fontSize: currentFontSizes.table, fontWeight: 'bold', color: '#374151' }}>{t.nome}</Text>
+            <Text style={{ fontSize: currentFontSizes.table, color: '#6b7280', marginTop: 4 }}>{Number(t.somatoriaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+          </View>
+        ))}
+      </View>
+    );
+  };
+  
+  // Modo compacto: se simplifiedLayout=true, gerar uma única página compacta
+  if (pdfCustomization?.simplifiedLayout) {
+    const compact = fontSizes.small;
+    const formulasToShow = (formulas && formulas.length > 0)
+      ? formulas.map(f => ({ nome: f.nome || f.codigo, somatoriaTotal: Number(f.somatoriaTotal || 0) }))
+      : chartSource.map(c => ({ nome: c.name, somatoriaTotal: c.value }));
+    const produtosToShow = produtos && produtos.length > 0 ? produtos : Object.entries(produtosInfo || {}).map(([k, v]: any) => ({ nome: v.nome || k, qtd: v.total || 0 }));
+
+    return (
+      <Document>
+        <Page size="A4" style={{ ...styles.page, padding: 12, paddingBottom: 24, fontSize: compact.base }}>
+          <View style={config.includeLogo && config.logoUrl ? styles.header : styles.headerWithoutLogo}>
+            {config.includeLogo && config.logoUrl && (
+              <Image style={[styles.logo, { width: 60, height: 60, marginRight: 10 }]} src={config.logoUrl} />
+            )}
+            <View style={styles.titleContainer}>
+              <Text style={[styles.title, { color: primary, fontSize: compact.title }]}>{config.title || 'Relatório de Produção'}</Text>
+              <Text style={[styles.subtitle, { fontSize: compact.base }]}>{new Date().toLocaleDateString('pt-BR')}</Text>
+            </View>
+          </View>
+
+          <View style={{ marginBottom: 6 }}>
+            <Text style={{ fontSize: compact.base, fontWeight: 'bold' }}>Período: <Text style={{ fontWeight: 'normal' }}>{periodoInicioFormatado} — {periodoFimFormatado}</Text></Text>
+          </View>
+
+          {totalProduction > 0 && (
+            <View style={{ padding: 8, backgroundColor: '#fef2f2', borderLeftWidth: 4, borderLeftColor: primary, marginBottom: 8 }}>
+              <Text style={{ fontSize: compact.section, fontWeight: 'bold' }}>Produção Total do Período</Text>
+              <Text style={{ fontSize: compact.title, fontWeight: 'bold', color: primary }}>{Number(totalProduction).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+            </View>
+          )}
+
+          {formulasToShow.length > 0 && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.sectionTitle, { fontSize: compact.section, marginBottom: 6 }]}>Principais Fórmulas</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {formulasToShow.slice(0, 6).map((f, i) => (
+                  <View key={i} style={{ width: '48%', backgroundColor: '#f9fafb', padding: 6, borderRadius: 4, marginBottom: 6 }}>
+                    <Text style={{ fontSize: compact.table, fontWeight: 'bold', color: '#374151' }}>{f.nome}</Text>
+                    <Text style={{ fontSize: compact.table, color: '#6b7280', marginTop: 4 }}>{Number(f.somatoriaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Tabela de fórmulas compacta */}
+          <View style={{ marginBottom: 6 }}>
+            <Text style={[styles.sectionTitle, { fontSize: compact.section, marginBottom: 6 }]}>Tabela de Fórmulas</Text>
+            <View style={styles.table}>
+              <View style={styles.tableRow}>
+                <Text style={[styles.tableColHeader, { fontSize: compact.table, width: '10%' }]}>#</Text>
+                <Text style={[styles.tableColHeader, { fontSize: compact.table, width: '50%' }]}>Fórmula</Text>
+                <Text style={[styles.tableColHeaderSmall, { fontSize: compact.table }]}>Batidas</Text>
+                <Text style={[styles.tableColHeaderSmall, { fontSize: compact.table }]}>Total (kg)</Text>
+              </View>
+              {(formulasToShow || []).map((f: any, i: number) => (
+                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                  <Text style={[styles.tableCol, { fontSize: compact.table, width: '10%' }]}>{i + 1}</Text>
+                  <Text style={[styles.tableCol, { fontSize: compact.table, width: '50%' }]}>{f.nome}</Text>
+                  <Text style={[styles.tableColSmall, { fontSize: compact.table }]}>{(f.batidas ?? '-')}</Text>
+                  <Text style={[styles.tableColSmall, { fontSize: compact.table }]}>{Number(f.somatoriaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Tabela de produtos compacta */}
+          {produtosToShow && produtosToShow.length > 0 && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.sectionTitle, { fontSize: compact.section, marginBottom: 6 }]}>Produtos</Text>
+              <View style={styles.table}>
+                <View style={styles.tableRow}>
+                  <Text style={[styles.tableColHeader, { fontSize: compact.table }]}>Nome</Text>
+                  <Text style={[styles.tableColHeaderSmall, { fontSize: compact.table }]}>Total</Text>
+                </View>
+                {produtosToShow.map((p: any, i: number) => (
+                  <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                    <Text style={[styles.tableCol, { fontSize: compact.table }]}>{p.nome}</Text>
+                    <Text style={[styles.tableColSmall, { fontSize: compact.table }]}>{Number(p.qtd || p.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Rodapé compacto */}
+          <Text fixed style={{ position: 'absolute', bottom: 10, left: 12, fontSize: compact.base - 2, color: '#bbbbbbff' }}>
+            Relatório gerado em {dataGeracao} por J.Cortiça ({usuario})
+          </Text>
+          <Text fixed style={{ position: 'absolute', bottom: 10, right: 12, fontSize: compact.base - 2, color: '#bbbbbbff' }} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        </Page>
+      </Document>
+    );
+  }
     
   return (
     <Document>
@@ -527,6 +660,16 @@ export const CustomReportDocument: FC<CustomReportDocumentProps> = ({
             </View>
           )}
         </View>
+
+        {/* Seção de Fórmulas (padrão) */}
+        {(formulas && formulas.length > 0) || chartSource.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Principais Fórmulas</Text>
+            {renderTopFormulas((formulas && formulas.length > 0) ? formulas.map(f => ({ nome: f.nome || f.codigo, somatoriaTotal: Number(f.somatoriaTotal || 0) })) : chartSource.map(c => ({ nome: c.name, somatoriaTotal: c.value })))}
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop: 8, marginBottom: 8 }]}>Tabela de Fórmulas</Text>
+            {renderFormulasTable((formulas && formulas.length > 0) ? formulas : chartSource.map(c => ({ nome: c.name, somatoriaTotal: c.value })) as any)}
+          </View>
+        ) : null}
 
         {renderRodape()}
       </Page>

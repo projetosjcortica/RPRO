@@ -1395,6 +1395,7 @@ export default function Report() {
         semanaChartData={semanaBarData}
         diasSemanaChartData={diasSemanaBarData}
         pdfCustomization={pdfCustomization}
+        simplifiedLayout={pdfCustomization.simplifiedLayout}
       />
     );
   };
