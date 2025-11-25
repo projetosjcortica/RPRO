@@ -408,262 +408,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
     </>
   );
 
-  // Função para renderizar gráficos de donut SVG com labels em caixas ao redor
-  // const renderDonutChart = (data: { name: string; value: number }[], title: string) => {
-  //   if (!data || data.length === 0) return null;
-
-  //   const total = data.reduce((sum, item) => sum + item.value, 0);
-  //   if (total <= 0) return null;
-
-  // // Use all items (caller should control how many items are present)
-  // const displayData = data;
-
-  // // Use shared palette (print-friendly)
-  // const colors = (palette && Array.isArray(palette) && palette.length > 0) ? palette : ['#ff2626ff', '#5e5e5eff', '#d4d4d4ff', '#ffa8a8ff', '#1b1b1bff'];
-
-  //   // Calcular ângulos para cada fatia
-  //   let currentAngle = 0;
-  //   const slices = displayData.map((item, index) => {
-  //     const percentage = (item.value / total) * 100;
-  //     const angle = (item.value / total) * 360;
-  //     const midAngle = currentAngle + angle / 2;
-  //     const slice = {
-  //       ...item,
-  //       percentage,
-  //       startAngle: currentAngle,
-  //       endAngle: currentAngle + angle,
-  //       midAngle,
-  //       color: colors[index % colors.length],
-  //     };
-  //     currentAngle += angle;
-  //     return slice;
-  //   });
-
-  //   // Gerar paths SVG para donut
-  //   const generateDonutPath = (startAngle: number, endAngle: number) => {
-  //     const radius = 55;
-  //     const innerRadius = 38;
-  //     const cx = 150;
-  //     const cy = 120;
-
-  //     const startRad = (startAngle - 90) * (Math.PI / 180);
-  //     const endRad = (endAngle - 90) * (Math.PI / 180);
-
-  //     const x1 = cx + radius * Math.cos(startRad);
-  //     const y1 = cy + radius * Math.sin(startRad);
-  //     const x2 = cx + radius * Math.cos(endRad);
-  //     const y2 = cy + radius * Math.sin(endRad);
-  //     const x3 = cx + innerRadius * Math.cos(endRad);
-  //     const y3 = cy + innerRadius * Math.sin(endRad);
-  //     const x4 = cx + innerRadius * Math.cos(startRad);
-  //     const y4 = cy + innerRadius * Math.sin(startRad);
-
-  //     const largeArc = endAngle - startAngle > 180 ? 1 : 0;
-
-  //     return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2} L ${x3} ${y3} A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4} Z`;
-  //   };
-
-  //   return (
-  //     <View style={{ marginBottom: 20 }}>
-  //       <Text style={{
-  //         fontSize: 14,
-  //         fontWeight: 'bold',
-  //         backgroundColor: '#dadadaff',
-  //         padding: 6,
-  //         borderRadius: 4,
-  //         marginBottom: 12,
-  //         color: '#af1e1eff',
-  //       }}>{title}</Text>
-        
-  //       {/* SVG com donut */}
-  //       <View style={{ alignItems: 'center' }}>
-  //           <Svg width="200" height="200" viewBox="0 0 300 240">
-  //           {/* Donut central */}
-  //           {slices.map((slice, index) => (
-  //             <Path
-  //               key={`slice-${index}`}
-  //               d={generateDonutPath(slice.startAngle, slice.endAngle)}
-  //                 fill={slice.color}
-  //                 stroke="#ffffff"
-  //                 strokeWidth="2"
-  //             />
-  //           ))}
-            
-  //           {/* Linhas conectoras */}
-  //           {slices.map((slice, index) => {
-  //             const midAngleRad = (slice.midAngle - 90) * (Math.PI / 180);
-  //             const lineStartRadius = 60;
-  //             const labelDistance = index % 2 === 0 ? 105 : 85;
-  //             const centerX = 150;
-  //             const centerY = 120;
-              
-  //             const lineStartX = centerX + lineStartRadius * Math.cos(midAngleRad);
-  //             const lineStartY = centerY + lineStartRadius * Math.sin(midAngleRad);
-  //             const labelX = centerX + labelDistance * Math.cos(midAngleRad);
-  //             const labelY = centerY + labelDistance * Math.sin(midAngleRad);
-              
-  //             return (
-  //               <Line
-  //                 key={`line-${index}`}
-  //                 x1={lineStartX}
-  //                 y1={lineStartY}
-  //                 x2={labelX}
-  //                 y2={labelY}
-  //                 stroke={slice.color}
-  //                 strokeWidth="1.2"
-  //               />
-  //             );
-  //           })}
-  //         </Svg>
-          
-  //         {/* Labels fora do SVG */}
-  //         <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, width: '85%' }}>
-  //           {/* Legend: color box + combined label+percentage in single Text to avoid awkward wrapping */}
-  //             {slices.map((slice, index) => {
-  //               const cleanName = (slice.name || '').replace(/\s+/g, ' ').trim();
-  //               const maxLabel = 22; // keep labels short so they fit on one line in most page widths
-  //               const shortLabel = cleanName.length > maxLabel ? cleanName.substring(0, maxLabel - 3) + '...' : cleanName;
-  //               // Use non-breaking space between number and percent so '%' doesn't wrap to the next line
-  //               const pct = `${slice.percentage.toFixed(1)}\u00A0%`;
-  //               return (
-  //                 <View key={`label-${index}`} style={{ flexDirection: 'row', alignItems: 'center', width: '45%', marginBottom: 6 }}>
-  //                   <Text style={{ fontSize: 9, color: '#111827', fontWeight: '600', marginRight: 6 }}>{index + 1}.</Text>
-  //                   <View style={{ width: 12, height: 12, backgroundColor: slice.color, borderRadius: 3, marginRight: 8, borderWidth: 0.5, borderColor: '#ffffff' }} />
-  //                   <Text style={{ fontSize: 9, color: '#222222' }}>
-  //                     {shortLabel} {pct}
-  //                   </Text>
-  //                 </View>
-  //               );
-  //             })}
-  //         </View>
-  //       </View> 
-           
-  //     </View>
-  //   );
-  // };
-
-  // Função para renderizar gráfico de barras horizontais (horários)
-  // const renderBarChart = (data: { name: string; value: number }[], title: string) => {
-  //   if (!data || data.length === 0) return null;
-
-  //   const maxValue = Math.max(...data.map(d => d.value), 1);
-
-  //   return (
-  //     <View style={{ marginBottom: 16 }}>
-  //       <Text style={{
-  //         fontSize: 14,
-  //         fontWeight: 'bold',
-  //         backgroundColor: '#dadadaff',
-  //         padding: 6,
-  //         borderRadius: 4,
-  //         marginBottom: 10,
-  //         color: '#af1e1eff',
-  //       }}>{title}</Text>
-  //       <View style={{ flexDirection: 'column', gap: 4 }}>
-  //         {data.map((item, index) => {
-  //           const percentage = maxValue > 0 ? (item.value / maxValue) * 100 : 0;
-  //           const color = "#ff2626ff"; // Vermelho padrão
-            
-  //           return (
-  //             <View key={index} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-  //               <Text style={{ fontSize: 8, width: 50, color: '#374151', fontWeight: 'bold' }}>
-  //                 {item.name}
-  //               </Text>
-  //               <View style={{ 
-  //                 flex: 1, 
-  //                 height: 16, 
-  //                 backgroundColor: '#e5e7eb', 
-  //                 borderRadius: 3,
-  //                 overflow: 'hidden',
-  //                 marginHorizontal: 6
-  //               }}>
-  //                 <View style={{ 
-  //                   width: `${Math.max(2, percentage)}%`, 
-  //                   height: 16, 
-  //                   backgroundColor: color,
-  //                   borderRadius: 3
-  //                 }} />
-  //               </View>
-  //               <Text style={{ fontSize: 8, width: 60, textAlign: 'right', color: '#374151' }}>
-  //                 {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg
-  //               </Text>
-  //             </View>
-  //           );
-  //         })}
-  //       </View>
-  //     </View>
-  //   );
-  // };
-
-  // Função para renderizar gráfico de barras verticais (semanal/diário)
-  // const renderVerticalBarChart = (data: { name: string; value: number }[], title: string) => {
-  //   if (!data || data.length === 0) return null;
-
-  //   const maxValue = Math.max(...data.map(d => d.value), 1);
-  //   const chartHeight = 120;
-  //   const barWidth = 25;
-  //   const spacing = 10;
-  //   const totalWidth = data.length * (barWidth + spacing);
-
-  //   return (
-  //     <View style={{ marginBottom: 16 }}>
-  //       <Text style={{
-  //         fontSize: 14,
-  //         fontWeight: 'bold',
-  //         backgroundColor: '#dadadaff',
-  //         padding: 6,
-  //         borderRadius: 4,
-  //         marginBottom: 10,
-  //         color: '#af1e1eff',
-  //       }}>{title}</Text>
-        
-  //       <View style={{ alignItems: 'center' }}>
-  //         <Svg width={totalWidth} height={chartHeight + 30} viewBox={`0 0 ${totalWidth} ${chartHeight + 30}`}>
-  //           {/* Barras */}
-  //           {data.map((item, index) => {
-  //             const barHeight = maxValue > 0 ? (item.value / maxValue) * chartHeight : 0;
-  //             const x = index * (barWidth + spacing);
-  //             const y = chartHeight - barHeight;
-              
-  //             return (
-  //               <Rect
-  //                 key={index}
-  //                 x={x}
-  //                 y={y}
-  //                 width={barWidth}
-  //                 height={barHeight}
-  //                 fill="#ff2626ff"
-  //               />
-  //             );
-  //           })}
-  //         </Svg>
-          
-  //         {/* Labels */}
-  //         <View style={{ flexDirection: 'row', marginTop: 5, width: totalWidth }}>
-  //           {data.map((item, index) => {
-  //             const x = index * (barWidth + spacing);
-  //             return (
-  //               <View key={index} style={{ 
-  //                 position: 'absolute', 
-  //                 left: x, 
-  //                 width: barWidth, 
-  //                 alignItems: 'center' 
-  //               }}>
-  //                 <Text style={{ fontSize: 7, color: '#374151', fontWeight: 'bold' }}>
-  //                   {item.name}
-  //                 </Text>
-  //                 <Text style={{ fontSize: 6, color: '#6b7280' }}>
-  //                   {item.value.toFixed(0)} kg
-  //                 </Text>
-  //               </View>
-  //             );
-  //           })}
-  //         </View>
-  //       </View>
-  //     </View>
-  //   );
-  // };
-
   const renderTable = (
     rows: Produto[],
     keyMapper: (row: Produto) => { col1: string; col2: string }
@@ -672,8 +416,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <View style={styles.table}>
         {/* header as first row inside the table so it flows with pages */}
         <View style={[styles.tableRow, styles.tableHeaderRow]}>
-          <Text style={[{ width: '80%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#af1e1eff', padding: 8, paddingTop: 14 }]}>Nome</Text>
-          <Text style={[{ width: '20%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#af1e1eff', textAlign: 'right', padding: 8,paddingTop: 14, borderLeftWidth:1, borderLeftColor: '#d1d5db' }]}>Total</Text>
+          <Text style={[{ width: '80%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#af1e1eff', padding: 3, paddingTop:3}]}>Nome</Text>
+          <Text style={[{ width: '20%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#af1e1eff', textAlign: 'right', padding: 3, paddingTop:3, borderLeftWidth:1, borderLeftColor: '#d1d5db' }]}>Total</Text>
         </View>
         {rows.map((row, i) => {
           const { col1, col2 } = keyMapper(row);
@@ -682,8 +426,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
               key={i}
               style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
      >
-              <Text style={[styles.tableCol,  { width: '80%',paddingTop:8,fontSize: currentFontSizes.table }]}>{col1}</Text>
-              <Text style={[styles.tableColSmall,  { width: '20%',paddingTop:8, borderLeftColor:'#d1d5db', borderLeftWidth:1, fontSize: currentFontSizes.table }]}>{col2}</Text>
+              <Text style={[styles.tableCol,  { width: '80%',paddingTop:0,paddingBottom:0 ,fontSize: currentFontSizes.table }]}>{col1}</Text>
+              <Text style={[styles.tableColSmall,  { width: '20%',paddingTop:0,paddingBottom:0 , borderLeftColor:'#d1d5db', borderLeftWidth:1, fontSize: currentFontSizes.table }]}>{col2}</Text>
             </View>
           );
         })}
@@ -697,20 +441,20 @@ export const MyDocument: FC<MyDocumentProps> = ({
   ) => (
     <View style={styles.table}>
       <View style={styles.tableRow}>
-        <Text style={[{ width: "12%" , borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>Código</Text>
-        <Text style={[{ width: "53%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
-        <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Batidas</Text>
-        <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 8,paddingTop: 14, fontWeight: "bold", color: "#af1e1eff", textAlign:"right" }, { fontSize: currentFontSizes.table }]}>Total</Text>
+        <Text style={[{ width: "12%" , borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 3,paddingTop: 0, fontWeight: "bold", color: "#af1e1eff", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>Código</Text>
+        <Text style={[{ width: "53%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 3,paddingTop: 0, fontWeight: "bold", color: "#af1e1eff", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
+        <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 3,paddingTop: 0, fontWeight: "bold", color: "#af1e1eff" }, { fontSize: currentFontSizes.table }]}>Batidas</Text>
+        <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: 3,paddingTop: 0, fontWeight: "bold", color: "#af1e1eff", textAlign:"right" }, { fontSize: currentFontSizes.table }]}>Total</Text>
       </View>
       {formulas.map((f, i) => (
         <View
           key={i}
           style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
         >
-          <Text style={[{ width: "12%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop:9, textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
-          <Text style={[{ width: "53%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
-          <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
-          <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", padding: 6, paddingTop: 9,textAlign: "right" }, { fontSize: currentFontSizes.table }]}>
+          <Text style={[{ width: "12%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
+          <Text style={[{ width: "53%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db",flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
+          <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db",textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
+          <Text style={[{ width: "25%", borderRightWidth: 1, borderBottomWidth: 1,borderColor: "#d1d5db",textAlign: "right" }, { fontSize: currentFontSizes.table }]}>
             {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
           </Text>
         </View>
@@ -753,7 +497,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           {/* Tabela de produtos (apenas) */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>Tabela de produtos</Text>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 1 }]}>Tabela de produtos</Text>
             {produtoChunks.length > 0 ? (
               renderTable(produtoChunks[0], (p) => {
                 const valueNum = Number(p.qtd) || 0;
@@ -769,25 +513,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           {/* Principais Fórmulas e Tabela de Fórmulas (compacto) */}
           {(formulasOrdenadas.length > 0 || (formulaSums && Object.keys(formulaSums).length > 0) || (chartData && chartData.length > 0)) && (
-            <View style={{ marginBottom: 6 }}>
-              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 6 }]}>Principais Fórmulas</Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                {(() => {
-                  const formulasFallback = formulasOrdenadas.length > 0
-                    ? formulasOrdenadas
-                    : (formulaSums && Object.keys(formulaSums).length > 0)
-                      ? Object.entries(formulaSums).map(([k, v]) => ({ nome: k, somatoriaTotal: Number(v) || 0 }))
-                      : (chartData || []).map((c: any) => ({ nome: c.name, somatoriaTotal: c.value }));
-                  return formulasFallback.slice(0, 6).map((f: any, i: number) => (
-                    <View key={i} style={{ width: '48%', backgroundColor: '#f9fafb', padding: 6, borderRadius: 4, marginBottom: 6 }}>
-                      <Text style={{ fontSize: currentFontSizes.table, fontWeight: 'bold', color: '#374151' }}>{f.nome}</Text>
-                      <Text style={{ fontSize: currentFontSizes.table, color: '#6b7280', marginTop: 4 }}>{Number((f.somatoriaTotal ?? f.value) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
-                    </View>
-                  ));
-                })()}
-              </View>
-
-              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop: 8, marginBottom: 6 }]}>Tabela de Fórmulas</Text>
+            <View style={{ marginTop: 0}}>
+              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop: 3, marginBottom: 2 }]}>Tabela de Fórmulas</Text>
               {formulasOrdenadas.length > 0 ? (
                 renderFormulaTable(formulaChunks[0] || [])
               ) : (
@@ -851,7 +578,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
             {/* Se for a última página, mostrar totais e comentários */}
             {idx === (produtoChunks.length - 2) && ( // -2 because slice(1) removes the first chunk
                <>
-                 <View style={{ marginTop: 20, marginBottom: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10 }}>
+                 <View style={{ marginTop: 1, marginBottom: 1, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 1 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
                       <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Total:</Text>
                       <Text style={{ fontSize: currentFontSizes.base }}>{total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg</Text>
