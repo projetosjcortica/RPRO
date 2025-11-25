@@ -717,9 +717,141 @@ export const MyDocument: FC<MyDocumentProps> = ({
       ))}
     </View>
   );
- 
-  // Render simplified layout when requested; otherwise render nothing for now
-  return simplifiedLayout ? (
+
+  // Render simplified layout when requested
+  if (simplifiedLayout) {
+    return (
+      <Document>
+        {/* Página 1 */}
+        <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation}>
+          <View style={styles.header}>
+            {/* Logo à esquerda */}
+            {logoUrl && (
+              <Image
+                src={logoUrl}
+                style={styles.logo}
+              />
+            )}
+            <View style={styles.titleContainer}>
+              <View style={styles.titleWrapper}>
+                <Text style={[styles.title, { fontSize: currentFontSizes.title }]}>{empresa}</Text>
+                <Text style={[styles.subtitle, { fontSize: currentFontSizes.base + 2 }]}>
+                  Relatório de Produção
+                </Text>
+                {/* Data e Hora em uma única linha */}
+                <Text style={{ fontSize: currentFontSizes.base, color: '#4b5563' }}>
+                  Data: {periodoInicioFormatado} a {periodoFimFormatado} • Horário: {horaInicial} às {horaFinal}
+                </Text>
+                {codigoCliente && (
+                   <Text style={{ fontSize: currentFontSizes.base, color: '#4b5563', marginTop: 2 }}>
+                     Cliente: {codigoCliente} {codigoPrograma ? `• Programa: ${codigoPrograma}` : ''}
+                   </Text>
+                )}
+              </View>
+            </View>
+          </View>
+
+          {/* Tabela de produtos (apenas) */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>Tabela de produtos</Text>
+            {produtoChunks.length > 0 ? (
+              renderTable(produtoChunks[0], (p) => {
+                const valueNum = Number(p.qtd) || 0;
+                return {
+                  col1: p.nome,
+                  col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
+                };
+              })
+            ) : (
+              <Text style={{ fontSize: currentFontSizes.base }}>Nenhum produto para exibir.</Text>
+            )}
+          </View>
+
+          {/* Se houver apenas 1 página de produtos, mostrar totais e comentários aqui */}
+          {produtoChunks.length <= 1 && (
+            <>
+               <View style={{ marginTop: 20, marginBottom: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
+                    <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Total:</Text>
+                    <Text style={{ fontSize: currentFontSizes.base }}>{total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                    <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Batidas:</Text>
+                    <Text style={{ fontSize: currentFontSizes.base }}>{batidas}</Text>
+                  </View>
+               </View>
+
+               {comentarios && comentarios.length > 0 && (
+                <View style={styles.section}>
+                  <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
+                  {comentarios.map((c, i) => (
+                    <View key={`coment-${i}`} style={styles.comentarioContainer}>
+                      <Text style={styles.comentarioMeta}>
+                        {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
+                        {c.autor && ` • ${c.autor}`}
+                      </Text>
+                      <Text style={styles.comentarioTexto}>{c.texto}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+
+          {renderRodape()}
+        </Page>
+
+        {/* Páginas dedicadas para a tabela de produtos */}
+        {produtoChunks.length > 1 && produtoChunks.slice(1).filter(c => c && c.length > 0).map((chunk, idx) => (
+          <Page key={`produtos-dedicated-${idx}`} size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Tabela de produtos</Text>
+              {renderTable(chunk, (p) => {
+                const valueNum = Number(p.qtd) || 0;
+                return {
+                  col1: p.nome,
+                  col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
+                };
+              })}
+            </View>
+
+            {/* Se for a última página, mostrar totais e comentários */}
+            {idx === (produtoChunks.length - 2) && ( // -2 because slice(1) removes the first chunk
+               <>
+                 <View style={{ marginTop: 20, marginBottom: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
+                      <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Total:</Text>
+                      <Text style={{ fontSize: currentFontSizes.base }}>{total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+                      <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Batidas:</Text>
+                      <Text style={{ fontSize: currentFontSizes.base }}>{batidas}</Text>
+                    </View>
+                 </View>
+
+                 {comentarios && comentarios.length > 0 && (
+                  <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do relatório</Text>
+                    {comentarios.map((c, i) => (
+                      <View key={`coment-last-${i}`} style={styles.comentarioContainer}>
+                        <Text style={styles.comentarioMeta}>{c.data ? formatarData(c.data) : new Date().toLocaleDateString('pt-BR')}{c.autor && ` • ${c.autor}`}</Text>
+                        <Text style={styles.comentarioTexto}>{c.texto}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+               </>
+            )}
+
+            {renderRodape()}
+          </Page>
+        ))}
+      </Document>
+    );
+  }
+
+  // Layout completo (padrão)
+  return (
     <Document>
     {/* Página 1 */}
     <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation}>
@@ -867,43 +999,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
     {/* Página 3 */}
     <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
 
-      {/* Gráficos de Donut - Produtos */}
-      {/* {showCharts && produtosChartData && produtosChartData.length > 0 && (
-        <View style={styles.section}>
-          {renderDonutChart(produtosChartData, 'Distribuição de Produtos')}
-        </View>
-      )} */}
-
-      {/* Gráficos de Donut - Fórmulas */}
-      {/* {showCharts && formulasChartData && formulasChartData.length > 0 && (
-        <View style={styles.section}>
-          {renderDonutChart(formulasChartData, 'Distribuição de Fórmulas')}
-        </View>
-      )} */}
-
-      {/* Gráfico de Barras - Horários */}
-      {/* {showCharts && horariosChartData && horariosChartData.length > 0 && (
-        <View style={styles.section}>
-          {renderBarChart(horariosChartData, 'Horários de Produção')}
-        </View>
-      )} */}
-
-      {/* Gráfico de Barras - Produção Semanal */}
-      {/* {showCharts && semanaChartData && semanaChartData.length > 0 && (
-        <View style={styles.section}>
-          {renderVerticalBarChart(semanaChartData, 'Produção Semanal')}
-        </View>
-      )} */}
-
-      {/* Gráfico de Barras - Dias da Semana */}
-      {/* {showCharts && diasSemanaChartData && diasSemanaChartData.length > 0 && (
-        <View style={styles.section}>
-          {renderVerticalBarChart(diasSemanaChartData, 'Distribuição por Dia da Semana')}
-        </View>
-      )} */}
-
-      {/* (Comentários removidos daqui; serão renderizados ao final de todos os gráficos) */}
-
       {/* Gráficos */}
       {showCharts && (
         <View style={styles.section}>
@@ -1010,15 +1105,5 @@ export const MyDocument: FC<MyDocumentProps> = ({
     {/* Comentários serão renderizados inline na última página de gráficos */}
 
     </Document>
- 
-    
-    ) : (
-    <>
-      <Document>
-        <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation}>
-          <Text>Layout completo não implementado ainda.</Text>
-        </Page>
-      </Document>
-    </>
-    );
+  );
 };

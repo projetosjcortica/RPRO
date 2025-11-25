@@ -291,11 +291,7 @@ export default function Report() {
   );
 
   // Fallback: quando filtros avançados mudarem, forçar refetch
-  useEffect(() => {
-    const handler = () => { try { refetch(); } catch (e) { } };
-    window.addEventListener('advancedFiltersChanged', handler);
-    return () => window.removeEventListener('advancedFiltersChanged', handler);
-  }, [refetch]);
+
   const { formData: profileConfigData } = usePersistentForm("profile-config");
   const autoRefreshTimer = useRef<number | null>(null);
   const prevCollectorRunning = useRef<boolean>(false);
@@ -486,7 +482,6 @@ export default function Report() {
 
     return chips.slice(0, 20); // limit display
   }, [advancedFilters, formulaLabels, colLabels, filtros]);
-  console.log('[report] activeFilterChips:', activeFilterChips);
 
   const removeChip = useCallback((chip: { type: string; value: any }) => {
     try {
@@ -527,7 +522,7 @@ export default function Report() {
       console.warn('Failed to remove chip', e);
     }
   }, [advancedFilters, setFiltersState]);
-  console.log(removeChip)
+
 
   // Listener para eventos explícitos de atualização de configuração
   useEffect(() => {
@@ -630,15 +625,8 @@ export default function Report() {
     };
   }, [filtros, resumoReloadFlag, resumoRetryCount, advancedFilters]);
 
-  useEffect(() => {
-    void fetchCollectorStatus();
-    const intervalId = window.setInterval(() => {
-      void fetchCollectorStatus();
-    }, 10000);
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [fetchCollectorStatus]);
+  // REMOVIDO: Intervalo duplicado que causava polling excessivo
+  // O polling já é feito no useEffect da linha 873 com intervalo de 2.5s
 
   // Update table selection from resumo
   useEffect(() => {
@@ -841,6 +829,30 @@ export default function Report() {
       } else {
         wasCollectorRunningRef.current = false;
       }
+
+      // Fetch PDF data
+      setPdfLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (filtros?.dataInicio) params.set('dataInicio', String(filtros.dataInicio));
+        if (filtros?.dataFim) params.set('dataFim', String(filtros.dataFim));
+        if (filtros?.nomeFormula) params.set('formula', String(filtros.nomeFormula));
+        if (filtros?.codigo) params.set('codigo', String(filtros.codigo));
+        if (filtros?.numero) params.set('numero', String(filtros.numero));
+        // ask server for full data including ignorarCalculos
+        params.set('includeIgnored', 'true');
+        const url = `http://localhost:3000/api/relatorio/pdf-data?${params.toString()}`;
+        const res = await fetch(url, { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
+        if (res.ok) {
+          const body = await res.json();
+          setPdfServerData(body);
+        }
+      } catch (e) {
+        console.error('[report] Failed to fetch pdf-data for preview', e);
+      } finally {
+        setPdfLoading(false);
+      }
+
     } else {
       // Modal closing: if it was running before, resume it
       if (wasCollectorRunningRef.current) {
@@ -867,7 +879,7 @@ export default function Report() {
         wasCollectorRunningRef.current = false;
       }
     }
-  }, [collectorRunning, user]);
+  }, [collectorRunning, user, filtros]);
 
   // Poll while collector not running to update status; if global provider active, UI shows spinner
   useEffect(() => {
@@ -941,7 +953,7 @@ export default function Report() {
         autoRefreshTimer.current = null;
       }
     };
-  }, [collectorRunning, refetch, refreshResumo]);
+  }, [collectorRunning, refetch, refreshResumo, refetchSilent, filtros, advancedFilters, resumo]);
 
   useEffect(() => {
     if (!collectorRunning && prevCollectorRunning.current) {
@@ -1137,32 +1149,8 @@ export default function Report() {
   // Função para gerar o documento PDF para preview
   // Prefetch server-side PDF data (includes products marked ignorarCalculos)
   const [pdfServerData, setPdfServerData] = useState<any | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    const fetchPdfData = async () => {
-      try {
-        const params = new URLSearchParams();
-        if (filtros?.dataInicio) params.set('dataInicio', String(filtros.dataInicio));
-        if (filtros?.dataFim) params.set('dataFim', String(filtros.dataFim));
-        if (filtros?.nomeFormula) params.set('formula', String(filtros.nomeFormula));
-        if (filtros?.codigo) params.set('codigo', String(filtros.codigo));
-        if (filtros?.numero) params.set('numero', String(filtros.numero));
-        // ask server for full data including ignorarCalculos
-        params.set('includeIgnored', 'true');
-        const url = `http://localhost:3000/api/relatorio/pdf-data?${params.toString()}`;
-        const res = await fetch(url, { method: 'GET', headers: { 'Cache-Control': 'no-cache' } });
-        if (!res.ok) return;
-        const body = await res.json();
-        if (!mounted) return;
-        setPdfServerData(body);
-      } catch (e) {
-        // ignore fetch errors for preview
-        console.error('[report] Failed to fetch pdf-data for preview', e);
-      }
-    };
-    void fetchPdfData();
-    return () => { mounted = false; };
-  }, [filtros?.dataInicio, filtros?.dataFim, filtros?.nomeFormula, filtros?.codigo, filtros?.numero]);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
 
   const createPdfDocument = () => {
     // Prepare formula sums and chart data for PDF (prefer formulas from resumo, fallback to produtos or tableSelection)
@@ -2186,6 +2174,7 @@ export default function Report() {
                 pdfCustomization={pdfCustomization}
                 onPdfCustomizationChange={setPdfCustomization}
                 onPdfModalOpenChange={handlePdfModalOpenChange}
+                isLoading={pdfLoading}
               />
             </div>
           </div>

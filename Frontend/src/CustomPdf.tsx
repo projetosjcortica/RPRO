@@ -294,6 +294,7 @@ export interface PdfCustomization {
   fontSize: 'small' | 'medium' | 'large';
   sortOrder: 'alphabetic' | 'silo' | 'most-used';
   formulaSortOrder?: 'alphabetic' | 'code' | 'most-used';
+  simplifiedLayout?: boolean;
 }
 
 interface CustomReportDocumentProps {

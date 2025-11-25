@@ -220,7 +220,7 @@ export function useReportData(
         abortControllerRef.current.abort();
       }
     };
-  }, [fetchParams, reloadFlag, allowFetch, dados, total]);
+  }, [fetchParams, reloadFlag, allowFetch]);
 
   return { dados, loading, error, total, refetch, refetchSilent };
 }

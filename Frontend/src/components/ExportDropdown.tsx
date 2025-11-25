@@ -39,6 +39,7 @@ export interface PdfCustomization {
   fontSize: 'small' | 'medium' | 'large';
   sortOrder: 'alphabetic' | 'silo' | 'most-used';
   formulaSortOrder?: 'alphabetic' | 'code' | 'most-used';
+  simplifiedLayout?: boolean;
 }
 
 interface ExportDropdownProps {
@@ -54,6 +55,7 @@ interface ExportDropdownProps {
   pdfCustomization?: PdfCustomization;
   onPdfCustomizationChange?: (customization: PdfCustomization) => void;
   onPdfModalOpenChange?: (open: boolean) => void;
+  isLoading?: boolean;
 }
 
 export function ExportDropdown({
@@ -70,6 +72,7 @@ export function ExportDropdown({
   pdfCustomization = { fontSize: 'medium', sortOrder: 'alphabetic' },
   onPdfCustomizationChange,
   onPdfModalOpenChange,
+  isLoading = false,
 }: ExportDropdownProps) {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [excelModalOpen, setExcelModalOpen] = useState(false);
@@ -177,8 +180,15 @@ export function ExportDropdown({
           </DialogHeader>
 
           <div className="my-4 border rounded-lg overflow-hidden bg-gray-50 min-h-[600px] thin-red-scrollbar">
-            {pdfDocument ? (
-              <PDFViewer key={`${comments.length}-${showComments ? 1 : 0}`} width="100%" height="600px" showToolbar={true} >
+            {isLoading ? (
+               <div className="flex items-center justify-center h-[600px]">
+                 <div className="text-center">
+                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#af1e1e] mx-auto mb-4"></div>
+                   <p className="text-sm text-gray-600">Gerando PDF...</p>
+                 </div>
+               </div>
+            ) : pdfDocument ? (
+              <PDFViewer width="100%" height="600px" showToolbar={true} >
                 {pdfDocument}
               </PDFViewer>
             ) : (
@@ -298,7 +308,7 @@ export function ExportDropdown({
           <DialogFooter className="flex flex-wrap gap-2 sm:justify-between mt-4">
             <div className="flex gap-2">
 
-              {onToggleCharts && (
+              {onToggleCharts && !pdfCustomization?.simplifiedLayout && (
                 <Button
                   variant="outline"
                   onClick={onToggleCharts}
@@ -450,24 +460,26 @@ export function ExportDropdown({
               </RadioGroup>
             </div>
 
-            {/* Ordenação da Tabela de Fórmulas */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Ordenar Tabela de Fórmulas por</Label>
-              <RadioGroup value={localFormulaSortOrder} onValueChange={(v) => setLocalFormulaSortOrder(v as 'alphabetic' | 'code' | 'most-used')}>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="alphabetic" id="formula-sort-alpha" />
-                  <Label htmlFor="formula-sort-alpha" className="cursor-pointer font-normal">Ordem Alfabética</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="code" id="formula-sort-code" />
-                  <Label htmlFor="formula-sort-code" className="cursor-pointer font-normal">Código</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="most-used" id="formula-sort-usage" />
-                  <Label htmlFor="formula-sort-usage" className="cursor-pointer font-normal">Mais Usadas</Label>
-                </div>
-              </RadioGroup>
-            </div>
+            {/* Ordenação da Tabela de Fórmulas - Apenas se não for layout simplificado */}
+            {!localSimplifiedLayout && (
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Ordenar Tabela de Fórmulas por</Label>
+                <RadioGroup value={localFormulaSortOrder} onValueChange={(v) => setLocalFormulaSortOrder(v as 'alphabetic' | 'code' | 'most-used')}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="alphabetic" id="formula-sort-alpha" />
+                    <Label htmlFor="formula-sort-alpha" className="cursor-pointer font-normal">Ordem Alfabética</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="code" id="formula-sort-code" />
+                    <Label htmlFor="formula-sort-code" className="cursor-pointer font-normal">Código</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="most-used" id="formula-sort-usage" />
+                    <Label htmlFor="formula-sort-usage" className="cursor-pointer font-normal">Mais Usadas</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -480,6 +492,7 @@ export function ExportDropdown({
                   fontSize: localFontSize,
                   sortOrder: localSortOrder,
                   formulaSortOrder: localFormulaSortOrder,
+                  simplifiedLayout: localSimplifiedLayout,
                 });
               }
               setPdfSettingsOpen(false);
