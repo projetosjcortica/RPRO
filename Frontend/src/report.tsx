@@ -483,6 +483,8 @@ export default function Report() {
     return chips.slice(0, 20); // limit display
   }, [advancedFilters, formulaLabels, colLabels, filtros]);
 
+  console.log(activeFilterChips);
+
   const removeChip = useCallback((chip: { type: string; value: any }) => {
     try {
       if (!advancedFilters || !setFiltersState) return;
@@ -523,6 +525,7 @@ export default function Report() {
     }
   }, [advancedFilters, setFiltersState]);
 
+  console.log(removeChip);
 
   // Listener para eventos explícitos de atualização de configuração
   useEffect(() => {
