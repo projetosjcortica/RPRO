@@ -187,12 +187,6 @@ export default function AmendoimTable({ registros, loading, error, onSort, sortC
         </div>
       )} */}
 
-      {error && internalRows.length > 0 && (
-        <div className="absolute left-2 top-2 right-2 z-20 bg-yellow-50 border border-yellow-200 text-yellow-800 p-2 rounded text-sm">
-          <strong>Erro ao atualizar:</strong>&nbsp;{error}
-        </div>
-      )}
-
       <div className="overflow-auto flex-1 thin-red-scrollbar h-[calc(100vh-200px)]">
         <div className="min-w-max w-full">
           <div className="sticky top-0 z-10 bg-gray-200 border-b border-gray-300">
