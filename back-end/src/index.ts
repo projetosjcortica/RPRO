@@ -2221,12 +2221,15 @@ app.post("/api/auth/photo", userUpload.single("photo"), async (req, res) => {
 app.post("/api/auth/update", async (req, res) => {
   try {
     await ensureDatabaseConnection();
-    const { username, displayName } = req.body;
+    const { username, displayName, userType } = req.body;
     if (!username) return res.status(400).json({ error: "username required" });
     const repo = AppDataSource.getRepository(User);
     const user = await repo.findOne({ where: { username } });
     if (!user) return res.status(404).json({ error: "user not found" });
-    (user as any).displayName = displayName ?? (user as any).displayName;
+    
+    if (displayName !== undefined) (user as any).displayName = displayName;
+    if (userType !== undefined) (user as any).userType = userType;
+    
     await repo.save(user as any);
     const { passwordHash, ...out } = user as any;
     return res.json(out);
