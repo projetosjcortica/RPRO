@@ -701,7 +701,10 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         </div>
         <div className="flex flex-col items-end justify-end gap-2">
           <div className="flex flex-row items-end gap-1"> 
-            <FiltrosAmendoimBar onAplicarFiltros={handleAplicarFiltros} /> 
+            <FiltrosAmendoimBar 
+              onAplicarFiltros={handleAplicarFiltros} 
+              tipo={viewMode}
+            /> 
             {/* Collector toggle (mesma UI do Report) */}
             <Button
               onClick={handleCollectorToggle}

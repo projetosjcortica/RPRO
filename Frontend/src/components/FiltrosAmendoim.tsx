@@ -31,6 +31,7 @@ interface FiltrosResponse {
 
 interface FiltrosAmendoimBarProps {
   onAplicarFiltros?: (filtros: FiltrosAmendoim) => void;
+  tipo?: "entrada" | "saida" | "comparativo";
 }
 
 function ChevronDownIcon(props: React.SVGProps<SVGSVGElement>) {
@@ -52,7 +53,7 @@ function ChevronDownIcon(props: React.SVGProps<SVGSVGElement>) {
   );
 }
 
-export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoimBarProps) {
+export default function FiltrosAmendoimBar({ onAplicarFiltros, tipo }: FiltrosAmendoimBarProps) {
   const [filtrosTemporarios, setFiltrosTemporarios] = useState<FiltrosAmendoim>({
     dataInicio: '',
     dataFim: '',
@@ -68,7 +69,11 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
     const fetchInitialCodigos = async () => {
       setLoadingFiltros(true);
       try {
-        const resp = await fetch('http://localhost:3000/api/amendoim/filtrosDisponiveis');
+        const params = new URLSearchParams();
+        if (tipo && tipo !== 'comparativo') {
+          params.set('tipo', tipo);
+        }
+        const resp = await fetch(`http://localhost:3000/api/amendoim/filtrosDisponiveis?${params.toString()}`);
         if (!resp.ok) throw new Error('Failed to fetch initial filtros');
         const body = await resp.json() as FiltrosResponse;
         const cods = Array.isArray(body.codigosProduto) ? body.codigosProduto.map(c => String(c)) : [];
@@ -82,7 +87,7 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
       }
     };
     fetchInitialCodigos();
-  }, []);
+  }, [tipo]);
 
   // Fetch available filters
   useEffect(() => {
@@ -94,6 +99,9 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
         // Send dates in YYYY-MM-DD format (backend handles conversion internally)
         if (filtrosTemporarios.dataInicio) params.set('dataInicio', filtrosTemporarios.dataInicio);
         if (filtrosTemporarios.dataFim) params.set('dataFim', filtrosTemporarios.dataFim);
+        if (tipo && tipo !== 'comparativo') {
+          params.set('tipo', tipo);
+        }
         
         const url = `http://localhost:3000/api/amendoim/filtrosDisponiveis?${params.toString()}`;
         const resp = await fetch(url);
@@ -119,7 +127,7 @@ export default function FiltrosAmendoimBar({ onAplicarFiltros }: FiltrosAmendoim
 
     fetchFiltros();
     return () => { mounted = false; };
-  }, [filtrosTemporarios.dataInicio, filtrosTemporarios.dataFim]);
+  }, [filtrosTemporarios.dataInicio, filtrosTemporarios.dataFim, tipo]);
 
   const handleInputChange = (nome: keyof FiltrosAmendoim, valor: string) => {
     setFiltrosTemporarios(prev => ({ ...prev, [nome]: valor }));
