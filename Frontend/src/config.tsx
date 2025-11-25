@@ -923,6 +923,8 @@ interface Estatisticas {
   const [adminUsers, setAdminUsers] = useState<UserItem[]>([]);
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [adminEditing, setAdminEditing] = useState<Record<number, Partial<UserItem>>>({});
+  // Dialog state for admin user management modal
+  const [adminModalOpen, setAdminModalOpen] = useState<boolean>(false);
 
   const [page,] = useState(1);
   const [, setTotal] = useState(0);
@@ -1168,7 +1170,7 @@ interface Estatisticas {
 
   // ✅ RETURN FINAL
   return (
-    <div id="adm" className="flex flex-col gap-3 h-[65vh] overflow-auto bg-white">
+    <div id="adm" className="flex flex-col gap-3 h-[70vh] overflow-auto bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
       </h2>
@@ -1753,7 +1755,7 @@ interface Estatisticas {
 
       {/* Admin users modal */}
       <Dialog open={adminModalOpen} onOpenChange={(v) => { setAdminModalOpen(!!v); }}>
-        <DialogContent className="max-w-[1100px]">
+        <DialogContent className="max-w-[900px]">
           <DialogHeader>
             <div className="flex items-center justify-between mb-2 w-full">
               <DialogTitle>Perfis registrados</DialogTitle>
