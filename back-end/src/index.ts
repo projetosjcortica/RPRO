@@ -4701,6 +4701,11 @@ app.get('/api/amendoim/filtrosDisponiveis', async (req, res) => {
       qb.andWhere("a.dia <= :dataFim", { dataFim: dataFimDB });
     }
 
+    const tipo = req.query.tipo ? String(req.query.tipo) : undefined;
+    if (tipo && (tipo === 'entrada' || tipo === 'saida')) {
+      qb.andWhere("a.tipo = :tipo", { tipo });
+    }
+
     // Buscar códigos únicos de produtos
     const codigosProduto = await qb
       .select('DISTINCT a.codigoProduto', 'codigo')

@@ -597,7 +597,9 @@ export function IHMConfig({
     if (!ipVal) { toast.error('IP não configurado'); return; }
     try {
       toast.info(`Testando IHM ${sel}...`);
-      const res = await fetch('/api/ihm/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ipVal }) });
+      const backendPort = (window as any).backendPort || 3000;
+      const base = `http://localhost:${backendPort}`;
+      const res = await fetch(`${base}/api/ihm/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ipVal }) });
 
       // Try to parse JSON body when available
       let body: any = null;
@@ -615,6 +617,7 @@ export function IHMConfig({
           return;
         }
         // Fallback: show short error
+
         const txt = (body && body.error) ? String(body.error) : await res.text().catch(() => '');
         toast.error(txt ? `Falha: ${txt}` : `Falha: ${res.status}`);
         return;
@@ -920,12 +923,17 @@ interface Estatisticas {
   const [adminUsers, setAdminUsers] = useState<UserItem[]>([]);
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [adminEditing, setAdminEditing] = useState<Record<number, Partial<UserItem>>>({});
-  const [adminModalOpen, setAdminModalOpen] = useState(false);
+
+  const [page,] = useState(1);
+  const [, setTotal] = useState(0);
+  const pageSize = 50;
 
   const fetchAdminUsers = async () => {
     setAdminUsersLoading(true);
     try {
-      const res = await fetch('/api/admin/users');
+      const backendPort = (window as any).backendPort || 3000;
+      const base = `http://localhost:${backendPort}`;
+      const res = await fetch(`${base}/api/admin/users`);
       if (!res.ok) throw new Error(String(res.status));
       const j = await res.json();
       setAdminUsers(Array.isArray(j.users) ? j.users : []);
@@ -939,11 +947,13 @@ interface Estatisticas {
 
   const saveAdminUser = async (u: UserItem) => {
     try {
+      const backendPort = (window as any).backendPort || 3000;
+      const base = `http://localhost:${backendPort}`;
       if (adminEditing[u.id] && typeof adminEditing[u.id].displayName !== 'undefined') {
-        await fetch('/api/auth/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username, displayName: adminEditing[u.id].displayName }) });
+        await fetch(`${base}/api/auth/update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username, displayName: adminEditing[u.id].displayName }) });
       }
       if (adminEditing[u.id] && typeof adminEditing[u.id].isAdmin !== 'undefined') {
-        await fetch('/api/admin/toggle-admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username, isAdmin: !!adminEditing[u.id].isAdmin }) });
+        await fetch(`${base}/api/admin/toggle-admin`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username, isAdmin: !!adminEditing[u.id].isAdmin }) });
       }
       toast.success('Usuário salvo');
       fetchAdminUsers();
@@ -956,7 +966,9 @@ interface Estatisticas {
   const deleteAdminUser = async (u: UserItem) => {
     if (!confirm(`Remover usuário ${u.username}?`)) return;
     try {
-      await fetch('/api/admin/delete-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username }) });
+      const backendPort = (window as any).backendPort || 3000;
+      const base = `http://localhost:${backendPort}`;
+      await fetch(`${base}/api/admin/delete-user`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username }) });
       toast.success('Usuário removido');
       fetchAdminUsers();
     } catch (e) {
@@ -964,10 +976,6 @@ interface Estatisticas {
       toast.error('Falha ao remover usuário');
     }
   };
-
-  const [page,] = useState(1);
-  const [, setTotal] = useState(0);
-  const pageSize = 50;
 
   const [viewMode, ] = useState<"entrada" | "saida" | "comparativo">("entrada");
 
