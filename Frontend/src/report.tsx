@@ -226,10 +226,12 @@ export default function Report() {
     fontSize: 'small' | 'medium' | 'large';
     sortOrder: 'alphabetic' | 'silo' | 'most-used';
     formulaSortOrder?: 'alphabetic' | 'code' | 'most-used';
+    simplifiedLayout?: boolean;
   }>({
     fontSize: 'medium',
     sortOrder: 'alphabetic',
     formulaSortOrder: 'alphabetic',
+    simplifiedLayout: true,
   });
 
   const [tableSelection, setTableSelection] = useState<{
