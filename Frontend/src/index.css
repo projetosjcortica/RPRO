@@ -44,6 +44,10 @@ h1 {
   line-height: 1.1;
 }
 
+input {
+  border-color: oklch(0.551 0.027 264.364);;
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
