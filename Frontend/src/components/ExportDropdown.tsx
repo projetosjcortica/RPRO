@@ -52,6 +52,7 @@ interface ExportDropdownProps {
   onRemoveComment?: (id: string) => void;
   pdfCustomization?: PdfCustomization;
   onPdfCustomizationChange?: (customization: PdfCustomization) => void;
+  onPdfModalOpenChange?: (open: boolean) => void;
 }
 
 export function ExportDropdown({
@@ -67,16 +68,17 @@ export function ExportDropdown({
   onRemoveComment,
   pdfCustomization = { fontSize: 'medium', sortOrder: 'alphabetic' },
   onPdfCustomizationChange,
+  onPdfModalOpenChange,
 }: ExportDropdownProps) {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
   const [ihmProfilesOpen, setIhmProfilesOpen] = useState(false);
-  
+
   // Filtros Excel
   const [nomeFormula, setNomeFormula] = useState("");
   const [dataInicio, setDataInicio] = useState("");
-  const [dataFim, setDataFim] = useState(""); 
+  const [dataFim, setDataFim] = useState("");
   const [excelDateRange, setExcelDateRange] = useState<DateRange | undefined>(undefined);
   const [excelPopoverOpen, setExcelPopoverOpen] = useState(false);
 
@@ -84,7 +86,7 @@ export function ExportDropdown({
   const [showCommentEditor, setShowCommentEditor] = useState(false);
   const [newComment, setNewComment] = useState("");
   const [showCommentsSection, setShowCommentsSection] = useState(true);
-  
+
   // Customização PDF (local state)
   const [localFontSize, setLocalFontSize] = useState(pdfCustomization.fontSize);
   const [localSortOrder, setLocalSortOrder] = useState(pdfCustomization.sortOrder);
@@ -92,6 +94,7 @@ export function ExportDropdown({
 
   const handlePdfClick = () => {
     setPdfModalOpen(true);
+    onPdfModalOpenChange?.(true);
   };
 
   const handleExcelClick = () => {
@@ -126,7 +129,7 @@ export function ExportDropdown({
     setExcelDateRange(undefined);
   };
 
-  return ( 
+  return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -150,7 +153,10 @@ export function ExportDropdown({
       <IhmProfilesConfig isOpen={ihmProfilesOpen} onClose={() => setIhmProfilesOpen(false)} />
 
       {/* Modal PDF */}
-      <Dialog open={pdfModalOpen} onOpenChange={setPdfModalOpen}>
+      <Dialog open={pdfModalOpen} onOpenChange={(open) => {
+        setPdfModalOpen(open);
+        onPdfModalOpenChange?.(open);
+      }}>
         <DialogContent className="w-200 max-h-[90vh] overflow-y-auto thin-red-scrollbar">
           <DialogHeader>
             <div className="flex items-center justify-between">
@@ -170,8 +176,8 @@ export function ExportDropdown({
           <div className="my-4 border rounded-lg overflow-hidden bg-gray-50 min-h-[600px] thin-red-scrollbar">
             {pdfDocument ? (
               <PDFViewer key={`${comments.length}-${showComments ? 1 : 0}`} width="100%" height="600px" showToolbar={true} >
-                  {pdfDocument}
-                </PDFViewer>
+                {pdfDocument}
+              </PDFViewer>
             ) : (
               <div className="flex items-center justify-center h-[600px] text-gray-500">
                 <div className="text-center">
@@ -288,7 +294,7 @@ export function ExportDropdown({
 
           <DialogFooter className="flex flex-wrap gap-2 sm:justify-between mt-4">
             <div className="flex gap-2">
-               
+
               {onToggleCharts && (
                 <Button
                   variant="outline"

@@ -52,6 +52,7 @@ interface AmendoimExportProps {
   onRemoveComment?: (id: string) => void;
   logoUrl?: string;
   proprietario?: string;
+  onPdfModalOpenChange?: (isOpen: boolean) => void;
 }
 
 interface AmendoimRecord {
@@ -66,7 +67,7 @@ interface AmendoimRecord {
   balanca?: string;
 }
 
-export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, logoUrl, proprietario }: AmendoimExportProps) {
+export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, logoUrl, proprietario, onPdfModalOpenChange }: AmendoimExportProps) {
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
@@ -107,6 +108,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
   const [agruparPorProduto, setAgruparPorProduto] = useState(false);
   // Modal de configurações
   const [pdfSettingsOpen, setPdfSettingsOpen] = useState(false);
+  const [dataRefreshed, setDataRefreshed] = useState(false);
 
   // Keep localComments in sync if parent prop changes
   useEffect(() => {
@@ -203,6 +205,7 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
 
   const handleLoadPdfData = async () => {
     try {
+      // if (loadingPdf || pdfData.length > 0) return;
       setLoadingPdf(true);
       const backendPort = 3000;
       const base = `http://localhost:${backendPort}`;
@@ -275,23 +278,28 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
       toast.error("Erro ao carregar dados");
     } finally {
       setLoadingPdf(false);
+      setDataRefreshed(true);
     }
   };
-
-  // When opening the PDF modal, auto-load data so preview shows immediately
-  useEffect(() => {
-    if (pdfModalOpen) {
-      void handleLoadPdfData();
-    }
-    // Reload when modal opens (pdfTipo is now constant "comparativo")
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pdfModalOpen]);
+ 
 
   // Prepare comments to pass to PDF: include saved localComments plus the editor's newComment (if any)
   const commentsForPdf = [
     ...localComments.map((c) => ({ texto: c.texto, data: c.data })),
     ...(newComment ? [{ texto: newComment, data: new Date().toLocaleString('pt-BR') }] : []),
   ];
+
+  useEffect(() => {
+    if (onPdfModalOpenChange) {
+      onPdfModalOpenChange(pdfModalOpen);
+    }
+
+    if (pdfModalOpen && !dataRefreshed) {
+      void handleLoadPdfData();
+    }
+    // Reload when modal opens (pdfTipo is now constant "comparativo")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfModalOpen, dataRefreshed]);
 
   return (
     <>
@@ -583,49 +591,6 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
               </>
             )}
           </div>
-
-          <DialogFooter className="pt-4">
-            <Button variant="outline" onClick={() => setPdfModalOpen(false)}>
-              Fechar
-            </Button>
-            {pdfData.length === 0 ? (
-              <Button onClick={handleLoadPdfData} className="gap-2">
-                <FileText className="h-4 w-4" />
-                Carregar Dados
-              </Button>
-            ) : (
-              <PDFDownloadLink
-                document={
-                  <AmendoimPDFDocument
-                    registros={pdfData}
-                    filtros={{ 
-                      tipo: pdfTipo, 
-                      dataInicio: excelDateRange?.from ? format(excelDateRange.from, "yyyy-MM-dd") : undefined,
-                      dataFim: excelDateRange?.to ? format(excelDateRange.to, "yyyy-MM-dd") : undefined,
-                      codigoProduto, 
-                      nomeProduto, 
-                      codigoCaixa 
-                    }}
-                    comentarios={commentsForPdf}
-                    tabelasSeparadas={tabelasSeparadas}
-                    fontSize={fontSize}
-                    ordenacao={ordenacao}
-                    agruparPorProduto={agruparPorProduto}
-                    logoUrl={logoUrl}
-                    proprietario={proprietario}
-                  />
-                }
-                fileName={`amendoim_comparativo_${Date.now()}.pdf`}
-              >
-                {({ loading }) => (
-                  <Button className="gap-2" disabled={loading}>
-                    <FileText className="h-4 w-4" />
-                    {loading ? "Gerando PDF..." : "Baixar PDF"}
-                  </Button>
-                )}
-              </PDFDownloadLink>
-            )}
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
