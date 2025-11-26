@@ -28,6 +28,7 @@ import cors from "cors";
 import compression from "compression";
 import multer from "multer";
 import { configService } from "./services/configService";
+import { wsbridge } from './websocket/WebSocketBridge';
 import { setRuntimeConfigs, setRuntimeConfig, getRuntimeConfig, getAllRuntimeConfigs } from "./core/runtimeConfig";
 import { csvConverterService } from "./services/csvConverterService";
 import iconv from 'iconv-lite';
@@ -504,6 +505,15 @@ app.post('/api/relatorio/paginate', async (req, res) => {
   } catch (e: any) {
     console.error('[relatorio/paginate POST] error', e);
     return res.status(500).json({ error: e?.message || 'Internal server error' });
+  }
+});
+
+// Lightweight ping endpoint used by frontend dev to detect backend availability
+app.get('/api/ping', (_req, res) => {
+  try {
+    return res.json({ ok: true, ts: new Date().toISOString() });
+  } catch (e) {
+    return res.status(500).json({ ok: false });
   }
 });
 
@@ -3203,8 +3213,20 @@ app.post("/api/config/split", async (req, res) => {
       /* ignore */
     }
     try { await writeRuntimeConfigToFile(); } catch (e) { /* ignore */ }
-    try { await writeRuntimeConfigToFile(); } catch (e) { /* ignore */ }
-    return res.json({ success: true, saved: Object.keys(configObj) });
+    // Return updated parsed values to the client so UI can synchronize without an extra GET
+    const updated: Record<string, any> = {};
+    for (const k of Object.keys(configObj)) {
+      const raw = await configService.getSetting(k);
+      let parsed: any = raw;
+      if (typeof raw === 'string') {
+        try { parsed = JSON.parse(raw); } catch { parsed = raw; }
+      }
+      updated[k] = parsed;
+    }
+    try {
+      wsbridge.sendEvent('config-changed', { keys: Object.keys(configObj), updated });
+    } catch (e) { /* ignore */ }
+    return res.json({ success: true, saved: Object.keys(configObj), updated });
   } catch (e) {
     console.error("[config/split] Failed to split/save settings", e);
     return res.status(500).json({ error: "internal" });
@@ -3337,7 +3359,13 @@ app.post('/api/config/:key', async (req, res) => {
       if (['db-config', 'ihm-config', 'mysql_ip', 'mysql_port'].includes(rawKey)) await writeRuntimeConfigToFile();
     } catch (e) { /* ignore */ }
 
-    return res.json({ success: true, key: rawKey });
+    // Return updated parsed value to the client so UI can sync without extra GET
+    let outParsed: any = toStore;
+    try {
+      outParsed = JSON.parse(toStore);
+    } catch { /* ignore */ }
+    try { wsbridge.sendEvent('config-changed', { keys: [rawKey], value: outParsed }); } catch (ee) {}
+    return res.json({ success: true, key: rawKey, value: outParsed });
   } catch (e) {
     console.error('[config/:key POST] error', e);
     return res.status(500).json({ error: 'internal' });

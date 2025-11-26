@@ -6,6 +6,7 @@ import { Button } from "./components/ui/button";
 import { Avatar, AvatarFallback } from "./components/ui/avatar";
 import { FileUp, Loader2, Plus, UserRoundCog } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
+import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import Profile from "./Profile";
 import { getProcessador } from "./Processador";
 import { resolvePhotoUrl } from "./lib/photoUtils";
@@ -928,6 +929,17 @@ interface Estatisticas {
       const body = { 'db-config': dbToSave };
       const res = await fetch(`/api/config/split`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) throw new Error('failed');
+      const j = await res.json().catch(() => null);
+      if (j && j.updated && j.updated['db-config']) {
+        const newCfg = j.updated['db-config'];
+        setDbConfig({
+          serverDB: String(newCfg.serverDB ?? newCfg.host ?? ''),
+          port: Number(newCfg.port ?? 3306),
+          userDB: String(newCfg.userDB ?? newCfg.user ?? ''),
+          passwordDB: String(newCfg.passwordDB ?? newCfg.password ?? ''),
+          database: String(newCfg.database ?? ''),
+        });
+      }
       toast.success('Configuração do banco salva para todos os usuários');
       // Try to apply immediately
       try {
@@ -941,6 +953,7 @@ interface Estatisticas {
         console.warn('reconnect failed', err);
         toast.warn('Erro ao solicitar reconexão do banco');
       }
+      try { await runtime.reload(); } catch (ee) {}
     } catch (e) {
       console.error('save db-config failed', e);
       toast.error('Falha ao salvar configuração do banco');
@@ -999,6 +1012,7 @@ interface Estatisticas {
   const [, setRegistros] = useState<AmendoimRecord[]>([]);
 
   const { user } = useAuth();
+  const runtime = useRuntimeConfig();
 
   // --- User management (migrated from ProfileAdminModal) ---
   type UserItem = {

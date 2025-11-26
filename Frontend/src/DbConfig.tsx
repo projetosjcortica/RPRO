@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import useAuth from './hooks/useAuth';
+import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import { Label } from './components/ui/label';
 import { Input } from './components/ui/input';
 import { Button } from './components/ui/button';
@@ -12,6 +13,7 @@ export default function DbConfig() {
   const [saving, setSaving] = useState(false);
   const [passwordSet, setPasswordSet] = useState(false);
   const { user } = useAuth();
+  const runtime = useRuntimeConfig();
 
   useEffect(() => {
     const load = async () => {
@@ -55,6 +57,18 @@ export default function DbConfig() {
       const payload: any = { 'db-config': dbToSave };
       const res = await fetch('/api/config/split', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (!res.ok) throw new Error('failed');
+      const j = await res.json().catch(() => null);
+      // If backend returned updated values, reflect them in the UI
+      if (j && j.updated && j.updated['db-config']) {
+        const newCfg = j.updated['db-config'];
+        setDbConfig({
+          serverDB: String(newCfg.serverDB ?? newCfg.host ?? ''),
+          port: Number(newCfg.port ?? 3306),
+          userDB: String(newCfg.userDB ?? newCfg.user ?? ''),
+          passwordDB: String(newCfg.passwordDB ?? newCfg.password ?? ''),
+          database: String(newCfg.database ?? ''),
+        });
+      }
       toast.success('Configuração do banco salva para todos os usuários');
       // Try to apply immediately by requesting reconnect
       try {
@@ -69,6 +83,8 @@ export default function DbConfig() {
         console.warn('reconnect failed', err);
         toast.warn('Erro ao solicitar reconexão do banco');
       }
+      // After saving and reconnect attempt, reload runtime configs so all frontend components update
+      try { await runtime.reload(); } catch (e) { /* ignore */ }
     } catch (e) {
       console.error('save db-config failed', e);
       toast.error('Falha ao salvar configuração do banco');
