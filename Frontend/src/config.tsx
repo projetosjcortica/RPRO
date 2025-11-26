@@ -884,6 +884,7 @@ interface Estatisticas {
   const [dbConfig, setDbConfig] = useState<{ serverDB: string; port: number; userDB?: string; passwordDB?: string; database?: string }>({ serverDB: '', port: 3306, userDB: '', passwordDB: '', database: '' });
   const [dbLoading, setDbLoading] = useState<boolean>(true);
   const [dbSaving, setDbSaving] = useState<boolean>(false);
+  const [dbPasswordSet, setDbPasswordSet] = useState<boolean>(false);
 
   useEffect(() => {
     const loadDb = async () => {
@@ -903,6 +904,13 @@ interface Estatisticas {
           passwordDB: String(v.passwordDB ?? v.password ?? ''),
           database: String(v.database ?? ''),
         });
+        try {
+          const r2 = await fetch('/api/config/db-config');
+          if (r2.ok) {
+            const j2 = await r2.json();
+            setDbPasswordSet(!!(j2?.value?.passwordSet));
+          }
+        } catch (e) {}
       } catch (e) {
         console.warn('Failed to load db-config', e);
       } finally {
@@ -915,15 +923,51 @@ interface Estatisticas {
   const saveDbConfig = async () => {
     try {
       setDbSaving(true);
-      const body = { value: dbConfig };
-      const res = await fetch(`/api/config/db-config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const dbToSave: any = { ...dbConfig };
+      if (!user?.isAdmin) delete dbToSave.passwordDB;
+      const body = { 'db-config': dbToSave };
+      const res = await fetch(`/api/config/split`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!res.ok) throw new Error('failed');
       toast.success('Configuração do banco salva para todos os usuários');
+      // Try to apply immediately
+      try {
+        const r2 = await fetch('/api/db/reconnect', { method: 'POST' });
+        if (r2.ok) toast.success('Reconexão ao banco iniciada com as novas configurações');
+        else {
+          const txt = await r2.text().catch(() => '');
+          toast.warn('Reconexão falhou: ' + (txt || r2.status));
+        }
+      } catch (err) {
+        console.warn('reconnect failed', err);
+        toast.warn('Erro ao solicitar reconexão do banco');
+      }
     } catch (e) {
       console.error('save db-config failed', e);
       toast.error('Falha ao salvar configuração do banco');
     } finally {
       setDbSaving(false);
+      // Refresh password flag
+      try {
+        const res = await fetch('/api/config/db-config');
+        if (res.ok) {
+          const j = await res.json();
+          setDbPasswordSet(!!(j?.value?.passwordSet));
+        }
+      } catch (e) {}
+    }
+  };
+  const testDbConfig = async () => {
+    try {
+      toast.info('Testando conexão...');
+      const res = await fetch('/api/db/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dbConfig) });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || 'test failed');
+      }
+      toast.success('Conexão com DB OK');
+    } catch (e: any) {
+      console.error('test db-config failed', e);
+      toast.error('Falha na conexão: ' + (String(e?.message || e)));
     }
   };
   // Extended products flag (admin control)
@@ -1266,6 +1310,11 @@ interface Estatisticas {
   void setExportDataFim;
   void setExportFormula;
   void handleExportExecute;
+  void dbLoading;
+  void dbSaving;
+  void dbPasswordSet;
+  void saveDbConfig;
+  void testDbConfig;
 
   // ✅ Loading state DEPOIS dos hooks
   if (isLoading) {
@@ -1281,7 +1330,7 @@ interface Estatisticas {
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
       </h2> 
-      <div className="p-4 mb-3 border rounded-md bg-white shadow-sm">
+      {/* <div className="p-4 mb-3 border rounded-md bg-white shadow-sm">
         <Label className="font-medium text-gray-700 mb-2">Conexão MySQL (DB)</Label>
         {dbLoading ? (
           <div className="text-sm text-gray-500">Carregando...</div>
@@ -1304,17 +1353,22 @@ interface Estatisticas {
               <Input value={dbConfig.userDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, userDB: e.target.value })} />
             </div>
             <div className="flex gap-2 items-center">
-              <Label className="w-40">Senha DB</Label>
-              <Input type="password" value={dbConfig.passwordDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, passwordDB: e.target.value })} />
+                <Label className="w-40">Senha DB</Label>
+                {user?.isAdmin ? (
+                  <Input type="password" value={dbConfig.passwordDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, passwordDB: e.target.value })} />
+                ) : (
+                  <div className="text-sm text-gray-600">{dbPasswordSet ? 'Senha configurada (requer admin para alterar)' : 'Nenhuma senha configurada'}</div>
+                )}
             </div>
             <div className="flex gap-2 justify-end mt-2">
+              <Button onClick={testDbConfig} className="bg-gray-600 hover:bg-gray-700">Testar</Button>
               <Button onClick={saveDbConfig} className="bg-blue-600 hover:bg-blue-700" disabled={dbSaving}>
                 {dbSaving ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</span> : 'Salvar DB'}
               </Button>
             </div>
           </div>
         )}
-      </div>
+      </div> */}
 {/* 
       <div id="CfgAdvancedDB" className="">
         <div className="dir flex flex-col gap-5">

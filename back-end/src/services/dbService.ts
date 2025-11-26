@@ -173,6 +173,51 @@ export class DBService extends BaseService {
       throw new Error(`MySQL initialization failed and fallback disabled: ${err}`);
     }
   }
+  async reconnect() {
+    // Destroy existing connection if present and reinitialize using runtime configs
+    try {
+      // @ts-ignore
+      if (this.ds && (this.ds as any).isInitialized) {
+        await this.ds.destroy();
+        // Reset data source placeholder
+        // @ts-ignore
+        this.ds = {} as DataSource;
+      }
+    } catch (e) {
+      console.warn('[DBService] Error destroying existing data source during reconnect:', e);
+    }
+    // Reinitialize using updated runtime configs
+    await this.init();
+  }
+
+  async testConnection(cfg?: { host?: string; port?: number; user?: string; password?: string; database?: string }) {
+    const host = cfg?.host ?? getRuntimeConfig('db-config')?.serverDB ?? process.env.MYSQL_HOST ?? 'localhost';
+    const port = Number(cfg?.port ?? getRuntimeConfig('db-config')?.port ?? process.env.MYSQL_PORT ?? 3306);
+    const user = cfg?.user ?? getRuntimeConfig('db-config')?.userDB ?? process.env.MYSQL_USER ?? 'root';
+    const pass = cfg?.password ?? getRuntimeConfig('db-config')?.passwordDB ?? process.env.MYSQL_PASSWORD ?? 'root';
+    const dbName = cfg?.database ?? getRuntimeConfig('db-config')?.database ?? process.env.MYSQL_DB ?? 'cadastro';
+
+    const testDs = new DataSource({
+      type: 'mysql',
+      host,
+      port,
+      username: user,
+      password: pass,
+      database: dbName,
+      // Keep small footprint
+      synchronize: false,
+      logging: false,
+      entities: [],
+    });
+    try {
+      await testDs.initialize();
+      await testDs.destroy();
+      return true;
+    } catch (e) {
+      if (testDs.isInitialized) await testDs.destroy().catch(() => { });
+      throw e;
+    }
+  }
   async insertRelatorioRows(rows: any[], processedFile: string) {
     await this.init();
     const repo = this.ds.getRepository(Relatorio);

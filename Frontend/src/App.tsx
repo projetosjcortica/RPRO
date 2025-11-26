@@ -5,6 +5,7 @@ import Login from './Login';
 import About from './About';
 import useAuth from './hooks/useAuth';
 import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './config';
+import DbConfig from './DbConfig';
 import Report from './report';
 import Estoque from './estoque';
 import Amendoim from './amendoim';
@@ -153,7 +154,7 @@ const App = () => {
       icon: Sheet,
       classname: "size-9",
       path: '/report'
-    }
+    } 
   ];
 
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
@@ -369,6 +370,15 @@ const App = () => {
                                 </div>
                               </DialogContent>
                             </Dialog>
+
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'><Factory/>DB</SidebarMenuSubButton>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DbConfig />
+                              </DialogContent>
+                            </Dialog>
                             {user?.isAdmin && (
                               <>
                                 <Dialog>
@@ -435,6 +445,7 @@ const App = () => {
               </RequireAuth>
             }
           />
+          {/* <Route path="/db-config" element={<RequireAuth><DbConfig /></RequireAuth>} /> */}
           <Route path="/about" element={<RequireAuth><About /></RequireAuth>} />
           <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />
         </Routes>

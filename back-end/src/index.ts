@@ -28,7 +28,7 @@ import cors from "cors";
 import compression from "compression";
 import multer from "multer";
 import { configService } from "./services/configService";
-import { setRuntimeConfigs, getRuntimeConfig } from "./core/runtimeConfig";
+import { setRuntimeConfigs, setRuntimeConfig, getRuntimeConfig, getAllRuntimeConfigs } from "./core/runtimeConfig";
 import { csvConverterService } from "./services/csvConverterService";
 import iconv from 'iconv-lite';
 import { changeDetectionService } from "./services/changeDetectionService";
@@ -2458,6 +2458,70 @@ app.get("/api/db/listBatches", async (req, res) => {
     return res.status(500).json({ error: "internal" });
   }
 });
+
+// Force reconnect of DBService using current runtime configs (useful after updating db-config)
+app.post('/api/db/reconnect', async (req, res) => {
+  try {
+    // Validate connection first using current runtime 'db-config' (merge with saved password when needed)
+    try {
+      // If runtime config lacks a password, merge with stored setting so testConnection gets credentials
+      const runtimeDb = getRuntimeConfig('db-config') || {};
+      if (!runtimeDb.passwordDB) {
+        const saved = await configService.getSetting('db-config');
+        if (saved) {
+          try {
+            const savedObj = JSON.parse(saved);
+            if (savedObj?.passwordDB) {
+              setRuntimeConfig('db-config', { ...(runtimeDb as any), passwordDB: savedObj.passwordDB });
+            }
+          } catch (e) {}
+        }
+      }
+      await dbService.testConnection();
+    } catch (err: any) {
+      console.error('[api/db/reconnect] testConnection failed', err);
+      return res.status(400).json({ ok: false, error: 'testConnection failed', details: String(err?.message || err) });
+    }
+    await dbService.reconnect();
+    return res.json({ ok: true, message: 'DB reconnected' });
+  } catch (e: any) {
+    console.error('[api/db/reconnect] error', e);
+    return res.status(500).json({ ok: false, error: e?.message || 'internal' });
+  }
+});
+
+// Test DB connection using a provided payload or the runtime config
+app.post('/api/db/test', async (req, res) => {
+  try {
+    const cfg = req.body && Object.keys(req.body).length > 0 ? req.body : undefined;
+    try {
+      // If password isn't present in the payload, merge with saved db-config (if any)
+      let merged: any = undefined;
+      if (cfg) {
+        const savedRaw = await configService.getSetting('db-config');
+        let savedObj: any = null;
+        if (savedRaw) {
+          try { savedObj = JSON.parse(savedRaw); } catch { savedObj = null; }
+        }
+        merged = {
+          host: cfg.host ?? cfg.serverDB ?? savedObj?.serverDB,
+          port: cfg.port ?? cfg.port ?? savedObj?.port,
+          user: cfg.user ?? cfg.userDB ?? savedObj?.userDB,
+          password: cfg.password ?? cfg.passwordDB ?? savedObj?.passwordDB,
+          database: cfg.database ?? savedObj?.database,
+        };
+      }
+      await dbService.testConnection(merged);
+      return res.json({ ok: true });
+    } catch (e: any) {
+      console.warn('[api/db/test] validation failed', e);
+      return res.status(400).json({ ok: false, error: String(e?.message || e) });
+    }
+  } catch (e: any) {
+    console.error('[api/db/test] error', e);
+    return res.status(500).json({ ok: false, error: e?.message || 'internal' });
+  }
+});
 /**
  * @example
  * POST /api/db/setupMateriaPrima
@@ -2993,7 +3057,7 @@ app.get("/api/config/", async (req, res) => {
         port: Number(getRuntimeConfig("mysql_port") ?? process.env.MYSQL_PORT ?? 3306),
         database: String(getRuntimeConfig("mysql_db") ?? process.env.MYSQL_DB ?? "cadastro"),
         userDB: String(getRuntimeConfig("mysql_user") ?? process.env.MYSQL_USER ?? "root"),
-        passwordDB: String(getRuntimeConfig("mysql_password") ?? process.env.MYSQL_PASSWORD ?? ""),
+        passwordDB: String(getRuntimeConfig("mysql_password") ?? process.env.MYSQL_PASSWORD ?? "root"),
       },
       "general-config": "",
       "ihm-config": {
@@ -3032,7 +3096,13 @@ app.get("/api/config/defaults", async (req, res) => {
   try {
     const defaults = {
       "admin-config": "",
-      "db-config": "",
+      "db-config": {
+        serverDB: String(getRuntimeConfig("mysql_ip") ?? process.env.MYSQL_HOST ?? "localhost"),
+        port: Number(getRuntimeConfig("mysql_port") ?? process.env.MYSQL_PORT ?? 3306),
+        database: String(getRuntimeConfig("mysql_db") ?? process.env.MYSQL_DB ?? "cadastro"),
+        userDB: String(getRuntimeConfig("mysql_user") ?? process.env.MYSQL_USER ?? "root"),
+        passwordDB: String(getRuntimeConfig("mysql_password") ?? process.env.MYSQL_PASSWORD ?? "root"),
+      },
       "general-config": "",
       "ihm-config": {
         nomeCliente: "",
@@ -3074,13 +3144,66 @@ app.post("/api/config/split", async (req, res) => {
           error: "Request body must be an object with top-level config keys",
         });
     }
+    // If db-config present, validate the new DB connection before persisting
+    if (configObj['db-config']) {
+      try {
+        const parsedVal = configObj['db-config'];
+        const savedRaw = await configService.getSetting('db-config');
+        let savedObj: any = null;
+        if (savedRaw) {
+          try { savedObj = JSON.parse(savedRaw); } catch { savedObj = null; }
+        }
+        const merged = {
+          serverDB: parsedVal?.serverDB ?? parsedVal?.host ?? savedObj?.serverDB,
+          port: parsedVal?.port ?? savedObj?.port,
+          database: parsedVal?.database ?? savedObj?.database,
+          userDB: parsedVal?.userDB ?? parsedVal?.user ?? savedObj?.userDB,
+          passwordDB: parsedVal?.passwordDB ?? parsedVal?.password ?? savedObj?.passwordDB,
+        };
+        const testPayload = {
+          host: merged.serverDB,
+          port: merged.port,
+          user: merged.userDB,
+          password: merged.passwordDB,
+          database: merged.database,
+        };
+        await dbService.testConnection(testPayload);
+      } catch (e: any) {
+        console.error('[config/split] db-config validation failed', e);
+        return res.status(400).json({ error: 'db-config validation failed', details: String(e?.message || e) });
+      }
+    }
     // Persist each top-level key as a separate Setting row
+    // If db-config is present and missing password, merge with saved value to prevent clearing
+    if (configObj['db-config']) {
+      try {
+        const savedRaw = await configService.getSetting('db-config');
+        let savedObj: any = null;
+        if (savedRaw) {
+          try { savedObj = JSON.parse(savedRaw); } catch { savedObj = null; }
+        }
+        if (savedObj && typeof savedObj === 'object' && typeof configObj['db-config'] === 'object') {
+          const parsed = configObj['db-config'];
+          configObj['db-config'] = {
+            serverDB: parsed.serverDB ?? parsed.host ?? savedObj.serverDB,
+            port: parsed.port ?? savedObj.port,
+            database: parsed.database ?? savedObj.database,
+            userDB: parsed.userDB ?? parsed.user ?? savedObj.userDB,
+            passwordDB: parsed.passwordDB ?? parsed.password ?? savedObj.passwordDB,
+          };
+        }
+      } catch (e) {
+        // ignore merge failures and continue
+      }
+    }
     await configService.setSettings(configObj);
     try {
       setRuntimeConfigs(configObj);
     } catch (e) {
       /* ignore */
     }
+    try { await writeRuntimeConfigToFile(); } catch (e) { /* ignore */ }
+    try { await writeRuntimeConfigToFile(); } catch (e) { /* ignore */ }
     return res.json({ success: true, saved: Object.keys(configObj) });
   } catch (e) {
     console.error("[config/split] Failed to split/save settings", e);
@@ -3121,7 +3244,8 @@ app.get('/api/config/:key', async (req, res) => {
         port: Number(getRuntimeConfig('mysql_port') ?? process.env.MYSQL_PORT ?? 3306),
         database: String(getRuntimeConfig('mysql_db') ?? process.env.MYSQL_DB ?? 'cadastro'),
         userDB: String(getRuntimeConfig('mysql_user') ?? process.env.MYSQL_USER ?? 'root'),
-        passwordDB: String(getRuntimeConfig('mysql_password') ?? process.env.MYSQL_PASSWORD ?? ''),
+        // default to 'root' if no runtime or env override exists
+        passwordDB: String(getRuntimeConfig('mysql_password') ?? process.env.MYSQL_PASSWORD ?? 'root'),
       };
       return res.json({ key: rawKey, value: defaultDb });
     }
@@ -3153,12 +3277,65 @@ app.post('/api/config/:key', async (req, res) => {
     if (payload === undefined) return res.status(400).json({ error: 'missing body' });
 
     const value = payload.value !== undefined ? payload.value : payload;
-    const toStore = typeof value === 'string' ? value : JSON.stringify(value);
+    let finalValue: any = value;
+    if (rawKey === 'db-config') {
+      // Merge with saved setting so partial payloads (omitting password) don't clear existing password
+      const savedRaw = await configService.getSetting('db-config');
+      let savedObj: any = null;
+      if (savedRaw) {
+        try { savedObj = JSON.parse(savedRaw); } catch { savedObj = null; }
+      }
+      if (savedObj && typeof savedObj === 'object' && typeof finalValue === 'object') {
+        // Only merge specific keys
+        finalValue = {
+          serverDB: finalValue.serverDB ?? finalValue.host ?? savedObj.serverDB,
+          port: finalValue.port ?? savedObj.port,
+          database: finalValue.database ?? savedObj.database,
+          userDB: finalValue.userDB ?? finalValue.user ?? savedObj.userDB,
+          passwordDB: finalValue.passwordDB ?? finalValue.password ?? savedObj.passwordDB,
+        };
+      }
+    }
+    const toStore = typeof finalValue === 'string' ? finalValue : JSON.stringify(finalValue);
 
+    // If saving db-config, validate before storing (merge with saved values when needed)
+    if (rawKey === 'db-config') {
+      try {
+        const parsedVal = typeof value === 'string' ? JSON.parse(value) : value;
+        // Load saved db-config (if any) so we can merge missing fields such as password
+        const savedRaw = await configService.getSetting('db-config');
+        let savedObj: any = null;
+        if (savedRaw) {
+          try { savedObj = JSON.parse(savedRaw); } catch { savedObj = null; }
+        }
+        const merged = {
+          serverDB: parsedVal?.serverDB ?? parsedVal?.host ?? savedObj?.serverDB,
+          port: parsedVal?.port ?? savedObj?.port,
+          database: parsedVal?.database ?? savedObj?.database,
+          userDB: parsedVal?.userDB ?? parsedVal?.user ?? savedObj?.userDB,
+          passwordDB: parsedVal?.passwordDB ?? parsedVal?.password ?? savedObj?.passwordDB,
+        };
+        const testPayload = {
+          host: merged.serverDB,
+          port: merged.port,
+          user: merged.userDB,
+          password: merged.passwordDB,
+          database: merged.database,
+        };
+        await dbService.testConnection(testPayload);
+      } catch (e: any) {
+        console.error('[config/:key POST] db-config validation failed', e);
+        return res.status(400).json({ error: 'db-config validation failed', details: String(e?.message || e) });
+      }
+    }
     await configService.setSetting(rawKey, toStore);
 
     // update in-memory runtime configs as well
     try { setRuntimeConfigs({ [rawKey]: value }); } catch (e) { /* ignore */ }
+    // persist to runtime-config file if we updated a critical key
+    try {
+      if (['db-config', 'ihm-config', 'mysql_ip', 'mysql_port'].includes(rawKey)) await writeRuntimeConfigToFile();
+    } catch (e) { /* ignore */ }
 
     return res.json({ success: true, key: rawKey });
   } catch (e) {
@@ -3350,6 +3527,25 @@ app.get("/api/config/:key", async (req, res) => {
       knownDefaults[key] !== undefined
     ) {
       return res.json({ key, value: knownDefaults[key] });
+    }
+
+    // Do not expose DB password over GET APIs; instead return a flag 'passwordSet'
+    if (key === 'db-config') {
+      try {
+        const saved = await configService.getSetting('db-config');
+        let savedObj: any = null;
+        if (saved) {
+          try { savedObj = JSON.parse(saved); } catch { savedObj = null; }
+        }
+        const hasPassword = !!(savedObj && (savedObj.passwordDB || savedObj.password));
+        if (out && typeof out === 'object') {
+          out.passwordSet = hasPassword;
+          if (out.passwordDB !== undefined) out.passwordDB = '';
+          if (out.password !== undefined) out.password = '';
+        }
+      } catch (e) {
+        // ignore errors here
+      }
     }
 
     return res.json({ key, value: out });
@@ -5801,8 +5997,102 @@ fileProcessorService.addObserver({
   },
 });
 
+const RUNTIME_CONFIG_FILE = path.resolve(process.cwd(), 'runtime-config.json');
+
+async function loadRuntimeConfigFromFile(): Promise<void> {
+  try {
+    if (fs.existsSync(RUNTIME_CONFIG_FILE)) {
+      const buf = await fs.promises.readFile(RUNTIME_CONFIG_FILE, 'utf8');
+      const parsed = JSON.parse(buf);
+      if (parsed && typeof parsed === 'object') {
+        setRuntimeConfigs(parsed);
+        console.log('[Startup] Loaded runtime-config from file:', RUNTIME_CONFIG_FILE);
+      }
+    }
+  } catch (e) {
+    console.warn('[Startup] Failed to read runtime-config file', e);
+  }
+}
+
+async function writeRuntimeConfigToFile(): Promise<void> {
+  try {
+    // Persist only specific keys that are necessary before DB startup
+    const allCfg = getAllRuntimeConfigs();
+    const toPersist: Record<string, any> = {};
+    if (allCfg['db-config'] !== undefined) {
+      // Avoid persisting sensitive DB credentials to disk - strip passwords
+      try {
+        const sanitized = JSON.parse(JSON.stringify(allCfg['db-config']));
+        if (sanitized && typeof sanitized === 'object') {
+          if (sanitized.passwordDB !== undefined) delete sanitized.passwordDB;
+          if (sanitized.password !== undefined) delete sanitized.password; // legacy
+        }
+        toPersist['db-config'] = sanitized;
+      } catch (e) {
+        toPersist['db-config'] = allCfg['db-config'];
+      }
+    }
+    if (allCfg['ihm-config'] !== undefined) toPersist['ihm-config'] = allCfg['ihm-config'];
+    // Also persist legacy keys if present
+    if (allCfg['mysql_ip'] !== undefined) toPersist['mysql_ip'] = allCfg['mysql_ip'];
+    if (allCfg['mysql_port'] !== undefined) toPersist['mysql_port'] = allCfg['mysql_port'];
+    await fs.promises.writeFile(RUNTIME_CONFIG_FILE, JSON.stringify(toPersist, null, 2), { encoding: 'utf8' });
+    console.log('[RuntimeConfig] persisted to file:', RUNTIME_CONFIG_FILE);
+  } catch (e) {
+    console.warn('[RuntimeConfig] failed to persist to file', e);
+  }
+}
+
 // Load saved config into runtime store before starting
+// Validate db-config from runtime/file: if present test and remove when invalid
+async function validateRuntimeDbConfig() {
+  try {
+    const runtimeDb = getRuntimeConfig('db-config') || null;
+    if (!runtimeDb) return;
+    try {
+      const mapped = {
+        host: runtimeDb?.serverDB ?? runtimeDb?.host,
+        port: runtimeDb?.port,
+        user: runtimeDb?.userDB ?? runtimeDb?.user,
+        password: runtimeDb?.passwordDB ?? runtimeDb?.password,
+        database: runtimeDb?.database,
+      };
+      // If password is missing, merge from saved setting so startup validation can use it
+      if (!mapped.password) {
+        try {
+          const saved = await configService.getSetting('db-config');
+          if (saved) {
+            const savedObj = JSON.parse(saved);
+            if (savedObj?.passwordDB) mapped.password = savedObj.passwordDB;
+            if (!mapped.user && savedObj.userDB) mapped.user = savedObj.userDB;
+            if (!mapped.host && savedObj.serverDB) mapped.host = savedObj.serverDB;
+            if (!mapped.database && savedObj.database) mapped.database = savedObj.database;
+            if (!mapped.port && savedObj.port) mapped.port = savedObj.port;
+            // also set runtime config so subsequent dbService.init() picks up the password
+            try {
+              setRuntimeConfig('db-config', { ...(runtimeDb as any), passwordDB: mapped.password });
+            } catch (e) { /* ignore */ }
+          }
+        } catch (e) {}
+      }
+      await dbService.testConnection(mapped);
+      console.log('[Startup] runtime db-config validated');
+    } catch (e) {
+      // invalid connection -> remove from runtime to avoid startup failure
+      console.warn('[Startup] saved db-config failed validation; clearing to avoid startup failure', e);
+      try { setRuntimeConfig('db-config', undefined); } catch (ee) {}
+      try { await writeRuntimeConfigToFile(); } catch (ee) {}
+    }
+  } catch (e) {
+    console.warn('[Startup] validateRuntimeDbConfig error', e);
+  }
+}
+
+// main startup
 (async () => {
+  await validateRuntimeDbConfig();
+  // load config file first, so DB init can use it
+  await loadRuntimeConfigFromFile();
   try {
     await ensureDatabaseConnection();
 
@@ -5829,6 +6119,8 @@ fileProcessorService.addObserver({
 
     const all = await configService.getAllSettings();
     setRuntimeConfigs(all);
+    // Persist file after loading (tracks DB-stored values as well)
+    try { await writeRuntimeConfigToFile(); } catch (e) {}
     console.log(
       "[Server] Loaded runtime configs from DB:",
       Object.keys(all).length
