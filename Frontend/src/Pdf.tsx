@@ -526,7 +526,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           {/* Tabela de produtos (apenas) */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop:0 ,marginBottom: 3 }]}>Tabela de produtos</Text>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop:0 ,marginBottom: 3 }]}>Tabela de Produtos</Text>
             {produtoChunks.length > 0 ? (
               renderTable(produtoChunks[0], (p) => {
                 const valueNum = Number(p.qtd) || 0;
