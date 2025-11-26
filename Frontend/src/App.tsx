@@ -389,7 +389,7 @@ const App = () => {
                                   <DialogTrigger asChild>
                                     <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <HatGlasses/> ADM</SidebarMenuSubButton>
                                   </DialogTrigger>
-                                  <DialogContent>
+                                  <DialogContent className=' sm:max-w-700 w-155'>
                                     <AdminConfig />
                                   </DialogContent>
                                 </Dialog>
