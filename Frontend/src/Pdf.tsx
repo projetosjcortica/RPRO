@@ -414,7 +414,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
   const headerPadding = simplifiedLayout ? 3 : 8;
   const headerPaddingTop = simplifiedLayout ? 2 : 14;
   const cellPadding = simplifiedLayout ? 3 : 6;
-  const cellPaddingTop = simplifiedLayout ? 1 : 9;
+  const cellPaddingTop = simplifiedLayout ? 3 : 9;
 
   const renderTable = (
     rows: Produto[],
@@ -463,10 +463,10 @@ export const MyDocument: FC<MyDocumentProps> = ({
           key={i}
           style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
         >
-          <Text style={[{ width: "12%", paddingTop: cellPaddingTop, paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
-          <Text style={[{ width: "53%", paddingTop: cellPaddingTop, paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
-          <Text style={[{ width: "10%", paddingTop: cellPaddingTop, paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
-          <Text style={[{ width: "25%", paddingTop: cellPaddingTop, paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "right" }, { fontSize: currentFontSizes.table }]}> 
+          <Text style={[{ width: "12%", paddingTop: cellPaddingTop , paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
+          <Text style={[{ width: "53%", paddingTop: cellPaddingTop , paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
+          <Text style={[{ width: "10%", paddingTop: cellPaddingTop , paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
+          <Text style={[{ width: "25%", paddingTop: cellPaddingTop , paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "right" }, { fontSize: currentFontSizes.table }]}> 
             {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
           </Text>
         </View>
@@ -507,21 +507,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
             </View>
           </View>
 
-          {/* Tabela de produtos (apenas) */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop:0 ,marginBottom: 3 }]}>Tabela de produtos</Text>
-            {produtoChunks.length > 0 ? (
-              renderTable(produtoChunks[0], (p) => {
-                const valueNum = Number(p.qtd) || 0;
-                return {
-                  col1: p.nome,
-                  col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
-                };
-              })
-            ) : (
-              <Text style={{ fontSize: currentFontSizes.base }}>Nenhum produto para exibir.</Text>
-            )}
-          </View>
 
           {/* Principais Fórmulas e Tabela de Fórmulas (compacto) */}
           {(formulasOrdenadas.length > 0 || (formulaSums && Object.keys(formulaSums).length > 0) || (chartData && chartData.length > 0)) && (
@@ -539,10 +524,26 @@ export const MyDocument: FC<MyDocumentProps> = ({
             </View>
           )}
 
+          {/* Tabela de produtos (apenas) */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop:0 ,marginBottom: 3 }]}>Tabela de produtos</Text>
+            {produtoChunks.length > 0 ? (
+              renderTable(produtoChunks[0], (p) => {
+                const valueNum = Number(p.qtd) || 0;
+                return {
+                  col1: p.nome,
+                  col2: `${valueNum.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ${p.unidade || 'kg'}`,
+                };
+              })
+            ) : (
+              <Text style={{ fontSize: currentFontSizes.base }}>Nenhum produto para exibir.</Text>
+            )}
+          </View>
+
           {/* Se houver apenas 1 página de produtos, mostrar totais e comentários aqui */}
           {produtoChunks.length <= 1 && (
             <>
-               <View style={{ marginTop: 20, marginBottom: 20, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10 }}>
+               <View style={{ marginTop: 2, marginBottom: 5, borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
                     <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Total:</Text>
                     <Text style={{ fontSize: currentFontSizes.base }}>{total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg</Text>

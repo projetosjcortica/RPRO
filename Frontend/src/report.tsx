@@ -677,10 +677,10 @@ export default function Report() {
           }));
         })(),
         empresa: sideInfo.proprietario,
-        usuario: user.username,
+        usuario: user.displayName || "Usuário",
       });
     }
-  }, [resumo, produtosInfo, sideInfo.proprietario, user.username]);
+  }, [resumo, produtosInfo, sideInfo.proprietario, user.displayName]);
 
   // Funções de comentários
   const removerComentario = (index: number) => {
@@ -1388,7 +1388,7 @@ export default function Report() {
         comentarios={showPdfComments ? comentariosComId : []}
         chartData={pdfChartData}
         formulaSums={formulaSums}
-        usuario={user.username}
+        usuario={user.displayName || "Usuário"}
         showCharts={showPdfCharts}
         codigoCliente={filtros.codigo || resumo?.codigoCliente}
         codigoPrograma={filtros.numero || resumo?.codigoPrograma}
