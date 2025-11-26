@@ -62,7 +62,7 @@ export function ExportDropdown({
   onExcelExport,
   pdfDocument,
   // ...existing code...
-  showComments = true,
+  // showComments = true,
   showCharts = false,
   onToggleComments,
   onToggleCharts,
