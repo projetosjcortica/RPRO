@@ -1170,7 +1170,7 @@ interface Estatisticas {
 
   // ✅ RETURN FINAL
   return (
-    <div id="adm" className="flex flex-col gap-3 h-[70vh] 3xl:h-[55vh] overflow-auto bg-white">
+    <div id="adm" className="flex flex-col gap-3 h-fit overflow-auto bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
       </h2>
@@ -1196,81 +1196,6 @@ interface Estatisticas {
             {/* <p className="text-sm text-gray-600 mt-1">Permite editar e adicionar produtos além do 40 padrão (expande para Produto 41-65).</p> */}
           </div>
           <Switch checked={enableExtendedProducts} onCheckedChange={(v) => handleToggleExtended(!!v)} className="data-[state=checked]:bg-sky-600" />
-        </div>
-      </div>
-      <div id="CfgAdvancedDB" className="">
-        <div className="dir flex flex-col gap-5">
-          {/* <div className="flex-col">
-            <Label className="font-medium text-gray-700">Local do SQL</Label>
-            <div className="flex gap-2 mt-2">
-              <Input
-                type="text"
-                value={formData.mySqlDir}
-                readOnly
-                disabled
-                className="flex-1 p-3 border rounded-md bg-gray-100"
-              />
-              <Button
-                type="button"
-                onClick={async () => {
-                  const path = await configService.selectFile();
-                  if (path) onChange("mySqlDir", path);
-                }}
-                disabled={!isEditing}
-                className="bg-red-600 hover:bg-red-700 whitespace-nowrap"
-              >
-                Selecionar arquivo
-              </Button>
-            </div>
-          </div> */}
-
-          {/* <div className="flex-col">
-            <Label className="font-medium text-gray-700">Local do DUMP</Label>
-            <div className="flex gap-2 mt-2">
-              <Input
-                type="text"
-                value={formData.dumpDir}
-                readOnly
-                disabled
-                className="flex-1 p-3 border rounded-md bg-gray-100"
-              />
-              <Button
-                type="button"
-                onClick={async () => {
-                  const path = await configService.selectFile();
-                  if (path) onChange("dumpDir", path);
-                }}
-                disabled={!isEditing}
-                className="bg-red-600 hover:bg-red-700 whitespace-nowrap"
-              >
-                Selecionar arquivo
-              </Button>
-            </div>
-          </div> */}
-
-          {/* <div className="flex-col">
-            <Label className="font-medium text-gray-700">Local do BATCH</Label>
-            <div className="flex gap-2 mt-2">
-              <Input
-                type="text"
-                value={formData.batchDumpDir}
-                readOnly
-                disabled
-                className="flex-1 p-3 border rounded-md bg-gray-100"
-              />
-              <Button
-                type="button"
-                onClick={async () => {
-                  const path = await configService.selectFile();
-                  if (path) onChange("batchDumpDir", path);
-                }}
-                disabled={!isEditing}
-                className="bg-red-600 hover:bg-red-700 whitespace-nowrap"
-              >
-                Selecionar arquivo
-              </Button>
-            </div>
-          </div> */}
         </div>
       </div>
 
@@ -1553,53 +1478,6 @@ interface Estatisticas {
         id="containerMFC"
         className="flex flex-col md:flex-row justify-center items-center gap-4 p-4 shadow-lg border rounded-lg bg-gray-50 mt-4"
       >
-        {/* <div
-          id="CsvMethod"
-          className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3"
-        >
-          <Label className="mb-2 font-medium text-gray-700">Método CSV</Label>
-          <div className="flex gap-4">
-            <Label className="flex items-center gap-1">
-              <input
-                type="radio"
-                value="1"
-                checked={formData.metodoCSV === "1"}
-                onChange={(e) => onChange("metodoCSV", e.target.value)}
-                disabled={!isEditing}
-                className="rounded-full text-red-600 focus:ring-red-500"
-              />
-              Único
-            </Label>
-            <Label className="flex items-center gap-1">
-              <input
-                type="radio"
-                value="2"
-                checked={formData.metodoCSV === "2"}
-                onChange={(e) => onChange("metodoCSV", e.target.value)}
-                disabled={!isEditing}
-                className="rounded-full text-red-600 focus:ring-red-500"
-              />
-              Mensal
-            </Label>
-          </div>
-        </div>
-
-        <div
-          id="formule"
-          className="flex flex-col justify-center items-center border rounded p-4 bg-white w-full md:w-1/3"
-        >
-          <Label className="font-medium text-gray-700">Fórmula</Label>
-          <Label className="flex items-center gap-2 mt-2">
-            <Checkbox
-              id="formula"
-              checked={formData.habilitarCSV}
-              onCheckedChange={(checked) => onChange("habilitarCSV", !!checked)}
-              disabled={!isEditing}
-              className="h-5 w-5 text-red-600 rounded focus:ring-red-500"
-            />
-            Habilitar
-          </Label>
-        </div> */}
 
         {user?.userType === 'amendoim' && (
         <div
