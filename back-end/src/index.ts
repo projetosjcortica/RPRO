@@ -2987,7 +2987,14 @@ app.get("/api/config/", async (req, res) => {
     // Provide sensible defaults and ensure common keys are present separately
     const defaults: Record<string, any> = {
       "admin-config": "",
-      "db-config": "",
+      "db-config": {
+        // expose sensible runtime defaults so admin UI can edit DB host/port
+        serverDB: String(getRuntimeConfig("mysql_ip") ?? getRuntimeConfig("db-host") ?? process.env.MYSQL_HOST ?? "localhost"),
+        port: Number(getRuntimeConfig("mysql_port") ?? process.env.MYSQL_PORT ?? 3306),
+        database: String(getRuntimeConfig("mysql_db") ?? process.env.MYSQL_DB ?? "cadastro"),
+        userDB: String(getRuntimeConfig("mysql_user") ?? process.env.MYSQL_USER ?? "root"),
+        passwordDB: String(getRuntimeConfig("mysql_password") ?? process.env.MYSQL_PASSWORD ?? ""),
+      },
       "general-config": "",
       "ihm-config": {
         nomeCliente: "",
@@ -3078,6 +3085,85 @@ app.post("/api/config/split", async (req, res) => {
   } catch (e) {
     console.error("[config/split] Failed to split/save settings", e);
     return res.status(500).json({ error: "internal" });
+  }
+});
+
+// Get a single config key
+app.get('/api/config/:key', async (req, res) => {
+  try {
+    const rawKey = String(req.params.key || '').trim();
+    if (!rawKey) return res.status(400).json({ error: 'missing key' });
+
+    // Special-case: return structured defaults for known config keys
+    if (rawKey === 'ihm-config' && req.query.inputs === 'true') {
+      const defaultIhm = {
+        nomeCliente: '',
+        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
+        user: '',
+        password: '',
+        localCSV: '',
+        metodoCSV: '',
+        habilitarCSV: false,
+        serverDB: '',
+        database: '',
+        userDB: '',
+        passwordDB: '',
+        mySqlDir: '',
+        dumpDir: '',
+        batchDumpDir: '',
+      };
+      return res.json({ key: rawKey, value: defaultIhm });
+    }
+
+    if (rawKey === 'db-config' && req.query.inputs === 'true') {
+      const defaultDb = {
+        serverDB: String(getRuntimeConfig('mysql_ip') ?? process.env.MYSQL_HOST ?? 'localhost'),
+        port: Number(getRuntimeConfig('mysql_port') ?? process.env.MYSQL_PORT ?? 3306),
+        database: String(getRuntimeConfig('mysql_db') ?? process.env.MYSQL_DB ?? 'cadastro'),
+        userDB: String(getRuntimeConfig('mysql_user') ?? process.env.MYSQL_USER ?? 'root'),
+        passwordDB: String(getRuntimeConfig('mysql_password') ?? process.env.MYSQL_PASSWORD ?? ''),
+      };
+      return res.json({ key: rawKey, value: defaultDb });
+    }
+
+    // Otherwise try to load from persisted settings
+    const stored = await configService.getSetting(rawKey);
+    if (stored === null || stored === undefined) return res.status(404).json({ error: 'not found' });
+
+    // Attempt parse
+    let out: any = stored;
+    if (typeof stored === 'string') {
+      try { out = JSON.parse(stored); } catch (e) { out = stored; }
+    }
+
+    return res.json({ key: rawKey, value: out });
+  } catch (e) {
+    console.error('[config/:key] error', e);
+    return res.status(500).json({ error: 'internal' });
+  }
+});
+
+// Persist a single config key (body: { value: ... })
+app.post('/api/config/:key', async (req, res) => {
+  try {
+    const rawKey = String(req.params.key || '').trim();
+    if (!rawKey) return res.status(400).json({ error: 'missing key' });
+
+    const payload = req.body;
+    if (payload === undefined) return res.status(400).json({ error: 'missing body' });
+
+    const value = payload.value !== undefined ? payload.value : payload;
+    const toStore = typeof value === 'string' ? value : JSON.stringify(value);
+
+    await configService.setSetting(rawKey, toStore);
+
+    // update in-memory runtime configs as well
+    try { setRuntimeConfigs({ [rawKey]: value }); } catch (e) { /* ignore */ }
+
+    return res.json({ success: true, key: rawKey });
+  } catch (e) {
+    console.error('[config/:key POST] error', e);
+    return res.status(500).json({ error: 'internal' });
   }
 });
 

@@ -880,6 +880,52 @@ interface Estatisticas {
 
   const { isEditing, isLoading, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
+  // DB config for admin to edit MySQL host/port used by the backend
+  const [dbConfig, setDbConfig] = useState<{ serverDB: string; port: number; userDB?: string; passwordDB?: string; database?: string }>({ serverDB: '', port: 3306, userDB: '', passwordDB: '', database: '' });
+  const [dbLoading, setDbLoading] = useState<boolean>(true);
+  const [dbSaving, setDbSaving] = useState<boolean>(false);
+
+  useEffect(() => {
+    const loadDb = async () => {
+      try {
+        setDbLoading(true);
+        const res = await fetch(`/api/config/db-config?inputs=true`);
+        if (!res.ok) {
+          setDbConfig({ serverDB: '', port: 3306, userDB: '', passwordDB: '', database: '' });
+          return;
+        }
+        const j = await res.json();
+        const v = j?.value || {};
+        setDbConfig({
+          serverDB: String(v.serverDB ?? v.host ?? ''),
+          port: Number(v.port ?? 3306),
+          userDB: String(v.userDB ?? v.user ?? ''),
+          passwordDB: String(v.passwordDB ?? v.password ?? ''),
+          database: String(v.database ?? ''),
+        });
+      } catch (e) {
+        console.warn('Failed to load db-config', e);
+      } finally {
+        setDbLoading(false);
+      }
+    };
+    loadDb();
+  }, []);
+
+  const saveDbConfig = async () => {
+    try {
+      setDbSaving(true);
+      const body = { value: dbConfig };
+      const res = await fetch(`/api/config/db-config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (!res.ok) throw new Error('failed');
+      toast.success('Configuração do banco salva para todos os usuários');
+    } catch (e) {
+      console.error('save db-config failed', e);
+      toast.error('Falha ao salvar configuração do banco');
+    } finally {
+      setDbSaving(false);
+    }
+  };
   // Extended products flag (admin control)
   const [enableExtendedProducts, setEnableExtendedProducts] = useState<boolean>(false);
 
@@ -1235,6 +1281,40 @@ interface Estatisticas {
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
       </h2> 
+      <div className="p-4 mb-3 border rounded-md bg-white shadow-sm">
+        <Label className="font-medium text-gray-700 mb-2">Conexão MySQL (DB)</Label>
+        {dbLoading ? (
+          <div className="text-sm text-gray-500">Carregando...</div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2 items-center">
+              <Label className="w-40">Host / IP</Label>
+              <Input value={dbConfig.serverDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, serverDB: e.target.value })} />
+            </div>
+            <div className="flex gap-2 items-center">
+              <Label className="w-40">Porta</Label>
+              <Input type="number" value={dbConfig.port ?? 3306} onChange={(e) => setDbConfig({ ...dbConfig, port: Number(e.target.value || 0) })} />
+            </div>
+            <div className="flex gap-2 items-center">
+              <Label className="w-40">Database</Label>
+              <Input value={dbConfig.database || ''} onChange={(e) => setDbConfig({ ...dbConfig, database: e.target.value })} />
+            </div>
+            <div className="flex gap-2 items-center">
+              <Label className="w-40">Usuário DB</Label>
+              <Input value={dbConfig.userDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, userDB: e.target.value })} />
+            </div>
+            <div className="flex gap-2 items-center">
+              <Label className="w-40">Senha DB</Label>
+              <Input type="password" value={dbConfig.passwordDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, passwordDB: e.target.value })} />
+            </div>
+            <div className="flex gap-2 justify-end mt-2">
+              <Button onClick={saveDbConfig} className="bg-blue-600 hover:bg-blue-700" disabled={dbSaving}>
+                {dbSaving ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</span> : 'Salvar DB'}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
 {/* 
       <div id="CfgAdvancedDB" className="">
         <div className="dir flex flex-col gap-5">
