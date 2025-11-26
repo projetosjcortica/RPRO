@@ -4,7 +4,7 @@ import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
 import { Avatar, AvatarFallback } from "./components/ui/avatar";
-import { FileUp, Loader2, Plus } from 'lucide-react';
+import { FileUp, Loader2, Plus, UserRoundCog } from 'lucide-react';
 import useAuth from "./hooks/useAuth";
 import Profile from "./Profile";
 import { getProcessador } from "./Processador";
@@ -926,6 +926,67 @@ interface Estatisticas {
   // Dialog state for admin user management modal
   const [adminModalOpen, setAdminModalOpen] = useState<boolean>(false);
 
+  // Search / create user states (migrated from previous adminConfig)
+  const [searchQ, setSearchQ] = useState<string>('');
+  const [createUserData, setCreateUserData] = useState<any>({ username: '', password: '', displayName: '', userType: 'racao', isAdmin: false, photoFile: null as File | null });
+
+  const filteredAdminUsers = adminUsers.filter(u => {
+    if (!searchQ) return true;
+    const q = String(searchQ).toLowerCase();
+    return String(u.username || '').toLowerCase().includes(q) || String(u.displayName || '').toLowerCase().includes(q);
+  });
+
+  const handleCreateUser = async () => {
+    try {
+      const backendPort = (window as any).backendPort || 3000;
+      const base = `http://localhost:${backendPort}`;
+      const body = { username: createUserData.username, password: createUserData.password, displayName: createUserData.displayName, userType: createUserData.userType };
+      const resp = await fetch(`${base}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await resp.json().catch(() => ({}));
+      if (!resp.ok) { toast.error('Falha ao criar usuário: ' + (j?.error || resp.statusText)); return; }
+
+      // If there is a photo file, upload it
+      if (createUserData.photoFile) {
+        try {
+          const fd = new FormData();
+          fd.append('photo', createUserData.photoFile);
+          fd.append('username', createUserData.username);
+          const up = await fetch(`${base}/api/auth/photo`, { method: 'POST', body: fd });
+          if (!up.ok) {
+            const txt = await up.text().catch(() => '');
+            toast.warn('Usuário criado, mas falha ao enviar foto: ' + txt);
+          }
+        } catch (e) {
+          console.warn('photo upload failed', e);
+        }
+      }
+
+      toast.success('Usuário criado');
+      setCreateUserData({ username: '', password: '', displayName: '', userType: 'racao', isAdmin: false, photoFile: null });
+      await fetchAdminUsers();
+    } catch (e) {
+      console.error('create user failed', e);
+      toast.error('Erro ao criar usuário');
+    }
+  };
+
+  const handleSetPassword = async (username: string, newPassword: string) => {
+    try {
+      const backendPort = (window as any).backendPort || 3000;
+      const base = `http://localhost:${backendPort}`;
+      const resp = await fetch(`${base}/api/admin/set-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, newPassword }) });
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}));
+        toast.error('Falha ao alterar senha: ' + (j?.error || resp.statusText));
+        return;
+      }
+      toast.success('Senha alterada');
+    } catch (e) {
+      console.error('set password', e);
+      toast.error('Erro ao alterar senha');
+    }
+  };
+
   const [page,] = useState(1);
   const [, setTotal] = useState(0);
   const pageSize = 50;
@@ -1173,31 +1234,13 @@ interface Estatisticas {
     <div id="adm" className="flex flex-col gap-3 h-fit overflow-auto bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
-      </h2>
+      </h2> 
+{/* 
+      <div id="CfgAdvancedDB" className="">
+        <div className="dir flex flex-col gap-5">
 
-      {/* Funcionalidades Experimentais - TOPO */}
-      {/* <div className="mb-6 p-4 border-2 border-yellow-400 rounded-lg bg-yellow-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <Label className="font-medium text-gray-900 text-base">🧪 Funcionalidades Experimentais</Label>
-            <p className="text-sm text-gray-600 mt-1">Habilita recursos em teste (ignorar produtos, botões de reset)</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch checked={!!(localStorage.getItem('experimental-features') === 'true')} onCheckedChange={(v) => { try { localStorage.setItem('experimental-features', String(!!v)); window.dispatchEvent(new CustomEvent('experimental-features-changed', { detail: { enabled: !!v } })); toast.info(!!v ? '🧪 Funcionalidades experimentais ATIVADAS' : '🔒 Funcionalidades experimentais DESATIVADAS'); } catch (e) {} }} />
-          </div>
         </div>
       </div> */}
-
-      {/* Habilitar edição estendida de produtos (até 65) */}
-      <div className=" p-4 border-2 border-sky-400 rounded-lg bg-sky-50">
-        <div className="flex items-center justify-between">
-          <div>
-            <Label className="font-medium text-gray-900 text-base">🧾 Habilitar edição de Produtos (até 65)</Label>
-            {/* <p className="text-sm text-gray-600 mt-1">Permite editar e adicionar produtos além do 40 padrão (expande para Produto 41-65).</p> */}
-          </div>
-          <Switch checked={enableExtendedProducts} onCheckedChange={(v) => handleToggleExtended(!!v)} className="data-[state=checked]:bg-sky-600" />
-        </div>
-      </div>
 
       <div id="CmdAdvancedDB" className=" flex flex-col gap-5">
         {/* Importar Dump */}
@@ -1477,17 +1520,13 @@ interface Estatisticas {
       <div
         id="containerMFC"
         className="flex flex-col md:flex-row justify-center items-center gap-4 p-4 shadow-lg border rounded-lg bg-gray-50 mt-4"
-      >
+      > 
 
         {user?.userType === 'amendoim' && (
-        <div
-          id="CsvImportAmendoim"
-          className="flex flex-col justify-center items-center border rounded p-4 bg-white md:w-1/3"
-        >
-          <Label className="font-medium text-gray-700">Importar CSV</Label>
+         
           <Button
             disabled={!isEditing}
-            className="w-full mt-2 bg-red-600 hover:bg-red-700"
+            className="mt-2 bg-red-600 hover:bg-red-700 mb-3"
             onClick={async () => {
               if (!isEditing) return;
 
@@ -1526,20 +1565,16 @@ interface Estatisticas {
               input.click();
             }}
           >
-            Importar
+            <FileUp />
+            Importar CSV
           </Button>
-        </div>
         )}
         
         {user?.userType === 'racao' && (
-        <div
-          id="CsvImport"
-          className="flex flex-col justify-center items-center border rounded p-4 bg-white md:w-1/3"
-        >
-          <Label className="font-medium text-gray-700">Importar </Label>
+         <>
           <Button
             disabled={!isEditing}
-            className="w-full mt-2 bg-red-600 hover:bg-red-700"
+            className="mt-2 bg-red-600 hover:bg-red-700 mb-3"
             onClick={async () => {
               if (!isEditing) return;
 
@@ -1614,26 +1649,28 @@ interface Estatisticas {
             }}
           >
             <FileUp />
-            Importar
+            Importar CSV
+          </Button> 
+          <div className="h-9 px-4 py-2 bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive">
+            Expansão de Produtos
+            <Switch checked={enableExtendedProducts} onCheckedChange={(v) => handleToggleExtended(!!v)} className="data-[state=checked]:bg-red-600" />
+          </div>
+        </>
+          
+        )}
+
+        {user?.isAdmin && (
+        <div className="mt-2 mb-3">
+          <Button disabled={!isEditing} onClick={() => { setAdminModalOpen(true); fetchAdminUsers(); }} className="bg-red-600 hover:bg-red-700">
+            <UserRoundCog />
+            Gerenciar usuários
           </Button>
         </div>
-        )}
-      </div>
+      )}
+      </div> 
 
-      {/* Button to open modal with user management */}
-      {/* <div className="mt-6 p-4 border shadow-lg rounded rounded-lg bg-white flex items-center justify-between">
-        <div>
-          <Label className="font-medium text-gray-900 text-base">Perfis registrados</Label>
-          <p className="text-sm text-gray-600">Gerencie usuários, fotos e privilégios</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button onClick={() => { setAdminModalOpen(true); fetchAdminUsers(); }} className="bg-red-500">Gerenciar usuários</Button>
-        </div>
-      </div> */}
-
-      {/* Admin users modal */}
       <Dialog open={adminModalOpen} onOpenChange={(v) => { setAdminModalOpen(!!v); }}>
-        <DialogContent className="max-w-[900px]">
+        <DialogContent className="max-w-[900px] w-full max-h-[70vh] overflow-auto p-4">
           <DialogHeader>
             <div className="flex items-center justify-between mb-2 w-full">
               <DialogTitle>Perfis registrados</DialogTitle>
@@ -1645,37 +1682,69 @@ interface Estatisticas {
             <div>Carregando...</div>
           ) : (
             <div className="flex flex-col gap-3 mt-3">
-              {adminUsers.map((u) => (
-                <div key={u.id} className="flex flex-col md:flex-row items-start md:items-center gap-3 border rounded p-3">
-                  <div>
-                    <Avatar className="h-10 w-10">
-                      <AvatarFallback>{(u.displayName || u.username || 'U').charAt(0)}</AvatarFallback>
-                    </Avatar>
+              {/* Search + Create User (responsive) */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <Input placeholder="Pesquisar usuários..." value={searchQ} onChange={(e) => setSearchQ((e.target as HTMLInputElement).value)} className="w-full sm:w-64 min-w-0" />
+                <div className="ml-auto" />
+              </div>
+
+              <div className="mb-4 p-3 border rounded bg-gray-50">
+                <div className="flex flex-wrap gap-2 items-end">
+                  <Input placeholder="username" value={createUserData.username} onChange={(e) => setCreateUserData((d: any) => ({ ...d, username: (e.target as HTMLInputElement).value }))} className="flex-1 min-w-[140px]" />
+                  <Input type="password" placeholder="senha" value={createUserData.password} onChange={(e) => setCreateUserData((d: any) => ({ ...d, password: (e.target as HTMLInputElement).value }))} className="flex-1 min-w-[140px]" />
+                  <Input placeholder="Nome exibido" value={createUserData.displayName} onChange={(e) => setCreateUserData((d: any) => ({ ...d, displayName: (e.target as HTMLInputElement).value }))} className="flex-1 min-w-[160px]" />
+                  <select value={createUserData.userType} onChange={(e) => setCreateUserData((d: any) => ({ ...d, userType: (e.target as HTMLSelectElement).value }))} className="border px-2 py-1 rounded min-w-[120px]">
+                    <option value="racao">Ração</option>
+                    <option value="amendoim">Amendoim</option>
+                  </select>
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={createUserData.isAdmin} onChange={(e) => setCreateUserData((d: any) => ({ ...d, isAdmin: (e.target as HTMLInputElement).checked }))} /> Admin
+                  </label>
+                  <input type="file" accept="image/*" onChange={(e) => setCreateUserData((d: any) => ({ ...d, photoFile: (e.target as HTMLInputElement).files ? (e.target as HTMLInputElement).files![0] : null }))} className="min-w-[140px]" />
+                  <div className="ml-auto">
+                    <Button onClick={handleCreateUser}>Criar</Button>
                   </div>
-                  <div className="flex-1 w-full min-w-0">
-                    <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
-                      <div className="w-36 flex-shrink-0">
-                        <Label>Usuário</Label>
-                        <div className="text-sm truncate" title={u.username}>{u.username}</div>
+                </div>
+              </div>
+
+              {filteredAdminUsers && filteredAdminUsers.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {filteredAdminUsers.map(u => (
+                    <div key={u.id} className="flex flex-col md:flex-row items-start md:items-center gap-3 border rounded p-3">
+                      <div className="flex-shrink-0">
+                        <Avatar className="h-10 w-10">
+                          <AvatarFallback>{(u.displayName || u.username || 'U').charAt(0)}</AvatarFallback>
+                        </Avatar>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <Label>Nome exibido</Label>
-                        <Input className="w-full min-w-0" value={adminEditing[u.id]?.displayName ?? u.displayName ?? ''} onChange={(e) => setAdminEditing(s => ({ ...s, [u.id]: { ...(s[u.id]||{}), displayName: e.target.value } }))} />
-                      </div>
-                      <div className="w-28 flex-shrink-0">
-                        <Label>Admin</Label>
-                        <div>
-                          <input type="checkbox" checked={adminEditing[u.id]?.isAdmin ?? !!u.isAdmin} onChange={(e) => setAdminEditing(s => ({ ...s, [u.id]: { ...(s[u.id]||{}), isAdmin: e.target.checked } }))} />
+                      <div className="flex-1 w-full min-w-0">
+                        <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+                          <div className="w-full md:w-36 flex-shrink-0">
+                            <Label>Usuário</Label>
+                            <div className="text-sm truncate" title={u.username}>{u.username}</div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <Label>Nome exibido</Label>
+                            <Input className="w-full min-w-0" value={adminEditing[u.id]?.displayName ?? u.displayName ?? ''} onChange={(e) => setAdminEditing(s => ({ ...s, [u.id]: { ...(s[u.id]||{}), displayName: e.target.value } }))} />
+                          </div>
+                          <div className="w-full md:w-28 flex-shrink-0">
+                            <Label>Admin</Label>
+                            <div>
+                              <input type="checkbox" checked={adminEditing[u.id]?.isAdmin ?? !!u.isAdmin} onChange={(e) => setAdminEditing(s => ({ ...s, [u.id]: { ...(s[u.id]||{}), isAdmin: e.target.checked } }))} />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2 mt-3">
+                          <Button onClick={() => saveAdminUser(u)}>Salvar</Button>
+                          <Button variant="destructive" onClick={() => deleteAdminUser(u)}>Remover</Button>
+                          <Button onClick={async () => { const np = prompt('Nova senha para ' + u.username + ' (deixe em branco para cancelar)'); if (np) await handleSetPassword(u.username, np); }}>Reset Senha</Button>
                         </div>
                       </div>
                     </div>
-                    <div className="flex gap-2 mt-3">
-                      <Button onClick={() => saveAdminUser(u)}>Salvar</Button>
-                      <Button variant="destructive" onClick={() => deleteAdminUser(u)}>Remover</Button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <div className="text-xs text-gray-500 mt-1">Nenhum usuário carregado.</div>
+              )}
             </div>
           )}
 
