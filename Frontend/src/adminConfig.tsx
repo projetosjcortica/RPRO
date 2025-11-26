@@ -37,6 +37,8 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
   const [discoverResults, setDiscoverResults] = useState<any | null>(null);
   const [usersList, setUsersList] = useState<any[] | null>(null);
   const [editing, setEditing] = useState<Record<number, { displayName?: string; isAdmin?: boolean }>>({});
+  const [searchQ, setSearchQ] = useState<string>('');
+  const [createUserData, setCreateUserData] = useState<any>({ username: '', password: '', displayName: '', userType: 'racao', isAdmin: false, photoFile: null });
   const [discoverPaths, setDiscoverPaths] = useState<string>('/,/visu,/visu/index.html');
 
   // Local alias to the Electron preload API. Typed as any so callers don't error when optional.
@@ -189,6 +191,59 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
     } catch (e) {
       console.error('Failed to load users', e);
       setUsersList(null);
+    }
+  };
+
+  const filteredUsers = (usersList || []).filter(u => {
+    if (!searchQ) return true;
+    const q = String(searchQ).toLowerCase();
+    return String(u.username || '').toLowerCase().includes(q) || String(u.displayName || '').toLowerCase().includes(q);
+  });
+
+  const handleCreateUser = async () => {
+    try {
+      const body = { username: createUserData.username, password: createUserData.password, displayName: createUserData.displayName, userType: createUserData.userType };
+      const resp = await fetch('/api/auth/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await resp.json();
+      if (!resp.ok) { toast.error('Falha ao criar usuário: ' + (j?.error || resp.statusText)); return; }
+
+      // If there is a photo file, upload it
+      if (createUserData.photoFile) {
+        try {
+          const fd = new FormData();
+          fd.append('photo', createUserData.photoFile);
+          fd.append('username', createUserData.username);
+          const up = await fetch('/api/auth/photo', { method: 'POST', body: fd });
+          if (!up.ok) {
+            const txt = await up.text().catch(() => '');
+            toast.warn('Usuário criado, mas falha ao enviar foto: ' + txt);
+          }
+        } catch (e) {
+          console.warn('photo upload failed', e);
+        }
+      }
+
+      toast.success('Usuário criado');
+      setCreateUserData({ username: '', password: '', displayName: '', userType: 'racao', isAdmin: false, photoFile: null });
+      await fetchUsers();
+    } catch (e) {
+      console.error('create user failed', e);
+      toast.error('Erro ao criar usuário');
+    }
+  };
+
+  const handleSetPassword = async (u: any, newPassword: string) => {
+    try {
+      const resp = await fetch('/api/admin/set-password', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: u.username, newPassword }) });
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}));
+        toast.error('Falha ao alterar senha: ' + (j?.error || resp.statusText));
+        return;
+      }
+      toast.success('Senha alterada');
+    } catch (e) {
+      console.error('set password', e);
+      toast.error('Erro ao alterar senha');
     }
   };
 
@@ -426,10 +481,33 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
         <div className="mt-6 border-t pt-4">
           <Label className="font-medium">Usuários do Sistema</Label>
           <div className="mt-2">
-            <Button onClick={fetchUsers} size="sm" className="mb-2">Carregar usuários</Button>
-            {usersList && usersList.length > 0 ? (
+            <div className="flex items-center gap-2 mb-2">
+              <Input placeholder="Pesquisar usuários..." value={searchQ} onChange={(e) => setSearchQ((e.target as HTMLInputElement).value)} className="w-64" />
+              <Button onClick={fetchUsers} size="sm" className="mb-2">Carregar usuários</Button>
+              <div className="ml-auto" />
+            </div>
+
+            {/* Create user */}
+            <div className="mb-4 p-3 border rounded bg-gray-50">
+              <div className="flex gap-2 items-end">
+                <Input placeholder="username" value={createUserData.username} onChange={(e) => setCreateUserData(d => ({ ...d, username: (e.target as HTMLInputElement).value }))} />
+                <Input type="password" placeholder="senha" value={createUserData.password} onChange={(e) => setCreateUserData(d => ({ ...d, password: (e.target as HTMLInputElement).value }))} />
+                <Input placeholder="Nome exibido" value={createUserData.displayName} onChange={(e) => setCreateUserData(d => ({ ...d, displayName: (e.target as HTMLInputElement).value }))} />
+                <select value={createUserData.userType} onChange={(e) => setCreateUserData(d => ({ ...d, userType: (e.target as HTMLSelectElement).value }))} className="border px-2 py-1 rounded">
+                  <option value="racao">Ração</option>
+                  <option value="amendoim">Amendoim</option>
+                </select>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={createUserData.isAdmin} onChange={(e) => setCreateUserData(d => ({ ...d, isAdmin: (e.target as HTMLInputElement).checked }))} /> Admin
+                </label>
+                <input type="file" accept="image/*" onChange={(e) => setCreateUserData(d => ({ ...d, photoFile: (e.target as HTMLInputElement).files ? (e.target as HTMLInputElement).files![0] : null }))} />
+                <Button onClick={handleCreateUser}>Criar</Button>
+              </div>
+            </div>
+
+            {filteredUsers && filteredUsers.length > 0 ? (
               <ul className="text-sm">
-                {usersList.map(u => (
+                {filteredUsers.map(u => (
                   <li key={u.username} className="flex items-center justify-between py-1">
                     <div className="flex items-center gap-3">
                       <img src={u.photoPath ? resolvePhotoUrl(u.photoPath) : ''} alt="avatar" className="h-7 w-7 rounded-full border" />
@@ -445,6 +523,10 @@ export function AdminConfig({ configKey = "admin-config" }: { configKey?: string
                       </label>
                       <Button size="sm" onClick={() => saveUser(u)}>Salvar</Button>
                       <Button size="sm" variant="destructive" onClick={() => handleDeleteUser(u.username, u.id)}>Excluir</Button>
+                      <Button size="sm" onClick={async () => {
+                        const np = prompt('Nova senha para ' + u.username + ' (deixe em branco para cancelar)');
+                        if (np) await handleSetPassword(u, np);
+                      }}>Reset Senha</Button>
                     </div>
                   </li>
                 ))}

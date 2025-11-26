@@ -2371,6 +2371,25 @@ app.post('/api/admin/toggle-admin', async (req, res) => {
   }
 });
 
+// Admin: set user password (plain-text) - used by Admin UI to reset passwords
+app.post('/api/admin/set-password', async (req, res) => {
+  try {
+    const { username, id, newPassword } = req.body || {};
+    if ((!username && !id) || !newPassword) return res.status(400).json({ ok: false, error: 'username/id and newPassword required' });
+    await ensureDatabaseConnection();
+    const repo = AppDataSource.getRepository(User);
+    const target = id ? await repo.findOne({ where: { id: Number(id) } }) : await repo.findOne({ where: { username: String(username) } });
+    if (!target) return res.status(404).json({ ok: false, error: 'user not found' });
+    // Note: passwords are stored in plain-text per project conventions
+    (target as any).password = String(newPassword);
+    await repo.save(target);
+    return res.json({ ok: true });
+  } catch (e: any) {
+    console.error('[admin/set-password] error', e);
+    return res.status(500).json({ ok: false, error: e?.message || 'internal' });
+  }
+});
+
 // Admin utility: trigger TypeORM schema synchronization (creates missing tables/columns)
 app.post('/api/admin/sync-schema', async (req, res) => {
   try {
