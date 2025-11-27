@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
-import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw } from '../entities/index';
+import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, User, Amendoim, AmendoimRaw } from '../entities/index';
 import { getRuntimeConfig } from '../core/runtimeConfig';
 
 export class DBService extends BaseService {
@@ -68,7 +68,7 @@ export class DBService extends BaseService {
     const finalPass = runtimeDb.passwordDB ?? process.env.MYSQL_PASSWORD ?? 'root';
     const finalDb = runtimeDb.database ?? process.env.MYSQL_DB ?? 'cadastro';
 
-    const allEntities: any[] = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw];
+    const allEntities: any[] = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, User, Amendoim, AmendoimRaw];
     try {
       const schemaCfg = getRuntimeConfig('db-schemas');
       let selectedEntities = allEntities;
@@ -438,7 +438,7 @@ export class DBService extends BaseService {
    */
   async clearAll() {
     await this.init();
-    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, Setting, User, Amendoim, AmendoimRaw];
+    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, User, Amendoim, AmendoimRaw];
     // Use a transaction to ensure atomicity when supported
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -492,7 +492,6 @@ export class DBService extends BaseService {
       Row,
       Estoque,
       MovimentacaoEstoque,
-      Setting,
       User,
       Amendoim,
       AmendoimRaw,
@@ -536,7 +535,6 @@ export class DBService extends BaseService {
       Row,
       Estoque,
       MovimentacaoEstoque,
-      Setting,
       User,
       Amendoim,
     };
@@ -737,7 +735,7 @@ export class DBService extends BaseService {
 
     console.log(`[DBService] Exporting SQL dump to: ${outputPath}`);
 
-    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, Setting, User, Amendoim];
+    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, User, Amendoim];
     const exportedTables: string[] = [];
     let sqlContent = '';
 

@@ -64,7 +64,7 @@ export default function HomeRelatorio() {
 
   return (
     <div className="min-h-screen overflow-auto">
-      <div className="h-full">
+      <div className="h-fit">
         <FixedDashboard rows={rows} filters={filtros} />
       </div>
     </div>

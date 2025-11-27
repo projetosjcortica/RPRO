@@ -809,7 +809,7 @@ export default function Home() {
                           prevWeekStart.setDate(prevWeekStart.getDate() - 7);
                           handleWeeklyDateChange(prevWeekStart);
                         }}
-                        className="h-8 px-1.5"
+                        className="h-8 px-1.5 hidden xl:flex"
                       >
                          <ChevronLeft/>
                       </Button>
@@ -861,9 +861,9 @@ export default function Home() {
                           nextWeekStart.setDate(nextWeekStart.getDate() + 7);
                           handleWeeklyDateChange(nextWeekStart);
                         }}
-                        className="h-8 px-1.5"
+                        className="h-8 px-1.5 hidden xl:flex"
                       >
-                           <ChevronRight/>
+                           <ChevronRight />
                       </Button>
                     </div>
                   </div>
