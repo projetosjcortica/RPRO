@@ -1,7 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 
 @Entity({ name: 'relatorio' })
-// @Index(['Dia', 'Hora', 'Nome', 'processedFile'], { unique: true })
+@Index(['Dia', 'Hora'])
+@Index(['Nome'])
+@Index(['Form1']) // Codigo
+@Index(['Form2']) // Numero
 export class Relatorio {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'varchar', length: 10, nullable: true }) Dia!: string | null;

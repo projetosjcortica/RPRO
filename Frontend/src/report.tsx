@@ -9,6 +9,7 @@ import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
+import { useDebounce } from "./hooks/useDebounce";
 import { cn } from "./lib/utils";
 import { ExportDropdown } from "./components/ExportDropdown";
 
@@ -202,18 +203,6 @@ export default function Report() {
     filtros.codigo,
     filtros.numero,
   ]);
-  const [page, setPage] = useState<number>(1);
-  const [pageSize] = useState<number>(100);
-  const [sortBy, setSortBy] = useState<string>('Dia');
-  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
-
-  // Collector state
-  const [collectorRunning, setCollectorRunning] = useState<boolean>(false);
-  const [collectorLoading, setCollectorLoading] = useState<boolean>(false);
-  const [collectorError, setCollectorError] = useState<string | null>(null);
-  // ensure the variable is considered 'read' to avoid TS unused-variable errors
-  void collectorError;
-
   // Comentários state
   const [comentarios, setComentarios] = useState<ComentarioRelatorio[]>([]);
 
@@ -884,27 +873,47 @@ export default function Report() {
     }
   }, [collectorRunning, user, filtros]);
 
-  // Poll while collector not running to update status; if global provider active, UI shows spinner
+  // OTIMIZAÇÃO: Polling consolidado - um único intervalo ao invés de múltiplos
   useEffect(() => {
     let intervalId: number | null = null;
-    if (!collectorRunning) {
-      intervalId = window.setInterval(() => {
-        void fetchCollectorStatus();
-      }, 2500) as unknown as number;
-    }
+    
+    // Função consolidada que executa todas as atualizações
+    const updateAll = () => {
+      void fetchCollectorStatus();
+      
+      // Se coletor rodando, também atualizar dados
+      if (collectorRunning) {
+        try { 
+          if (typeof refetchSilent === 'function') { 
+            refetchSilent(); 
+          } else { 
+            refetch(); 
+          } 
+        } catch (e) { }
+      }
+    };
+    
+    // Executar imediatamente
+    updateAll();
+    
+    // OTIMIZAÇÃO: Intervalo único de 5s (ao invés de 2.5s + 5s separados)
+    intervalId = window.setInterval(updateAll, 5000) as unknown as number;
+    
     return () => {
       if (intervalId) window.clearInterval(intervalId);
     };
-  }, [collectorRunning, fetchCollectorStatus]);
+  }, [collectorRunning, fetchCollectorStatus, refetchSilent, refetch]);
 
+  // OTIMIZAÇÃO: Auto-refresh durante coleta (consolidado no useEffect acima)
   useEffect(() => {
     if (collectorRunning) {
       if (autoRefreshTimer.current) {
         window.clearInterval(autoRefreshTimer.current);
       }
-      // Use silent refetches while collector is running to avoid UI flicker
+      
+      // Fetch inicial
       try { if (typeof refetchSilent === 'function') { refetchSilent(); } else { refetch(); } } catch (e) { }
-      // silent resumo fetch (only update if changed)
+      
       const fetchResumoSilent = async () => {
         try {
           const processador = getProcessador();
@@ -923,24 +932,23 @@ export default function Report() {
             advancedFilters
           );
 
-          // Only update resumo if changed to avoid re-renders
-          try {
-            const oldJson = JSON.stringify(resumo || {});
-            const newJson = JSON.stringify(result || {});
-            if (oldJson !== newJson) {
-              setResumo(result || null);
-            }
-          } catch (e) {
+          // OTIMIZAÇÃO: Comparação rápida sem JSON.stringify
+          const hasChanged = 
+            !resumo ||
+            result?.total !== resumo?.total ||
+            Object.keys(result?.formulasUtilizadas || {}).length !== Object.keys(resumo?.formulasUtilizadas || {}).length;
+          
+          if (hasChanged) {
             setResumo(result || null);
           }
         } catch (e) {
-          // silent failure: don't set loading/error to avoid flicker
           console.error('fetchResumoSilent error', e);
         }
       };
 
       fetchResumoSilent();
 
+      // OTIMIZAÇÃO: Intervalo de 5s (consolidado com status check)
       autoRefreshTimer.current = window.setInterval(() => {
         try { if (typeof refetchSilent === 'function') { refetchSilent(); } else { refetch(); } } catch (e) { }
         void fetchResumoSilent();
