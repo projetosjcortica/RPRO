@@ -5716,6 +5716,30 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
       console.log('[Excel Export GET] ✅ Registros após filtro JS:', registros.length);
     }
 
+    // ROBUST SORTING (JS Fallback): Ensure chronological order (Date + Time)
+    registros.sort((a, b) => {
+      const parseDateTime = (d: string, t: string) => {
+        try {
+          const dParts = d.split('/'); // DD/MM/YY
+          if (dParts.length !== 3) return 0;
+          const year = Number(dParts[2]) < 50 ? 2000 + Number(dParts[2]) : 1900 + Number(dParts[2]);
+          const month = Number(dParts[1]) - 1;
+          const day = Number(dParts[0]);
+          
+          const tParts = t.split(':');
+          const hour = Number(tParts[0] || 0);
+          const min = Number(tParts[1] || 0);
+          const sec = Number(tParts[2] || 0);
+          
+          return new Date(year, month, day, hour, min, sec).getTime();
+        } catch { return 0; }
+      };
+      
+      const ta = parseDateTime(a.dia, a.hora);
+      const tb = parseDateTime(b.dia, b.hora);
+      return ta - tb;
+    });
+
     // Criar workbook Excel
     const wb = new ExcelJS.Workbook();
     const ws = wb.addWorksheet("Amendoim");
@@ -5909,6 +5933,30 @@ app.post('/api/amendoim/exportExcel', async (req, res) => {
 
       console.log('[Excel Export POST] ✅ Registros após filtro JS:', registros.length);
     }
+
+    // ROBUST SORTING (JS Fallback): Ensure chronological order (Date + Time)
+    registros.sort((a, b) => {
+      const parseDateTime = (d: string, t: string) => {
+        try {
+          const dParts = d.split('/'); // DD/MM/YY
+          if (dParts.length !== 3) return 0;
+          const year = Number(dParts[2]) < 50 ? 2000 + Number(dParts[2]) : 1900 + Number(dParts[2]);
+          const month = Number(dParts[1]) - 1;
+          const day = Number(dParts[0]);
+          
+          const tParts = t.split(':');
+          const hour = Number(tParts[0] || 0);
+          const min = Number(tParts[1] || 0);
+          const sec = Number(tParts[2] || 0);
+          
+          return new Date(year, month, day, hour, min, sec).getTime();
+        } catch { return 0; }
+      };
+      
+      const ta = parseDateTime(a.dia, a.hora);
+      const tb = parseDateTime(b.dia, b.hora);
+      return ta - tb;
+    });
 
     // Criar workbook Excel
     const wb = new ExcelJS.Workbook();
@@ -6118,9 +6166,9 @@ async function validateRuntimeDbConfig() {
 
 // main startup
 (async () => {
-  await validateRuntimeDbConfig();
   // load config file first, so DB init can use it
   await loadRuntimeConfigFromFile();
+  await validateRuntimeDbConfig();
   try {
     await ensureDatabaseConnection();
 
