@@ -233,7 +233,7 @@ export class ParserService extends BaseService {
       
       // SEMPRE tentar converter se parecer legado, mesmo que isLegacy=false
       if (date && /^\d{1,2}[-\/]\d{1,2}[-\/]\d{2,4}$/.test(date)) {
-        console.log(`[ParserService] 🔄 Detectado formato legado na linha (convertendo): "${date}"`);
+        // console.log(`[ParserService] 🔄 Detectado formato legado na linha (convertendo): "${date}"`);
         date = this.convertLegacyDate(date);
       }
       
