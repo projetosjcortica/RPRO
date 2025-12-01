@@ -15,6 +15,7 @@ export function useReportData(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
+  const [emptyColumns, setEmptyColumns] = useState<any>(null);
   const [reloadFlag, setReloadFlag] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchParamsRef = useRef<string>('');
@@ -153,9 +154,11 @@ export function useReportData(
         
         const newRows = Array.isArray(body.rows) ? body.rows as any[] : [];
         const newTotal = Number(body.total) || 0;
+        const newEmptyColumns = body.emptyColumns || null;
 
         setDados(newRows);
         setTotal(newTotal);
+        setEmptyColumns(newEmptyColumns);
         
       } catch (err: any) {
         if (!isMounted) return;
@@ -184,5 +187,5 @@ export function useReportData(
     };
   }, [fetchParams, reloadFlag, allowFetch]);
 
-  return { dados, loading, error, total, refetch, refetchSilent };
+  return { dados, loading, error, total, emptyColumns, refetch, refetchSilent };
 }

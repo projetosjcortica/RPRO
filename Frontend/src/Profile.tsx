@@ -85,7 +85,12 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload, show
       const res = await fetch("http://localhost:3000/api/auth/update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: user.username, displayName }),
+        body: JSON.stringify({ 
+          username: user.username, 
+          displayName,
+          // Allow special user 'cortica' to update userType
+          userType: (user.isAdmin || user.username === 'cortica') ? user.userType : undefined
+        }),
       });
       if (!res.ok) throw new Error(`update failed: ${res.status}`);
       const data = await res.json();
@@ -94,7 +99,7 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload, show
       try {
         window.dispatchEvent(new Event('profile-config-updated'));
       } catch (e) {}
-      try { toast.success('Nome atualizado'); } catch (e) {}
+      try { toast.success('Perfil atualizado'); } catch (e) {}
       // If the parent passed an upload handler and there's a selected file, invoke it
       if (file && onUpload) {
         try { await onUpload(); } catch (e) { console.error('upload after save failed', e); }
@@ -150,6 +155,7 @@ const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload, show
               />
             </div>
           </div>
+
         </div>
       </div>
     </div>

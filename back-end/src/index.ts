@@ -312,6 +312,40 @@ async function ensureDatabaseConnection() {
   }
 }
 
+// Ensure default admin user exists
+async function ensureDefaultAdminUser() {
+  try {
+    const userRepo = AppDataSource.getRepository(User);
+    
+    // Check if admin user already exists by username 'cortica'
+    const adminUser = await userRepo.findOne({ 
+      where: { username: 'cortica' } 
+    });
+    
+    if (!adminUser) {
+      console.log('[Startup] Creating default admin user: J.Cortiça Software');
+      const newAdmin = userRepo.create({
+        username: 'cortica',
+        password: '197575', // Default password - should be changed
+        isAdmin: true,
+        displayName: 'J.Cortiça Software',
+        userType: 'racao'
+      });
+      await userRepo.save(newAdmin);
+      console.log('[Startup] ✅ Default admin user created successfully');
+    } else {
+      // Ensure admin flag is set
+      if (!adminUser.isAdmin) {
+        adminUser.isAdmin = true;
+        await userRepo.save(adminUser);
+        console.log('[Startup] ✅ Admin flag updated for J.Cortiça Software user');
+      }
+    }
+  } catch (e) {
+    console.warn('[Startup] Error ensuring default admin user:', e);
+  }
+}
+
 // Helper: Obter lista de produtos ativos (para filtrar produtos inativos)
 // if excludeIgnorarCalculos=true, also exclude products where materia.ignorarCalculos === true
 async function getProdutosAtivos(excludeIgnorarCalculos = false): Promise<Set<number>> {
@@ -497,8 +531,43 @@ app.post('/api/relatorio/paginate', async (req, res) => {
       };
     });
 
+    // Análise de colunas vazias
+    const emptyColumns = {
+      Dia: true,
+      Hora: true,
+      Nome: true,
+      Codigo: true,
+      Numero: true,
+      products: new Array(65).fill(true) // Colunas dinâmicas (col6 até col70)
+    };
+
+    // Verificar quais colunas têm dados não-vazios
+    for (const row of mappedRows) {
+      // Colunas fixas
+      if (row.Dia && row.Dia !== '' && row.Dia !== '0') emptyColumns.Dia = false;
+      if (row.Hora && row.Hora !== '' && row.Hora !== '0') emptyColumns.Hora = false;
+      if (row.Nome && row.Nome !== '' && row.Nome !== '0') emptyColumns.Nome = false;
+      if (row.Codigo && row.Codigo !== 0 && row.Codigo !== '0') emptyColumns.Codigo = false;
+      if (row.Numero && row.Numero !== 0 && row.Numero !== '0') emptyColumns.Numero = false;
+
+      // Colunas dinâmicas (produtos)
+      for (let i = 0; i < 65; i++) {
+        const value = row.valuesRaw[i];
+        if (value && value !== 0) {
+          emptyColumns.products[i] = false;
+        }
+      }
+    }
+
     const totalPages = Math.ceil(total / pageSizeNum);
-    const responseData = { rows: mappedRows, total, page: pageNum, pageSize: pageSizeNum, totalPages };
+    const responseData = { 
+      rows: mappedRows, 
+      total, 
+      page: pageNum, 
+      pageSize: pageSizeNum, 
+      totalPages,
+      emptyColumns // Informar ao frontend quais colunas estão vazias
+    };
 
     res.set({ 'Cache-Control': 'no-cache, no-store, must-revalidate' });
     return res.json(responseData);
@@ -1922,6 +1991,10 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     const sb = allowed.has(sortBy) ? sortBy : "Dia";
     const sd = sortDir === "ASC" ? "ASC" : "DESC";
     qb.orderBy(`r.${sb}`, sd);
+    // Ensure chronological order when sorting by Dia
+    if (sb === "Dia") {
+      qb.addOrderBy("r.Hora", "ASC");
+    }
 
     const rows = await qb.getMany();
 
@@ -1956,7 +2029,13 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
 
     for (const r of rows) {
       const rowArr: any[] = [];
-      rowArr.push(r.Dia || "");
+      // Format date to dd/mm/yyyy
+      let diaFormatted = r.Dia || "";
+      if (diaFormatted && /^\d{4}-\d{2}-\d{2}$/.test(diaFormatted)) {
+        const [y, m, d] = diaFormatted.split('-');
+        diaFormatted = `${d}/${m}/${y}`;
+      }
+      rowArr.push(diaFormatted);
       rowArr.push(r.Hora || "");
       rowArr.push(r.Nome || "");
       rowArr.push(r.Form1 ?? "");
@@ -2064,6 +2143,10 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
     const sb = allowed.has(sortBy) ? sortBy : "Dia";
     const sd = sortDir === "ASC" ? "ASC" : "DESC";
     qb.orderBy(`r.${sb}`, sd);
+    // Ensure chronological order when sorting by Dia
+    if (sb === "Dia") {
+      qb.addOrderBy("r.Hora", "ASC");
+    }
 
     const rows = await qb.getMany();
 
@@ -2081,7 +2164,13 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
     ws.addRow(headers);
     for (const r of rows) {
       const rowArr: any[] = [];
-      rowArr.push(r.Dia || "");
+      // Format date to dd/mm/yyyy
+      let diaFormatted = r.Dia || "";
+      if (diaFormatted && /^\d{4}-\d{2}-\d{2}$/.test(diaFormatted)) {
+        const [y, m, d] = diaFormatted.split('-');
+        diaFormatted = `${d}/${m}/${y}`;
+      }
+      rowArr.push(diaFormatted);
       rowArr.push(r.Hora || "");
       rowArr.push(r.Nome || "");
       rowArr.push(r.Form1 ?? "");
@@ -6124,6 +6213,9 @@ async function validateRuntimeDbConfig() {
   await validateRuntimeDbConfig();
   try {
     await ensureDatabaseConnection();
+
+    // 🔧 Garantir que o usuário admin padrão existe
+    await ensureDefaultAdminUser();
 
     // 🔧 Garantir que a coluna 'ativo' existe na tabela materia_prima
     try {

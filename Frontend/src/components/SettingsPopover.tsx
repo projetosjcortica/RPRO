@@ -18,7 +18,7 @@ import {
 import { ProfileConfig, IHMConfig, AdminConfig } from "../config";
 import logo from "../public/logo.png";
 import monoLogo from "../public/logoCmono.png";
-import data from "../data/patch-notes.json";
+import packageJson from "../../package.json";
 
 interface Props {
   profileDialogOpen: boolean;
@@ -75,12 +75,12 @@ export default function SettingsPopover({
                 Sobre
               </Button>
             </DialogTrigger>
-            <DialogContent className=" h-[90%]  flex items-center">
+            <DialogContent className="max-w-2xl">
               <div
-                style={styles?.container || { padding: 12, maxWidth: 760 }}
+                style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '700px', margin: '0 auto' }}
                 className="thin-red-scrollbar"
               >
-                <header style={styles?.header}>
+                <header style={{ textAlign: 'center', marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid #ddd' }}>
                   <div
                     style={{
                       display: "flex",
@@ -92,52 +92,22 @@ export default function SettingsPopover({
                     <img
                       src={logo as unknown as string}
                       alt="Cortez"
-                      style={styles?.logo}
+                      style={{ width: '80px', height: 'auto', marginBottom: '10px' }}
                     />
                     <img
                       src={monoLogo as unknown as string}
                       alt="J.Cortiça"
-                      style={styles?.monoLogo}
+                      style={{ width: '120px', height: 'auto', opacity: 0.9, marginBottom: '10px' }}
                     />
                   </div>
-                  <h1 style={styles?.title}>{(data as any).appName}</h1>
-                  <p style={styles?.version}>
-                    Versão: {(data as any).version} (Build:{" "}
-                    {(data as any).buildDate})
+                  <h1 style={{ margin: '10px 0', fontSize: '2rem', color: '#333' }}>Cortez</h1>
+                  <p style={{ margin: '5px 0', fontSize: '1.1rem', color: '#666', fontWeight: 'bold' }}>
+                    Versão {packageJson.version}
                   </p>
-                  <DialogDescription style={{ color: "#666", marginTop: 6 }}>
-                    {(data as any).tagline ?? ""}
+                  <DialogDescription style={{ color: "#666", marginTop: 12, fontSize: '0.95rem' }}>
+                    A inteligência por trás do seu controle
                   </DialogDescription>
-                </header>
-                <section style={styles?.patchNotesSection}>
-                  <h2>Histórico de Atualizações</h2>
-                  {(data as any).patchNotes.map((note: any, index: number) => (
-                    <div key={index} style={styles?.noteCard}>
-                      <div style={styles?.noteHeader}>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "8px",
-                            alignItems: "center",
-                          }}
-                        >
-                          <span style={styles?.noteVersion}>
-                            {note.version}
-                          </span>
-                          <span style={styles?.noteDate}>{note.date}</span>
-                        </div>
-                        <h3 style={styles?.noteTitle}>{note.title}</h3>
-                      </div>
-                      <ul style={styles?.noteList}>
-                        {note.changes.map((change: string, i: number) => (
-                          <li key={i} style={styles?.noteItem}>
-                            {change}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </section>
+                </header> 
               </div>
             </DialogContent>
           </Dialog>

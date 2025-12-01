@@ -49,7 +49,7 @@ import logo from './public/logo.png';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import monoLogo from './public/logoCmono.png';
 import SettingsPopover from './components/SettingsPopover';
-import data from './data/patch-notes.json';
+import packageJson from '../package.json';
 // import { set } from 'date-fns';
 
 const App = () => {
@@ -159,86 +159,6 @@ const App = () => {
 
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
 
-  const styles = {
-    // ... (seus estilos anteriores permanecem iguais)
-    container: {
-      padding: '20px',
-      fontFamily: 'Arial, sans-serif',
-      maxWidth: '900px',
-      margin: '0 auto',
-      minHeight: '70vh',
-      maxHeight: '80vh',
-      overflowY: 'auto' as const,
-    },
-    header: {
-      textAlign: 'center' as const,
-      marginBottom: '30px',
-      paddingBottom: '20px',
-      borderBottom: '1px solid #ddd',
-    },
-    logo: {
-      width: '80px',
-      height: 'auto',
-      marginBottom: '10px',
-    },
-    monoLogo: {
-      width: '120px',
-      height: 'auto',
-      opacity: 0.9,
-      marginBottom: '10px',
-    },
-    title: {
-      margin: '10px 0',
-      fontSize: '2rem',
-      color: '#333',
-    },
-    version: {
-      margin: '5px 0',
-      fontSize: '1rem',
-      color: '#666',
-    },
-    patchNotesSection: {
-      marginTop: '20px',
-    },
-    noteCard: {
-      backgroundColor: 'white',
-      borderRadius: '8px',
-      padding: '15px',
-      marginBottom: '15px',
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-    },
-    noteHeader: {
-      display: 'flex',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: '10px',
-      flexWrap: 'wrap' as const,
-    },
-    noteVersion: {
-      fontWeight: 'bold',
-      color: '#007acc',
-      fontSize: '1.1rem',
-    },
-    noteDate: {
-      color: '#888',
-      fontSize: '0.9rem',
-    },
-    noteTitle: {
-      margin: '0',
-      fontSize: '1.2rem',
-      color: '#333',
-      flexBasis: '100%',
-    },
-    noteList: {
-      margin: 0,
-      paddingLeft: '20px',
-    },
-    noteItem: {
-      margin: '5px 0',
-      color: '#444',
-    },
-  };
-
 
   return (
     <div id="app" className="flex w-screen h-dvh overflow-hidden">
@@ -337,36 +257,18 @@ const App = () => {
                               <DialogTrigger asChild>
                                 <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'> <CircleQuestionMark/> Sobre</SidebarMenuSubButton>
                               </DialogTrigger>
-                              <DialogContent className=' h-[90%]  flex items-center'>
-                                <div style={styles.container} className='thin-red-scrollbar'>
-                                  <header style={styles.header}>
+                              <DialogContent className="max-w-2xl">
+                                <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '700px', margin: '0 auto' }} className='thin-red-scrollbar'>
+                                  <header style={{ textAlign: 'center', marginBottom: '30px', paddingBottom: '20px', borderBottom: '1px solid #ddd' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 18, justifyContent: 'center' }}>
-                                      <img src={logo || data.companyLogo} alt="Cortez" style={styles.logo} />
-                                      <img src={monoLogo} alt="J.Cortiça" style={styles.monoLogo} />
+                                      <img src={logo} alt="Cortez" style={{ width: '80px', height: 'auto', marginBottom: '10px' }} />
+                                      <img src={monoLogo} alt="J.Cortiça" style={{ width: '120px', height: 'auto', opacity: 0.9, marginBottom: '10px' }} />
                                     </div>
-                                    <h1 style={styles.title}>{data.appName}</h1>
-                                    <p style={styles.version}>Versão: {data.version} (Build: {data.buildDate})</p>
-                                    <DialogDescription style={{ color: '#666', marginTop: 6 }}>{(data as any).tagline ?? ''}</DialogDescription>
+                                    <h1 style={{ margin: '10px 0', fontSize: '2rem', color: '#333' }}>Cortez</h1>
+                                    <p style={{ margin: '5px 0', fontSize: '1.1rem', color: '#666', fontWeight: 'bold' }}>Versão {packageJson.version}</p>
+                                    <DialogDescription style={{ color: '#666', marginTop: 12, fontSize: '0.95rem' }}>A inteligência por trás do seu controle</DialogDescription>
                                   </header>
-                                  <section style={styles.patchNotesSection}>
-                                    <h2>Histórico de Atualizações</h2>
-                                    {data.patchNotes.map((note, index) => (
-                                      <div key={index} style={styles.noteCard}>
-                                        <div style={styles.noteHeader}>
-                                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                                            <span style={styles.noteVersion}>{note.version}</span>
-                                            <span style={styles.noteDate}>{note.date}</span>
-                                          </div>
-                                          <h3 style={styles.noteTitle}>{note.title}</h3>
-                                        </div>
-                                        <ul style={styles.noteList}>
-                                          {note.changes.map((change, i) => (
-                                            <li key={i} style={styles.noteItem}>{change}</li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    ))}
-                                  </section>
+                                   
                                 </div>
                               </DialogContent>
                             </Dialog>
@@ -416,7 +318,6 @@ const App = () => {
                         profileDialogOpen={profileDialogOpen}
                         setProfileDialogOpen={setProfileDialogOpen}
                         user={user}
-                        styles={styles}
                       />
                     )}
                   </SidebarMenu>

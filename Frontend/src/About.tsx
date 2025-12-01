@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import data from './data/patch-notes.json';
+import packageJson from '../package.json';
 import {
   Dialog,
   DialogContent,
@@ -15,45 +15,26 @@ import monoLogo from './public/logoCmono.png';
  */
 const About: React.FC = () => {
   const navigate = useNavigate();
+  const appVersion = packageJson.version;
+  const appName = 'Cortez';
 
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) navigate(-1); }}>
-      <DialogContent>
-        <div style={styles.container} className='thin-red-scrollbar'>
+      <DialogContent className="max-w-2xl">
+       
           {/* Logo e Nome do Sistema */}
           <header style={styles.header}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 18, justifyContent: 'center' }}>
-              <img src={logo || data.companyLogo} alt="Cortez" style={styles.logo} />
+              <img src={logo} alt="Cortez" style={styles.logo} />
               <img src={monoLogo} alt="J.Cortiça" style={styles.monoLogo} />
             </div>
-            <h1 style={styles.title}>{data.appName}</h1>
-            <p style={styles.version}>Versão: {data.version} (Build: {data.buildDate})</p>
-            {(data as any).tagline ? (
-              <DialogDescription style={{ color: '#666', marginTop: 6 }}>{(data as any).tagline}</DialogDescription>
-            ) : null}
+            <h1 style={styles.title}>{appName}</h1>
+            <p style={styles.version}>Versão {appVersion}</p>
+            <DialogDescription style={{ color: '#666', marginTop: 12, fontSize: '0.95rem', textAlign: 'center' }}>
+              A inteligência por trás do seu controle
+            </DialogDescription>
           </header>
 
-          {/* Patch Notes */}
-          <section style={styles.patchNotesSection}>
-            <h2>Histórico de Atualizações</h2>
-            {data.patchNotes.map((note, index) => (
-              <div key={index} style={styles.noteCard}>
-                <div style={styles.noteHeader}>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span style={styles.noteVersion}>{note.version}</span>
-                    <span style={styles.noteDate}>{note.date}</span>
-                  </div>
-                  <h3 style={styles.noteTitle}>{note.title}</h3>
-                </div>
-                <ul style={styles.noteList}>
-                  {note.changes.map((change, i) => (
-                    <li key={i} style={styles.noteItem}>{change}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </section>
-        </div>
       </DialogContent>
     </Dialog>
   );
@@ -64,12 +45,9 @@ const styles = {
   container: {
     padding: '20px',
     fontFamily: 'Arial, sans-serif',
-    maxWidth: '900px',
+    maxWidth: '700px',
     margin: '0 auto',
     backgroundColor: '#f9f9f9',
-    minHeight: '70vh',
-    maxHeight: '80vh',
-    overflowY: 'auto' as const,
   },
   header: {
     textAlign: 'center' as const,
@@ -92,50 +70,41 @@ const styles = {
     margin: '10px 0',
     fontSize: '2rem',
     color: '#333',
+    textTransform: 'capitalize' as const,
   },
   version: {
     margin: '5px 0',
-    fontSize: '1rem',
+    fontSize: '1.1rem',
     color: '#666',
+    fontWeight: 'bold' as const,
   },
-  patchNotesSection: {
+  infoSection: {
     marginTop: '20px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '15px',
   },
-  noteCard: {
+  infoCard: {
     backgroundColor: 'white',
     borderRadius: '8px',
-    padding: '15px',
-    marginBottom: '15px',
+    padding: '20px',
     boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
   },
-  noteHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '10px',
-    flexWrap: 'wrap' as const,
-  },
-  noteVersion: {
-    fontWeight: 'bold',
+  infoTitle: {
+    margin: '0 0 12px 0',
+    fontSize: '1.3rem',
     color: '#007acc',
-    fontSize: '1.1rem',
+    borderBottom: '2px solid #007acc',
+    paddingBottom: '8px',
   },
-  noteDate: {
-    color: '#888',
-    fontSize: '0.9rem',
+  infoText: {
+    margin: '8px 0',
+    color: '#444',
+    lineHeight: '1.6',
   },
-  noteTitle: {
-    margin: '0',
-    fontSize: '1.2rem',
-    color: '#333',
-    flexBasis: '100%',
-  },
-  noteList: {
-    margin: 0,
+  featureList: {
+    margin: '10px 0',
     paddingLeft: '20px',
-  },
-  noteItem: {
-    margin: '5px 0',
     color: '#444',
   },
 };

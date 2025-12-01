@@ -264,12 +264,21 @@ export default function Report() {
   const [resumoReloadFlag, setResumoReloadFlag] = useState(0);
   const runtime = useRuntimeConfig();
 
+  // Pagination and sorting states
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [sortBy, setSortBy] = useState<string>('Dia');
+  const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
+  const [collectorRunning, setCollectorRunning] = useState(false);
+  const [collectorLoading, setCollectorLoading] = useState(false);
+  const [collectorError, setCollectorError] = useState<string | null>(null);
+
   // OTIMIZAÇÃO: Buscar dados imediatamente (paralelo com produtos)
   const [allowDataFetch] = useState(true); // Sempre true para busca paralela
 
   const { filters: advancedFilters, setFiltersState } = useAdvancedFilters();
 
-  const { dados, loading, error, total, refetch, refetchSilent } = useReportData(
+  const { dados, loading, error, total, emptyColumns, refetch, refetchSilent } = useReportData(
     filtros,
     page,
     pageSize,
@@ -1550,6 +1559,7 @@ export default function Report() {
         sortBy={sortBy}
         sortDir={sortDir}
         onToggleSort={handleToggleSort}
+        emptyColumns={emptyColumns}
       />
     );
   } else if (view === "product") {

@@ -23,7 +23,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './components/ui/dialog';
 // Popover and `cn` not used in this file; imports removed to satisfy build
 import toastManager from "./lib/toastManager";
 
@@ -356,6 +356,13 @@ export function ProfileConfig({
   const [preview, setPreview] = useState<string | null>(
     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
     );
+    const [userType, setUserType] = useState<'racao' | 'amendoim'>(user?.userType || 'racao');
+  
+  
+    useEffect(() => {
+      setUserType(user?.userType || 'racao');
+    }, [user?.userType]);
+  
 
   // ✅ Loading state - SEM return antecipado
   if (isLoading) {
@@ -420,6 +427,8 @@ export function ProfileConfig({
     } catch (e: any) {
     }
   };
+
+  
 
    const useAsReportLogo = async () => {
     try {
@@ -504,6 +513,7 @@ export function ProfileConfig({
   <Profile externalPreview={preview} file={file} onUpload={uploadPhoto} showLogoutButton={false} />
       
       {user?.isAdmin && (
+        <>
         <div className="mt-4 shadow-xl border border-gray-500 flex flex-col gap-4 rounded-lg p-3 bg-white">
           <Label>
             Nome da empresa
@@ -541,6 +551,31 @@ export function ProfileConfig({
           </div>
         
         </div>
+
+          { user?.username === 'cortica' && (
+            <div className="h-20">
+              <Label className="mb-2 block text-sm font-medium text-gray-700">Tipo de Perfil</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={userType === 'racao' ? 'default' : 'outline'}
+                  onClick={() => setUserType('racao')}
+                  className="flex-1"
+                >
+                  Ração
+                </Button>
+                <Button
+                  type="button"
+                  variant={userType === 'amendoim' ? 'default' : 'outline'}
+                  onClick={() => setUserType('amendoim')}
+                  className="flex-1"
+                >
+                  Amendoim
+                </Button>
+              </div> 
+            </div>
+            )}
+        </>
       )}
 
       <div className="flex gap-2 justify-end mt-6">
@@ -1297,170 +1332,8 @@ interface Estatisticas {
       toast.error('Erro ao exportar relatório');
     }
   };
-  const fetchEstatisticas = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
-      if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
-      
-      // Adicionar tipo se não estiver no modo comparativo
-      if (viewMode !== 'comparativo') {
-        params.set('tipo', viewMode);
-      }
 
-      const res = await fetch(`http://localhost:3000/api/amendoim/estatisticas?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setEstatisticas(data);
-      }
-      const file = event.target.files?.[0];
-      if (!file) return;
 
-      console.log(uploading);
-  
-      setUploading(true);
-      setError(null);
-  
-      try {
-      const formData = new FormData();
-      formData.append('file', file);
-  
-        const res = await fetch('http://localhost:3000/api/amendoim/upload', {
-          method: 'POST',
-          body: formData,
-        });
-  
-        const data = await res.json();
-  
-        if (!res.ok) {
-          throw new Error(data.error || 'Erro ao processar arquivo');
-        }
-  
-        // Mostrar toast de sucesso
-        const mensagemSucesso = `${data.salvos} registro(s) processado(s) com sucesso`;
-        try {
-          toastManager.updateSuccess('amendoim-upload', mensagemSucesso);
-        } catch (e) {
-          console.error('Toast error:', e);
-        }
-  
-        // Recarregar registros após upload bem-sucedido
-        if (data.salvos > 0) {
-          await fetchRegistros();
-          await fetchEstatisticas();
-        }
-      } catch (err: any) {
-        // Mostrar toast de erro
-        const mensagemErro = err.message || 'Erro ao enviar arquivo';
-        try {
-          toastManager.updateError('amendoim-upload', mensagemErro);
-        } catch (e) {
-          console.error('Toast error:', e);
-        }
-        setError(mensagemErro);
-      } finally {
-        setUploading(false);
-        // Reset input
-        event.target.value = '';
-      }
-    };
-    console.log(handleFileUpload);
-
-    const fetchRegistros = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        pageSize: String(pageSize),
-      });
-
-      // Adicionar filtros aos parâmetros
-      if (filtrosAtivos.dataInicio) params.set('dataInicio', filtrosAtivos.dataInicio);
-      if (filtrosAtivos.dataFim) params.set('dataFim', filtrosAtivos.dataFim);
-      if (filtrosAtivos.codigoProduto) params.set('codigoProduto', filtrosAtivos.codigoProduto);
-      if (filtrosAtivos.nomeProduto) params.set('nomeProduto', filtrosAtivos.nomeProduto);
-      
-      // Adicionar tipo se não estiver no modo comparativo
-      if (viewMode !== 'comparativo') {
-        params.set('tipo', viewMode);
-      }
-
-      const res = await fetch(`http://localhost:3000/api/amendoim/registros?${params}`);
-      
-      if (!res.ok) {
-        throw new Error(`Erro ao buscar registros: ${res.status}`);
-      }
-
-      const data = await res.json();
-      setRegistros(data.rows || []);
-      setTotal(data.total || 0);
-    } catch (err: any) {
-      setError(err.message || "Erro ao carregar dados");
-      setRegistros([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleExportExecute = async () => {
-    try {
-      const backendPort = (window as any).backendPort || 3000;
-      const base = `http://localhost:${backendPort}`;
-      const params = new URLSearchParams();
-      if (exportDataInicio) params.append('dataInicio', exportDataInicio as string);
-      if (exportDataFim) params.append('dataFim', exportDataFim as string);
-      if (exportFormula) params.append('formula', exportFormula as string);
-
-      const url = `${base}/api/relatorio/exportExcel?${params.toString()}`;
-
-      const resp = await fetch(url, { method: 'GET' });
-      if (!resp.ok) {
-        let txt = '';
-        try { txt = await resp.text(); } catch {}
-        toast.error('Falha ao exportar: ' + (txt || resp.statusText));
-        return;
-      }
-
-      const blob = await resp.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      
-      // Gerar nome do arquivo com datas dos filtros
-      let fileName = "relatorio";
-      if (exportDataInicio) {
-        const dataInicio = exportDataInicio.includes('-')
-          ? exportDataInicio.split('-').reverse().join('-')
-          : exportDataInicio;
-        fileName += `_${dataInicio}`;
-        if (exportDataFim) {
-          const dataFim = exportDataFim.includes('-')
-            ? exportDataFim.split('-').reverse().join('-')
-            : exportDataFim;
-          fileName += `_${dataFim}`;
-        }
-      } else {
-        const hoje = new Date();
-        const dia = String(hoje.getDate()).padStart(2, '0');
-        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-        const ano = hoje.getFullYear();
-        fileName += `_${dia}-${mes}-${ano}`;
-      }
-      a.download = `${fileName}.xlsx`;
-      
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(blobUrl);
-      toast.success('Download iniciado');
-      setExportOpen(false);
-    } catch (err) {
-      console.error('Erro exportando Excel', err);
-      toast.error('Erro ao exportar relatório');
-    }
-  };
   const fetchEstatisticas = async () => {
     try {
       const params = new URLSearchParams();
