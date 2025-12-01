@@ -452,7 +452,7 @@ const formatShortDate = (raw?: string | null) => {
             </Card>
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-105 3xl:h-full mb-6">
+            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-90 3xl:h-full mb-6">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -540,8 +540,8 @@ const formatShortDate = (raw?: string | null) => {
           </div>
         </div>
         {/* Sidebar  */}
-        <div className=" w-130 space-y-6 overflow-hidden shadow-lg h-[calc(100vh-15px)] 3xl:h-[calc(100vh-54px)] rounded-xl">
-          <Card className="bg-white shadow-md border border-gray-300 rounded-xl overflow-hidden h-[calc(100vh-15px)] 3xl:h-[calc(100vh-54px)] flex flex-col">
+        <div className=" w-130 space-y-6 overflow-hidden shadow-lg h-full rounded-xl">
+          <Card className="bg-white shadow-md border border-gray-300 rounded-xl overflow-hidden h-[calc(100vh-15px)] 3xl:h-[calc(100vh-25px)] flex flex-col">
             <CardHeader className="border-b px-6 py-4 flex-shrink-0 border-indigo-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
