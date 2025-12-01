@@ -3212,7 +3212,7 @@ app.post("/api/config/split", async (req, res) => {
     } catch (e) {
       /* ignore */
     }
-    try { await writeRuntimeConfigToFile(); } catch (e) { /* ignore */ }
+    // Configs persisted to DB via configService; no external JSON file used anymore.
     // Return updated parsed values to the client so UI can synchronize without an extra GET
     const updated: Record<string, any> = {};
     for (const k of Object.keys(configObj)) {
@@ -3355,9 +3355,7 @@ app.post('/api/config/:key', async (req, res) => {
     // update in-memory runtime configs as well
     try { setRuntimeConfigs({ [rawKey]: value }); } catch (e) { /* ignore */ }
     // persist to runtime-config file if we updated a critical key
-    try {
-      if (['db-config', 'ihm-config', 'mysql_ip', 'mysql_port'].includes(rawKey)) await writeRuntimeConfigToFile();
-    } catch (e) { /* ignore */ }
+    // Configs are persisted to DB via configService; no external JSON file used.
 
     // Return updated parsed value to the client so UI can sync without extra GET
     let outParsed: any = toStore;
@@ -6073,51 +6071,8 @@ fileProcessorService.addObserver({
   },
 });
 
-const RUNTIME_CONFIG_FILE = path.resolve(process.cwd(), 'runtime-config.json');
-
-async function loadRuntimeConfigFromFile(): Promise<void> {
-  try {
-    if (fs.existsSync(RUNTIME_CONFIG_FILE)) {
-      const buf = await fs.promises.readFile(RUNTIME_CONFIG_FILE, 'utf8');
-      const parsed = JSON.parse(buf);
-      if (parsed && typeof parsed === 'object') {
-        setRuntimeConfigs(parsed);
-        console.log('[Startup] Loaded runtime-config from file:', RUNTIME_CONFIG_FILE);
-      }
-    }
-  } catch (e) {
-    console.warn('[Startup] Failed to read runtime-config file', e);
-  }
-}
-
-async function writeRuntimeConfigToFile(): Promise<void> {
-  try {
-    // Persist only specific keys that are necessary before DB startup
-    const allCfg = getAllRuntimeConfigs();
-    const toPersist: Record<string, any> = {};
-    if (allCfg['db-config'] !== undefined) {
-      // Avoid persisting sensitive DB credentials to disk - strip passwords
-      try {
-        const sanitized = JSON.parse(JSON.stringify(allCfg['db-config']));
-        if (sanitized && typeof sanitized === 'object') {
-          if (sanitized.passwordDB !== undefined) delete sanitized.passwordDB;
-          if (sanitized.password !== undefined) delete sanitized.password; // legacy
-        }
-        toPersist['db-config'] = sanitized;
-      } catch (e) {
-        toPersist['db-config'] = allCfg['db-config'];
-      }
-    }
-    if (allCfg['ihm-config'] !== undefined) toPersist['ihm-config'] = allCfg['ihm-config'];
-    // Also persist legacy keys if present
-    if (allCfg['mysql_ip'] !== undefined) toPersist['mysql_ip'] = allCfg['mysql_ip'];
-    if (allCfg['mysql_port'] !== undefined) toPersist['mysql_port'] = allCfg['mysql_port'];
-    await fs.promises.writeFile(RUNTIME_CONFIG_FILE, JSON.stringify(toPersist, null, 2), { encoding: 'utf8' });
-    console.log('[RuntimeConfig] persisted to file:', RUNTIME_CONFIG_FILE);
-  } catch (e) {
-    console.warn('[RuntimeConfig] failed to persist to file', e);
-  }
-}
+// Runtime-config is persisted via DB-backed `configService`. No external
+// runtime-config JSON files are used in packaged apps.
 
 // Load saved config into runtime store before starting
 // Validate db-config from runtime/file: if present test and remove when invalid
@@ -6157,7 +6112,6 @@ async function validateRuntimeDbConfig() {
       // invalid connection -> remove from runtime to avoid startup failure
       console.warn('[Startup] saved db-config failed validation; clearing to avoid startup failure', e);
       try { setRuntimeConfig('db-config', undefined); } catch (ee) {}
-      try { await writeRuntimeConfigToFile(); } catch (ee) {}
     }
   } catch (e) {
     console.warn('[Startup] validateRuntimeDbConfig error', e);
@@ -6167,7 +6121,6 @@ async function validateRuntimeDbConfig() {
 // main startup
 (async () => {
   // load config file first, so DB init can use it
-  await loadRuntimeConfigFromFile();
   await validateRuntimeDbConfig();
   try {
     await ensureDatabaseConnection();
@@ -6195,8 +6148,6 @@ async function validateRuntimeDbConfig() {
 
     const all = await configService.getAllSettings();
     setRuntimeConfigs(all);
-    // Persist file after loading (tracks DB-stored values as well)
-    try { await writeRuntimeConfigToFile(); } catch (e) {}
     console.log(
       "[Server] Loaded runtime configs from DB:",
       Object.keys(all).length

@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import path from 'path';
 import { BaseService } from '../core/baseService';
-import { CacheFile } from '../entities/index';
+import { CacheFile, Setting } from '../entities/index';
 import fs from 'fs';
 import child_process from 'child_process';
 import { BackupMeta } from '../core/utils';
@@ -18,7 +18,8 @@ export class CacheService extends BaseService {
     const dbPath = process.env.CACHE_SQLITE_PATH || 'cache.sqlite';
     const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
     this.dbPath = absPath;
-    this.ds = new DataSource({ type: 'sqlite', database: absPath, synchronize: true, logging: false, entities: [CacheFile] });
+    // Include Setting entity so runtime configs can be persisted into the cache DB.
+    this.ds = new DataSource({ type: 'sqlite', database: absPath, synchronize: true, logging: false, entities: [CacheFile, Setting] });
   }
   async init() {
     // If already initialized, return

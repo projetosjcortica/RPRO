@@ -309,11 +309,11 @@ const formatShortDate = (raw?: string | null) => {
   // const { data: horariosChartData, loading: loadingHorariosChart } = useChartData('horarios', { ...(filters || {}), ...(horariosFilters || {}) });
 
   return (
-    <div className="w-full h-full 2xl:overflow-hidden pb-277 2xl:pb-0">
+    <div className="w-full h-fit">
       <div className="flex gap-1.5 h-full justify-between">
-        <div className="flex w-full 2xl:gap-x-2 2xl:grid-rows-2 2xl:grid-cols-2 2xl:overflow-auto grid grid-cols-1 3xl:grid-rows-20">
+        <div className="flex w-full 2xl:gap-x-2 flex flex-col gap-2">
           {/* First row: Formulas Donut */}
-          <Card className=" shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 w-full 2xl:h-98 3xl:h-100 2xl:col-span-2 3xl:row-span-8">
+          <Card className=" shadow-xl border border-gray-300 rounded-xl h-full">
             <CardHeader className="border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
@@ -397,8 +397,9 @@ const formatShortDate = (raw?: string | null) => {
             </CardContent>
           </Card>
 
+          <div className="flex flex-col 3xl:flex-row gap-2">
           {/* Second row: Horarios & Weekly */}
-            <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 2xl:h-88.5 3xl:h-135 mt-3">
+            <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-fit 3xl:h-full">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -451,7 +452,7 @@ const formatShortDate = (raw?: string | null) => {
             </Card>
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden h-90 2xl:h-88.5 3xl:h-135 mt-3">
+            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-105 3xl:h-full mb-6">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -536,6 +537,7 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
               </CardContent>
             </Card>
+          </div>
         </div>
         {/* Sidebar  */}
         <div className=" w-130 space-y-6 overflow-hidden shadow-lg h-[calc(100vh-15px)] 3xl:h-[calc(100vh-54px)] rounded-xl">
