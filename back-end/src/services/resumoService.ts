@@ -22,6 +22,9 @@ export interface ResumoTotal {
     horaInicial: string | null;
     horaFinal: string | null;
     usosPorProduto: Record<string, { quantidade: number; label: string; unidade: string; }>;
+    // Horário do primeiro e último dia (primeira batida e última batida daquele dia)
+    firstDayRange?: { date: string | null; firstTime: string | null; lastTime: string | null };
+    lastDayRange?: { date: string | null; firstTime: string | null; lastTime: string | null };
     // Optional debug metadata (not used by UI by default)
     _appliedFilters?: any;
     _matchedRows?: number;
@@ -117,13 +120,95 @@ export class ResumoService {
         dateStart?: string | null;
         dateEnd?: string | null;
         areaId?: string | null;
-    }): Promise<ResumoTotal | ResumoAreaSelecionada> {
+    }, advancedFilters?: any): Promise<ResumoTotal | ResumoAreaSelecionada> {
         await dbService.init();
         const repo = AppDataSource.getRepository(Relatorio);
         
+        // Buscar materias para permitir mapeamento nomes->nums quando aplicarmos advancedFilters
+        const materiasPrimasAll = await materiaPrimaService.getAll();
+        const materiasByNum: Record<number, any> = {};
+        materiasPrimasAll.forEach((m) => { if (m && m.num) materiasByNum[Number(m.num)] = m; });
+
         // Criar query builder base para estatísticas
         const qb = repo.createQueryBuilder('r');
         this.applyFilters(qb, filtros);
+
+        // Aplicar filtros avançados (include/exclude produtos e fórmulas) se fornecidos
+        if (advancedFilters && typeof advancedFilters === 'object') {
+            const asNums = (arr: any[]) => Array.from(
+                new Set((arr || []).map((x: any) => Number(x)).filter(n => Number.isFinite(n) && n >= 1 && n <= 65))
+            ).slice(0, 200);
+
+            const excludeCodes = asNums(advancedFilters.excludeProductCodes || []);
+            if (excludeCodes.length) {
+                const conditions = excludeCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+                qb.andWhere(`NOT (${conditions})`);
+            }
+
+            const includeCodes = asNums(advancedFilters.includeProductCodes || []);
+            if (includeCodes.length) {
+                const conditions = includeCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+                qb.andWhere(`(${conditions})`);
+            }
+
+            const matchMode = advancedFilters.matchMode === 'exact' ? 'exact' : 'contains';
+            const mapNamesToNums = (names: any[]) => {
+                if (!names || !names.length) return [] as number[];
+                const searchTerms = names.map((s: any) => String(s).toLowerCase().trim());
+                const nums: number[] = [];
+                Object.entries(materiasByNum).forEach(([k, v]: any) => {
+                    const prodName = String(v.produto || v.nome || '').toLowerCase();
+                    for (const term of searchTerms) {
+                        if (!term) continue;
+                        if (matchMode === 'exact') {
+                            if (prodName === term) nums.push(Number(k));
+                        } else {
+                            if (prodName.includes(term)) nums.push(Number(k));
+                        }
+                    }
+                });
+                return Array.from(new Set(nums)).slice(0, 200);
+            };
+
+            const includeNameCodes = mapNamesToNums(advancedFilters.includeProductNames || []);
+            if (includeNameCodes.length) {
+                const conditions = includeNameCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+                qb.andWhere(`(${conditions})`);
+            }
+
+            const excludeNameCodes = mapNamesToNums(advancedFilters.excludeProductNames || []);
+            if (excludeNameCodes.length) {
+                const conditions = excludeNameCodes.map(n => `r.Prod_${n} > 0`).join(' OR ');
+                qb.andWhere(`NOT (${conditions})`);
+            }
+
+            if (Array.isArray(advancedFilters.includeFormulas) && advancedFilters.includeFormulas.length) {
+                const formulas = advancedFilters.includeFormulas.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n));
+                if (formulas.length) qb.andWhere('r.Form1 IN (:...arrIncludeFormulas)', { arrIncludeFormulas: formulas });
+            }
+            if (Array.isArray(advancedFilters.excludeFormulas) && advancedFilters.excludeFormulas.length) {
+                const formulas = advancedFilters.excludeFormulas.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n));
+                if (formulas.length) qb.andWhere('r.Form1 NOT IN (:...arrExcludeFormulas)', { arrExcludeFormulas: formulas });
+            }
+
+            if (Array.isArray(advancedFilters.includeFormulaNames) && advancedFilters.includeFormulaNames.length) {
+                const formulaNames = (advancedFilters.includeFormulaNames || []).map((s: any) => String(s).toLowerCase().trim()).filter(Boolean);
+                if (formulaNames.length) {
+                    const conditions = formulaNames.map((_: string, i: number) => `LOWER(r.Nome) LIKE :includeFormulaName${i}`).join(' OR ');
+                    qb.andWhere(`(${conditions})`);
+                    formulaNames.forEach((name: string, i: number) => qb.setParameter(`includeFormulaName${i}`, `%${name}%`));
+                }
+            }
+
+            if (Array.isArray(advancedFilters.excludeFormulaNames) && advancedFilters.excludeFormulaNames.length) {
+                const formulaNames = (advancedFilters.excludeFormulaNames || []).map((s: any) => String(s).toLowerCase().trim()).filter(Boolean);
+                if (formulaNames.length) {
+                    const conditions = formulaNames.map((_: string, i: number) => `LOWER(r.Nome) NOT LIKE :excludeFormulaName${i}`).join(' AND ');
+                    qb.andWhere(`(${conditions})`);
+                    formulaNames.forEach((name: string, i: number) => qb.setParameter(`excludeFormulaName${i}`, `%${name}%`));
+                }
+            }
+        }
         
         // Selecionar dados para o resumo
         const result = await qb
@@ -146,7 +231,8 @@ export class ResumoService {
         const infosProdutos: Record<string, { label: string; materia: MateriaPrima }> = {};
         
         for (const mp of materiasPrimas) {
-            if (mp.num && mp.produto) {
+            // ⚠️ Ignorar produtos desativados ou marcados para ignorar cálculos
+            if (mp.num && mp.produto && mp.ativo !== false && mp.ignorarCalculos !== true) {
                 infosProdutos[`Produto_${mp.num}`] = {
                     label: mp.produto,
                     materia: mp
@@ -178,13 +264,18 @@ export class ResumoService {
             // Calcular consumo de produtos com conversão baseada na configuração
             // accumulate per-row total in normalized kg (to attribute to the formula)
             let rowTotalKg = 0;
-            for (let i = 1; i <= 40; i++) {
+            for (let i = 1; i <= 65; i++) {
                 const prodValue = (row as any)[`Prod_${i}`];
                 const valueOriginal = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
                 
                 if (valueOriginal > 0) {
                     const prodKey = `Produto_${i}`;
                     const info = infosProdutos[prodKey];
+                    
+                    // ⚠️ FILTRO: Se produto não está em infosProdutos, significa que está inativo - pular
+                    if (!info) {
+                        continue;
+                    }
                     
                     // Converter valor baseado na configuração do produto
                     // Keep display quantity in the product's original unit (g or kg)
@@ -211,9 +302,27 @@ export class ResumoService {
                     const label = info ? info.label : `Produto ${i}`;
 
                     if (!usosPorProduto[prodKey]) {
-                        usosPorProduto[prodKey] = { quantidade: 0, label, unidade };
+                        // Inicializar com valor formatado (string) e unidade
+                        usosPorProduto[prodKey] = { 
+                            quantidade: 0, 
+                            quantidadeFormatada: '0.000',
+                            label, 
+                            unidade 
+                        } as any;
                     }
-                    usosPorProduto[prodKey].quantidade += displayQuantity;
+                    // Acumular valor real (kg) para totais internos
+                    usosPorProduto[prodKey].quantidade += valueForTotalKg;
+                    
+                    // Formatar valor com 3 casas decimais baseado na unidade original
+                    if (info && info.materia && info.materia.medida === 0) {
+                        // Gramas: converter para kg e formatar (ex: 800g -> "0.800")
+                        const kgValue = (usosPorProduto[prodKey].quantidade);
+                        (usosPorProduto[prodKey] as any).quantidadeFormatada = kgValue.toFixed(3);
+                    } else {
+                        // Kg: manter valor e formatar (ex: 1.234kg -> "1.234")
+                        (usosPorProduto[prodKey] as any).quantidadeFormatada = usosPorProduto[prodKey].quantidade.toFixed(3);
+                    }
+                    
                     totalPesos += valueForTotalKg; // accumulate normalized kg for totals
                     rowTotalKg += valueForTotalKg; // accumulate per-row for formula attribution
                 }
@@ -252,6 +361,26 @@ export class ResumoService {
                 formulasUtilizadas,
                 totalPesos,
                 usosPorProduto,
+                firstDayRange: (() => {
+                    try {
+                        const start = result.periodoInicio;
+                        if (!start) return { date: null, firstTime: null, lastTime: null };
+                        const rowsForStart = allRows.filter(r => r.Dia === start && r.Hora);
+                        if (!rowsForStart.length) return { date: start, firstTime: null, lastTime: null };
+                        const times = rowsForStart.map(r => r.Hora).sort();
+                        return { date: start, firstTime: times[0], lastTime: times[times.length-1] };
+                    } catch (e) { return { date: null, firstTime: null, lastTime: null }; }
+                })(),
+                lastDayRange: (() => {
+                    try {
+                        const end = result.periodoFim;
+                        if (!end) return { date: null, firstTime: null, lastTime: null };
+                        const rowsForEnd = allRows.filter(r => r.Dia === end && r.Hora);
+                        if (!rowsForEnd.length) return { date: end, firstTime: null, lastTime: null };
+                        const times = rowsForEnd.map(r => r.Hora).sort();
+                        return { date: end, firstTime: times[0], lastTime: times[times.length-1] };
+                    } catch (e) { return { date: null, firstTime: null, lastTime: null }; }
+                })(),
                 areaId: filtros.areaId,
                 areaDescricao: areaInfo?.AreaDescricao || `Área ${filtros.areaId}`
             };
@@ -271,6 +400,28 @@ export class ResumoService {
             _appliedFilters: filtros || {},
             _matchedRows: allRows.length
         };
+
+        // compute first/last day ranges
+        try {
+            const start = result.periodoInicio;
+            const end = result.periodoFim;
+            baseResumo.firstDayRange = start ? (() => {
+                const rowsForStart = allRows.filter(r => r.Dia === start && r.Hora);
+                if (!rowsForStart.length) return { date: start, firstTime: null, lastTime: null };
+                const times = rowsForStart.map(r => r.Hora).sort();
+                return { date: start, firstTime: times[0], lastTime: times[times.length-1] };
+            })() : { date: null, firstTime: null, lastTime: null };
+
+            baseResumo.lastDayRange = end ? (() => {
+                const rowsForEnd = allRows.filter(r => r.Dia === end && r.Hora);
+                if (!rowsForEnd.length) return { date: end, firstTime: null, lastTime: null };
+                const times = rowsForEnd.map(r => r.Hora).sort();
+                return { date: end, firstTime: times[0], lastTime: times[times.length-1] };
+            })() : { date: null, firstTime: null, lastTime: null };
+        } catch (e) {
+            baseResumo.firstDayRange = { date: null, firstTime: null, lastTime: null };
+            baseResumo.lastDayRange = { date: null, firstTime: null, lastTime: null };
+        }
 
         return baseResumo;
     }
@@ -327,7 +478,8 @@ export class ResumoService {
         const materiasPrimas = await materiaPrimaService.getAll();
         const infosProdutos: Record<string, { label: string; materia: MateriaPrima }> = {};
         for (const mp of materiasPrimas) {
-            if (mp.num && mp.produto) {
+            // ⚠️ Ignorar produtos desativados ou marcados para ignorar cálculos
+            if (mp.num && mp.produto && mp.ativo !== false && mp.ignorarCalculos !== true) {
                 infosProdutos[`Produto_${mp.num}`] = { label: mp.produto, materia: mp };
             }
         }
@@ -375,13 +527,23 @@ export class ResumoService {
             
             // Calcular consumo de produtos (normalizando g->kg quando necessário)
             let rowTotalKg = 0;
-            for (let i = 1; i <= 40; i++) {
+            for (let i = 1; i <= 65; i++) {
                 const prodValue = (relatorio as any)[`Prod_${i}`];
                 const rawValue = typeof prodValue === 'number' ? prodValue : (prodValue != null ? Number(prodValue) : 0);
 
                 if (rawValue > 0) {
                     const prodKey = `Produto_${i}`;
                     const info = infosProdutos[prodKey];
+                    
+                    // ⚠️ FILTRO: Se produto não está em infosProdutos, significa que está inativo - pular
+                    if (!info) {
+                        continue;
+                    }
+                    
+                    // Skip products marked to ignore calculations
+                    if (info && info.materia && info.materia.ignorarCalculos) {
+                        continue; // Skip products marked to ignore calculations
+                    }
                     const label = info ? info.label : `Produto ${i}`;
                     let unidade = 'kg';
                     let valueForTotalKg = rawValue;

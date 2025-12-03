@@ -5,33 +5,58 @@ import App from './App'
 import './index.css'
 import { RuntimeConfigProvider } from './hooks/useRuntimeConfig';
 import { AuthProvider } from './hooks/useAuth';
+import { GlobalConnectionProvider } from './hooks/useGlobalConnection';
 import { Processador, getProcessador, setProcessador } from './Processador' // Ajuste o caminho se necessário
 import { HashRouter } from 'react-router-dom' // Se estiver usando rotas
 
 // Export for use in other components
 export { Processador, getProcessador, setProcessador };
 
-// --- Lógica para conectar ao backend HTTP existente ---
-// Assume que o backend está rodando em uma porta conhecida, por exemplo, 3000 (padrão do backend.md)
-const BACKEND_PORT = 3000; // Ou defina via variável de ambiente: process.env.REACT_APP_BACKEND_PORT
-const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
+// --- Lógica para conectar ao backend HTTP existente (mais resiliente) ---
+// Try a list of candidate ports (common dev ports: 3000, 8080, 3001)
+const CANDIDATE_BACKEND_PORTS = [
+  Number(process.env.REACT_APP_BACKEND_PORT || 0) || 3000,
+  8080,
+  3001,
+  3002,
+];
 
-console.log(`Attempting to connect to backend at ${BACKEND_URL}...`);
+async function detectBackendPort(): Promise<number | null> {
+  for (const p of CANDIDATE_BACKEND_PORTS) {
+    if (!p) continue;
+    const base = `http://localhost:${p}`;
+    try {
+      // Try a quick ping
+      const r = await fetch(`${base}/api/ping`, { method: 'GET' });
+      if (r.ok) return p;
+    } catch (e) {
+      // ignore and try next
+    }
+  }
+  return null;
+}
 
-// Inicializa o ProcessadorHTTP com a URL base do backend
-const processador = setProcessador(BACKEND_PORT); 
-
-// O ProcessadorHTTP não precisa de waitForConnection para uma requisição inicial,
-// mas podemos fazer um ping para verificar conectividade.
-processador.ping()
-    .then(() => {
-    // console.log('Successfully connected to backend');
-  })
-  .catch((err) => {
-    console.warn(`Could not connect to backend at ${BACKEND_URL}. Please ensure it is running.`, err);
-    // O aplicativo pode continuar, mas funcionalidades que dependem do backend estarão indisponíveis
-    // ou mostrarão erros quando tentarem acessar os endpoints.
-  });
+(async () => {
+  const detected = await detectBackendPort();
+  const portToUse = detected || Number(process.env.REACT_APP_BACKEND_PORT || 3000);
+  const baseUrl = `http://localhost:${portToUse}`;
+  console.log(`Using backend at ${baseUrl} (detected: ${detected !== null})`);
+  const processador = setProcessador(portToUse);
+  (window as any).backendPort = portToUse;
+  try {
+    await processador.ping();
+    // Listen to backend 'config-changed' events and notify other parts of the renderer
+    try {
+      processador.onEvent('config-changed', (_payload: any) => {
+        try {
+          window.dispatchEvent(new CustomEvent('runtime-config-changed'));
+        } catch (e) {}
+      });
+    } catch (e) {}
+  } catch (err) {
+    console.warn(`Could not connect to backend at ${baseUrl}. Please ensure it is running.`, err);
+  }
+})();
 
 // --- Fim da lógica de conexão com o backend ---
 
@@ -40,9 +65,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RuntimeConfigProvider>
       <AuthProvider>
-        <HashRouter> {/* Se estiver usando rotas */}
-          <App />
-        </HashRouter>
+        <GlobalConnectionProvider>
+          <HashRouter> {/* Se estiver usando rotas */}
+            <App />
+          </HashRouter>
+        </GlobalConnectionProvider>
       </AuthProvider>
     </RuntimeConfigProvider>
   </React.StrictMode>,

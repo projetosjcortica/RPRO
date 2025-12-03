@@ -1,12 +1,15 @@
 import { Entity, PrimaryGeneratedColumn, Column, Index } from 'typeorm';
 
 @Entity({ name: 'relatorio' })
-// @Index(['Dia', 'Hora', 'Nome', 'processedFile'], { unique: true })
+@Index(['Dia', 'Hora'])
+@Index(['Nome'])
+@Index(['Form1']) // Codigo
+@Index(['Form2']) // Numero
 export class Relatorio {
   @PrimaryGeneratedColumn('uuid') id!: string;
   @Column({ type: 'varchar', length: 10, nullable: true }) Dia!: string | null;
   @Column({ type: 'time', nullable: true }) Hora!: string | null;
-  @Column({ type: 'varchar', length: 30, nullable: true }) Nome!: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true }) Nome!: string | null;
   @Column({ type: 'int', default: 0 }) Form1!: number;
   @Column({ type: 'int', default: 0 }) Form2!: number;
   @Column({ type: 'int', default: 0 }) Prod_1!: number;
@@ -49,6 +52,31 @@ export class Relatorio {
   @Column({ type: 'int', default: 0 }) Prod_38!: number;
   @Column({ type: 'int', default: 0 }) Prod_39!: number;
   @Column({ type: 'int', default: 0 }) Prod_40!: number;
+  @Column({ type: 'int', default: 0 }) Prod_41!: number;
+  @Column({ type: 'int', default: 0 }) Prod_42!: number;
+  @Column({ type: 'int', default: 0 }) Prod_43!: number;
+  @Column({ type: 'int', default: 0 }) Prod_44!: number;
+  @Column({ type: 'int', default: 0 }) Prod_45!: number;
+  @Column({ type: 'int', default: 0 }) Prod_46!: number;
+  @Column({ type: 'int', default: 0 }) Prod_47!: number;
+  @Column({ type: 'int', default: 0 }) Prod_48!: number;
+  @Column({ type: 'int', default: 0 }) Prod_49!: number;
+  @Column({ type: 'int', default: 0 }) Prod_50!: number;
+  @Column({ type: 'int', default: 0 }) Prod_51!: number;
+  @Column({ type: 'int', default: 0 }) Prod_52!: number;
+  @Column({ type: 'int', default: 0 }) Prod_53!: number;
+  @Column({ type: 'int', default: 0 }) Prod_54!: number;
+  @Column({ type: 'int', default: 0 }) Prod_55!: number;
+  @Column({ type: 'int', default: 0 }) Prod_56!: number;
+  @Column({ type: 'int', default: 0 }) Prod_57!: number;
+  @Column({ type: 'int', default: 0 }) Prod_58!: number;
+  @Column({ type: 'int', default: 0 }) Prod_59!: number;
+  @Column({ type: 'int', default: 0 }) Prod_60!: number;
+  @Column({ type: 'int', default: 0 }) Prod_61!: number;
+  @Column({ type: 'int', default: 0 }) Prod_62!: number;
+  @Column({ type: 'int', default: 0 }) Prod_63!: number;
+  @Column({ type: 'int', default: 0 }) Prod_64!: number;
+  @Column({ type: 'int', default: 0 }) Prod_65!: number;
   
   @Column({ type: 'varchar', length: 255, nullable: true }) processedFile!: string | null;
   

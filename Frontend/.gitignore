@@ -26,5 +26,6 @@ dist-ssr
 *.sw?
 
 out/
-dist-electron/
-backend/
+dist-electron/*
+main.js
+preload.mjs

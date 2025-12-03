@@ -1,21 +1,20 @@
 {
-  "name": "rpro_software",
+  "name": "cortez",
   "private": true,
-  "version": "1.0.0Beta",
+  "version": "1.4.13beta",
+  "author": "J.Cortica, Kaua Okuma, Miguel Dias",
+  "description": "Sistema Cortez",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "build:backend": "cd ../back-end && npm install --no-audit --no-fund && npm run build",
+    "build": "npm run build:backend && npm run build:renderer && npm run build:main",
     "build:renderer": "vite build",
     "build:main": "tsc -p tsconfig.json",
-    "build": "npm run build:renderer && npm run build:main",
-    "build-backend-exe": "cd ../back-end && npm install --no-audit --no-fund && npm run build && npx pkg dist/index.js --targets node18-win-x64 --output dist/backend.exe",
-    "dist": "npm run build && electron-builder",
-    "dist:all": "npm run build-backend-exe && npm run build && electron-builder",
-    "start": "electron-forge start",
-    "package": "electron-forge package",
-    "make": "electron-forge make"
+    "dist": "npm run build && npx electron-builder --publish=never"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -47,7 +46,9 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@react-pdf/renderer": "^4.3.0",
     "@tailwindcss/vite": "^4.1.13",
+    "@tanstack/react-virtual": "^3.13.12",
     "@types/node": "^24.3.1",
+    "@types/react-grid-layout": "^1.3.5",
     "axios": "^1.11.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -67,6 +68,7 @@
     "react": "^18.2.0",
     "react-day-picker": "^9.10.0",
     "react-dom": "^18.2.0",
+    "react-grid-layout": "^1.5.2",
     "react-hook-form": "^7.62.0",
     "react-pdf": "^10.1.0",
     "react-resizable-panels": "^3.0.6",
@@ -81,21 +83,13 @@
     "stream-browserify": "^3.0.0",
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^4.1.13",
+    "tree-kill": "^1.2.2",
     "util": "^0.12.5",
     "vaul": "^1.1.2",
     "vite-plugin-commonjs": "^0.10.4",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.9.0",
-    "@electron-forge/maker-deb": "^7.9.0",
-    "@electron-forge/maker-rpm": "^7.9.0",
-    "@electron-forge/maker-squirrel": "^7.9.0",
-    "@electron-forge/maker-zip": "^7.9.0",
-    "@electron-forge/plugin-auto-unpack-natives": "^7.9.0",
-    "@electron-forge/plugin-fuses": "^7.9.0",
-    "@electron/fuses": "^1.8.0",
-    "@rollup/plugin-commonjs": "^24.0.1",
     "@types/axios": "^0.9.36",
     "@types/html2pdf.js": "^0.10.0",
     "@types/react": "^18.2.21",
@@ -105,34 +99,76 @@
     "@typescript-eslint/parser": "^7.1.1",
     "@vitejs/plugin-react": "^4.2.1",
     "electron": "^30.0.1",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^24.13.3",
     "eslint": "^8.57.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "tree-kill": "^1.2.2",
     "tw-animate-css": "^1.3.8",
     "typescript": "^5.2.2",
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
     "vite-plugin-electron-renderer": "^0.14.5"
   },
-  "main": "dist-electron/main.js",
   "build": {
-    "productName": "RPRO Software",
-    "files": [
-      "dist-electron/**/*",
-      "dist/**/*",
-      "electron/preload.mjs",
-      "electron/main.js",
-      "node_modules/**/*",
-      "backend/**/*",
-      "!node_modules/@tailwindcss/oxide-wasm32-wasi/**/*"
-    ],
-    "win": {
-      "target": "nsis"
+    "appId": "com.Cortez.app",
+    "productName": "Cortez",
+    "directories": {
+      "output": "release"
     },
+    "asar": true,
+    "asarUnpack": [
+      "**/backend/**",
+      "**/node_modules/@tailwindcss/oxide-wasm32-wasi/**",
+      "**/node_modules/@emnapi/core/**"
+    ],
+    "npmRebuild": false,
+    "nodeGypRebuild": false,
+    "compression": "store",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "electron/**/*",
+      "!node_modules/@tailwindcss/oxide-wasm32-wasi/**",
+      "!node_modules/@emnapi/core/**",
+      "!node_modules/.cache",
+      "!node_modules/.vite",
+      "!**/*.map",
+      "!**/*.d.ts"
+    ],
+    "extraResources": [
+      {
+        "from": "../back-end/dist",
+        "to": "backend/"
+      },
+      {
+        "from": "../back-end/node_modules",
+        "to": "backend/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "nsis": {
       "oneClick": false,
-      "perMachine": false
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Cortez",
+      "uninstallDisplayName": "Cortez",
+      "include": "build/installer.nsh",
+      "license": "license.txt"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "src\\public\\logo.png"
     }
   }
 }

@@ -5,7 +5,7 @@ import { ProcessPayload, hashBufferHex } from "../core/utils";
 import { backupSvc } from "./backupService";
 import { parserService } from "./parserService";
 import { dbService } from "./dbService";
-import { cacheService } from "./cacheService";
+import { cacheService } from "./CacheService";
 
 class Subject<T> {
   private observers: Array<{ update(payload: T): Promise<void> }> = [];
@@ -71,13 +71,38 @@ export class FileProcessorService extends BaseService {
 
     if (newRows.length > 0) {
       const fileTag = originalName;
-      const mappedRows = newRows.map((r: any) => {
+      
+      // Debug: contar nulls
+      const nullCount = newRows.filter((r: any) => !r.time).length;
+      if (nullCount > 0) {
+        console.warn(`[FileProcessorService] ⚠️ ${nullCount}/${newRows.length} linhas com HORA null`);
+      }
+      
+      const mappedRows = newRows.map((r: any, idx: number) => {
         const sanitizedNome = r.label
           ? r.label.normalize("NFC").replace(/[\x00-\x1F\x7F-\x9F]/g, "")
           : "Desconhecido"; // Default to 'Desconhecido' if Nome is null or empty
+        
+        // Validar e sanitizar hora - se inválida, deixa como null
+        let hora = r.time ?? null;
+        if (hora) {
+          const s = String(hora).trim();
+          // Apenas aceita formato HH:MM ou HH:MM:SS válidos
+          if (!/^([01]\d|2[0-3]):([0-5]\d)(:\d{2})?$/.test(s)) {
+            if (idx < 3) {
+              console.warn(`[FileProcessorService] ❌ Hora INVÁLIDA: "${r.time}" → null | Dia: ${r.date} | Produto: "${sanitizedNome}"`);
+            }
+            hora = null;
+          } else if (idx < 3) {
+            console.log(`[FileProcessorService] ✅ Hora válida: "${hora}" | Dia: ${r.date} | Produto: "${sanitizedNome}"`);
+          }
+        } else if (idx < 3) {
+          console.warn(`[FileProcessorService] ⚠️ Hora vazia/null | Dia: ${r.date} | Produto: "${sanitizedNome}"`);
+        }
+        
         return {
           Dia: r.date ?? null, // Use separate date field
-          Hora: r.time ?? null, // Use separate time field
+          Hora: hora, // Hora validada e sanitizada
           Nome: sanitizedNome, // Use sanitized or default name
           Form1: r.form1 ?? null,
           Form2: r.form2 ?? null,
@@ -121,11 +146,45 @@ export class FileProcessorService extends BaseService {
           Prod_38: r.values[37] ?? 0,
           Prod_39: r.values[38] ?? 0,
           Prod_40: r.values[39] ?? 0,
+          Prod_41: r.values[40] ?? 0,
+          Prod_42: r.values[41] ?? 0,
+          Prod_43: r.values[42] ?? 0,
+          Prod_44: r.values[43] ?? 0,
+          Prod_45: r.values[44] ?? 0,
+          Prod_46: r.values[45] ?? 0,
+          Prod_47: r.values[46] ?? 0,
+          Prod_48: r.values[47] ?? 0,
+          Prod_49: r.values[48] ?? 0,
+          Prod_50: r.values[49] ?? 0,
+          Prod_51: r.values[50] ?? 0,
+          Prod_52: r.values[51] ?? 0,
+          Prod_53: r.values[52] ?? 0,
+          Prod_54: r.values[53] ?? 0,
+          Prod_55: r.values[54] ?? 0,
+          Prod_56: r.values[55] ?? 0,
+          Prod_57: r.values[56] ?? 0,
+          Prod_58: r.values[57] ?? 0,
+          Prod_59: r.values[58] ?? 0,
+          Prod_60: r.values[59] ?? 0,
+          Prod_61: r.values[60] ?? 0,
+          Prod_62: r.values[61] ?? 0,
+          Prod_63: r.values[62] ?? 0,
+          Prod_64: r.values[63] ?? 0,
+          Prod_65: r.values[64] ?? 0,
           processedFile: fileTag,
         };
       });
       try {
         await dbService.insertRelatorioRows(mappedRows, fileTag);
+        console.log(`✅ [FileProcessorService] Sucesso ao inserir ${mappedRows.length} linhas no banco`);
+        
+        // Log de debug - amostra das horas processadas
+        const horasAmostra = mappedRows.slice(0, 5).map(r => ({ Nome: r.Nome, Hora: r.Hora }));
+        console.log(`📋 [FileProcessorService] Amostra de horas processadas:`, horasAmostra);
+        const horasNull = mappedRows.filter(r => r.Hora === null).length;
+        if (horasNull > 0) {
+          console.warn(`⚠️  [FileProcessorService] ${horasNull} registros com Hora=NULL (esperado se hora vazia no CSV)`);
+        }
       } catch (err) {
         console.error('Failed to insert relatorio rows into DB:', err);
         try {
@@ -182,6 +241,7 @@ export class FileProcessorService extends BaseService {
         processedPath: parsed.processedPath,
         rowsCount: newRows.length,
         rows: newRows,
+        isLegacyFormat: (parsed as any).isLegacyFormat || false,
       },
     };
   }

@@ -150,7 +150,6 @@ ipcMain.handle("clean-db", async (): Promise<boolean> => {
     }, 1000);
   });
 });
-/************/
 
 ipcMain.handle(
   "print-pdf",
@@ -168,6 +167,7 @@ ipcMain.handle(
       });
 
       await printWin.loadFile(filePath);
+      printWin.setMenu(null)
 
       printWin.webContents.on("did-finish-load", () => {
         printWin.webContents.print({
@@ -184,7 +184,18 @@ ipcMain.handle(
   }
 );
 
-/***********/
+// Helper function to resolve backend script path
+function getBackendScriptPath(): string {
+  // if (app.isPackaged) {
+  //   return path.join(process.resourcesPath, "backend", "dist", "index.js");
+  // } else {
+  //   const projectRoot = path.dirname(path.dirname(__dirname));
+  //   return path.join(projectRoot, "back-end", "dist", "index.js");
+  // }
+  // if (!app.isPackaged) {
+    return path.join("backend", "index.js")
+  // }
+}
 
 ipcMain.handle(
   "start-fork",
@@ -192,108 +203,27 @@ ipcMain.handle(
     _event: IpcMainInvokeEvent,
     { script, args = [] }: { script?: string; args?: string[] } = {}
   ) => {
-    // Project root (two levels up from this file)
-    const projectRoot = path.dirname(path.dirname(__dirname));
-
-    // If no script provided, use backend default
-    if (!script) {
-      script = "./backend/index.js";
-    }
-
-    // Better path resolution - handle relative paths from the app root
     let scriptPath: string;
-    if (path.isAbsolute(script)) {
+
+    if (script) {
+      // Se um script for fornecido, use-o
       scriptPath = script;
     } else {
-      // Try multiple potential locations for the script
-      // For '../back-end/dist/src/index.js', we need to go up from Frontend directory
-      const possiblePaths = [
-        // Prefer IPC-only CJS build
-        path.join("backend", "index.js"),
-        // Original provided script path fallbacks
-        path.join(__dirname, script),
-        path.join(process.env.APP_ROOT || "", script),
-        path.join(path.dirname(__dirname), script),
-        path.join(projectRoot, script),
-        path.resolve(script),
-      ];
-
-      console.log("Trying paths:", possiblePaths);
-
-      scriptPath =
-        possiblePaths.find((p) => {
-          try {
-            const exists = fs.existsSync(p);
-            console.log(`Path ${p} exists: ${exists}`);
-            return exists;
-          } catch {
-            return false;
-          }
-        }) || possiblePaths[0];
+      scriptPath = getBackendScriptPath();
     }
 
-    console.log("Attempting to fork script at:", scriptPath);
-    console.log("Script exists:", fs.existsSync(scriptPath));
-
-    // If scriptPath points to the Frontend/backend shim (which is AMD/RequireJS-wrapped),
-    // prefer the real backend project entry (back-end/dist/index.js or back-end/src/index.ts)
-    try {
-      const frontendBackendDir = path.join(projectRoot, "Frontend", "backend");
-      if (scriptPath.startsWith(frontendBackendDir)) {
-        const realCandidates = [
-          path.join(projectRoot, "back-end", "dist", "index.js"),
-          path.join(projectRoot, "back-end", "dist", "src", "index.js"),
-          path.join(projectRoot, "back-end", "src", "index.ts"),
-          path.join(projectRoot, "back-end", "src", "index.js"),
-        ];
-        const found = realCandidates.find((p) => fs.existsSync(p));
-        if (found) {
-          console.log(
-            "Replacing frontend shim script with real backend entry:",
-            found
-          );
-          scriptPath = found;
-        } else {
-          console.log(
-            "No real backend entry found, will attempt to fork provided script (may fail if AMD-wrapped)"
-          );
-        }
-      }
-    } catch (e) {
-      // ignore
+    if (!fs.existsSync(scriptPath)) {
+      console.error("Backend script não encontrado:", scriptPath);
+      return { ok: false, reason: "backend-script-not-found" };
     }
 
     try {
-      // Fork with stdio pipes so we can capture stdout/stderr and with IPC channel.
-      // Set cwd to backend directory to use backend's package.json (CommonJS) instead of frontend's (ES module)
-      // Find the back-end directory by looking for the closest parent containing package.json
-      const initialBackendDir = path.dirname(scriptPath);
-      let backendDir = initialBackendDir;
-      let foundBackendPackage = false;
-      while (backendDir && backendDir !== path.dirname(backendDir)) {
-        const packageJsonPath = path.join(backendDir, "package.json");
-        if (fs.existsSync(packageJsonPath)) {
-          try {
-            const packageJson = JSON.parse(
-              fs.readFileSync(packageJsonPath, "utf8")
-            );
-            if (packageJson.name === "backend") {
-              foundBackendPackage = true;
-              break;
-            }
-          } catch {}
-        }
-        backendDir = path.dirname(backendDir);
-      }
-      // If we didn't find a 'backend' package.json, fallback to the script directory
-      if (!foundBackendPackage) backendDir = initialBackendDir;
-
-      console.log("Setting child process cwd to:", backendDir);
+      // save last script path so auto-refork and monitor can restart same script
       lastScriptPath = scriptPath;
 
       const child = fork(scriptPath, args, {
         stdio: ["pipe", "pipe", "ipc"],
-        cwd: backendDir,
+        cwd: path.dirname(scriptPath),
         silent: false,
         env: { ...process.env },
       });
@@ -407,6 +337,76 @@ ipcMain.handle(
   }
 );
 
+// Monitor that periodically pings the backend and attempts to restart it when unresponsive
+let backendMonitorInterval: NodeJS.Timeout | null = null;
+function startBackendMonitor({ intervalMs = 15000 }: { intervalMs?: number } = {}) {
+  if (backendMonitorInterval) return; // already running
+  console.log(`[main] starting backend monitor (interval ${intervalMs}ms)`);
+
+  backendMonitorInterval = setInterval(async () => {
+    try {
+      const res = await fetch("http://localhost:3000/api/ping");
+      if (res && res.ok) {
+        // healthy
+        // console.log('[main.monitor] backend healthy');
+        return;
+      }
+    } catch (e) {
+      console.warn('[main.monitor] backend ping failed');
+    }
+
+    // If ping failed, attempt to restart backend using lastScriptPath/refork logic
+    console.warn('[main.monitor] backend appears down — attempting restart/refork');
+    try {
+      // Kill any existing children that seem to be backend processes
+      for (const [pid, child] of Array.from(children.entries())) {
+        try {
+          console.log(`[main.monitor] killing child PID ${pid}`);
+          child.kill('SIGTERM');
+        } catch (e) {
+          console.warn('[main.monitor] error killing child', e);
+        }
+        children.delete(pid);
+      }
+
+      if (lastScriptPath && fs.existsSync(lastScriptPath)) {
+        const backendDir = path.dirname(lastScriptPath);
+        const refork = fork(lastScriptPath, [], {
+          stdio: ["pipe", "pipe", "ipc"],
+          cwd: backendDir,
+          env: { ...process.env },
+        });
+        const newPid = refork.pid;
+        if (typeof newPid === 'number') {
+          children.set(newPid, refork);
+          console.log('[main.monitor] reforked backend PID', newPid);
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('child-message', { pid: newPid, msg: { type: 'event', event: 'monitor-reforked' } });
+          }
+
+          // Wire up logging for the new child
+          refork.on('message', (msg) => {
+            if (win && !win.isDestroyed()) win.webContents.send('child-message', { pid: newPid, msg });
+          });
+          if (refork.stdout) refork.stdout.on('data', c => { if (win && !win.isDestroyed()) win.webContents.send('child-stdout', { pid: newPid, data: c.toString() }); console.log('[refork stdout]', c.toString()); });
+          if (refork.stderr) refork.stderr.on('data', c => { if (win && !win.isDestroyed()) win.webContents.send('child-stderr', { pid: newPid, data: c.toString() }); console.error('[refork stderr]', c.toString()); });
+        }
+      } else {
+        console.warn('[main.monitor] lastScriptPath not set or not found — cannot refork automatically');
+      }
+    } catch (e) {
+      console.error('[main.monitor] failed to refork backend', e);
+    }
+  }, intervalMs);
+}
+
+function stopBackendMonitor() {
+  if (!backendMonitorInterval) return;
+  clearInterval(backendMonitorInterval);
+  backendMonitorInterval = null;
+  console.log('[main] backend monitor stopped');
+}
+
 // Convenience: start collector runner as a separate forked process
 ipcMain.handle(
   "start-collector-fork",
@@ -414,23 +414,19 @@ ipcMain.handle(
     _event: IpcMainInvokeEvent,
     { args = [] }: { args?: string[] } = {}
   ) => {
-    // Resolve backend collector runner path
-    const projectRoot = path.dirname(path.dirname(__dirname));
-    const possible = [
-      path.join(
-        projectRoot,
-        "back-end",
-        "dist",
-        "src",
-        "collector",
-        "runner.js"
-      ),
-      path.join(projectRoot, "back-end", "dist", "collector", "runner.js"),
-      path.join(projectRoot, "back-end", "src", "collector", "runner.ts"),
-    ];
-    const scriptPath = possible.find((p) => fs.existsSync(p)) || possible[0];
-    if (!fs.existsSync(scriptPath))
-      return { ok: false, reason: "collector-not-found", attempted: possible };
+    let scriptPath: string;
+
+    if (app.isPackaged) {
+      scriptPath = path.join(process.resourcesPath, "backend", "dist", "collector", "runner.js");
+    } else {
+      const projectRoot = path.dirname(path.dirname(__dirname));
+      scriptPath = path.join(projectRoot, "back-end", "dist", "collector", "runner.js");
+    }
+
+    if (!fs.existsSync(scriptPath)) {
+      return { ok: false, reason: "collector-not-found", attempted: [scriptPath] };
+    }
+
     try {
       const child = fork(scriptPath, args, {
         stdio: ["pipe", "pipe", "ipc"],
@@ -547,19 +543,19 @@ ipcMain.handle(
     }
   }
 );
-/***********/
 
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC!, "electron-vite.svg"),
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
+      preload: path.join(__dirname, "preload.mjs"),
       nodeIntegration: true,
       contextIsolation: false,
     },
   });
 
   win.maximize();
+  // win.setMenu(null);
 
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
@@ -567,13 +563,19 @@ function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
+    // win.setMenu(null); 
   } else {
     // When packaged, __dirname points inside app.asar. It's more reliable to resolve
     // the index.html relative to __dirname instead of constructing a path via process.resourcesPath
     // which may result in a file:// URL containing app.asar and trigger "Not allowed to load local resource".
+    // win.setMenu(null);
     try {
-      const packagedIndex = path.join(process.resourcesPath, 'dist', 'index.html');
-      console.log('[main] loading packaged index from', packagedIndex);
+      const packagedIndex = path.join(
+        process.resourcesPath,
+        "dist",
+        "index.html"
+      );
+      console.log("[main] loading packaged index from", packagedIndex);
       if (fs.existsSync(packagedIndex)) {
         win.loadFile(packagedIndex);
       } else {
@@ -606,110 +608,156 @@ function createWindow() {
   }
 }
 
+async function tryForkBackend(): Promise<boolean> {
+  try {
+    const res = await fetch("http://localhost:3000/api/ping");
+    if (res && res.ok) {
+      console.log("[main] backend is alive");
+      return true;
+    } else {
+      console.log("[main] backend is not responding");
+      return false;
+    }
+  } catch (e) {
+    console.log("[main] backend ping failed");
+    return false;
+  }
+}
+
 app.whenReady().then(() => {
   (async () => {
     // If running packaged we will try to spawn the backend exe included in resources
     if (app.isPackaged) {
-      try {
-        const exePath = path.join(
-          process.resourcesPath,
-          "backend",
-          "backend.exe"
-        );
-        if (fs.existsSync(exePath)) {
-          console.log("[main] Spawning packaged backend exe at", exePath);
-          spawnedBackend = spawn(exePath, [], {
-            env: {
-              ...process.env,
-              FRONTEND_API_PORT: process.env.FRONTEND_API_PORT || "3000",
-            },
-            cwd: process.resourcesPath,
+      const backendScript = path.join(
+        process.resourcesPath,
+        "backend",
+        "index.js"
+      );
+      if (fs.existsSync(backendScript)) {
+        console.log("[main] spawning backend exe at", backendScript);
+        spawnedBackend = spawn("node", [backendScript], {
+          stdio: ["pipe", "pipe", "pipe", "ipc"],
+          cwd: path.dirname(backendScript),
+          env: { ...process.env },
+          shell: false,
+        });
+        spawnedBackend.on("error", (err) => {
+          console.error("[main] spawned backend error:", err);
+          spawnedBackend = null;
+        });
+        spawnedBackend.on("exit", (code, signal) => {
+          console.log(
+            `[main] spawned backend exited with code ${code} and signal ${signal}`
+          );
+          spawnedBackend = null;
+          if (win && !win.isDestroyed()) {
+            win.webContents.send("child-exit", { pid: spawnedBackend?.pid, code, signal });
+          }
+        });
+        if (spawnedBackend.stdout) {
+          spawnedBackend.stdout.on("data", (c) => {
+            console.log("[spawned backend stdout]", c.toString());
+            if (win && !win.isDestroyed())
+              win.webContents.send("child-stdout", {
+                pid: spawnedBackend?.pid,
+                data: c.toString(),
+              });
           });
-          spawnedBackend.stdout.on("data", (d) =>
-            console.log("[backend exe stdout]", d.toString())
-          );
-          spawnedBackend.stderr.on("data", (d) =>
-            console.error("[backend exe stderr]", d.toString())
-          );
-          spawnedBackend.on("exit", (code) =>
-            console.log("[backend exe] exited", code)
-          );
-        } else {
-          console.warn("[main] packaged backend exe not found at", exePath);
+          console.log("[main] spawned backend stdout attached");
         }
-      } catch (e) {
-        console.error("[main] failed to spawn packaged backend exe", e);
       }
+
     } else {
       // In dev, prefer to fork the backend JS so logs and IPC work as before
       try {
         // attempt to auto-start backend JS when running in development
-        const projectRoot = path.dirname(path.dirname(__dirname));
-        const possible = [
-          path.join(projectRoot, "back-end", "dist", "index.js"),
-          path.join(projectRoot, "back-end", "dist", "src", "index.js"),
-          path.join(projectRoot, "back-end", "src", "index.ts"),
-        ];
-        const scriptPath = possible.find((p) => fs.existsSync(p));
-        if (scriptPath) {
-          try {
-            console.log("[main] dev auto-forking backend at", scriptPath);
-            lastScriptPath = scriptPath;
-            const backendDir = path.dirname(scriptPath);
-            const child = fork(scriptPath, [], {
-              stdio: ["pipe", "pipe", "ipc"],
-              cwd: backendDir,
-              env: { ...process.env },
-            });
-            const pid = child.pid;
-            if (typeof pid === "number") {
-              children.set(pid, child);
-              console.log("[main] dev backend forked with PID", pid);
-            }
-            // forward messages/stdout/stderr to renderer
-            child.on("message", (msg) => {
-              if (win && !win.isDestroyed())
-                win.webContents.send("child-message", { pid: child.pid, msg });
-            });
-            if (child.stdout)
-              child.stdout.on("data", (c) => {
-                console.log("[child stdout]", c.toString());
-                if (win && !win.isDestroyed())
-                  win.webContents.send("child-stdout", {
-                    pid: child.pid,
-                    data: c.toString(),
-                  });
-              });
-            if (child.stderr)
-              child.stderr.on("data", (c) => {
-                console.error("[child stderr]", c.toString());
-                if (win && !win.isDestroyed())
-                  win.webContents.send("child-stderr", {
-                    pid: child.pid,
-                    data: c.toString(),
-                  });
-              });
-          } catch (devErr) {
-            console.warn("[main] failed to auto-fork backend in dev:", devErr);
-          }
+        // send a ping, and if not answered in 2s, try to fork
+        const loadedBackend = await tryForkBackend();
+        if (loadedBackend) {
+          console.log("[main] backend is already running, not auto-forking");
         } else {
           console.log(
-            "[main] running in development mode, backend fork will be started by renderer when needed (no backend script found)"
+            "[main] backend not responding, will attempt to auto-fork"
           );
+
+          const projectRoot = path.dirname(path.dirname(__dirname));
+          const possible = [
+            path.join(projectRoot, "back-end", "dist", "index.js"),
+            path.join(projectRoot, "back-end", "dist", "src", "index.js"),
+            path.join(projectRoot, "back-end", "src", "index.ts"),
+          ];
+          const scriptPath = possible.find((p) => fs.existsSync(p));
+          if (scriptPath && !loadedBackend) {
+            try {
+              console.log("[main] dev auto-forking backend at", scriptPath);
+              lastScriptPath = scriptPath;
+              const backendDir = path.dirname(scriptPath);
+              const child = fork(scriptPath, [], {
+                stdio: ["pipe", "pipe", "ipc"],
+                cwd: backendDir,
+                env: { ...process.env },
+              });
+              const pid = child.pid;
+              if (typeof pid === "number") {
+                children.set(pid, child);
+                console.log("[main] dev backend forked with PID", pid);
+              }
+              // forward messages/stdout/stderr to renderer
+              child.on("message", (msg) => {
+                if (win && !win.isDestroyed())
+                  win.webContents.send("child-message", {
+                    pid: child.pid,
+                    msg,
+                  });
+              });
+              if (child.stdout)
+                child.stdout.on("data", (c) => {
+                  console.log("[child stdout]", c.toString());
+                  if (win && !win.isDestroyed())
+                    win.webContents.send("child-stdout", {
+                      pid: child.pid,
+                      data: c.toString(),
+                    });
+                });
+              if (child.stderr)
+                child.stderr.on("data", (c) => {
+                  console.error("[child stderr]", c.toString());
+                  if (win && !win.isDestroyed())
+                    win.webContents.send("child-stderr", {
+                      pid: child.pid,
+                      data: c.toString(),
+                    });
+                });
+            } catch (devErr) {
+              console.warn(
+                "[main] failed to auto-fork backend in dev:",
+                devErr
+              );
+            }
+          } else {
+            console.log(
+              "[main] running in development mode, backend fork will be started by renderer when needed (no backend script found)"
+            );
+          }
         }
+
       } catch (e) {
-        console.warn("[main] dev auto-start failed", e);
+        console.warn(
+          "[main] failed to auto-fork backend in dev:",
+          (e as Error).message || e
+        );
+      }  
+    }
+
+      // Start background monitor to keep backend alive and auto-refork if it dies
+      try {
+        startBackendMonitor({ intervalMs: 15000 });
+      } catch (e) {
+        console.warn('[main] failed to start backend monitor', e);
       }
-    }
 
-    createWindow();
-  })();
-
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
-    }
-  });
+  })();
 });
 
 // Encerrar backend e app corretamente
@@ -718,6 +766,8 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  // stop monitor when quitting
+  try { stopBackendMonitor(); } catch (e) {}
   // ensure spawned backend is terminated
   try {
     if (spawnedBackend && !spawnedBackend.killed) {

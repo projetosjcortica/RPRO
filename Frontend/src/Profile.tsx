@@ -1,217 +1,161 @@
-import React, { useState, useEffect } from 'react';
-import useAuth from './hooks/useAuth';
-import { resolvePhotoUrl } from './lib/photoUtils';
-import { Avatar, AvatarImage, AvatarFallback } from './components/ui/avatar';
-import { Button } from './components/ui/button';
-import { Input } from './components/ui/input';
-import { Label } from './components/ui/label';
+import React, { useState, useEffect } from "react";
+import useAuth from "./hooks/useAuth";
+import { resolvePhotoUrl } from "./lib/photoUtils";
+import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
+import { Button } from "./components/ui/button";
+import { toast } from 'react-toastify';
+import { Input } from "./components/ui/input";
+import { Label } from "./components/ui/label"; 
 
-const Profile: React.FC = () => {
+interface ProfileProps {
+  externalPreview?: string | null;
+  file?: File | null;
+  onUpload?: () => Promise<void>;
+  showLogoutButton?: boolean;
+}
+
+const Profile: React.FC<ProfileProps> = ({ externalPreview, file, onUpload, showLogoutButton = true }) => {
   const { user, logout, updateUser } = useAuth();
 
   // Hooks sempre declarados no topo
-  const [displayName, setDisplayName] = useState(user?.displayName || '');
-  const [file, setFile] = useState<File | null>(null);
+  const [displayName, setDisplayName] = useState(user?.displayName || "");
   const [preview, setPreview] = useState<string | null>(
-    user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null)
+    // prefer user's own photo; if missing, use admin-set default stored in localStorage
+    user?.photoPath ? resolvePhotoUrl(user.photoPath) : (localStorage.getItem('default-user-photo') ? resolvePhotoUrl(localStorage.getItem('default-user-photo') || undefined) : null)
   );
-  const [status, setStatus] = useState<string | null>(null);
+
+  // Use external preview if provided, otherwise use internal
+  const effectivePreview = externalPreview !== undefined ? externalPreview : preview;
 
   useEffect(() => {
-    setDisplayName(user?.displayName || '');
-    setPreview(user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null));
+    setDisplayName(user?.displayName || "");
+    if (externalPreview === undefined) {
+      // if user has photo use it; otherwise fall back to stored default (if any)
+      const defaultPhoto = localStorage.getItem('default-user-photo');
+      setPreview(user?.photoPath ? resolvePhotoUrl(user.photoPath) : (defaultPhoto ? resolvePhotoUrl(defaultPhoto) : null));
+    }
+  }, [user, externalPreview]);
+
+  // Listen to admin updates for default user photo
+  useEffect(() => {
+    const handler = (ev: any) => {
+      try {
+        const path = ev?.detail?.path;
+        if (path) {
+          try { localStorage.setItem('default-user-photo', String(path)); } catch (e) {}
+        }
+        // update preview only if user has no custom photo
+        if (!user?.photoPath) {
+          const resolved = resolvePhotoUrl(path || localStorage.getItem('default-user-photo') || undefined);
+          setPreview(resolved);
+        }
+      } catch (e) {}
+    };
+    window.addEventListener('user-photos-updated', handler as any);
+    return () => window.removeEventListener('user-photos-updated', handler as any);
   }, [user]);
 
   useEffect(() => {
+    const handler = async () => {
+      try {
+        await saveName();
+      } catch (e) {}
+    };
+    window.addEventListener("profile-save-request", handler as any);
+    return () => window.removeEventListener("profile-save-request", handler as any);
+  }, [displayName, file, onUpload]);
+
+  useEffect(() => {
     return () => {
-      if (preview && preview.startsWith('blob:')) {
+      if (effectivePreview && effectivePreview.startsWith("blob:")) {
         try {
-          URL.revokeObjectURL(preview);
+          URL.revokeObjectURL(effectivePreview);
         } catch {}
       }
     };
-  }, [preview]);
+  }, [effectivePreview]);
 
   // Renderização condicional só aqui (depois dos hooks)
   if (!user) {
-    return <div className="p-4">Not logged in</div>;
+    return <div className="p-4">Você foi desconectado</div>;
   }
 
   const saveName = async () => {
-    setStatus(null);
     try {
-      const res = await fetch('http://localhost:3000/api/auth/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user.username, displayName }),
+      const res = await fetch("http://localhost:3000/api/auth/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          username: user.username, 
+          displayName,
+          // Allow special user 'cortica' to update userType
+          userType: (user.isAdmin || user.username === 'cortica') ? user.userType : undefined
+        }),
       });
       if (!res.ok) throw new Error(`update failed: ${res.status}`);
       const data = await res.json();
-      updateUser(data);
-      setStatus('Nome atualizado');
+  updateUser(data);
+      // Notify other UI parts about the name change
+      try {
+        window.dispatchEvent(new Event('profile-config-updated'));
+      } catch (e) {}
+      try { toast.success('Perfil atualizado'); } catch (e) {}
+      // If the parent passed an upload handler and there's a selected file, invoke it
+      if (file && onUpload) {
+        try { await onUpload(); } catch (e) { console.error('upload after save failed', e); }
+      }
     } catch (e: any) {
-      setStatus(String(e?.message || e));
     }
-  };
-
-  const uploadPhoto = async () => {
-    if (!file) return setStatus('Selecione um arquivo');
-    setStatus('Enviando...');
-
-    try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64 = reader.result as string | null;
-        if (!base64) return setStatus('Falha ao ler arquivo');
-
-        try {
-          const res = await fetch('http://localhost:3000/api/auth/photoBase64', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: user.username, photoBase64: base64 }),
-          });
-          if (!res.ok) {
-            const txt = await res.text().catch(() => '');
-            if (res.status === 413) throw new Error('PAYLOAD_TOO_LARGE');
-            throw new Error(`upload failed: ${res.status} ${txt}`);
-          }
-          const data = await res.json();
-          const newUser = { ...data, photoData: base64 } as any;
-          updateUser(newUser);
-          setPreview(base64);
-          setFile(null);
-          setStatus('Foto atualizada');
-          return;
-        } catch (err: any) {
-          if (
-            String(err?.message || '').includes('PAYLOAD_TOO_LARGE') ||
-            String(err?.message || '').includes('413') ||
-            String(err?.message || '').toLowerCase().includes('payload')
-          ) {
-            try {
-              const fd = new FormData();
-              fd.append('username', user.username);
-              fd.append('photo', file);
-              const res2 = await fetch('http://localhost:3000/api/auth/photo', {
-                method: 'POST',
-                body: fd,
-              });
-              if (!res2.ok) {
-                const txt2 = await res2.text().catch(() => '');
-                throw new Error(`multipart upload failed: ${res2.status} ${txt2}`);
-              }
-              const data2 = await res2.json();
-              const newUser2 = {
-                ...data2,
-                photoData: preview && preview.startsWith('data:') ? preview : undefined,
-              } as any;
-              updateUser(newUser2);
-              try {
-                const blobUrl = URL.createObjectURL(file);
-                setPreview(blobUrl);
-              } catch {}
-              setFile(null);
-              setStatus('Foto enviada (fallback multipart)');
-              return;
-            } catch (mErr: any) {
-              setStatus(String(mErr?.message || mErr));
-              return;
-            }
-          }
-          setStatus(String(err?.message || err));
-          return;
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (e: any) {
-      setStatus(String(e?.message || e));
-    }
-  };
-
-  const onFileChange = (f: File | null) => {
-    setFile(f);
-    if (!f) {
-      setPreview(user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null));
-      return;
-    }
-    const url = URL.createObjectURL(f);
-    setPreview(url);
-  };
+  }; 
 
   return (
-    <div className="p-6 max-w-2xl mx-auto bg-white rounded-md shadow-sm">
-      <div className="flex items-center gap-6">
-        <Avatar className="size-20">
-          {preview ? (
-            <AvatarImage src={preview} alt="avatar" />
-          ) : (
-            <AvatarFallback>
-              {(user.displayName || user.username || 'U').charAt(0)}
-            </AvatarFallback>
-          )}
-        </Avatar>
-        <div className="flex-1">
-          <div className="text-lg font-semibold">{user.displayName || user.username}</div>
-          <div className="text-sm text-muted-foreground">{user.username}</div>
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              setFile(null);
-              setPreview(
-                user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null)
-              );
-            }}
-          >
-            Reverter
-          </Button>
-          <Button variant="destructive" size="sm" onClick={logout}>
-            Logout
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-6 grid grid-cols-1 gap-4">
-        <div>
-          <Label className="mb-1">Nome</Label>
-          <Input value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-          <div className="mt-2 flex gap-2">
-            <Button onClick={saveName} size="sm">
-              Salvar nome
-            </Button>
-            <div className="text-sm text-muted-foreground self-center">{status}</div>
+    <div className="w-full h-full bg-white rounded-lg border shadow-xl border-gray-400 overflow-hidden">
+      <div className="p-6 h-full">
+        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+          <div className="flex-shrink-0 relative">
+            <Avatar className="size-16 sm:size-20 bg-gray-200">
+              {effectivePreview ? (
+                <AvatarImage src={effectivePreview} alt="avatar" className="object-cover w-full h-full" />
+              ) : (
+                <AvatarFallback>
+                  {(user.displayName || user.username || "U").charAt(0)}
+                </AvatarFallback>
+              )}
+            </Avatar>
           </div>
-        </div>
-
-        <div>
-          <Label className="mb-1">Foto de perfil</Label>
-          <div className="flex items-center gap-3">
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-            />
-            <div className="flex gap-2">
-              <Button onClick={uploadPhoto} variant="secondary" size="sm" disabled={!file}>
-                Enviar
-              </Button>
-              <Button
-                onClick={() => {
-                  setFile(null);
-                  setPreview(
-                    user?.photoData || (user?.photoPath ? resolvePhotoUrl(user.photoPath) : null)
-                  );
-                }}
-                variant="ghost"
-                size="sm"
-              >
-                Cancelar
+          <div className="flex-1 text-center sm:text-left min-w-0">
+            <div className="text-lg font-semibold truncate">
+              {user.displayName || user.username}
+            </div>
+            <div className="text-sm text-muted-foreground truncate">{user.username}</div>
+            {file && (
+              <div className="text-xs text-green-600 font-medium mt-1">
+                como sua foto irá ficar
+              </div>
+            )}
+          </div>
+          {showLogoutButton && (
+            <div className="flex-shrink-0">
+              <Button variant="destructive" size="sm" onClick={() => { logout(); try { window.dispatchEvent(new Event('profile-logged-out')); } catch (e) {}; try { toast.info('Você saiu'); } catch (e) {} }}>
+                Sair
               </Button>
             </div>
-            <div className="text-sm text-muted-foreground">{file ? file.name : ''}</div>
+          )}
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 h-full">
+          <div className="h-full">
+            <Label className="mb-2 block text-sm font-medium text-gray-700">Nome</Label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="border border-gray-500"
+                placeholder="Seu nome"
+              />
+            </div>
           </div>
+
         </div>
       </div>
     </div>

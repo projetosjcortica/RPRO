@@ -68,7 +68,12 @@ export type ParserRow = {
   values: Array<number | null>;
 };
 
-export type ParserResult = { processedPath: string; rowsCount: number; rows: ParserRow[] };
+export type ParserResult = { 
+  processedPath: string; 
+  rowsCount: number; 
+  rows: ParserRow[];
+  isLegacyFormat?: boolean; // Indica se foi convertido de formato legado
+};
 export type ProcessPayload = { filename: string; lastProcessedAt: string; rowCount: number };
 
 export type BackupMeta = {

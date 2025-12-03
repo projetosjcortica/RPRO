@@ -111,6 +111,10 @@ export const RuntimeConfigProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     void load();
+    // Listen for global events (e.g. Processador webhook) to reload runtime configs
+    const handler = () => { void load(); };
+    window.addEventListener('runtime-config-changed', handler as EventListener);
+    return () => { window.removeEventListener('runtime-config-changed', handler as EventListener); };
   }, []);
 
   const value: RuntimeConfigShape = {

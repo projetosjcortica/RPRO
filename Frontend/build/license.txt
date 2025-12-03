@@ -1,0 +1,6 @@
+CORTEZ - Sistema de Gerenciamento/Relatorios
+Versão 1.2.0beta
+
+Desenvolvido por: J.Cortiça
+
+Direitos autorais © 2025 CORTEZ. Todos os direitos reservados.
