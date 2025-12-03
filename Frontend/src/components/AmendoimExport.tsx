@@ -34,7 +34,7 @@ import { pt } from "date-fns/locale";
 import { type DateRange } from "react-day-picker";
 import { toast } from "react-toastify";
 // import { PDFViewer, PDFDownloadLink } from "@react-pdf/renderer";
-import { PDFViewer } from "@react-pdf/renderer";
+import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { AmendoimPDFDocument } from "./AmendoimPDF";
 
 interface AmendoimExportProps {
@@ -54,6 +54,7 @@ interface AmendoimExportProps {
   logoUrl?: string;
   proprietario?: string;
   onPdfModalOpenChange?: (isOpen: boolean) => void;
+  pdfFileName?: string;
 }
 
 interface AmendoimRecord {
@@ -68,7 +69,7 @@ interface AmendoimRecord {
   balanca?: string;
 }
 
-export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, logoUrl, proprietario, onPdfModalOpenChange }: AmendoimExportProps) {
+export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, onRemoveComment, logoUrl, proprietario, onPdfModalOpenChange, pdfFileName }: AmendoimExportProps) {
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
 
@@ -289,6 +290,47 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
     ...localComments.map((c) => ({ texto: c.texto, data: c.data })),
     ...(newComment ? [{ texto: newComment, data: new Date().toLocaleString('pt-BR') }] : []),
   ];
+
+  const handlePdfDownload = async () => {
+    try {
+      // Recreate the document element to generate a PDF blob
+      const doc = (
+        <AmendoimPDFDocument
+          registros={pdfData}
+          filtros={{
+            tipo: pdfTipo,
+            dataInicio: excelDateRange?.from ? format(excelDateRange.from, "yyyy-MM-dd") : undefined,
+            dataFim: excelDateRange?.to ? format(excelDateRange.to, "yyyy-MM-dd") : undefined,
+            codigoProduto,
+            nomeProduto,
+            codigoCaixa,
+          }}
+          comentarios={commentsForPdf}
+          tabelasSeparadas={tabelasSeparadas}
+          fontSize={fontSize}
+          ordenacao={ordenacao}
+          agruparPorProduto={agruparPorProduto}
+          logoUrl={logoUrl}
+          proprietario={proprietario}
+        />
+      );
+      const instance = pdf(doc);
+      const blob = await instance.toBlob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      a.download = `${pdfFileName ?? `relatorio_${today}`}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Erro ao gerar PDF para download (amendoim):', err);
+    }
+  };
 
   useEffect(() => {
     if (onPdfModalOpenChange) {
@@ -594,6 +636,12 @@ export function AmendoimExport({ filtros = {}, comentarios = [], onAddComment, o
                 )}
               </>
             )}
+          </div>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="outline" onClick={handlePdfDownload} className="gap-2">
+              <FileDown className="h-4 w-4" />
+              Baixar PDF
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

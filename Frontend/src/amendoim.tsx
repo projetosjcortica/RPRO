@@ -1150,9 +1150,18 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           {(() => {
             const comentariosComId = comentarios.map((c, idx) => ({ id: String(idx), texto: c.texto, data: c.data || new Date().toLocaleString('pt-BR') }));
 
+            const pdfFileName = (() => {
+              const di = filtrosAtivos?.dataInicio;
+              const df = filtrosAtivos?.dataFim;
+              if (di && df) return `relatorio_${di}_${df}`;
+              if (di) return `relatorio_${di}`;
+              if (df) return `relatorio_ate_${df}`;
+              return `relatorio_${formatDateFn(new Date(), 'yyyy-MM-dd')}`;
+            })();
+
             return (
-              <AmendoimExport
-                filtros={{ ...filtrosAtivos, ...(viewMode !== 'comparativo' ? { tipo: viewMode } : {}) }}
+                <AmendoimExport
+                  filtros={{ ...filtrosAtivos, ...(viewMode !== 'comparativo' ? { tipo: viewMode } : {}) }}
                 comentarios={comentariosComId}
                 onAddComment={(texto) => setComentarios((s) => [...s, { texto, data: new Date().toLocaleString('pt-BR') }])}
                 onRemoveComment={(id) => {
@@ -1162,6 +1171,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                 logoUrl={logoUrl}
                 proprietario={proprietario}
                 onPdfModalOpenChange={setIsPdfModalOpen}
+                pdfFileName={pdfFileName}
               />
             );
           })()}
