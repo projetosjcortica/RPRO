@@ -22,12 +22,39 @@ export class Processador {
   private eventHandlers: Map<string, (payload: any) => void> = new Map();
   private connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'connected';
   private baseURL: string;
+  
+  // OTIMIZAÇÃO: Cache de requisições em memória (TTL de 5s)
+  private requestCache: Map<string, { data: any; timestamp: number }> = new Map();
+  private cacheTTL: number = 5000; // 5 segundos
 
   constructor(port: number) {
     this.port = port || 3000;
     this.baseURL = `http://localhost:${this.port}`;
     this.connectionState = 'connected';
     console.log(`[Processador] HTTP client initialized for ${this.baseURL}`);
+  }
+
+  /**
+   * Upload a file to the amendoim upload endpoint using FormData.
+   * Accepts a File (browser) or Blob; in Electron renderer File is available.
+   */
+  public async uploadAmendoimFile(file: File | Blob, tipo?: string): Promise<any> {
+    const url = `${this.baseURL}/api/amendoim/upload`;
+    const form = new FormData();
+    form.append('file', file as any);
+    if (tipo) form.append('tipo', tipo);
+
+    try {
+      const resp = await fetch(url, { method: 'POST', body: form });
+      if (!resp.ok) {
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${resp.status}: ${resp.statusText}`);
+      }
+      return await resp.json();
+    } catch (err) {
+      console.error('[Processador] uploadAmendoimFile failed:', err);
+      throw err;
+    }
   }
 
   // Método makeRequest corrigido - SEMPRE usa URL absoluta
@@ -41,10 +68,31 @@ export class Processador {
       url = `${this.baseURL}${normalizedEndpoint}`;
     }
 
-    console.log(`[Processador] Making request to ${url} with method ${method}`, data);
+    // OTIMIZAÇÃO: Verificar cache para requisições GET
+    if (method === 'GET' && !data) {
+      const cached = this.requestCache.get(url);
+      if (cached && (Date.now() - cached.timestamp) < this.cacheTTL) {
+        console.log(`[Processador] 💾 Cache hit para ${url}`);
+        return cached.data;
+      }
+    }
 
-    const headers: Record<string, string> = { 'Accept': 'application/json' };
-    const config: RequestInit = { method, headers };
+    console.log(`[Processador] 🌐 Request para ${url} (${method})`);
+
+    const headers: Record<string, string> = { 
+      'Accept': 'application/json',
+      'Connection': 'keep-alive', // Reutilizar conexões
+    };
+    
+    // Ensure summary/resumo endpoints are never cached by browsers or intermediate proxies
+    if (/\/api\/resumo$/.test(url) || /\/api\/resumo\?/.test(url)) {
+      headers['Cache-Control'] = 'no-cache';
+    }
+    const config: RequestInit = { 
+      method, 
+      headers,
+      keepalive: true // Manter conexão ativa
+    };
 
     // GET → colocar parâmetros na URL
     if (method === 'GET' && data) {
@@ -62,7 +110,14 @@ export class Processador {
     try {
       const response = await fetch(url, config);
       if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      return await response.json();
+      const result = await response.json();
+      
+      // OTIMIZAÇÃO: Salvar no cache se for GET
+      if (method === 'GET') {
+        this.requestCache.set(url, { data: result, timestamp: Date.now() });
+      }
+      
+      return result;
     } catch (error) {
       console.error(`[Processador] Request failed to ${url}:`, error);
       throw error;
@@ -128,6 +183,12 @@ export class Processador {
       case 'collector.stop':
         return this.collectorStop();
 
+      case 'ihm.discover':
+        return this.discoverIhms(payload?.method, payload?.ports, payload?.timeoutMs);
+
+      case 'ihm.discover.last':
+        return this.getIhmDiscoveryLast();
+
       default:
         throw new Error(`Unknown command: ${cmd}`);
     }
@@ -137,7 +198,7 @@ export class Processador {
   public async relatorioPaginate(
     page = 1,
     pageSize = 100,
-    filters: FilterOptions = {}
+    filters: FilterOptions & { advancedFilters?: any } = {}
   ): Promise<any> {
     const params: any = { 
       page, 
@@ -161,7 +222,10 @@ export class Processador {
     }
 
     console.log("[relatorioPaginate] Parâmetros para API:", params);
-    return this.makeRequest('/api/relatorio/paginate', 'POST', { params });
+    // Forward advancedFilters in the POST body when provided
+    const body: any = { params };
+    if ((filters as any).advancedFilters) body.advancedFilters = (filters as any).advancedFilters;
+    return this.makeRequest('/api/relatorio/paginate', 'POST', body);
   }
 
   /**
@@ -192,6 +256,26 @@ export class Processador {
 
   public ihmFetchLatest(ip: string, user = "anonymous", password = "") {
     return this.makeRequest('/api/ihm/fetchLatest', 'GET', { ip, user, password });
+  }
+
+  public discoverIhms(method: 'node' | 'powershell' = 'node', ports: number[] = [80,443,502], timeoutMs = 800, paths: string[] = ['/', '/visu', '/visu/index.html']) {
+    return this.makeRequest('/api/ihm/discover', 'POST', { method, ports, timeoutMs, paths });
+  }
+
+  public getIhmDiscoveryLast() {
+    return this.makeRequest('/api/ihm/discover/last', 'GET');
+  }
+
+  public getAdminUsers() {
+    return this.makeRequest('/api/admin/users', 'GET');
+  }
+
+  public deleteUser(username?: string, id?: number) {
+    return this.makeRequest('/api/admin/delete-user', 'POST', { username, id });
+  }
+
+  public toggleAdmin(username?: string, id?: number, isAdmin = true) {
+    return this.makeRequest('/api/admin/toggle-admin', 'POST', { username, id, isAdmin });
   }
 
   public backupList() {
@@ -238,7 +322,45 @@ export class Processador {
     return this.makeRequest('/api/collector/stop');
   }
 
-  public getResumo(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string) {
+  // Versão atualizada com suporte a AbortSignal
+  private async makeRequestWithSignal(endpoint: string, signal: AbortSignal, method = 'GET', data?: any): Promise<any> {
+    let url: string;
+    if (/^https?:\/\//i.test(endpoint)) {
+      url = endpoint;
+    } else {
+      const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+      url = `${this.baseURL}${normalizedEndpoint}`;
+    }
+
+    console.log(`[Processador] Making request to ${url} with method ${method} (with signal)`, data);
+
+  const headers: Record<string, string> = { 'Accept': 'application/json', 'Cache-Control': 'no-cache' };
+    const config: RequestInit = { method, headers, signal };
+
+    // GET → colocar parâmetros na URL
+    if (method === 'GET' && data) {
+      const params = new URLSearchParams();
+      Object.entries(data).forEach(([k, v]) => {
+        if (v !== null && v !== undefined && v !== '') params.append(k, String(v));
+      });
+      const queryString = params.toString();
+      if (queryString) url += `?${queryString}`;
+    } else if (method !== 'GET' && data !== undefined) {
+      headers['Content-Type'] = 'application/json';
+      config.body = JSON.stringify(data);
+    }
+
+    try {
+      const response = await fetch(url, config);
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      return await response.json();
+    } catch (error) {
+      console.error(`[Processador] Request failed to ${url}:`, error);
+      throw error;
+    }
+  }
+
+  public getResumo(areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string, advancedFilters?: any) {
     const params: any = {};
     if (areaId) params.areaId = areaId;
     if (nomeFormula) params.nomeFormula = nomeFormula;
@@ -247,7 +369,29 @@ export class Processador {
     if (codigo !== undefined && codigo !== null && String(codigo) !== '') params.codigo = codigo;
     if (numero !== undefined && numero !== null && String(numero) !== '') params.numero = numero;
 
+    // If advancedFilters provided, prefer POST body to avoid long URLs
+    if (advancedFilters && typeof advancedFilters === 'object') {
+      return this.makeRequest('/api/resumo', 'POST', { params, advancedFilters });
+    }
+
     return this.makeRequest('/api/resumo', 'GET', params);
+  }
+  
+  // Nova versão com suporte a AbortSignal
+  public getResumoWithSignal(signal: AbortSignal, areaId?: string, nomeFormula?: string, dataInicio?: string, dataFim?: string, codigo?: number | string, numero?: number | string, advancedFilters?: any) {
+    const params: any = {};
+    if (areaId) params.areaId = areaId;
+    if (nomeFormula) params.nomeFormula = nomeFormula;
+    if (dataInicio) params.dataInicio = dataInicio;
+    if (dataFim) params.dataFim = dataFim;
+    if (codigo !== undefined && codigo !== null && String(codigo) !== '') params.codigo = codigo;
+    if (numero !== undefined && numero !== null && String(numero) !== '') params.numero = numero;
+
+    if (advancedFilters && typeof advancedFilters === 'object') {
+      return this.makeRequestWithSignal('/api/resumo', signal, 'POST', { params, advancedFilters });
+    }
+
+    return this.makeRequestWithSignal('/api/resumo', signal, 'GET', params);
   }
 
   /**
@@ -430,6 +574,63 @@ export class Processador {
     }
     
     return false;
+  }
+
+  // ✅ NOVO: Método para upload de arquivo CSV
+  public async uploadCSV(file: File): Promise<{ ok: boolean; meta: any; processed: any }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `${this.baseURL}/api/file/upload`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+        // Não definir Content-Type - o browser define automaticamente com boundary para multipart
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[Processador] Upload CSV failed:', error);
+      throw error;
+    }
+  }
+
+  // ✅ NOVO: Método para converter CSV legado
+  public async convertLegacyCSV(file: File): Promise<{ 
+    ok: boolean; 
+    rowsProcessed: number;
+    rowsConverted: number;
+    errors: string[];
+    convertedData: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const url = `${this.baseURL}/api/file/convert`;
+    
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[Processador] Convert CSV failed:', error);
+      throw error;
+    }
   }
 } 
 

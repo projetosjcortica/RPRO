@@ -1,16 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from './ui/table';
-// import { Button } from './ui/button';
-// import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 
 type ProdDatum = { name: string; value: number; unit?: string };
 
-export default function ProductsTable({ filters, onHoverName, onLeave }: { filters?: any; onHoverName?: (name: string) => void; onLeave?: () => void }) {
+export default function ProductsTable({ filters, onHoverName, onLeave, highlightName }: { filters?: any; onHoverName?: (name: string) => void; onLeave?: () => void; highlightName?: string | null }) {
   const [data, setData] = useState<ProdDatum[]>([]);
+  const [loading, setLoading] = useState(false);
   
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
+      setLoading(true);
       const params = new URLSearchParams();
       if (filters?.formula) params.set('formula', String(filters.formula));
       if (filters?.dataInicio) params.set('dataInicio', String(filters.dataInicio));
@@ -22,79 +21,114 @@ export default function ProductsTable({ filters, onHoverName, onLeave }: { filte
     } catch (e) {
       console.error('ProductsTable fetch error', e);
       setData([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [filters?.formula, filters?.dataInicio, filters?.dataFim]);
 
   useEffect(() => {
     void fetchData();
-  }, [JSON.stringify(filters)]);
+  }, [fetchData]);
 
-  const top = data;
+  // ✅ OTIMIZAÇÃO: Memoizar formatação dos produtos
+  const displayProducts = useMemo(() => {
+    return data.map((p, idx) => {
+      const colKey = `col${idx + 6}`;
+      return {
+        nome: p.name,
+        qtd: p.value,
+        colKey
+      };
+    });
+  }, [data]);
+
+  // ✅ OTIMIZAÇÃO: Callbacks memoizados
+  const handleMouseEnter = useCallback((nome: string) => {
+    onHoverName?.(nome);
+  }, [onHoverName]);
+  console.log(handleMouseEnter);
+
+  const handleMouseLeave = useCallback(() => {
+    onLeave?.();
+  }, [onLeave]);
+  console.log(handleMouseLeave);
+
+  if (loading) {
+    return (
+      <div className="border rounded w-full h-full flex items-center justify-center">
+        <div className="text-sm text-gray-500">Carregando produtos...</div>
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-lg font-medium">Produtos</div>
-        <div className="flex items-center gap-2">
-          {/* <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="sm">Ver todos</Button>
-            </SheetTrigger>
-            <SheetContent side="right">
-              <SheetHeader>
-                <SheetTitle>Produtos (completos)</SheetTitle>
-              </SheetHeader>
-              <div className="p-4 overflow-auto thin-red-scrollbar ">
-                <Table className=''>
-                  <TableHeader>
-                    <tr>
-                      <TableHead>Produto</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="text-right">Unidade</TableHead>
-                    </tr>
-                  </TableHeader>
-                  <TableBody>
-                    {data.map((p, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="max-w-[260px] truncate">{p.name}</TableCell>
-                        <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</TableCell>
-                        <TableCell className="text-right">{p.unit ?? 'kg'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+    <div className="border rounded w-full h-full overflow-auto thin-red-scrollbar">
+      <Table className="w-full table-fixed">
+        <TableHeader>
+          <TableRow className="bg-gray-200 border sticky top-0 z-10">
+            <TableHead className="text-center w-1/2 border-r h-8 py-1">
+              <div className="truncate max-w-full" title="Produtos">
+                Produtos
               </div>
-            </SheetContent>
-          </Sheet> */}
-        </div>
-      </div>
-
-      <div>
-        <Table>
-          <TableHeader>
-            <tr>
-              <TableHead>Produto</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
-            </tr>
-          </TableHeader>
-          <TableBody>
-            {top.map((p, idx) => (
-              <TableRow key={idx}
-                onMouseEnter={() => onHoverName?.(p.name)}
-                onMouseLeave={() => onLeave?.()}
-              >
-                <TableCell className="max-w-[160px] truncate">{p.name}</TableCell>
-                <TableCell className="text-right">{p.value.toLocaleString('pt-BR', { minimumFractionDigits: 3})} {'Kg'}</TableCell>
-              </TableRow>
-            ))}
-            {top.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={2}>Nenhum produto</TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            </TableHead>
+            <TableHead className="text-center w-1/2 h-8 py-1">
+              <div className="truncate max-w-full" title="Quantidade">
+                Quantidade
+              </div>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {displayProducts && displayProducts.length > 0 ? (
+            displayProducts.map((produto, idx) => {
+              const isHighlighted = highlightName === produto.nome;
+              console.log(isHighlighted);
+              return (
+                <TableRow key={idx}
+                  onMouseEnter={() => onHoverName?.(produto.nome)}
+                  onMouseLeave={() => onLeave?.()}
+                  className={`hover:bg-gray-50 cursor-default h-10 border-b even:bg-gray-50/50 ${highlightName === produto.nome ? 'bg-red-50' : ''}`}
+                >
+                  <TableCell className="py-1 px-2 text-right border-r align-middle">
+                    <div 
+                      className="break-words overflow-hidden line-clamp-2"
+                      style={{
+                        wordBreak: "break-word",
+                        overflowWrap: "break-word",
+                        maxWidth: "100%",
+                        lineHeight: "1.2",
+                      }}
+                      title={produto.nome}
+                    >
+                      {produto.nome}
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-1 px-2 text-right align-middle">
+                    <div 
+                      className="break-words overflow-hidden line-clamp-2"
+                      style={{
+                        wordBreak: "break-word",
+                        overflowWrap: "break-word",
+                        maxWidth: "100%",
+                        lineHeight: "1.2",
+                      }}
+                    >
+                      {Number(produto.qtd).toLocaleString("pt-BR", {
+                        minimumFractionDigits: 3,
+                        maximumFractionDigits: 3,
+                      })} kg
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          ) : (
+            <TableRow>
+              <TableCell colSpan={2} className="text-center text-gray-500 py-4">Nenhum produto</TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }

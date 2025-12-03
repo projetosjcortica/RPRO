@@ -1,6 +1,6 @@
-RPRO - Sistema de Gerenciamento/Relatorios
-Versão 1.1.0beta
+CORTEZ - Sistema de Gerenciamento/Relatorios
+Versão 1.2.0beta
 
 Desenvolvido por: J.Cortiça
 
-Direitos autorais © 2025 RPRO. Todos os direitos reservados.
+Direitos autorais © 2025 CORTEZ. Todos os direitos reservados.

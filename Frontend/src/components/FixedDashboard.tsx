@@ -3,6 +3,7 @@ import {
   DonutChartWidget,
   BarChartWidget,
   WeeklyChartWidget,
+  useChartData,
 } from "./Widgets";
 import ProductsTable from './ProductsTable';
 import { useEffect, useState } from 'react';
@@ -11,7 +12,7 @@ import { Separator } from "./ui/separator";
 import { format as formatDateFn, format as formatDate } from 'date-fns';
 import { Popover, PopoverTrigger, PopoverContent } from './ui/popover';
 import { Calendar } from './ui/calendar';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 import { pt } from 'date-fns/locale';
 
@@ -36,8 +37,22 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
   const [resumoError, setResumoError] = useState<string | null>(null);
 
   // Local UI state for independent date pickers and applied filters for each chart
-  const [donutDateRange, setDonutDateRange] = useState<any>(undefined);
-  const [donutFilters, setDonutFilters] = useState<any>({ dataInicio: filters?.dataInicio || '', dataFim: filters?.dataFim || '' });
+  // Inicializar com o mês anterior completo
+  const [donutDateRange, setDonutDateRange] = useState<any>(() => {
+    const today = new Date();
+    const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    return { from: firstDayLastMonth, to: lastDayLastMonth };
+  });
+  
+  const [donutFilters, setDonutFilters] = useState<any>(() => {
+    const today = new Date();
+    const firstDayLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastDayLastMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+    const dataInicio = formatDate(firstDayLastMonth, 'yyyy-MM-dd');
+    const dataFim = formatDate(lastDayLastMonth, 'yyyy-MM-dd');
+    return { dataInicio, dataFim };
+  });
 
   // Inicializar com o dia anterior
   const [horariosDateRange, setHorariosDateRange] = useState<any>(() => {
@@ -53,14 +68,15 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     return { dataInicio: dateStr, dataFim: dateStr };
   });
 
-  // Inicializar com a semana atual
+  // Inicializar com a semana atual (domingo a sábado)
   const [weeklyDateRange, setWeeklyDateRange] = useState<any>(() => {
     const today = new Date();
     const dayOfWeek = today.getDay();
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - dayOfWeek);
+    // Se for domingo (0), usar o dia atual; caso contrário, voltar até domingo
+    startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 0 : dayOfWeek));
     const endOfWeek = new Date(today);
-    endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
+    endOfWeek.setDate(today.getDate() + (dayOfWeek === 0 ? 6 : 6 - dayOfWeek));
     return { from: startOfWeek, to: endOfWeek };
   });
   
@@ -68,14 +84,20 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     const today = new Date();
     const dayOfWeek = today.getDay();
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - dayOfWeek);
+    startOfWeek.setDate(today.getDate() - (dayOfWeek === 0 ? 0 : dayOfWeek));
     const endOfWeek = new Date(today);
-    endOfWeek.setDate(today.getDate() + (6 - dayOfWeek));
+    endOfWeek.setDate(today.getDate() + (dayOfWeek === 0 ? 6 : 6 - dayOfWeek));
     return {
       dataInicio: formatDate(startOfWeek, 'yyyy-MM-dd'),
       dataFim: formatDate(endOfWeek, 'yyyy-MM-dd')
     };
   });
+
+  const [highlightProduto, setHighlightProduto] = useState<string | null>(null);
+  const [highlightFormula, setHighlightFormula] = useState<string | null>(null);
+  const [reloadResumo, setReloadResumo] = useState(0);
+
+  console.log(highlightProduto)
 
   // Per-chart handlers
   const handleDonutDateChange = (range: any) => setDonutDateRange(range);
@@ -142,9 +164,10 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     // Calcular início e fim da semana (domingo a sábado)
     const dayOfWeek = date.getDay();
     const startOfWeek = new Date(date);
-    startOfWeek.setDate(date.getDate() - dayOfWeek);
+    // Se for domingo (0), usar o dia atual; caso contrário, voltar até domingo
+    startOfWeek.setDate(date.getDate() - (dayOfWeek === 0 ? 0 : dayOfWeek));
     const endOfWeek = new Date(date);
-    endOfWeek.setDate(date.getDate() + (6 - dayOfWeek));
+    endOfWeek.setDate(date.getDate() + (dayOfWeek === 0 ? 6 : 6 - dayOfWeek));
     
     const weekRange = { from: startOfWeek, to: endOfWeek };
     setWeeklyDateRange(weekRange);
@@ -174,8 +197,7 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
 
   console.log(loadingResumo)
 
-  // makePeriodText removed (unused)
-
+  // Buscar resumo e atualizar periodicamente
   useEffect(() => {
     let mounted = true;
     const fetchResumo = async () => {
@@ -203,8 +225,17 @@ export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
     };
 
     fetchResumo();
-    return () => { mounted = false; };
-  }, [filters]);
+    
+    // Atualizar a cada 30 segundos
+    const interval = setInterval(() => {
+      if (mounted) fetchResumo();
+    }, 30000);
+
+    return () => { 
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [filters, reloadResumo]);
  
 const formatShortDate = (raw?: string | null) => {
     if (!raw) return "";
@@ -273,42 +304,19 @@ const formatShortDate = (raw?: string | null) => {
 
   const filteredRowsForWeek = filterRowsByDateRange(rows, weeklyFilters);
 
-  // Compute top formulas either from resumo.formulasUtilizadas or derive from rows
-  type FormulaItem = { label: string; value: number };
-  const computeTopFormulas = (): FormulaItem[] => {
-    try {
-      if (resumo && typeof resumo === 'object' && 'formulasUtilizadas' in resumo) {
-        const fu = (resumo as Record<string, unknown>)['formulasUtilizadas'];
-        let values: Array<Record<string, unknown>> = [];
-        if (Array.isArray(fu)) values = fu as Array<Record<string, unknown>>;
-        else if (fu && typeof fu === 'object') values = Object.values(fu as Record<string, unknown>) as Array<Record<string, unknown>>;
-        return values
-          .map((f) => ({ label: String(f['nome'] ?? f['numero'] ?? '—'), value: f['somatoriaTotal'] != null ? Number(f['somatoriaTotal']) : (f['quantidade'] != null ? Number(f['quantidade']) : 0) }))
-          .sort((a, b) => b.value - a.value);
-      }
-    } catch (err: unknown) {
-      // ignore and fallback
-    }
-    if (!rows) return [];
-    const map = new Map<string, number>();
-    rows.forEach((r: Entry) => {
-      const name = r.Nome || '—';
-      const sum = Array.isArray(r.values) ? r.values.reduce((a: number, b: number) => a + (Number(b) || 0), 0) : 0;
-      map.set(name, (map.get(name) || 0) + sum);
-    });
-  return Array.from(map.entries()).map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value);
-  };
+  // Buscar dados dos gráficos diretamente
+  const { data: formulasChartData, loading: loadingFormulasChart } = useChartData('formulas', { ...(filters || {}), ...(donutFilters || {}) });
+  // const { data: horariosChartData, loading: loadingHorariosChart } = useChartData('horarios', { ...(filters || {}), ...(horariosFilters || {}) });
 
   return (
-    <div className="w-full h-full p-4 scrollbar-custom overflow-hidden">
-      <div className="flex gap-2 3xl:gap-6 justify-between scrollbar-custom overflow-hidden">
-        <div className="flex w-full space-y-6 flex-col">
+    <div className="w-full h-fit">
+      <div className="flex gap-1.5 h-full justify-between">
+        <div className="flex w-full 2xl:gap-x-2 flex flex-col gap-2">
           {/* First row: Formulas Donut */}
-          <Card className=" shadow-md border border-indigo-50 rounded-xl overflow-hidden h-90 w-full 3xl:h-105">
+          <Card className=" shadow-xl border border-gray-300 rounded-xl h-full">
             <CardHeader className="border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                   <CardTitle className="text-sm font-semibold text-gray-900">Análise de Fórmulas</CardTitle>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -327,7 +335,7 @@ const formatShortDate = (raw?: string | null) => {
                         <CalendarIcon className="ml-2 h-4 w-4" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-2" align="end">
+                      <PopoverContent className="w-auto p-2" align="end" onInteractOutside={applyDonutFilters}>
                       <Calendar
                         mode="range"
                         locale={pt}
@@ -349,50 +357,54 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="flex flex-col lg:flex-row gap-4">
+            <CardContent className="flex flex-col lg:flex-row gap-4">
                 <div className="w-full lg:w-1/2 min-h-[220px]">
-                  <DonutChartWidget chartType="formulas" config={{ filters: { ...(filters || {}), ...(donutFilters || {}) } }} />
+                  <DonutChartWidget 
+                    chartType="formulas" 
+                    config={{ filters: { ...(filters || {}), ...(donutFilters || {}) } }}
+                    highlightName={highlightFormula}
+                    onSliceHover={(name) => setHighlightFormula(name)}
+                    onSliceLeave={() => setHighlightFormula(null)}
+                  />
                 </div>
                 <div className="w-full lg:w-1/2">
-                  <div className="text-sm font-medium text-gray-900 mb-2">Todas as Fórmulas</div>
-                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2">
-                    {loadingResumo ? (
+                  <div className="text-sm font-semibold text-gray-900 mb-3">Todas as Fórmulas</div>
+                  <div className="3xl:h-60 h-46  overflow-y-auto space-y-2 pr-2 thin-red-scrollbar">
+                    {loadingFormulasChart ? (
                       <div className="text-sm text-gray-500">Carregando...</div>
+                    ) : !formulasChartData || formulasChartData.length === 0 ? (
+                      <div className="text-sm text-gray-500">Nenhuma fórmula</div>
                     ) : (
-                      (() => {
-                        const list = computeTopFormulas();
-                        if (!list || list.length === 0) return <div className="text-sm text-gray-500">Nenhuma fórmula</div>;
-                        return list.map((f: FormulaItem, idx: number) => (
-                          <div key={idx} className="flex items-center justify-between text-sm">
-                            <div className="truncate pr-2">{f.label}</div>
-                            <div className="font-medium">{f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}</div>
+                      formulasChartData.map((f, idx) => {
+                        // const isHighlighted = highlightFormula === f.name;
+                        return (
+                          <div 
+                            key={idx} 
+                            className={`flex items-center justify-between text-sm border-b m-0 h-10 even:bg-gray-50/50 px-2 transition-all hover:bg-gray-50`}
+                            onMouseEnter={() => setHighlightFormula(f.name)}
+                            onMouseLeave={() => setHighlightFormula(null)}
+                          >
+                            <div className="truncate pr-2 text-gray-700">{f.name}</div>
+                            <div className={` whitespace-nowrap text-gray-900`}>
+                              {f.value != null ? Number(f.value).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—'} kg
+                            </div>
                           </div>
-                        ));
-                      })()
+                        );
+                      })
                     )}
                   </div>
                 </div>
-              </div>
             </CardContent>
           </Card>
 
+          <div className="flex flex-col 3xl:flex-row gap-2">
           {/* Second row: Horarios & Weekly */}
-          <div className="flex gap-6">
-            <Card className="shadow-md border border-indigo-50 rounded-xl overflow-hidden w-1/2 h-87 3xl:h-121">
+            <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-fit 3xl:h-full">
               <CardHeader className="border-b border-gray-100 ">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                     <CardTitle className="text-sm font-semibold text-gray-900">Horário de Produção</CardTitle>
-                    {horariosDateRange?.from && (
-                      <span className="text-xs text-gray-500 font-normal">
-                        ({formatDate(horariosDateRange.from, 'dd/MM')}
-                        {horariosDateRange.to && horariosDateRange.to.getTime() !== horariosDateRange.from.getTime() 
-                          ? ` - ${formatDate(horariosDateRange.to, 'dd/MM')}` 
-                          : ''})
-                      </span>
-                    )}
+                    
                   </div>
                   <div className="flex items-center space-x-2">
                     <Popover>
@@ -410,7 +422,7 @@ const formatShortDate = (raw?: string | null) => {
                           <CalendarIcon className="ml-2 h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" align="end">
+                      <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45} onInteractOutside={applyHorariosFilters}>
                         <Calendar
                           mode="range"
                           locale={pt}
@@ -421,7 +433,7 @@ const formatShortDate = (raw?: string | null) => {
                         />
                         <div className="flex gap-2 mt-2 px-1">
                           <Button variant="outline" onClick={clearHorariosFilters} size="sm" className="flex-1">
-                            Dia Anterior
+                            Ontem
                           </Button>
                           <Button onClick={applyHorariosFilters} size="sm" className="flex-1">
                             Aplicar
@@ -432,22 +444,21 @@ const formatShortDate = (raw?: string | null) => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-3 flex flex-col h-[calc(100%-40px)]">
-                <div className="flex-1 min-h-[250px]">
+              <CardContent className="flex flex-col lg:flex-row h-[calc(100%-64px)]">
+                <div className="w-full pb-5 min-h-[220px] pr-2 3xl:pr-5">
                   <BarChartWidget chartType="horarios" config={{ filters: { ...(filters || {}), ...(horariosFilters || {}) } }} />
-                </div>
+                </div> 
               </CardContent>
             </Card>
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden h-87 w-1/2 3xl:h-121 ">
-              <CardHeader className="border-b border-gray-100 ">
+            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-90 3xl:h-full mb-6">
+              <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                     <CardTitle className="text-sm font-semibold text-gray-900">Produção Semanal</CardTitle>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Button 
                       variant="outline" 
                       size="sm" 
@@ -456,9 +467,9 @@ const formatShortDate = (raw?: string | null) => {
                         prevWeekStart.setDate(prevWeekStart.getDate() - 7);
                         handleWeeklyDateChange(prevWeekStart);
                       }}
-                      className="h-8 px-2"
+                      className="h-8 px-1.5"
                     >
-                      ← Anterior
+                      ←
                     </Button>
                     <Popover>
                       <PopoverTrigger asChild>
@@ -468,16 +479,35 @@ const formatShortDate = (raw?: string | null) => {
                           ) : (
                             <span>Selecione uma semana</span>
                           )}
-                          <CalendarIcon className="ml-2 h-4 w-4" />
+                          <CalendarIcon className=" h-4 w-4" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-2" align="end">
+                      <PopoverContent className="w-auto p-2" side="right" align="start" sideOffset={10} alignOffset={-45}>
                         <Calendar
                           mode="single"
                           locale={pt}
                           selected={weeklyDateRange?.from}
                           onSelect={(date) => handleWeeklyDateChange(date)}
                           numberOfMonths={1}
+                          
+                          modifiers={{
+                            weekRange: (date) => {
+                              if (!weeklyDateRange?.from) return false;
+                              const start = new Date(weeklyDateRange.from);
+                              start.setHours(0, 0, 0, 0);
+                              const end = new Date(start);
+                              end.setDate(end.getDate() + 6);
+                              end.setHours(23, 59, 59, 999);
+                              return date >= start && date <= end;
+                            }
+                          }}
+                          modifiersStyles={{
+                            weekRange: { 
+                              backgroundColor: 'rgb(254 202 202)', 
+                              color: 'rgb(127 29 29)',
+                              fontWeight: 'bold'
+                            }
+                          }}
                         />
                         <div className="flex gap-2 mt-2 px-1">
                           <Button variant="outline" onClick={clearWeeklyFilters} size="sm" className="w-full">
@@ -494,15 +524,15 @@ const formatShortDate = (raw?: string | null) => {
                         nextWeekStart.setDate(nextWeekStart.getDate() + 7);
                         handleWeeklyDateChange(nextWeekStart);
                       }}
-                      className="h-8 px-2"
+                      className="h-8 px-1.5"
                     >
-                      Próxima →
+                         →
                     </Button>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6 flex flex-col h-[calc(100%-60px)]">
-                <div className="flex-1 min-h-[250px]">
+              <CardContent className="flex flex-col">
+                <div className="flex-1 min-h-[250px] 3xl:h-300">
                   <WeeklyChartWidget rows={filteredRowsForWeek} weekStart={weeklyDateRange?.from} />
                 </div>
               </CardContent>
@@ -510,23 +540,31 @@ const formatShortDate = (raw?: string | null) => {
           </div>
         </div>
         {/* Sidebar  */}
-        <div className=" w-130 space-y-6 max-h-screen md:max-h-[calc(100vh-2rem)] overflow-auto thin-red-scrollbar">
-          <Card className="bg-white shadow-md border border-indigo-50 rounded-xl overflow-hidden">
-            <CardHeader className="border-b px-6 py-4">
+        <div className=" w-130 space-y-6 overflow-hidden shadow-lg h-full rounded-xl">
+          <Card className="bg-white shadow-md border border-gray-300 rounded-xl overflow-hidden h-[calc(100vh-15px)] 3xl:h-[calc(100vh-25px)] flex flex-col">
+            <CardHeader className="border-b px-6 py-4 flex-shrink-0 border-indigo-50">
               <div className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div className="w-3 h-3 bg-red-600 rounded-full mr-2"></div>
                   <CardTitle className="text-sm font-semibold">Resumo de Produção</CardTitle>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setReloadResumo(prev => prev + 1)}
+                  disabled={loadingResumo}
+                  className="h-8 w-8 p-0"
+                >
+                  <RefreshCw className={`h-4 w-4 ${loadingResumo ? 'animate-spin' : ''}`} />
+                </Button>
               </div>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="flex flex-col flex-grow overflow-hidden">
 
                 {resumoError ? (
                   <div className="text-sm text-red-600">Erro ao carregar resumo: {resumoError}</div>
                 ) : (
-                  <div className="space-y-3 flex flex-col gap-3">
-                    <div id="total+horas" className="flex flex-col items-center justify-between mb-6 gap-2">
+                  <div className="flex flex-col h-full gap-3">
+                    <div id="total+horas" className="flex flex-col items-center justify-between mb-6 gap-2 flex-shrink-0">
                       <div className="w-80 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 shadow-md/16">
                         <p className="text-center text-lg font-bold">Total:  {""}
                           {(resumo && typeof resumo.totalPesos === "number"
@@ -538,9 +576,11 @@ const formatShortDate = (raw?: string | null) => {
                           })} kg
                         </p>
                         <p className="text-center text-sm text-gray-400 font-regular">Batidas:  {""}
-                          {resumo && typeof resumo.batitdasTotais === "number"
+                          {(resumo && typeof resumo.batitdasTotais === "number"
                             ? resumo.batitdasTotais
-                            : "..."}
+                            : "..."
+                            ).toLocaleString("pt-BR", 
+                )}
                         </p>
                       </div>
                       <div className=" w-80 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
@@ -582,12 +622,14 @@ const formatShortDate = (raw?: string | null) => {
                     </div>
                      
 
-                    <div id="produtos" className="pt-2 flex flex-col min-h-0">
-                      <div className="flex-1 overflow-hidden">
-                        <ProductsTable
-                          filters={filters}
+                    <div id="produtos" className="pt-2 flex flex-col flex-grow min-h-0">
+                      {/* <div className="text-sm font-semibold text-gray-900 mb-2 flex-shrink-0">Produtos</div> */}
+                      <div className="flex-grow min-h-0">
+                        <ProductsTable 
+                          filters={filters} 
                           onHoverName={(name) => setHighlightProduto(name)}
                           onLeave={() => setHighlightProduto(null)}
+                          highlightName={highlightProduto}
                         />
                       </div>
                     </div>
@@ -597,7 +639,6 @@ const formatShortDate = (raw?: string | null) => {
           </Card>
         </div>
       </div>
- 
     </div>
   );
 }

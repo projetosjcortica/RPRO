@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { getDefaultReportDateRange } from '../lib/reportDefaults';
 
 // Tipos originais de filtros
 export interface Filtros {
@@ -18,10 +19,13 @@ export interface Filtros {
  * Permite busca por data, nome da fórmula, categoria, intervalo de valores
  */
 export const useFiltros = () => {
-  const [filtros, setFiltros] = useState<Filtros>({
-    dataInicio: '',
-    dataFim: '',
-    nomeFormula: ''
+  const [filtros, setFiltros] = useState<Filtros>(() => {
+    const { dataInicio, dataFim } = getDefaultReportDateRange(29);
+    return {
+      dataInicio,
+      dataFim,
+      nomeFormula: '',
+    };
   });
 
   // Informações de produtos do localStorage

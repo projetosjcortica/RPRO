@@ -22,4 +22,8 @@ export class User {
   @Column({ nullable: true, type: 'text' })
   photoPath?: string;
 
+  // Tipo de perfil do usuário: 'racao' ou 'amendoim'
+  @Column({ type: 'varchar', length: 20, default: 'racao' })
+  userType!: 'racao' | 'amendoim';
+
 }

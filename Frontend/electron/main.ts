@@ -218,6 +218,9 @@ ipcMain.handle(
     }
 
     try {
+      // save last script path so auto-refork and monitor can restart same script
+      lastScriptPath = scriptPath;
+
       const child = fork(scriptPath, args, {
         stdio: ["pipe", "pipe", "ipc"],
         cwd: path.dirname(scriptPath),
@@ -333,6 +336,76 @@ ipcMain.handle(
     }
   }
 );
+
+// Monitor that periodically pings the backend and attempts to restart it when unresponsive
+let backendMonitorInterval: NodeJS.Timeout | null = null;
+function startBackendMonitor({ intervalMs = 15000 }: { intervalMs?: number } = {}) {
+  if (backendMonitorInterval) return; // already running
+  console.log(`[main] starting backend monitor (interval ${intervalMs}ms)`);
+
+  backendMonitorInterval = setInterval(async () => {
+    try {
+      const res = await fetch("http://localhost:3000/api/ping");
+      if (res && res.ok) {
+        // healthy
+        // console.log('[main.monitor] backend healthy');
+        return;
+      }
+    } catch (e) {
+      console.warn('[main.monitor] backend ping failed');
+    }
+
+    // If ping failed, attempt to restart backend using lastScriptPath/refork logic
+    console.warn('[main.monitor] backend appears down — attempting restart/refork');
+    try {
+      // Kill any existing children that seem to be backend processes
+      for (const [pid, child] of Array.from(children.entries())) {
+        try {
+          console.log(`[main.monitor] killing child PID ${pid}`);
+          child.kill('SIGTERM');
+        } catch (e) {
+          console.warn('[main.monitor] error killing child', e);
+        }
+        children.delete(pid);
+      }
+
+      if (lastScriptPath && fs.existsSync(lastScriptPath)) {
+        const backendDir = path.dirname(lastScriptPath);
+        const refork = fork(lastScriptPath, [], {
+          stdio: ["pipe", "pipe", "ipc"],
+          cwd: backendDir,
+          env: { ...process.env },
+        });
+        const newPid = refork.pid;
+        if (typeof newPid === 'number') {
+          children.set(newPid, refork);
+          console.log('[main.monitor] reforked backend PID', newPid);
+          if (win && !win.isDestroyed()) {
+            win.webContents.send('child-message', { pid: newPid, msg: { type: 'event', event: 'monitor-reforked' } });
+          }
+
+          // Wire up logging for the new child
+          refork.on('message', (msg) => {
+            if (win && !win.isDestroyed()) win.webContents.send('child-message', { pid: newPid, msg });
+          });
+          if (refork.stdout) refork.stdout.on('data', c => { if (win && !win.isDestroyed()) win.webContents.send('child-stdout', { pid: newPid, data: c.toString() }); console.log('[refork stdout]', c.toString()); });
+          if (refork.stderr) refork.stderr.on('data', c => { if (win && !win.isDestroyed()) win.webContents.send('child-stderr', { pid: newPid, data: c.toString() }); console.error('[refork stderr]', c.toString()); });
+        }
+      } else {
+        console.warn('[main.monitor] lastScriptPath not set or not found — cannot refork automatically');
+      }
+    } catch (e) {
+      console.error('[main.monitor] failed to refork backend', e);
+    }
+  }, intervalMs);
+}
+
+function stopBackendMonitor() {
+  if (!backendMonitorInterval) return;
+  clearInterval(backendMonitorInterval);
+  backendMonitorInterval = null;
+  console.log('[main] backend monitor stopped');
+}
 
 // Convenience: start collector runner as a separate forked process
 ipcMain.handle(
@@ -490,10 +563,12 @@ function createWindow() {
 
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(VITE_DEV_SERVER_URL);
+    // win.setMenu(null); 
   } else {
     // When packaged, __dirname points inside app.asar. It's more reliable to resolve
     // the index.html relative to __dirname instead of constructing a path via process.resourcesPath
     // which may result in a file:// URL containing app.asar and trigger "Not allowed to load local resource".
+    // win.setMenu(null);
     try {
       const packagedIndex = path.join(
         process.resourcesPath,
@@ -674,7 +749,14 @@ app.whenReady().then(() => {
       }  
     }
 
-    createWindow();
+      // Start background monitor to keep backend alive and auto-refork if it dies
+      try {
+        startBackendMonitor({ intervalMs: 15000 });
+      } catch (e) {
+        console.warn('[main] failed to start backend monitor', e);
+      }
+
+      createWindow();
   })();
 });
 
@@ -684,6 +766,8 @@ app.on("window-all-closed", () => {
 });
 
 app.on("before-quit", () => {
+  // stop monitor when quitting
+  try { stopBackendMonitor(); } catch (e) {}
   // ensure spawned backend is terminated
   try {
     if (spawnedBackend && !spawnedBackend.killed) {

@@ -7,3 +7,5 @@ export * from './Estoque';
 export * from './MovimentacaoEstoque';
 export * from './Setting';
 export * from './User';
+export * from './Amendoim';
+export * from './AmendoimRaw';

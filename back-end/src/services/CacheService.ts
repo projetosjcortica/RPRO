@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import path from 'path';
 import { BaseService } from '../core/baseService';
-import { CacheFile } from '../entities/index';
+import { CacheFile, Setting } from '../entities/index';
 import fs from 'fs';
 import child_process from 'child_process';
 import { BackupMeta } from '../core/utils';
@@ -18,7 +18,8 @@ export class CacheService extends BaseService {
     const dbPath = process.env.CACHE_SQLITE_PATH || 'cache.sqlite';
     const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
     this.dbPath = absPath;
-    this.ds = new DataSource({ type: 'sqlite', database: absPath, synchronize: true, logging: false, entities: [CacheFile] });
+    // Include Setting entity so runtime configs can be persisted into the cache DB.
+    this.ds = new DataSource({ type: 'sqlite', database: absPath, synchronize: true, logging: false, entities: [CacheFile, Setting] });
   }
   async init() {
     // If already initialized, return
@@ -218,6 +219,32 @@ export class CacheService extends BaseService {
     } finally {
       this.deletingFile = false;
     }
+  }
+
+  /**
+   * Compatibilidade com collector: buscar cache por nome
+   */
+  async getCacheByName(name: string): Promise<{ lastProcessedLine?: number; lastModified?: string } | null> {
+    const cached = await this.getByName(name);
+    if (!cached) return null;
+    
+    return {
+      lastProcessedLine: (cached as any).lastProcessedLine,
+      lastModified: cached.lastMTime || undefined,
+    };
+  }
+
+  /**
+   * Compatibilidade com collector: atualizar cache
+   */
+  async updateCache(name: string, size: number, lastProcessedLine: number): Promise<void> {
+    await this.upsert({
+      originalName: name,
+      lastSize: size,
+      lastMTime: new Date().toISOString(),
+      lastProcessedAt: new Date().toISOString(),
+      ...(lastProcessedLine ? { lastProcessedLine } as any : {}),
+    });
   }
 }
 

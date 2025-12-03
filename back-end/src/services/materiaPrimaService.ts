@@ -11,11 +11,34 @@ export class MateriaPrimaService extends BaseService {
   async getAll(): Promise<MateriaPrima[]> {
     await dbService.init();
     const repo = AppDataSource.getRepository(MateriaPrima);
-    return repo.find({
-      order: {
-        num: 'ASC'
+    // Ensure there is a sensible default set of materia prima records.
+    // Frontend expects product nums starting at 1 (col6 => Produto 1) up to a default range.
+    const DEFAULT_COUNT = 65; // Ensure 65 products by default (col6..col70 => 65 products)
+
+    const existing = await repo.find({ order: { num: 'ASC' } });
+
+    // If any product records are missing in the range 1..DEFAULT_COUNT, create them
+    const existingNums = new Set<number>(existing.map(e => Number(e.num)).filter(n => Number.isFinite(n)));
+    const toCreate: Partial<MateriaPrima>[] = [];
+    for (let n = 1; n <= DEFAULT_COUNT; n++) {
+      if (!existingNums.has(n)) {
+        toCreate.push({ num: n, produto: `Produto ${n}`, medida: 1, ativo: true, ignorarCalculos: false });
       }
-    });
+    }
+
+    if (toCreate.length > 0) {
+      try {
+        await this.saveMany(toCreate as any);
+        // reload existing after insert
+        return repo.find({ order: { num: 'ASC' } });
+      } catch (err) {
+        // If save fails for any reason, log and fall back to returning what exists
+        console.error('[MateriaPrimaService.getAll] error creating default products', err);
+        return existing;
+      }
+    }
+
+    return existing;
   }
 
   async saveMany(items: Partial<MateriaPrima>[]): Promise<MateriaPrima[]> {

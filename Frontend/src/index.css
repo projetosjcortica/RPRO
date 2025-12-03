@@ -2,32 +2,26 @@
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
-
-/* globals.css ou no seu arquivo de estilos */
-/* Thin Red Scrollbar */
-.thin-red-scrollbar::-webkit-scrollbar {
-  width: 3px; /* Vertical scrollbar width */
-  height: 3px; /* Horizontal scrollbar height (if needed) */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+  margin: 3px;
 }
 
-.thin-red-scrollbar::-webkit-scrollbar-thumb {
-  @apply bg-red-500 rounded-full;
+::-webkit-scrollbar-thumb {
+  background-color: #afafaf;
   border-radius: 999px;
 }
 
-.thin-red-scrollbar::-webkit-scrollbar-track {
-  @apply bg-transparent;
+::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-/* Optional: Hide scrollbar in Firefox (it doesn't support styling well) */
-.thin-red-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: #504f4f transparent; /* red-500 */
+::-webkit-scrollbar-button {
+  display: flex;
 }
 
-html {
-  overflow: visible;
-}
+
 
 body {
   margin: 0;
@@ -48,6 +42,10 @@ body {
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
+}
+
+input {
+  border-color: oklch(0.551 0.027 264.364);;
 }
 
 @theme inline {
@@ -86,7 +84,7 @@ h1 {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --breakpoint-3xl: 100rem;
+  --breakpoint-3xl: 110rem;
 }
 
 @layer base {
@@ -157,7 +155,7 @@ h1 {
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.553 0.013 58.071);
-    --chart-1: oklch(0.488 0.243 264.376);
+    --chart-1: #ff2626ff;
     --chart-2: oklch(0.696 0.17 162.48);
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
@@ -179,8 +177,8 @@ h1 {
   --sidebar-foreground: hsl(240 5.3% 26.1%);
   --sidebar-primary: hsl(240 5.9% 10%);
   --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
+  --sidebar-accent: red;
+  --sidebar-accent-foreground: hsl(0, 0%, 100%);
   --sidebar-border: hsl(220 13% 91%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
 }
@@ -188,10 +186,10 @@ h1 {
 .dark {
   --sidebar: hsl(240 5.9% 10%);
   --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
+  --sidebar-primary: hsl(0, 76%, 48%);
   --sidebar-primary-foreground: hsl(0 0% 100%);
   --sidebar-accent: hsl(240 3.7% 15.9%);
   --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
   --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+  --sidebar-ring: hsl(0, 91%, 60%);
 }

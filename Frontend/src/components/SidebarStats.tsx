@@ -4,7 +4,7 @@ type Filters = Record<string, any> | undefined;
 
 function fmt(n?: number) {
   if (n == null || isNaN(n)) return "0,00";
-  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return n.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 
 export default function SidebarStats({ filters }: { filters?: Filters }) {

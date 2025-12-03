@@ -1,11 +1,12 @@
 import { Document, Page, Text, StyleSheet, View, Image, Font } from "@react-pdf/renderer";
+import { DASHBOARD_COLORS as palette } from './lib/colors';
 import type { FC } from "react";
 import type { ReportConfig } from './components/ReportConfig';
 
 Font.register({
   family: "Roboto",
   fonts: [
-    { src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf" },
+    { src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf" }, // Regular
     { src: "https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc9.ttf", fontWeight: "bold" },
   ],
 });
@@ -70,65 +71,12 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: "bold",
-    backgroundColor: "#f3f4f6",
+    backgroundColor: "#af1e1eff",
+    color: "#ffffff",
     padding: 8,
     borderRadius: 4,
     marginBottom: 12,
-    color: "#af1e1eff",
-  },
-  productGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  productRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    backgroundColor: "#f9fafb",
-    borderRadius: 4,
-    width: "48%",
-    marginRight: "2%",
-    marginBottom: 8,
-  },
-  productName: {
-    fontSize: 12,
-    fontWeight: "bold",
-    color: "#374151",
-    flex: 1,
-  },
-  productValue: {
-    fontSize: 12,
-    color: "#6b7280",
-    backgroundColor: "#e5e7eb",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  totalProductionCard: {
-    backgroundColor: "#fef2f2",
-    borderLeftWidth: 4,
-    borderLeftColor: "#af1e1eff",
-    borderRadius: 6,
-    padding: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  totalProductionLabel: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#374151",
-  },
-  totalProductionValue: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#af1e1eff",
-  },
-  chartSection: {
-    marginBottom: 24,
+    textAlign: "center",
   },
   chartContainer: {
     backgroundColor: "#f9fafb",
@@ -196,6 +144,120 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#9ca3af",
   },
+  // Chart styles (análise de produção - barras horizontais)
+  chartSection: {
+    marginBottom: 15,
+  },
+  chartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+    paddingVertical: 2,
+  },
+  chartLabel: {
+    width: '25%',
+    fontSize: 8,
+    color: '#374151',
+    paddingRight: 4,
+  },
+  chartBarContainer: {
+    width: '45%',
+    height: 10,
+    backgroundColor: '#e6e7ea',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginRight: 4,
+  },
+  chartBarFill: {
+    height: 10,
+    backgroundColor: '#af1e1eff',
+  },
+  chartValue: {
+    width: '15%',
+    fontSize: 8,
+    textAlign: 'right',
+    color: '#374151',
+    paddingRight: 2,
+  },
+  chartPercent: {
+    width: '15%',
+    fontSize: 8,
+    textAlign: 'right',
+    color: '#6b7280',
+  },
+  // Tabelas padronizadas
+  table: {
+    width: "100%",
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 10,
+  },
+  tableRow: {
+    flexDirection: "row",
+    backgroundColor: "#ffffff",
+  },
+  tableRowEven: {
+    flexDirection: "row",
+    backgroundColor: "#f9fafb",
+  },
+  tableCol: {
+    width: "70%",
+    borderBottomWidth: 1,
+    borderColor: "#d1d5db",
+    padding: 8,
+  },
+  tableColSmall: {
+    width: "30%",
+    borderBottomWidth: 1,
+    borderColor: "#d1d5db",
+    padding: 8,
+    textAlign: "right",
+  },
+  tableColHeader: {
+    width: "70%",
+    borderBottomWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#e2e2e2ff",
+    padding: 8,
+    fontWeight: "bold",
+    color: "#af1e1eff",
+  },
+  tableColHeaderSmall: {
+    width: "30%",
+    borderBottomWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#e2e2e2ff",
+    padding: 8,
+    fontWeight: "bold",
+    color: "#af1e1eff",
+    textAlign: "right",
+  },
+  label: {
+    fontWeight: "bold",
+    color: "#374151",
+  },
+  value: {
+    textAlign: "right",
+  },
+  comentarioContainer: {
+    marginBottom: 10,
+    padding: 12,
+    backgroundColor: "#f8f9fa",
+    borderRadius: 4,
+    border: '1px solid #e5e7eb',
+  },
+  comentarioMeta: {
+    fontSize: 10,
+    color: "#666666",
+    marginBottom: 6,
+  },
+  comentarioTexto: {
+    fontSize: 11,
+    color: "#333333",
+    lineHeight: 1.4,
+  },
 });
 
 // Componente para renderizar gráfico como placeholder (já que react-pdf não suporta componentes complexos)
@@ -215,28 +277,307 @@ const ChartPlaceholder: FC<{ chart: any; data: any[] }> = ({ chart }) => (
   </View>
 );
 
+interface Produto {
+  nome: string;
+  qtd: number | string;
+  unidade?: string;
+  categoria?: string;
+}
+
+interface ComentarioRelatorio {
+  texto: string;
+  data?: string;
+  autor?: string;
+}
+
+export interface PdfCustomization {
+  fontSize: 'small' | 'medium' | 'large';
+  sortOrder: 'alphabetic' | 'silo' | 'most-used';
+  formulaSortOrder?: 'alphabetic' | 'code' | 'most-used';
+  simplifiedLayout?: boolean;
+}
+
 interface CustomReportDocumentProps {
   config: ReportConfig;
   data?: any;
-  produtosInfo?: Record<string, { nome?: string; unidade?: string; total?: number }>;
+  produtosInfo?: Record<string, { nome?: string; unidade?: string; total?: number; categoria?: string }>;
   totalProduction?: number;
+  produtos?: Produto[];
+  formulas?: Array<{ numero?: number; codigo?: string; nome?: string; batidas?: number; somatoriaTotal?: number }>;
+  comentarios?: ComentarioRelatorio[];
+  usuario?: string;
+  empresa?: string;
+  periodoInicio?: string;
+  periodoFim?: string;
+  horaInicial?: string;
+  horaFinal?: string;
+  pdfCustomization?: PdfCustomization;
+  chartData?: { name: string; value: number }[];
+  showCharts?: boolean;
 }
 
 export const CustomReportDocument: FC<CustomReportDocumentProps> = ({ 
   config, 
   data, 
   produtosInfo = {}, 
-  totalProduction = 0
+  totalProduction = 0,
+  produtos = [],
+  formulas = [],
+  comentarios = [],
+  usuario = "Sistema",
+  periodoInicio = "-",
+  periodoFim = "-",
+  horaInicial = "-",
+  horaFinal = "-",
+  pdfCustomization = { fontSize: 'medium', sortOrder: 'alphabetic' },
+  chartData = [],
+  showCharts = true,
 }) => {
   // usar cor principal configurada (hex) como fallback para elementos do PDF
   const primary = (config as any)?.primaryColor || '#af1e1e';
-    console.log("COR PRIMÁRIA CONFIGURADA:", primary);
-    console.log("DADOS DO RELATÓRIO:", data);
-    console.log("CONFIGURAÇÕES DO RELATÓRIO:", config);
-    console.log("INFORMAÇÕES DOS PRODUTOS:", produtosInfo);
+  
+  // Data de geração
+  const dataGeracao = new Date().toLocaleString("pt-BR", {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  // Formatar datas
+  const formatarData = (data: string) => {
+    if (!data || data === '-') return '-';
+    try {
+      const d = new Date(data);
+      if (isNaN(d.getTime())) return data;
+      return d.toLocaleDateString('pt-BR');
+    } catch {
+      return data;
+    }
+  };
+
+  const periodoInicioFormatado = formatarData(periodoInicio);
+  const periodoFimFormatado = formatarData(periodoFim);
+
+  // Tamanhos de fonte baseados na customização
+  const fontSizes = {
+    small: { base: 10, title: 20, section: 14, table: 8 },
+    medium: { base: 12, title: 24, section: 16, table: 10 },
+    large: { base: 14, title: 28, section: 18, table: 12 },
+  };
+  const currentFontSizes = fontSizes[pdfCustomization.fontSize];
+
+  // Agrupar produtos por categoria
+  const produtosPorCategoria: Record<string, Produto[]> = {};
+  produtos.forEach((p) => {
+    const cat = p.categoria || "Sem Categoria";
+    if (!produtosPorCategoria[cat]) produtosPorCategoria[cat] = [];
+    produtosPorCategoria[cat].push(p);
+  });
+  const categorias = Object.keys(produtosPorCategoria).sort();
+
+  // Preparar dados de gráfico
+  const _chartSource: { name: string; value: number }[] = [];
+  if (chartData && Array.isArray(chartData) && chartData.length > 0) {
+    for (const c of chartData) {
+      _chartSource.push({ name: String(c.name), value: Number(c.value) || 0 });
+    }
+  } else if (produtosInfo && Object.keys(produtosInfo).length > 0) {
+    for (const [k, v] of Object.entries(produtosInfo)) {
+      _chartSource.push({ name: (v as any).nome || k, value: Number((v as any).total) || 0 });
+    }
+  }
+  const chartSource = _chartSource;
+
+  // Renderizar rodapé
+  const renderRodape = () => (
+    <>
+      <Text
+        fixed
+        style={{
+          position: "absolute",
+          bottom: 12,
+          left: 30,
+          fontSize: currentFontSizes.base - 2,
+          color: "#bbbbbbff",
+        }}
+      >
+        Relatório gerado em {dataGeracao} por J.Cortiça ({usuario})
+      </Text>
+      <Text
+        fixed
+        style={{
+          position: "absolute",
+          bottom: 12,
+          right: 30,
+          fontSize: currentFontSizes.base - 2,
+          color: "#bbbbbbff",
+        }}
+        render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`}
+      />
+    </>
+  );
+
+  // Renderizar tabela padrão
+  const renderTable = (
+    rows: Produto[],
+    keyMapper: (row: Produto) => { col1: string; col2: string }
+  ) => (
+    <View style={styles.table}>
+      <View style={styles.tableRow}>
+        <Text style={[styles.tableColHeader, { fontSize: currentFontSizes.table }]}>Nome</Text>
+        <Text style={[styles.tableColHeaderSmall, { fontSize: currentFontSizes.table }]}>Total</Text>
+      </View>
+      {rows.map((row, i) => {
+        const { col1, col2 } = keyMapper(row);
+        return (
+          <View
+            key={i}
+            style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
+          >
+            <Text style={[styles.tableCol, { fontSize: currentFontSizes.table }]}>{col1}</Text>
+            <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{col2}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+
+  const renderFormulasTable = (
+    rows: Array<{ numero?: number; codigo?: string; nome?: string; batidas?: number; somatoriaTotal?: number }>
+  ) => (
+    <View style={styles.table}>
+      <View style={styles.tableRow}>
+        <Text style={[styles.tableColHeader, { fontSize: currentFontSizes.table }]}>#</Text>
+        <Text style={[styles.tableColHeader, { fontSize: currentFontSizes.table, width: '50%' }]}>Fórmula</Text>
+        <Text style={[styles.tableColHeaderSmall, { fontSize: currentFontSizes.table }]}>Batidas</Text>
+        <Text style={[styles.tableColHeaderSmall, { fontSize: currentFontSizes.table }]}>Total (kg)</Text>
+      </View>
+      {rows.map((row, i) => (
+        <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+          <Text style={[styles.tableCol, { fontSize: currentFontSizes.table, width: '10%' }]}>{row.numero ?? i + 1}</Text>
+          <Text style={[styles.tableCol, { fontSize: currentFontSizes.table, width: '50%' }]}>{row.nome || row.codigo || '-'}</Text>
+          <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{(row.batidas ?? '-')}</Text>
+          <Text style={[styles.tableColSmall, { fontSize: currentFontSizes.table }]}>{Number(row.somatoriaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  const renderTopFormulas = (rows: Array<{ nome?: string; somatoriaTotal?: number }>, max = 6) => {
+    const top = (rows || []).slice().sort((a: any, b: any) => (b.somatoriaTotal || 0) - (a.somatoriaTotal || 0)).slice(0, max);
+    return (
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        {top.map((t, i) => (
+          <View key={i} style={{ width: '48%', backgroundColor: '#f9fafb', padding: 6, borderRadius: 4, marginBottom: 6 }}>
+            <Text style={{ fontSize: currentFontSizes.table, fontWeight: 'bold', color: '#374151' }}>{t.nome}</Text>
+            <Text style={{ fontSize: currentFontSizes.table, color: '#6b7280', marginTop: 4 }}>{Number(t.somatoriaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+          </View>
+        ))}
+      </View>
+    );
+  };
+  
+  // Modo compacto: se simplifiedLayout=true, gerar uma única página compacta
+  if (pdfCustomization?.simplifiedLayout) {
+    const compact = fontSizes.small;
+    const formulasToShow = (formulas && formulas.length > 0)
+      ? formulas.map(f => ({ nome: f.nome || f.codigo, somatoriaTotal: Number(f.somatoriaTotal || 0) }))
+      : chartSource.map(c => ({ nome: c.name, somatoriaTotal: c.value }));
+    const produtosToShow = produtos && produtos.length > 0 ? produtos : Object.entries(produtosInfo || {}).map(([k, v]: any) => ({ nome: v.nome || k, qtd: v.total || 0 }));
+
+    return (
+      <Document>
+        <Page size="A4" style={{ ...styles.page, padding: 12, paddingBottom: 24, fontSize: compact.base }}>
+          <View style={config.includeLogo && config.logoUrl ? styles.header : styles.headerWithoutLogo}>
+            {config.includeLogo && config.logoUrl && (
+              <Image style={[styles.logo, { width: 60, height: 60, marginRight: 10 }]} src={config.logoUrl} />
+            )}
+            <View style={styles.titleContainer}>
+              <Text style={[styles.title, { color: primary, fontSize: compact.title }]}>{config.title || 'Relatório de Produção'}</Text>
+              <Text style={[styles.subtitle, { fontSize: compact.base }]}>{new Date().toLocaleDateString('pt-BR')}</Text>
+            </View>
+          </View>
+
+          <View style={{ marginBottom: 6 }}>
+            <Text style={{ fontSize: compact.base, fontWeight: 'bold' }}>Período: <Text style={{ fontWeight: 'normal' }}>{periodoInicioFormatado} — {periodoFimFormatado}</Text></Text>
+          </View>
+
+          {totalProduction > 0 && (
+            <View style={{ padding: 8, backgroundColor: '#fef2f2', borderLeftWidth: 4, borderLeftColor: primary, marginBottom: 8 }}>
+              <Text style={{ fontSize: compact.section, fontWeight: 'bold' }}>Produção Total do Período</Text>
+              <Text style={{ fontSize: compact.title, fontWeight: 'bold', color: primary }}>{Number(totalProduction).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+            </View>
+          )}
+
+          {formulasToShow.length > 0 && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.sectionTitle, { fontSize: compact.section, marginBottom: 6 }]}>Principais Fórmulas</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                {formulasToShow.slice(0, 6).map((f, i) => (
+                  <View key={i} style={{ width: '48%', backgroundColor: '#f9fafb', padding: 6, borderRadius: 4, marginBottom: 6 }}>
+                    <Text style={{ fontSize: compact.table, fontWeight: 'bold', color: '#374151' }}>{f.nome}</Text>
+                    <Text style={{ fontSize: compact.table, color: '#6b7280', marginTop: 4 }}>{Number(f.somatoriaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Tabela de fórmulas compacta */}
+          <View style={{ marginBottom: 6 }}>
+            <Text style={[styles.sectionTitle, { fontSize: compact.section, marginBottom: 6 }]}>Tabela de Fórmulas</Text>
+            <View style={styles.table}>
+              <View style={styles.tableRow}>
+                <Text style={[styles.tableColHeader, { fontSize: compact.table, width: '10%' }]}>#</Text>
+                <Text style={[styles.tableColHeader, { fontSize: compact.table, width: '50%' }]}>Fórmula</Text>
+                <Text style={[styles.tableColHeaderSmall, { fontSize: compact.table }]}>Batidas</Text>
+                <Text style={[styles.tableColHeaderSmall, { fontSize: compact.table }]}>Total (kg)</Text>
+              </View>
+              {(formulasToShow || []).map((f: any, i: number) => (
+                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                  <Text style={[styles.tableCol, { fontSize: compact.table, width: '10%' }]}>{i + 1}</Text>
+                  <Text style={[styles.tableCol, { fontSize: compact.table, width: '50%' }]}>{f.nome}</Text>
+                  <Text style={[styles.tableColSmall, { fontSize: compact.table }]}>{(f.batidas ?? '-')}</Text>
+                  <Text style={[styles.tableColSmall, { fontSize: compact.table }]}>{Number(f.somatoriaTotal || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Tabela de produtos compacta */}
+          {produtosToShow && produtosToShow.length > 0 && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.sectionTitle, { fontSize: compact.section, marginBottom: 6 }]}>Produtos</Text>
+              <View style={styles.table}>
+                <View style={styles.tableRow}>
+                  <Text style={[styles.tableColHeader, { fontSize: compact.table }]}>Nome</Text>
+                  <Text style={[styles.tableColHeaderSmall, { fontSize: compact.table }]}>Total</Text>
+                </View>
+                {produtosToShow.map((p: any, i: number) => (
+                  <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}>
+                    <Text style={[styles.tableCol, { fontSize: compact.table }]}>{p.nome}</Text>
+                    <Text style={[styles.tableColSmall, { fontSize: compact.table }]}>{Number(p.qtd || p.total || 0).toLocaleString('pt-BR', { minimumFractionDigits: 3 })} kg</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* Rodapé compacto */}
+          <Text fixed style={{ position: 'absolute', bottom: 10, left: 12, fontSize: compact.base - 2, color: '#bbbbbbff' }}>
+            Relatório gerado em {dataGeracao} por J.Cortiça ({usuario})
+          </Text>
+          <Text fixed style={{ position: 'absolute', bottom: 10, right: 12, fontSize: compact.base - 2, color: '#bbbbbbff' }} render={({ pageNumber, totalPages }) => `${pageNumber} / ${totalPages}`} />
+        </Page>
+      </Document>
+    );
+  }
     
   return (
     <Document>
+      {/* Página 1 - Header e Informações Gerais */}
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={config.includeLogo && config.logoUrl ? styles.header : styles.headerWithoutLogo}>
@@ -244,67 +585,193 @@ export const CustomReportDocument: FC<CustomReportDocumentProps> = ({
             <Image style={styles.logo} src={config.logoUrl} />
           )}
           <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: primary }]}>
+            <Text style={[styles.title, { color: primary, fontSize: currentFontSizes.title }]}>
               {config.title || 'Relatório de Produção'}
             </Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.subtitle, { fontSize: currentFontSizes.base + 2 }]}>
               Gerado em {new Date().toLocaleDateString('pt-BR')}
             </Text>
             {config.description && (
-              <Text style={styles.description}>
+              <Text style={[styles.description, { fontSize: currentFontSizes.base }]}>
                 {config.description}
               </Text>
             )}
           </View>
         </View>
 
-        {/* Informações dos Produtos */}
-        {config.showProductInfo && Object.keys(produtosInfo).length > 0 && (
+        {/* Informações Gerais */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>
+            Informações Gerais
+          </Text>
+          
+          {totalProduction > 0 && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+                Total:{" "}
+                <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>
+                  {totalProduction.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
+                </Text>
+              </Text>
+            </View>
+          )}
+
+          {periodoInicio !== '-' && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+                Data inicial:{" "}
+                <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>
+                  {periodoInicioFormatado}
+                </Text>
+              </Text>
+            </View>
+          )}
+
+          {periodoFim !== '-' && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+                Data final:{" "}
+                <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>
+                  {periodoFimFormatado}
+                </Text>
+              </Text>
+            </View>
+          )}
+
+          {horaInicial !== '-' && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+                Hora inicial:{" "}
+                <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>
+                  {horaInicial}
+                </Text>
+              </Text>
+            </View>
+          )}
+
+          {horaFinal !== '-' && (
+            <View style={{ marginBottom: 6 }}>
+              <Text style={[styles.label, { fontSize: currentFontSizes.base }]}>
+                Hora final:{" "}
+                <Text style={[styles.value, { fontSize: currentFontSizes.base }]}>
+                  {horaFinal}
+                </Text>
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Seção de Fórmulas (padrão) */}
+        {(formulas && formulas.length > 0) || chartSource.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📋 Informações dos Produtos</Text>
-            <View style={styles.productGrid}>
-              {Object.entries(produtosInfo).map(([key, info]) => (
-                <View key={key} style={styles.productRow}>
-                  <Text style={styles.productName}>
-                    {(info as any).nome || `Produto ${key}`}
-                  </Text>
-                  <Text style={styles.productValue}>
-                    {(info as any).total?.toLocaleString('pt-BR') || '0'} {(info as any).unidade || 'kg'}
-                  </Text>
-                </View>
-              ))}
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>Principais Fórmulas</Text>
+            {renderTopFormulas((formulas && formulas.length > 0) ? formulas.map(f => ({ nome: f.nome || f.codigo, somatoriaTotal: Number(f.somatoriaTotal || 0) })) : chartSource.map(c => ({ nome: c.name, somatoriaTotal: c.value })))}
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop: 8, marginBottom: 8 }]}>Tabela de Fórmulas</Text>
+            {renderFormulasTable((formulas && formulas.length > 0) ? formulas : chartSource.map(c => ({ nome: c.name, somatoriaTotal: c.value })) as any)}
+          </View>
+        ) : null}
+
+        {renderRodape()}
+      </Page>
+
+      {/* Página 2 - Tabela de Produtos Detalhada */}
+      {produtos.length > 0 && (
+        <Page size="A4" style={styles.page} wrap>
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>
+              TABELA DE PRODUTOS
+            </Text>
+            {categorias.map((cat, idx) => (
+              <View key={idx} style={{ marginBottom: 15 }}>
+                {renderTable(produtosPorCategoria[cat], (p) => ({
+                  col1: p.nome,
+                  col2: ((p.unidade === "kg" ? p.qtd : p.qtd).toLocaleString("pt-BR", {
+                    minimumFractionDigits: 3,
+                    maximumFractionDigits: 3,
+                  }) + " kg"),
+                }))}
+              </View>
+            ))}
+          </View>
+          {renderRodape()}
+        </Page>
+      )}
+
+      {/* Página 3 - Gráficos e Comentários */}
+      <Page size="A4" style={styles.page} wrap>
+        {/* Comentários do Relatório */}
+        {comentarios && comentarios.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 15 }]}>
+              COMENTÁRIOS DO RELATÓRIO
+            </Text>
+            {comentarios.map((c, i) => (
+              <View key={i} style={styles.comentarioContainer}>
+                <Text style={styles.comentarioMeta}>
+                  {c.data ? formatarData(c.data) : new Date().toLocaleDateString("pt-BR")}
+                  {c.autor && ` • ${c.autor}`}
+                </Text>
+                <Text style={styles.comentarioTexto}>{c.texto}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Gráficos de Análise (Barras Horizontais) */}
+        {showCharts && chartSource.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>
+              📊 Análise de Produção
+            </Text>
+            <View style={[styles.chartSection, { flexDirection: 'column' }]}>
+              <View style={{ marginTop: 4 }}>
+                {chartSource.slice().sort((a, b) => b.value - a.value).map((row, i) => {
+                  const totalAll = chartSource.reduce((s, it) => s + it.value, 0) || 1;
+                  const pct = row.value <= 0 ? 0 : (row.value / totalAll) * 100;
+                  const color = palette[i % palette.length];
+                  return (
+                    <View key={i} style={styles.chartRow}>
+                      <Text style={styles.chartLabel}>
+                        {row.name.length > 30 ? row.name.substring(0, 27) + '...' : row.name}
+                      </Text>
+                      <View style={styles.chartBarContainer}>
+                        <View style={[styles.chartBarFill, { 
+                          width: `${Math.max(1, Math.round(pct))}%`, 
+                          backgroundColor: color 
+                        }]} />
+                      </View>
+                      <Text style={styles.chartValue}>
+                        {Number(row.value).toLocaleString('pt-BR', { 
+                          minimumFractionDigits: 3, 
+                          maximumFractionDigits: 3 
+                        })} kg
+                      </Text>
+                      <Text style={styles.chartPercent}>{pct.toFixed(1)}%</Text>
+                    </View>
+                  );
+                })}
+              </View>
             </View>
           </View>
         )}
 
-        {/* Total de Produção */}
-        {config.showProductionTotal && totalProduction > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📈 Total de Produção</Text>
-            <View style={[styles.totalProductionCard, { borderLeftColor: primary }]}> 
-              <Text style={styles.totalProductionLabel}>
-                Produção Total do Período:
-              </Text>
-              <Text style={[styles.totalProductionValue, { color: primary }]}> 
-                {totalProduction.toLocaleString('pt-BR')} kg
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Gráficos */}
+        {/* Gráficos Configuráveis (Placeholders) */}
         {config.includeGraphics && config.charts.some((c: any) => c.enabled) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>📊 Gráficos de Período</Text>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section }]}>
+              📊 Gráficos de Período
+            </Text>
             {config.charts.filter((c: any) => c.enabled).map((chart: any) => (
               <View key={chart.id} style={styles.chartContainer}>
                 <View style={styles.chartHeader}>
-                  <Text style={styles.chartTitle}>{chart.title}</Text>
+                  <Text style={[styles.chartTitle, { fontSize: currentFontSizes.base + 2 }]}>
+                    {chart.title}
+                  </Text>
                   <View style={styles.chartBadges}>
-                    <Text style={styles.chartBadge}>
+                    <Text style={[styles.chartBadge, { fontSize: currentFontSizes.base - 2 }]}>
                       {chart.period.charAt(0).toUpperCase() + chart.period.slice(1)}
                     </Text>
-                    <Text style={styles.chartBadge}>
+                    <Text style={[styles.chartBadge, { fontSize: currentFontSizes.base - 2 }]}>
                       {chart.type === 'pie' ? 'Pizza' : 
                        chart.type === 'bar' ? 'Barras' :
                        chart.type === 'line' ? 'Linha' : 'Área'}
@@ -312,7 +779,10 @@ export const CustomReportDocument: FC<CustomReportDocumentProps> = ({
                   </View>
                 </View>
                 <ChartPlaceholder chart={chart} data={data || []} />
-                <Text style={[styles.chartPlaceholderText, { marginTop: 8 }]}> 
+                <Text style={[styles.chartPlaceholderText, { 
+                  marginTop: 8, 
+                  fontSize: currentFontSizes.base 
+                }]}> 
                   Dados do período: {chart.period}
                 </Text>
               </View>
@@ -321,23 +791,23 @@ export const CustomReportDocument: FC<CustomReportDocumentProps> = ({
         )}
 
         {/* Mensagem se não há conteúdo */}
-        {!(config.showProductInfo || config.showProductionTotal || (config.includeGraphics && config.charts.some((c:any)=>c.enabled))) && (
+        {!(config.showProductInfo || config.showProductionTotal || 
+            (config.includeGraphics && config.charts.some((c:any)=>c.enabled)) ||
+            showCharts || comentarios.length > 0 || produtos.length > 0) && (
           <View style={styles.noContentMessage}>
-            <Text style={styles.noContentIcon}>📄</Text>
-            <Text>Nenhum conteúdo foi selecionado para este relatório.</Text>
-            <Text>Configure os elementos desejados antes de gerar o PDF.</Text>
+            <Text style={[styles.noContentIcon, { fontSize: currentFontSizes.title * 2 }]}>
+              📄
+            </Text>
+            <Text style={[{ fontSize: currentFontSizes.base }]}>
+              Nenhum conteúdo foi selecionado para este relatório.
+            </Text>
+            <Text style={[{ fontSize: currentFontSizes.base }]}>
+              Configure os elementos desejados antes de gerar o PDF.
+            </Text>
           </View>
         )}
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>
-            Relatório gerado automaticamente pelo sistema de produção
-          </Text>
-          <Text style={styles.footerText}>
-            © {new Date().getFullYear()}  J.Cortiça Automação - Todos os direitos reservados
-          </Text>
-        </View>
+        {renderRodape()}
       </Page>
     </Document>
   );
