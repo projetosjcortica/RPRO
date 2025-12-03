@@ -2186,6 +2186,28 @@ export default function Report() {
                 // onPdfExport={handlePrint}
                 onExcelExport={handleExcelExport}
                 pdfDocument={createPdfDocument()}
+                pdfFileName={(() => {
+                  // Follow backend export naming conventions: prefer filtros.dataInicio/_dataFim if present
+                  const di = filtros?.dataInicio;
+                  const df = filtros?.dataFim;
+                  if (di && df) return `relatorio_${di}_${df}`;
+                  if (di) return `relatorio_${di}`;
+                  if (df) return `relatorio_ate_${df}`;
+                  // fallback: use periodoInicio/periodoFim from tableSelection/resumo
+                  const start = tableSelection?.periodoInicio || resumo?.periodoInicio;
+                  const end = tableSelection?.periodoFim || resumo?.periodoFim;
+                  const sanitize = (s?: string) => {
+                    if (!s) return undefined;
+                    return s.replace(/\//g, '-').replace(/\s+/g, '_');
+                  };
+                  const s = sanitize(start);
+                  const e = sanitize(end);
+                  if (s && e) return `relatorio_${s}_${e}`;
+                  if (s) return `relatorio_${s}`;
+                  const now = new Date();
+                  const today = `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                  return `relatorio_${today}`;
+                })()}
                 showComments={showPdfComments}
                 showCharts={showPdfCharts}
                 onToggleComments={() => setShowPdfComments(!showPdfComments)}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { FileDown, FileSpreadsheet, MessageSquare, BarChart3, X, Plus, Settings } from "lucide-react";
-import { PDFViewer } from "@react-pdf/renderer";
+import { PDFViewer, pdf } from "@react-pdf/renderer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,6 +56,7 @@ interface ExportDropdownProps {
   onPdfCustomizationChange?: (customization: PdfCustomization) => void;
   onPdfModalOpenChange?: (open: boolean) => void;
   isLoading?: boolean;
+  pdfFileName?: string;
 }
 
 export function ExportDropdown({
@@ -73,6 +74,7 @@ export function ExportDropdown({
   onPdfCustomizationChange,
   onPdfModalOpenChange,
   isLoading = false,
+  pdfFileName,
 }: ExportDropdownProps) {
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [excelModalOpen, setExcelModalOpen] = useState(false);
@@ -124,6 +126,29 @@ export function ExportDropdown({
       onAddComment(newComment.trim());
       setNewComment("");
       setShowCommentEditor(false);
+    }
+  };
+
+  const handlePdfDownload = async () => {
+    if (!pdfDocument) return;
+    try {
+      // Create a PDF blob from the react-pdf document
+      const instance = pdf(pdfDocument);
+      const blob = await instance.toBlob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+      const fileName = pdfFileName || `relatorio_${today}`;
+      a.download = `${fileName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Erro ao gerar PDF para download:', err);
     }
   };
 
@@ -327,17 +352,12 @@ export function ExportDropdown({
                 </Button>
               )}
             </div>
-            {/* 
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handlePdfPrint} className="gap-2">
-                <Printer className="h-4 w-4" />
-                Imprimir
+              <Button variant="outline" onClick={async () => { try { await handlePdfDownload(); } catch {} }} className="gap-2">
+                <FileDown className="h-4 w-4" />
+                Baixar PDF
               </Button>
-              <Button onClick={handlePdfDownload} className="gap-2">
-                <Download className="h-4 w-4" />
-                Download
-              </Button>
-            </div> */}
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
