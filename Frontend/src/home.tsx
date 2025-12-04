@@ -542,12 +542,12 @@ export default function Home() {
   if (tipoHome === "amendoim") {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-1 overflow-auto 2xl:overflow-hidden">
+        <div className="flex-1 overflow-auto 3xl:overflow-hidden pb-4 3xl:pb-0">
           <div className=" space">
 
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
-            <div className="grid 2xl:grid-cols-3 2xl:grid-rows-2 grid-cols-2 grid-rows-3 gap-4 2xl:gap-y-4 mb-4 2xl:mb-0">
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
+            <div className="grid 3xl:grid-cols-3 3xl:grid-rows-2 grid-cols-2 grid-rows-3 gap-4 2xl:gap-y-4 mb-4 2xl:mb-0">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[48dvh]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Entrada (período selecionado)</CardTitle>
@@ -617,7 +617,7 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[48dvh]">
                 <CardHeader className="border-b border-gray-100 px-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-semibold">Saída (período selecionado)</CardTitle>
@@ -687,17 +687,17 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[450px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[48dvh]">
                 <CardHeader className="border-b border-gray-100 px-3 h-14">
                   <CardTitle className="text-base font-semibold text-gray-900">Cálculo de Rendimento</CardTitle>
                 </CardHeader>
                 <CardContent className=" h-[calc(100%-60px)]">
                   {(entradaSum !== null && saidaSum !== null) && (entradaSum > 0 || saidaSum > 0) ? (
-                    <div className="space-y-4">
+                    <div className="space-y-4 h-full">
                       {/* Porcentagem de Aproveitamento */}
-                      <div className="bg-white rounded-lg pb-4 shadow-md flex flex-col items-center justify-center">
-                        <div className="text-sm text-gray-500 font-medium">Aproveitamento</div>
-                        <div className="text-3xl font-bold">
+                      <div className="bg-white rounded-lg pb-4 shadow-md flex flex-col items-center 3xl:h-1/3 justify-center">
+                        <div className="text-base 4xl:text-lg text-gray-500 font-medium">Aproveitamento</div>
+                        <div className="text-5xl 4xl:text-6xl font-bold">
                           {entradaSum > 0 
                             ? ((saidaSum / entradaSum) * 100).toFixed(2)
                             : '0.00'}%
@@ -705,25 +705,25 @@ export default function Home() {
                       </div>
 
                       {/* Entrada e Saída */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="shadow-md rounded-lg p-4">
-                          <div className="text-sm text-gray-500 font-medium">Entrada</div>
-                          <div className="text-base font-bold">
+                      <div className="grid grid-cols-2 gap-2 h-1/4">
+                        <div className="shadow-md flex flex-col justify-center items-start rounded-lg p-4">
+                          <div className="text-base 4xl:text-lg text-gray-500 font-medium">Entrada</div>
+                          <div className="text-lg 4xl:text-xl font-bold">
                             {entradaSum.toLocaleString('pt-BR', {  minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           </div>
                         </div>
-                        <div className="shadow-md rounded-lg p-4">
-                          <div className="text-sm text-gray-500 font-medium">Saída</div>
-                          <div className="text-base font-bold">
+                        <div className="shadow-md flex flex-col justify-center items-start rounded-lg p-4">
+                          <div className="text-base 4xl:text-lg text-gray-500 font-medium">Saída</div>
+                          <div className="text-lg 4xl:text-xl font-bold">
                             {saidaSum.toLocaleString('pt-BR', {  minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           </div>
                         </div>
                       </div>
 
                       {/* Perda */}
-                      <div className="shadow-md rounded-lg p-5">
-                        <div className="text-sm text-red-600 font-medium">Perda de Material</div>
-                        <div className="text-lg font-bold text-red-800">
+                      <div className="shadow-md flex flex-col justify-center items-start rounded-lg p-5 h-1/3">
+                        <div className="text-base text-red-600 font-medium 4xl:text-lg">Perda de Material</div>
+                        <div className="text-xl font-bold text-red-800 4xl:text-5xl">
                           {(entradaSum - saidaSum).toLocaleString('pt-BR', { minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           <span className="text-sm ml-2">
                             ({entradaSum > 0 
@@ -746,7 +746,7 @@ export default function Home() {
 
               {/* Card de Cálculo de Conflito/Rendimento */}
               
-              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[470px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl overflow-hidden h-[380px] 3xl:h-[48dvh]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Horário de Produção</CardTitle>
@@ -796,7 +796,7 @@ export default function Home() {
               </Card>
 
               {/* Produção Semanal */}
-              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[48dvh]">
                 <CardHeader className="border-b border-gray-100 pb-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Produção Semanal</CardTitle>
@@ -875,7 +875,7 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[470px]">
+              <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[48dvh]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3 h-14">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto</CardTitle>

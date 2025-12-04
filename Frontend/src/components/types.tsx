@@ -1,5 +1,6 @@
 // components/types.ts - CORREÇÃO COMPLETA
 export interface ReportRow {
+  id?: string;
   Dia: string;
   Hora: string;
   Nome: string;
