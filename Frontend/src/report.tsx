@@ -9,7 +9,6 @@ import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
-import { useDebounce } from "./hooks/useDebounce";
 import { cn } from "./lib/utils";
 import { ExportDropdown } from "./components/ExportDropdown";
 
@@ -266,12 +265,11 @@ export default function Report() {
 
   // Pagination and sorting states
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState<string>('Dia');
   const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
   const [collectorRunning, setCollectorRunning] = useState(false);
   const [collectorLoading, setCollectorLoading] = useState(false);
-  const [collectorError, setCollectorError] = useState<string | null>(null);
 
   // OTIMIZAÇÃO: Buscar dados imediatamente (paralelo com produtos)
   const [allowDataFetch] = useState(true); // Sempre true para busca paralela
@@ -343,7 +341,6 @@ export default function Report() {
         const msg = `Falha ao consultar coletor (HTTP ${res.status}). Verifique backend e rede.`;
         toastManager.updateError('collector-status', msg);
         setCollectorRunning(false);
-        setCollectorError(msg);
         return;
       }
 
@@ -352,7 +349,6 @@ export default function Report() {
       setCollectorRunning(isRunning);
 
       const lastError = status?.lastError ?? null;
-      setCollectorError(lastError);
 
       if (lastError) {
         // Categorize and suggest remediation
@@ -375,7 +371,6 @@ export default function Report() {
       const message = err?.message || String(err) || 'Erro desconhecido';
       toastManager.updateError('collector-status', `Erro de comunicação com o coletor: ${message}. Verifique se o backend está rodando e se existe bloqueio de firewall.`);
       setCollectorRunning(false);
-      setCollectorError(message);
     }
   }, []);
 
@@ -738,7 +733,6 @@ export default function Report() {
   const handleCollectorToggle = async () => {
     if (collectorLoading) return;
     setCollectorLoading(true);
-    setCollectorError(null);
     try {
       if (collectorRunning) {
         const res = await fetch("http://localhost:3000/api/collector/stop", {
@@ -802,11 +796,6 @@ export default function Report() {
       }
     } catch (error) {
       console.error("Erro ao controlar collector:", error);
-      setCollectorError(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível comunicar com o coletor."
-      );
     } finally {
       setCollectorLoading(false);
       // no-op: global provider handles UI
@@ -1605,7 +1594,7 @@ export default function Report() {
           </Button>
         </div>
         <div className="flex flex-col items-end justify-end gap-1">
-          <div className="flex flex-row items-end gap-1 3xl:gap-0">
+          <div className="flex flex-row items-end gap-0">
             <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
             <Button
               onClick={handleCollectorToggle}
@@ -1649,7 +1638,7 @@ export default function Report() {
       )}
       <div className="flex flex-row gap-2 justify-start w-full">
         <div className="flex-1 flex flex-col w-1/20 items-start justify-start h-fit">
-          <div className="flex w-full h-[82vh] 3xl:h-[86vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
+          <div className="flex w-full h-[84vh] 3xl:h-[87vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
             {content}
           </div>
 
@@ -1729,7 +1718,7 @@ export default function Report() {
 
         {/* Side Info com drawer de gráficos atrás */}
         <div
-          className="relative w-1/4 h-[82vh] 3xl:h-[86vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+          className="relative w-1/4 h-[84vh] 3xl:h-[87vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
           style={{ zIndex: 10 }}
         >
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
@@ -1860,7 +1849,7 @@ export default function Report() {
 
                   {/* Horários BarChart - só renderiza se houver dados */}
                   {resumo && (resumo.totalPesos > 0 || resumo.batitdasTotais > 0) && (
-                    <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm h-fit hover:shadow-md transition-shadow">
                       <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
                         <div className="text-sm font-bold text-gray-800">
                           Horários de Produção

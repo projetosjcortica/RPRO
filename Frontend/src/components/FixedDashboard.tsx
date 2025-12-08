@@ -357,7 +357,7 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="flex flex-col lg:flex-row gap-4">
+            <CardContent className="flex flex-col h-full lg:flex-row gap-4">
                 <div className="w-full lg:w-1/2 min-h-[220px]">
                   <DonutChartWidget 
                     chartType="formulas" 
@@ -369,7 +369,7 @@ const formatShortDate = (raw?: string | null) => {
                 </div>
                 <div className="w-full lg:w-1/2">
                   <div className="text-sm font-semibold text-gray-900 mb-3">Todas as Fórmulas</div>
-                  <div className="3xl:h-60 h-46  overflow-y-auto space-y-2 pr-2 thin-red-scrollbar">
+                  <div className="4xl:h-100 3xl:h-80 h-46  overflow-y-auto space-y-2 pr-2 thin-red-scrollbar">
                     {loadingFormulasChart ? (
                       <div className="text-sm text-gray-500">Carregando...</div>
                     ) : !formulasChartData || formulasChartData.length === 0 ? (
@@ -397,7 +397,7 @@ const formatShortDate = (raw?: string | null) => {
             </CardContent>
           </Card>
 
-          <div className="flex flex-col 3xl:flex-row gap-2">
+          <div className="flex flex-col 3xl:flex-row h-full gap-2">
           {/* Second row: Horarios & Weekly */}
             <Card className="shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-fit 3xl:h-full">
               <CardHeader className="border-b border-gray-100 ">
@@ -444,15 +444,15 @@ const formatShortDate = (raw?: string | null) => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-col lg:flex-row h-[calc(100%-64px)]">
-                <div className="w-full pb-5 min-h-[220px] pr-2 3xl:pr-5">
+              <CardContent className="flex flex-col h-full ">
+                <div className="flex-1 min-h-[250px] 3xl:h-300">
                   <BarChartWidget chartType="horarios" config={{ filters: { ...(filters || {}), ...(horariosFilters || {}) } }} />
                 </div> 
               </CardContent>
             </Card>
 
             {/* Third row: Weekly Chart */}
-            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-90 3xl:h-full mb-6">
+            <Card className="bg-white shadow-xl border border-gray-300 rounded-xl overflow-hidden w-full h-fit 3xl:h-full mb-6">
               <CardHeader className="border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -531,7 +531,7 @@ const formatShortDate = (raw?: string | null) => {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="flex flex-col">
+              <CardContent className="flex flex-col h-full">
                 <div className="flex-1 min-h-[250px] 3xl:h-300">
                   <WeeklyChartWidget rows={filteredRowsForWeek} weekStart={weeklyDateRange?.from} />
                 </div>
