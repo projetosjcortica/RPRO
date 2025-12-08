@@ -1577,148 +1577,78 @@ export default function Report() {
   );
 
   return (
-    <div className="flex flex-col gap-1.5 w-full h-screen">
-      <div className="flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-1">
-          <Button
-            onClick={() => setView("table")}
-            className={view === "table" ? "bg-red-800 border border-gray-300" : ""}
-          >
-            Relatórios
-          </Button>
-          <Button
-            onClick={() => setView("product")}
-            className={view === "product" ? "bg-red-800 border border-gray-300" : ""}
-          >
-            Produtos
-          </Button>
-        </div>
-        <div className="flex flex-col items-end justify-end gap-1">
-          <div className="flex flex-row items-end gap-0">
-            <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
+    <div className="flex flex-col justify-evenly w-full h-screen ">
+      <div className="flex flex-col justify-evenly w-full h-1/22  ">
+        <div className="flex flex-row justify-between items-center">
+
+          <div className="flex flex-row items-end gap-1">
             <Button
-              onClick={handleCollectorToggle}
-              disabled={collectorLoading}
-              className={cn(
-                "flex items-center gap-1",
-                collectorRunning
+              onClick={() => setView("table")}
+              className={view === "table" ? "bg-red-800 border border-gray-300" : ""}
+            >
+              Relatórios
+            </Button>
+            <Button
+              onClick={() => setView("product")}
+              className={view === "product" ? "bg-red-800 border border-gray-300" : ""}
+            >
+              Produtos
+            </Button>
+              {view === "table" && resetTableColumns && (
+                <div className="flex justify-start">
+                  <Button
+                    onClick={resetTableColumns}
+                    variant="ghost"
+                    className=" text-gray-500 hover:text-gray-700 hover:underline transition-colors"
+                    >
+                    Resetar colunas
+                  </Button>
+                </div>
+              )}
+          </div>
+          <div className="flex flex-col items-end justify-end gap-1">
+            <div className="flex flex-row items-end gap-0">
+              <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
+              <Button
+                onClick={handleCollectorToggle}
+                disabled={collectorLoading}
+                className={cn(
+                  "flex items-center gap-1",
+                  collectorRunning
                   ? "bg-gray-600 hover:bg-red-700"
                   : "bg-red-600 hover:bg-gray-700"
-              )}
-            >
-              {collectorLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : collectorRunning ? (
-                <Square className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              {collectorLoading ? (
-                <p className="md:flex ">Processando...</p>
-              ) : collectorRunning ? (
-                <p className="md:flex "> Parar coleta</p>
-              ) : (
-                <p className="md:flex ">Iniciar coleta</p>
-              )}
-            </Button>
+                )}
+                >
+                {collectorLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : collectorRunning ? (
+                  <Square className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                {collectorLoading ? (
+                  <p className="md:flex ">Processando...</p>
+                ) : collectorRunning ? (
+                  <p className="md:flex "> Parar coleta</p>
+                ) : (
+                  <p className="md:flex ">Iniciar coleta</p>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-
-      {view === "table" && resetTableColumns && (
-        <div className="flex justify-start">
-          <Button
-            onClick={resetTableColumns}
-            variant="ghost"
-            className=" text-gray-500 hover:text-gray-700 hover:underline transition-colors"
-          >
-            Resetar colunas
-          </Button>
-        </div>
-      )}
-      <div className="flex flex-row gap-2 justify-start w-full">
-        <div className="flex-1 flex flex-col w-1/20 items-start justify-start h-fit">
-          <div className="flex w-full h-[84vh] 3xl:h-[87vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
+      <div className="flex flex-row gap-2 justify-start w-full h-18/22 my-2">
+        <div className="flex-1 flex flex-col w-1/20 items-start h-full justify-start">
+          <div className="flex w-full overflow-hidden shadow-xl rounded flex border h-full border-gray-300">
             {content}
           </div>
 
-          {/* Paginação */}
-          <div className="flex flex-row items-center justify-end mt-2">
-            <Pagination className="flex flex-row justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <button
-                    onClick={() => {
-                      if (page !== 1) {
-                        // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        setPage(Math.max(1, page - 1));
-                      }
-                    }}
-                    disabled={page === 1 || loading}
-                    className="p-1"
-                    title="Página anterior"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                </PaginationItem>
-
-                {pages.map((p) => {
-                  const isActive = p === page;
-                  return (
-                    <PaginationItem key={p}>
-                      <button
-                        onClick={() => {
-                          if (p !== page) {
-                            // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                            setPage(p);
-                          }
-                        }}
-                        aria-current={isActive ? "page" : undefined}
-                        disabled={loading && p !== page}
-                        className={cn(
-                          buttonVariants({ variant: "default" }),
-                          isActive
-                            ? "bg-red-600 text-white"
-                            : loading && p !== page
-                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
-                        )}
-                      >
-                        {p}
-                      </button>
-                    </PaginationItem>
-                  );
-                })}
-                {/* 
-                pau no seu cu
-                se leu seu cu é meu
-                 */}
-                <PaginationItem>
-                  <button
-                    onClick={() => {
-                      if (page !== totalPages) {
-                        // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        setPage(Math.min(page + 1, totalPages));
-                      }
-                    }}
-                    disabled={page === totalPages || loading}
-                    className="p-1"
-                    title="Próxima página"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
         </div>
 
         {/* Side Info com drawer de gráficos atrás */}
         <div
-          className="relative w-1/4 h-[84vh] 3xl:h-[87vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+          className="relative w-80 h-full flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
           style={{ zIndex: 10 }}
         >
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
@@ -1915,7 +1845,7 @@ export default function Report() {
           {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
           <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
-            <div className="w-full h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
+            <div className="w-76 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
               <div className="flex justify-end p-0 m-0">
                 <RefreshButton
                   type="ihm"
@@ -1949,7 +1879,7 @@ export default function Report() {
                 ).toLocaleString("pt-BR")}
               </p>
             </div>
-            <div className="w-full h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
+            <div className="w-76 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
               <p className="text-center font-bold">Período: {""}</p>
               <div className="flex flex-row justify-around px-8 gap-4">
                 <div className="flex flex-col justify-center gap-1">
@@ -2213,6 +2143,72 @@ export default function Report() {
           </div>
         </div>
       </div>
+        {/* Paginação */}
+          <Pagination className="flex flex-row justify-start h-1/22 pb-5 mt-2">
+            <PaginationContent>
+              <PaginationItem>
+                <button
+                  onClick={() => {
+                    if (page !== 1) {
+                      // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                      setPage(Math.max(1, page - 1));
+                    }
+                  }}
+                  disabled={page === 1 || loading}
+                  className="p-1"
+                  title="Página anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              </PaginationItem>
+
+              {pages.map((p) => {
+                const isActive = p === page;
+                return (
+                  <PaginationItem key={p}>
+                    <button
+                      onClick={() => {
+                        if (p !== page) {
+                          // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                          setPage(p);
+                        }
+                      }}
+                      aria-current={isActive ? "page" : undefined}
+                      disabled={loading && p !== page}
+                      className={cn(
+                        buttonVariants({ variant: "default" }),
+                        isActive
+                          ? "bg-red-600 text-white"
+                          : loading && p !== page
+                            ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                            : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
+                      )}
+                    >
+                      {p}
+                    </button>
+                  </PaginationItem>
+                );
+              })}
+              <PaginationItem>
+                <button
+                  onClick={() => {
+                    if (page !== totalPages) {
+                      // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                      setPage(Math.min(page + 1, totalPages));
+                    }
+                  }}
+                  disabled={page === totalPages || loading}
+                  className="p-1"
+                  title="Próxima página"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
     </div>
   );
 }

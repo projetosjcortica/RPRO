@@ -264,7 +264,7 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
   return (
     <div className="flex flex-row items-end justify-start gap-1">
       <Popover>
-        <PopoverTrigger asChild>
+        <PopoverTrigger asChild className="hidden lg:flex">
           <Button
             variant="outline"
             className={cn(
@@ -312,6 +312,45 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
           
           <div className="flex flex-col gap-1 ">
             {/* Nome da Fórmula - Input comum (ou pode virar combobox se quiser sugestões) */}
+             <Label className="2xl:hidden">
+              Data
+            </Label>
+            <Popover>
+              <PopoverTrigger asChild className="2xl:hidden">
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "justify-between text-left font-normal border border-gray-500",
+                    !dateRange && "text-gray-400"
+                  )}
+                >
+                  {dateRange?.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "dd/MM/yy")} -{" "}
+                        {format(dateRange.to, "dd/MM/yy")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "dd/MM/yyyy")
+                    )
+                  ) : (
+                    <span>Selecione a data</span>
+                  )}
+                  <CalendarIcon className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" onInteractOutside={handleBuscar}>
+                <Calendar
+                  autoFocus
+                  mode="range"
+                  locale={pt}
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange} 
+                  onSelect={handleDateChange}
+                  numberOfMonths={1}
+                />
+              </PopoverContent>
+            </Popover>
             <Label>
               Nome de fórmula
             </Label>
