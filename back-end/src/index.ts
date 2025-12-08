@@ -28,7 +28,6 @@ import cors from "cors";
 import compression from "compression";
 import multer from "multer";
 import { configService } from "./services/configService";
-import { wsbridge } from './websocket/WebSocketBridge';
 import { setRuntimeConfigs, setRuntimeConfig, getRuntimeConfig, getAllRuntimeConfigs } from "./core/runtimeConfig";
 import { csvConverterService } from "./services/csvConverterService";
 import iconv from 'iconv-lite';
@@ -1725,16 +1724,40 @@ app.get("/api/relatorio/paginate", async (req, res) => {
 
     const totalPages = Math.ceil(total / pageSizeNum);
 
+    // 🔍 Detectar colunas vazias (produtos sem valor em nenhuma linha)
+    const usedProductIndices = new Set<number>();
+    for (const row of mappedRows) {
+      for (let i = 0; i < 65; i++) {
+        const rawValue = row.valuesRaw[i];
+        if (rawValue > 0) {
+          usedProductIndices.add(i); // 0-indexed for products array
+        }
+      }
+    }
+
+    // Criar array booleano indicando quais produtos estão vazios
+    // emptyColumns.products[i] = true se produto i está vazio, false se tem dados
+    const emptyProductsArray = new Array(65);
+    for (let i = 0; i < 65; i++) {
+      emptyProductsArray[i] = !usedProductIndices.has(i); // true se NÃO está em usedProductIndices
+    }
+
+    const emptyColumns = {
+      products: emptyProductsArray,
+    };
+
     const responseData = {
       rows: mappedRows,
       total,
       page: pageNum,
       pageSize: pageSizeNum,
       totalPages,
+      emptyColumns,
     };
 
     const duration = Date.now() - startTime;
-    console.log(`[relatorio/paginate] ✅ Query completed in ${duration}ms (${rows.length} rows)`);
+    const emptyCount = emptyProductsArray.filter(e => e).length;
+    console.log(`[relatorio/paginate] ✅ Query completed in ${duration}ms (${rows.length} rows), empty products: ${emptyCount}`);
 
     // Headers para otimização de navegador (sem cache de servidor)
     res.set({
@@ -1744,6 +1767,115 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     return res.json(responseData);
   } catch (e: any) {
     console.error("[relatorio/paginate] Unexpected error:", e);
+    return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// 🔍 Endpoint especializado: Detecta colunas vazias em TODO o período/filtro (sem paginação)
+app.get("/api/relatorio/empty-columns", async (req, res) => {
+  try {
+    await dbService.init();
+
+    const repo = AppDataSource.getRepository(Relatorio);
+    let qb = repo.createQueryBuilder("r");
+
+    // Aplicar os MESMOS filtros do paginate
+    const codigoRaw = req.query.codigo ?? null;
+    const numeroRaw = req.query.numero ?? null;
+    const formulaRaw = req.query.formula ?? null;
+    const dataInicio = req.query.dataInicio ?? null;
+    const dataFim = req.query.dataFim ?? null;
+    
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
+
+    // Aplicar filtros
+    if (codigoRaw != null && String(codigoRaw) !== "") {
+      const c = Number(codigoRaw);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :c", { c });
+    }
+
+    if (numeroRaw != null && String(numeroRaw) !== "") {
+      const num = Number(numeroRaw);
+      if (!Number.isNaN(num)) qb.andWhere("r.Form2 = :num", { num });
+    }
+
+    if (formulaRaw != null && String(formulaRaw) !== "") {
+      const fNum = Number(String(formulaRaw));
+      if (!Number.isNaN(fNum)) {
+        qb.andWhere("r.Form1 = :fNum", { fNum });
+      } else {
+        const fStr = String(formulaRaw).toLowerCase();
+        qb.andWhere("LOWER(r.Nome) LIKE :fStr", { fStr: `%${fStr}%` });
+      }
+    }
+
+    if (normDataInicio) qb.andWhere("r.Dia >= :ds", { ds: normDataInicio });
+    if (normDataFim) {
+      const parts = normDataFim.split("-");
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFim;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
+
+    // Aplicar advancedFilters se houver
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(decodeURIComponent(advancedFiltersRaw));
+      } catch (e) {
+        console.warn('[relatorio/empty-columns] Erro ao parsear advancedFilters:', e);
+      }
+    }
+
+    const materiasByNum = await getMateriaPrimaCache();
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    // 🔑 CHAVE: Buscar TODOS os rows (sem paginação) apenas para analisar produtos usados
+    const allRows = await qb.getMany();
+
+    // 🔍 Detectar quais produtos têm dados em QUALQUER linha do período
+    const usedProductIndices = new Set<number>();
+    for (const row of allRows) {
+      for (let i = 1; i <= 65; i++) {
+        const prodValue = row[`Prod_${i}`];
+        const v = typeof prodValue === "number" ? prodValue : (prodValue != null ? Number(prodValue) : 0);
+        if (v > 0) {
+          usedProductIndices.add(i - 1); // 0-indexed
+        }
+      }
+    }
+
+    // Criar array booleano: true = VAZIO (não usado em nenhuma linha), false = TEM DADOS
+    const emptyProductsArray = new Array(65);
+    for (let i = 0; i < 65; i++) {
+      emptyProductsArray[i] = !usedProductIndices.has(i);
+    }
+
+    const emptyColumns = {
+      products: emptyProductsArray,
+    };
+
+    const emptyCount = emptyProductsArray.filter(e => e).length;
+    console.log(`[relatorio/empty-columns] ✅ Analyzed ${allRows.length} total rows, empty products: ${emptyCount}`);
+
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    });
+
+    return res.json(emptyColumns);
+  } catch (e: any) {
+    console.error("[relatorio/empty-columns] Error:", e);
     return res.status(500).json({ error: e?.message || "internal" });
   }
 });
@@ -3311,10 +3443,7 @@ app.post("/api/config/split", async (req, res) => {
         try { parsed = JSON.parse(raw); } catch { parsed = raw; }
       }
       updated[k] = parsed;
-    }
-    try {
-      wsbridge.sendEvent('config-changed', { keys: Object.keys(configObj), updated });
-    } catch (e) { /* ignore */ }
+    } 
     return res.json({ success: true, saved: Object.keys(configObj), updated });
   } catch (e) {
     console.error("[config/split] Failed to split/save settings", e);
@@ -3450,8 +3579,7 @@ app.post('/api/config/:key', async (req, res) => {
     let outParsed: any = toStore;
     try {
       outParsed = JSON.parse(toStore);
-    } catch { /* ignore */ }
-    try { wsbridge.sendEvent('config-changed', { keys: [rawKey], value: outParsed }); } catch (ee) {}
+    } catch { /* ignore */ } 
     return res.json({ success: true, key: rawKey, value: outParsed });
   } catch (e) {
     console.error('[config/:key POST] error', e);

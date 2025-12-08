@@ -19,6 +19,7 @@ export function useReportData(
   const [reloadFlag, setReloadFlag] = useState(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const lastFetchParamsRef = useRef<string>('');
+  const emptyColumnsAbortRef = useRef<AbortController | null>(null);
   
   // OTIMIZAÇÃO: Memoizar parametros para evitar fetches duplicados
   const fetchParams = useMemo(() => ({
@@ -30,6 +31,12 @@ export function useReportData(
     allowFetch,
     advancedFilters: advancedFilters ? JSON.stringify(advancedFilters) : ''
   }), [filtros, page, pageSize, sortBy, sortDir, allowFetch, advancedFilters ? JSON.stringify(advancedFilters) : '']);
+
+  // Parâmetros para o endpoint de empty-columns (ignorar page/pageSize)
+  const emptyColumnsParams = useMemo(() => ({
+    filtros,
+    advancedFilters: advancedFilters ? JSON.stringify(advancedFilters) : ''
+  }), [filtros, advancedFilters ? JSON.stringify(advancedFilters) : '']);
 
   const refetch = useCallback(() => {
     setReloadFlag((flag) => flag + 1);
@@ -186,6 +193,85 @@ export function useReportData(
       }
     };
   }, [fetchParams, reloadFlag, allowFetch]);
+
+  // 🔍 Efeito separado: Buscar empty-columns global (baseado em TODOS os dados do período)
+  useEffect(() => {
+    if (!allowFetch) return;
+
+    if (emptyColumnsAbortRef.current) {
+      emptyColumnsAbortRef.current.abort();
+    }
+
+    const controller = new AbortController();
+    emptyColumnsAbortRef.current = controller;
+    const signal = controller.signal;
+    let isMounted = true;
+
+    const fetchEmptyColumns = async () => {
+      if (!isMounted) return;
+
+      try {
+        const params = new URLSearchParams();
+        
+        // Passar os MESMOS filtros que o paginate
+        if ((filtros as any).nomeFormula) params.set("formula", String((filtros as any).nomeFormula));
+        if ((filtros as any).dataInicio) params.set("dataInicio", String((filtros as any).dataInicio));
+        if ((filtros as any).dataFim) params.set("dataFim", String((filtros as any).dataFim));
+        if ((filtros as any).codigo) params.set("codigo", String((filtros as any).codigo));
+        if ((filtros as any).numero) params.set("numero", String((filtros as any).numero));
+
+        if (advancedFilters) {
+          try {
+            params.set('advancedFilters', encodeURIComponent(JSON.stringify(advancedFilters)));
+          } catch (e) {
+            console.warn('Erro ao serializar advancedFilters para empty-columns:', e);
+          }
+        }
+
+        const url = `http://localhost:3000/api/relatorio/empty-columns?${params.toString()}`;
+        
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        const res = await fetch(url, { 
+          method: "GET", 
+          signal,
+          headers: { 
+            'Cache-Control': 'no-cache',
+            'Accept': 'application/json',
+          },
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) throw new Error(`Erro ao buscar empty-columns: ${res.status}`);
+        
+        const emptyColsData = await res.json();
+        if (!isMounted) return;
+        
+        setEmptyColumns(emptyColsData);
+        
+      } catch (err: any) {
+        if (!isMounted) return;
+        if (err.name === 'AbortError') return;
+        
+        console.warn("[useReportData] Erro ao buscar empty-columns:", err.message);
+        // Não setamos error aqui pois é informação complementar
+      }
+    };
+
+    // Usar debounce também para este endpoint
+    const timeoutId = setTimeout(() => {
+      fetchEmptyColumns();
+    }, 300);
+
+    return () => {
+      clearTimeout(timeoutId);
+      isMounted = false;
+      if (emptyColumnsAbortRef.current) {
+        emptyColumnsAbortRef.current.abort();
+      }
+    };
+  }, [emptyColumnsParams, reloadFlag, allowFetch]);
 
   return { dados, loading, error, total, emptyColumns, refetch, refetchSilent };
 }
