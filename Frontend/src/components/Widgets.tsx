@@ -426,7 +426,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <div className="text-xs 3xl:text-lg text-gray-500">Total</div>
-            <div className=" text-sm  3xl:text-2xl font-bold text-red-600">
+            <div className=" text-sm  3xl:text-xl font-bold text-red-600">
               {(stats?.total ?? data.reduce((s, d) => s + d.value, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
             </div>
             <div className="text-xs 3xl:text-lg text-gray-500">{displayUnit}</div>

@@ -117,7 +117,7 @@ export default function DbConfig() {
   };
 
   return (
-    <div className="p-4 bg-white rounded shadow">
+    <div className="">
       <h2 className="text-lg font-semibold mb-3">Conexão MySQL (DB)</h2>
       {loading ? (
         <div className="text-sm text-gray-500">Carregando...</div>
@@ -149,7 +149,7 @@ export default function DbConfig() {
           </div>
           <div className="flex justify-end gap-2">
             <Button onClick={test} className="bg-gray-600 hover:bg-gray-700" disabled={saving}>{/* test button */} Testar</Button>
-            <Button onClick={save} className="bg-blue-600 hover:bg-blue-700" disabled={saving}>{saving ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin"/> Salvando...</span> : 'Salvar DB'}</Button>
+            <Button onClick={save} variant='destructive' disabled={saving}>{saving ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin"/> Salvando...</span> : 'Salvar DB'}</Button>
           </div>
         </div>
       )}

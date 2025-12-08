@@ -495,7 +495,7 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
           </div>
         </div>
         <div className="overflow-auto flex-1 min-h-0 thin-red-scrollbar">
-          <div className="rounded p-3 w-full grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-7 shadow-xl/20 pb-8">
+          <div className="rounded p-3 w-full grid grid-cols-3 sm:grid-cols-1 lg:grid-cols-1 gap-7 pb-8">
             {editableColumns.map((col) => {
               const colNumber = parseInt(col.replace("col", ""), 10);
               const produtoNumber = colNumber - 5;
