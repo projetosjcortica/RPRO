@@ -1926,7 +1926,7 @@ export default function Report() {
           {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
           <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
-            <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
+            <div className="w-full h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
               <div className="flex justify-end p-0 m-0">
                 <RefreshButton
                   type="ihm"
@@ -1960,7 +1960,7 @@ export default function Report() {
                 ).toLocaleString("pt-BR")}
               </p>
             </div>
-            <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
+            <div className="w-full h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
               <p className="text-center font-bold">Período: {""}</p>
               <div className="flex flex-row justify-around px-8 gap-4">
                 <div className="flex flex-col justify-center gap-1">
