@@ -318,11 +318,11 @@ export function usePersistentForm(key: string) {
           // ignore errors
         }
       } else {
-        toast.error("Failed to save data");
+        toast.error("Falha ao salvar");
       }
     } catch (error) {
-      console.error("Failed to save data:", error);
-      toast.error("Failed to save data");
+      console.error("Falha ao salvar:", error);
+      toast.error("Falha ao salvar");
     }
   };
 
@@ -357,7 +357,8 @@ export function ProfileConfig({
     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
     );
     const [userType, setUserType] = useState<'racao' | 'amendoim'>(user?.userType || 'racao');
-  
+
+    console.log(userType);
   
     useEffect(() => {
       setUserType(user?.userType || 'racao');
@@ -552,7 +553,7 @@ export function ProfileConfig({
         
         </div>
 
-          {/* { user?.username === 'cortica' && (
+          { user?.username === 'cortica' && (
             <div className="h-20">
               <Label className="mb-2 block text-sm font-medium text-gray-700">Tipo de Perfil</Label>
               <div className="flex gap-2">
@@ -569,12 +570,12 @@ export function ProfileConfig({
                   variant={userType === 'amendoim' ? 'default' : 'outline'}
                   onClick={() => setUserType('amendoim')}
                   className="flex-1"
-                >
+                > 
                   Amendoim
                 </Button>
               </div> 
             </div>
-            )} */}
+            )}
         </>
       )}
 
@@ -1895,7 +1896,7 @@ interface Estatisticas {
                 <div className="ml-auto" />
               </div>
 
-              {/* <div className="mb-4 p-3 border rounded bg-gray-50">
+              <div className="mb-4 p-3 border rounded bg-gray-50">
                 <div className="flex flex-wrap gap-2 items-end">
                   <Input placeholder="username" value={createUserData.username} onChange={(e) => setCreateUserData((d: any) => ({ ...d, username: (e.target as HTMLInputElement).value }))} className="flex-1 min-w-[140px]" />
                   <Input type="password" placeholder="senha" value={createUserData.password} onChange={(e) => setCreateUserData((d: any) => ({ ...d, password: (e.target as HTMLInputElement).value }))} className="flex-1 min-w-[140px]" />
@@ -1912,7 +1913,7 @@ interface Estatisticas {
                     <Button onClick={handleCreateUser}>Criar</Button>
                   </div>
                 </div>
-              </div> */}
+              </div>
 
               {filteredAdminUsers && filteredAdminUsers.length > 0 ? (
                 <div className="flex flex-col gap-3">
