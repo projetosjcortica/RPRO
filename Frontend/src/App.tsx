@@ -287,7 +287,7 @@ const App = () => {
                                   <DialogTrigger asChild>
                                     <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'><GalleryThumbnails/>IHM</SidebarMenuSubButton>
                                   </DialogTrigger>
-                                  <DialogContent>
+                                  <DialogContent className='w-100% p-5'>
                                     <DialogHeader>
                                       <DialogTitle> IHM</DialogTitle>
                                       <DialogDescription>
