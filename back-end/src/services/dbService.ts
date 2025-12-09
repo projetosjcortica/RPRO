@@ -10,6 +10,8 @@ export class DBService extends BaseService {
   ds: DataSource;
   useMysql: boolean;
   sqlitePath?: string;
+  private static dbChecked = false; // Cache: evita verificar DB repetidamente
+  
   constructor() {
     super('DBService');
     // Do not create DataSource here. We'll initialize it lazily inside init()
@@ -19,7 +21,13 @@ export class DBService extends BaseService {
     this.ds = {} as DataSource;
     this.useMysql = process.env.USE_SQLITE !== 'true';
   }
+  
   private async createDatabaseIfNotExists(host: string, port: number, user: string, pass: string, dbName: string) {
+    // 🔧 OTIMIZAÇÃO: Pular verificação se já foi feita nesta sessão
+    if (DBService.dbChecked) {
+      return;
+    }
+    
     // Create a temporary connection without specifying a database
     const tempDs = new DataSource({
       type: 'mysql',
@@ -27,11 +35,11 @@ export class DBService extends BaseService {
       port,
       username: user,
       password: pass,
-      // ensure connection uses utf8mb4 to preserve all unicode characters
-      // use charset 'utf8mb4' (not the collation string) so the driver sets the proper character set
       charset: 'utf8mb4',
       synchronize: false,
       logging: false,
+      // 🔧 OTIMIZAÇÃO: Timeout reduzido para conexão temporária
+      connectTimeout: 5000,
     });
 
     try {
@@ -44,10 +52,11 @@ export class DBService extends BaseService {
 
       if (dbExists.length === 0) {
         console.info(`[DBService] Creating database '${dbName}'...`);
-        // Create with utf8mb4 charset and unicode collation to preserve all characters
         await tempDs.query(`CREATE DATABASE IF NOT EXISTS ${dbName} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
         console.info(`[DBService] Database '${dbName}' created successfully`);
       }
+      
+      DBService.dbChecked = true; // Marcar como verificado
     } finally {
       if (tempDs.isInitialized) {
         await tempDs.destroy();
@@ -82,6 +91,10 @@ export class DBService extends BaseService {
         // First ensure database exists
         await this.createDatabaseIfNotExists(finalHost, finalPort, finalUser, finalPass, finalDb);
 
+        // 🔧 OTIMIZAÇÃO: synchronize apenas em dev, não em produção
+        const isDev = process.env.NODE_ENV !== 'production';
+        const shouldSync = isDev || process.env.TYPEORM_SYNC === 'true';
+
         // Now connect to the specific database and sync schema
         this.ds = new DataSource({
           type: 'mysql',
@@ -90,12 +103,23 @@ export class DBService extends BaseService {
           username: finalUser,
           password: finalPass,
           database: finalDb,
-          // ensure connection uses utf8mb4 to preserve all unicode characters
-          // use charset 'utf8mb4' so the driver sends proper SET NAMES
           charset: 'utf8mb4',
-          synchronize: true, // This will create/update tables automatically
-          logging: ['error', 'schema'], // Log only errors and schema changes
+          synchronize: shouldSync,
+          logging: isDev ? ['error', 'schema'] : ['error'],
           entities: selectedEntities,
+          // 🔧 OTIMIZAÇÃO: Connection pooling
+          extra: {
+            connectionLimit: 10,
+            waitForConnections: true,
+            queueLimit: 0,
+            connectTimeout: 10000,
+          },
+          // 🔧 OTIMIZAÇÃO: Cache de queries
+          cache: {
+            type: 'database',
+            tableName: 'query_cache',
+            duration: 30000, // 30 segundos
+          },
         });
       } else {
         // Explicitly requested sqlite as primary environment

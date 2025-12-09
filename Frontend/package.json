@@ -1,7 +1,7 @@
 {
   "name": "cortez",
   "private": true,
-  "version": "1.4.17",
+  "version": "1.4.19",
   "author": "J.Cortica, Kaua Okuma, Miguel Dias",
   "description": "Sistema Cortez",
   "type": "module",
@@ -109,66 +109,5 @@
     "vite": "^5.1.6",
     "vite-plugin-electron": "^0.28.6",
     "vite-plugin-electron-renderer": "^0.14.5"
-  },
-  "build": {
-    "appId": "com.Cortez.app",
-    "productName": "Cortez",
-    "directories": {
-      "output": "release"
-    },
-    "asar": true,
-    "asarUnpack": [
-      "**/backend/**",
-      "**/node_modules/@tailwindcss/oxide-wasm32-wasi/**",
-      "**/node_modules/@emnapi/core/**"
-    ],
-    "npmRebuild": false,
-    "nodeGypRebuild": false,
-    "compression": "store",
-    "files": [
-      "dist/**/*",
-      "dist-electron/**/*",
-      "electron/**/*",
-      "!node_modules/@tailwindcss/oxide-wasm32-wasi/**",
-      "!node_modules/@emnapi/core/**",
-      "!node_modules/.cache",
-      "!node_modules/.vite",
-      "!**/*.map",
-      "!**/*.d.ts"
-    ],
-    "extraResources": [
-      {
-        "from": "../back-end/dist",
-        "to": "backend/"
-      },
-      {
-        "from": "../back-end/node_modules",
-        "to": "backend/node_modules",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Cortez",
-      "uninstallDisplayName": "Cortez",
-      "include": "build/installer.nsh",
-      "license": "license.txt"
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "src\\public\\logo.png"
-    }
   }
 }

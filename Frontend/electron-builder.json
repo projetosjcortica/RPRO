@@ -8,9 +8,21 @@
   "files": [
     "dist/**/*",
     "dist-electron/**/*",
-    "build/**/*"
+    "!**/*.map",
+    "!**/*.d.ts",
+    "!**/node_modules/.cache/**",
+    "!**/node_modules/.vite/**"
   ],
   "extraResources": [
+    {
+      "from": "../back-end/dist",
+      "to": "backend/"
+    },
+    {
+      "from": "../back-end/node_modules",
+      "to": "backend/node_modules",
+      "filter": ["**/*", "!.cache/**", "!.package-lock.json"]
+    },
     {
       "from": "build",
       "to": "build",
@@ -18,7 +30,12 @@
     }
   ],
   "win": {
-    "target": ["nsis"],
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ],
     "icon": "public/icon.ico"
   },
   "nsis": {
@@ -27,6 +44,23 @@
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": true,
     "include": "build/installer.nsh",
-    "warningsAsErrors": false
-  }
+    "warningsAsErrors": false,
+    "differentialPackage": false,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "menuCategory": "Cortez",
+    "installerIcon": "public/icon.ico",
+    "uninstallerIcon": "public/icon.ico"
+  },
+  "compression": "store",
+  "asar": true,
+  "asarUnpack": [
+    "**/*.node",
+    "**/node_modules/sharp/**/*",
+    "**/node_modules/@img/**/*"
+  ],
+  "removePackageScripts": true,
+  "npmRebuild": false,
+  "nodeGypRebuild": false,
+  "buildDependenciesFromSource": false
 }
