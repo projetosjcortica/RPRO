@@ -696,8 +696,8 @@ export default function Home() {
                     <div className="space-y-4 h-full">
                       {/* Porcentagem de Aproveitamento */}
                       <div className="bg-white rounded-lg pb-4 shadow-md flex flex-col items-center 3xl:h-1/3 justify-center">
-                        <div className="text-base 4xl:text-lg text-gray-500 font-medium">Aproveitamento</div>
-                        <div className="text-5xl 4xl:text-6xl font-bold">
+                        <div className=" text-sm xl:text-base 4xl:text-lg text-gray-500 font-medium">Aproveitamento</div>
+                        <div className="text-xl xl:text-4xl 4xl:text-6xl font-bold">
                           {entradaSum > 0 
                             ? ((saidaSum / entradaSum) * 100).toFixed(2)
                             : '0.00'}%
@@ -707,14 +707,14 @@ export default function Home() {
                       {/* Entrada e Saída */}
                       <div className="grid grid-cols-2 gap-2 h-1/4">
                         <div className="shadow-md flex flex-col justify-center items-start rounded-lg p-4">
-                          <div className="text-base 4xl:text-lg text-gray-500 font-medium">Entrada</div>
-                          <div className="text-lg 4xl:text-xl font-bold">
+                          <div className="text-sm xl:text-base 4xl:text-lg text-gray-500 font-medium">Entrada</div>
+                          <div className="text-sm xl:text-lg 4xl:text-xl font-bold">
                             {entradaSum.toLocaleString('pt-BR', {  minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           </div>
                         </div>
                         <div className="shadow-md flex flex-col justify-center items-start rounded-lg p-4">
-                          <div className="text-base 4xl:text-lg text-gray-500 font-medium">Saída</div>
-                          <div className="text-lg 4xl:text-xl font-bold">
+                          <div className="text-sm xl:text-base 4xl:text-lg text-gray-500 font-medium">Saída</div>
+                          <div className="text-sm xl:text-lg 4xl:text-xl font-bold">
                             {saidaSum.toLocaleString('pt-BR', {  minimumFractionDigits:3, maximumFractionDigits: 3 })} kg
                           </div>
                         </div>

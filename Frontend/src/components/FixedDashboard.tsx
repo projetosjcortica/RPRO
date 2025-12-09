@@ -540,7 +540,7 @@ const formatShortDate = (raw?: string | null) => {
           </div>
         </div>
         {/* Sidebar  */}
-        <div className=" w-130 space-y-6 overflow-hidden shadow-lg h-full rounded-xl">
+        <div className=" w-130 space-y-6 overflow-hidden shadow-lg h-full rounded-xl hidden lg:block">
           <Card className="bg-white shadow-md border border-gray-300 rounded-xl overflow-hidden h-[calc(100vh-15px)] 3xl:h-[calc(100vh-25px)] flex flex-col">
             <CardHeader className="border-b px-6 py-4 flex-shrink-0 border-indigo-50">
               <div className="flex items-center justify-between">
