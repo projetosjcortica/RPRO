@@ -8,10 +8,10 @@ import { parserService } from "./services/parserService";
 import { fileProcessorService } from "./services/fileProcessorService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
-import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
+import { resumoService } from "./services/resumoService";
 import ExcelJS from "exceljs";
-import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
-import { dumpConverterService } from "./services/dumpConverterService"; // Importação do serviço de conversão de dump
+import { unidadesService } from "./services/unidadesService";
+import { dumpConverterService } from "./services/dumpConverterService";
 import {
   Relatorio,
   MateriaPrima,
@@ -40,7 +40,6 @@ import * as net from 'net';
 const execFileAsync = promisify(execFile);
 
 console.log("✅ [Startup] Módulos importados com sucesso");
-console.log("✅ [Startup] fileProcessorService:", fileProcessorService ? "LOADED" : "UNDEFINED");
 
 // Global handlers for improved debugging on dev setup
 process.on('unhandledRejection', (reason) => {
@@ -299,15 +298,50 @@ export async function stopCollector(): Promise<{
   };
 }
 
-// Ensure database connection before starting
-async function ensureDatabaseConnection() {
+// ========== OTIMIZAÇÃO: Flag global de inicialização ==========
+let dbInitialized = false;
+let dbInitializing: Promise<void> | null = null;
+
+/**
+ * Inicializa o banco de dados UMA ÚNICA VEZ.
+ * Se já estiver inicializado, retorna imediatamente.
+ * Se estiver inicializando, aguarda a inicialização em progresso.
+ */
+async function ensureDbReady(): Promise<void> {
+  if (dbInitialized && AppDataSource.isInitialized) return;
+  
+  if (dbInitializing) {
+    await dbInitializing;
+    return;
+  }
+  
+  dbInitializing = (async () => {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000;
+    
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (!AppDataSource.isInitialized) {
+          await dbService.init();
+        }
+        dbInitialized = true;
+        console.log(`[DB] ✅ Database ready (attempt ${attempt})`);
+        return;
+      } catch (e) {
+        console.warn(`[DB] Attempt ${attempt}/${MAX_RETRIES} failed:`, String(e));
+        if (attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY * attempt));
+        } else {
+          throw e;
+        }
+      }
+    }
+  })();
+  
   try {
-    // dbService.init() handles MySQL initialization and will fallback to SQLite
-    await dbService.init();
-    console.log("Database connection established (via dbService)");
-  } catch (e) {
-    console.warn("[DB] ensureDatabaseConnection failed:", String(e));
-    throw e;
+    await dbInitializing;
+  } finally {
+    dbInitializing = null;
   }
 }
 
@@ -396,6 +430,22 @@ async function filtrarProdutosInativos(obj: any): Promise<any> {
 
 const app = express();
 
+// ========== MIDDLEWARE: Garantir DB conectado ANTES de qualquer rota ==========
+app.use(async (req, res, next) => {
+  // Ignorar health check para não bloquear
+  if (req.path === '/api/health' || req.path === '/health') {
+    return next();
+  }
+  
+  try {
+    await ensureDbReady();
+    next();
+  } catch (e) {
+    console.error('[Middleware] Database not ready:', e);
+    res.status(503).json({ error: 'Database not available', details: String(e) });
+  }
+});
+
 // Compressão gzip para otimizar transferência de dados
 app.use(compression({
   filter: (req: express.Request, res: express.Response) => {
@@ -422,12 +472,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// ========== HEALTH CHECK ENDPOINT ==========
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: dbInitialized ? 'ok' : 'initializing',
+    dbConnected: AppDataSource.isInitialized,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', dbReady: dbInitialized });
+});
+
 // POST handler: aceitar body.params + body.advancedFilters (compatível com Processador.relatorioPaginate)
 app.post('/api/relatorio/paginate', async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!AppDataSource.isInitialized) await dbService.init();
-
+    // ✅ DB já garantido pelo middleware global - removido
     const params = req.body?.params || {};
     const advancedFilters = req.body?.advancedFilters || null;
 
@@ -649,8 +712,6 @@ function normalizeDateParam(d: any): string | null {
 
 app.get("/api/materiaprima/labels", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
-
     // 🔄 Sempre buscar dados frescos do banco (não usar cache)
     // pois esta API é chamada ao carregar produtos e precisa estar atualizada
     const materias = await materiaPrimaService.getAll();
@@ -685,7 +746,6 @@ app.get("/api/materiaprima/labels", async (req, res) => {
 // Labels de fórmulas: retorna map { codigo: nome }
 app.get('/api/formulas/labels', async (req, res) => {
   try {
-    if (!AppDataSource.isInitialized) await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const raw = await repo
       .createQueryBuilder('r')
@@ -711,7 +771,6 @@ app.get('/api/formulas/labels', async (req, res) => {
 // Alternar status ativo/inativo de um produto
 app.patch("/api/materiaprima/:num/toggle", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const num = parseInt(req.params.num);
 
     console.log(`[MateriaPrima Toggle] Recebido request para produto num=${num}`);
@@ -762,7 +821,6 @@ app.patch("/api/materiaprima/:num/toggle", async (req, res) => {
 // Alternar status ignorar cálculos de um produto
 app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const num = parseInt(req.params.num);
 
     console.log(`[MateriaPrima ToggleIgnorarCalculos] Recebido request para produto num=${num}`);
@@ -813,8 +871,6 @@ app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => 
 // Reativar todos os produtos (resetar para padrão)
 app.post("/api/materiaprima/reset-all", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
-
     console.log('[MateriaPrima Reset] Reativando todos os produtos...');
 
     const repo = AppDataSource.getRepository(MateriaPrima);
@@ -856,7 +912,6 @@ app.get("/api/ping", async (req, res) => {
 
 app.get("/api/db/status", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const count = await repo.count();
     return res.json({
@@ -879,8 +934,6 @@ app.get("/api/db/status", async (req, res) => {
 // Synchronize database schema (add missing columns)
 app.post("/api/db/sync-schema", async (req, res) => {
   try {
-    await dbService.init();
-
     // Forçar adição da coluna 'ativo' na tabela materia_prima se não existir
     const queryRunner = AppDataSource.createQueryRunner();
     await queryRunner.connect();
@@ -912,7 +965,6 @@ app.post("/api/db/sync-schema", async (req, res) => {
 // Clear entire database (DELETE all rows from all entities)
 app.post("/api/db/clear", async (req, res) => {
   try {
-    await dbService.init();
     await dbService.clearAll();
     return res.json({ ok: true });
   } catch (e: any) {
@@ -935,7 +987,6 @@ app.post("/api/database/clean", async (req, res) => {
 // Export DB dump as JSON (and optionally save to disk). Returns { dump, savedPath }
 app.get("/api/db/dump", async (req, res) => {
   try {
-    await dbService.init();
     const result = await dbService.exportDump(true);
     return res.json({
       ok: true,
@@ -953,7 +1004,6 @@ app.post("/api/db/import", async (req, res) => {
   try {
     const dumpObj = req.body;
     if (!dumpObj) return res.status(400).json({ error: "dump body required" });
-    await dbService.init();
     const result = await dbService.importDump(dumpObj);
     return res.json({ ok: true, ...result });
   } catch (e: any) {
@@ -1023,8 +1073,6 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
     const skipCreateTable = req.query.skipCreateTable === 'true';
 
     // Execute SQL dump using dbService
-    await dbService.init();
-
     // Import the SQL file with options
     const result = await dbService.executeSqlFile(tmpDumpPath, {
       failOnError: false,
@@ -1064,8 +1112,6 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
 // Export database as SQL dump file
 app.get("/api/db/export-sql", async (req, res) => {
   try {
-    await dbService.init();
-
     console.log('[api/db/export-sql] Generating SQL dump...');
 
     const result = await dbService.exportSqlDump();
@@ -1103,7 +1149,6 @@ app.post("/api/cache/clear", async (req, res) => {
 // Unified clear all: DB + backups
 app.post("/api/clear/all", async (req, res) => {
   try {
-    await dbService.init();
     await backupSvc.listBackups();
     // perform clears
     await dbService.clearAll();
@@ -1122,8 +1167,6 @@ app.post("/api/clear/all", async (req, res) => {
 // Clear production data but keep users and materia prima with default setup
 app.post("/api/clear/production", async (req, res) => {
   try {
-    await dbService.init();
-
     // Clear production tables (keep User; MateriaPrima will be reset below)
     const relatorioRepo = AppDataSource.getRepository(Relatorio);
     const batchRepo = AppDataSource.getRepository(Batch);
@@ -1243,7 +1286,6 @@ app.post("/api/clear/production", async (req, res) => {
 
 app.get("/api/backup/list", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const data = await backupSvc.listBackups();
     return res.json(data);
   } catch (e) {
@@ -1254,7 +1296,6 @@ app.get("/api/backup/list", async (req, res) => {
 
 app.get("/api/file/process", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const filePath = String(req.query.filePath || req.query.path || "");
     if (!filePath)
       return res.status(400).json({ error: "filePath is required" });
@@ -1274,7 +1315,6 @@ const upload = multer({ dest: TMP_DIR_BASE });
 app.post("/api/file/upload", upload.single("file"), async (req, res) => {
   const startTime = Date.now();
   try {
-    await ensureDatabaseConnection();
     const f: any = req.file;
     if (!f)
       return res
@@ -1503,7 +1543,6 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     // Verificar conexão do banco
     if (!AppDataSource.isInitialized) {
       console.warn('[relatorio/paginate] ⚠️ Database não inicializado, inicializando...');
-      await dbService.init();
     }
 
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
@@ -1537,7 +1576,6 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     const includeIgnored = String(req.query.includeIgnored || "").toLowerCase() === "true";
 
     try {
-      await dbService.init();
     } catch (dbError: any) {
       console.error(
         "[relatorio/paginate] Database initialization failed:",
@@ -1774,8 +1812,6 @@ app.get("/api/relatorio/paginate", async (req, res) => {
 // 🔍 Endpoint especializado: Detecta colunas vazias em TODO o período/filtro (sem paginação)
 app.get("/api/relatorio/empty-columns", async (req, res) => {
   try {
-    await dbService.init();
-
     const repo = AppDataSource.getRepository(Relatorio);
     let qb = repo.createQueryBuilder("r");
 
@@ -1883,8 +1919,6 @@ app.get("/api/relatorio/empty-columns", async (req, res) => {
 // PDF DATA: Retorna dados TOTALMENTE processados, calculados e formatados para PDF
 app.get("/api/relatorio/pdf-data", async (req, res) => {
   try {
-    await dbService.init();
-
     // Mesmos filtros do paginate
     const codigoRaw = req.query.codigo ?? null;
     const numeroRaw = req.query.numero ?? null;
@@ -2077,8 +2111,6 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     const normDataFim = normalizeDateParam(dataFim) || null;
     const sortBy = String(req.query.sortBy || "Dia");
     const sortDir = String(req.query.sortDir || "ASC");
-
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const qb = repo.createQueryBuilder("r");
 
@@ -2229,8 +2261,6 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
     const normDataFim = normalizeDateParam(dataFim) || null;
     const sortBy = String(req.body.sortBy || "Dia");
     const sortDir = String(req.body.sortDir || "ASC");
-
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const qb = repo.createQueryBuilder("r");
 
@@ -2358,7 +2388,6 @@ app.use("/user_photos", express.static(photosBase));
 
 app.post("/api/auth/register", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const { username, password, displayName, userType } = req.body;
     if (!username || !password)
       return res.status(400).json({ error: "usuário e senha requeridos" });
@@ -2401,7 +2430,6 @@ app.post("/api/auth/register", async (req, res) => {
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const { username, password } = req.body;
     if (!username || !password)
       return res.status(400).json({ error: "usuário e senha requeridos" });
@@ -2420,7 +2448,6 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.post("/api/auth/photo", userUpload.single("photo"), async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const f: any = req.file;
     const username = req.body.username;
     if (!username) return res.status(400).json({ error: "username required" });
@@ -2451,7 +2478,6 @@ app.post("/api/auth/photo", userUpload.single("photo"), async (req, res) => {
 
 app.post("/api/auth/update", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const { username, displayName, userType } = req.body;
     if (!username) return res.status(400).json({ error: "username required" });
     const repo = AppDataSource.getRepository(User);
@@ -2538,7 +2564,6 @@ app.post("/api/admin/set-default-photo", async (req, res) => {
     const { path: photoPath } = req.body || {};
     if (!photoPath) return res.status(400).json({ error: "path is required" });
 
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
 
     // Bulk update all users to use the provided photoPath
@@ -2554,7 +2579,6 @@ app.post("/api/admin/set-default-photo", async (req, res) => {
 // Admin: list users (public, but only useful to admin UI)
 app.get('/api/admin/users', async (_req, res) => {
   try {
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
     const users = await repo.find();
     const sanitized = users.map(u => ({ id: u.id, username: u.username, displayName: u.displayName, photoPath: u.photoPath, isAdmin: u.isAdmin, userType: u.userType }));
@@ -2570,7 +2594,6 @@ app.post('/api/admin/delete-user', async (req, res) => {
   try {
     const { username, id } = req.body || {};
     if (!username && !id) return res.status(400).json({ ok: false, error: 'username or id required' });
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
     if (id) {
       await repo.delete({ id: Number(id) });
@@ -2589,7 +2612,6 @@ app.post('/api/admin/toggle-admin', async (req, res) => {
   try {
     const { username, id, isAdmin } = req.body || {};
     if ((!username && !id) || typeof isAdmin !== 'boolean') return res.status(400).json({ ok: false, error: 'username/id and isAdmin required' });
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
     const target = id ? await repo.findOne({ where: { id: Number(id) } }) : await repo.findOne({ where: { username: String(username) } });
     if (!target) return res.status(404).json({ ok: false, error: 'user not found' });
@@ -2607,7 +2629,6 @@ app.post('/api/admin/set-password', async (req, res) => {
   try {
     const { username, id, newPassword } = req.body || {};
     if ((!username && !id) || !newPassword) return res.status(400).json({ ok: false, error: 'username/id and newPassword required' });
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
     const target = id ? await repo.findOne({ where: { id: Number(id) } }) : await repo.findOne({ where: { username: String(username) } });
     if (!target) return res.status(404).json({ ok: false, error: 'user not found' });
@@ -2677,7 +2698,6 @@ app.post('/api/ihm/test', async (req, res) => {
 
 app.get("/api/db/listBatches", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Batch);
     const [items, total] = await repo.findAndCount({
       take: 50,
@@ -2765,7 +2785,6 @@ app.post('/api/db/test', async (req, res) => {
  */
 app.post("/api/db/setupMateriaPrima", async (req, res) => {
   try {
-    await dbService.init();
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
     // Sanitize and validate items
@@ -2823,7 +2842,6 @@ app.get("/api/db/getMateriaPrima", async (req, res) => {
 
 app.get("/api/db/syncLocalToMain", async (req, res) => {
   try {
-    await dbService.init();
     const limit = Number(req.query.limit || 1000);
     const repo = AppDataSource.getRepository(Relatorio);
     const rows = await repo.find({ take: Number(limit) });
@@ -3137,7 +3155,6 @@ app.get("/api/filtrosAvaliable", async (req, res) => {
     const codigos = Array.from(codigosSet).sort((a, b) => a - b);
 
     // For numeros (Form2) we need to query DB for distinct Form2 values within date range
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const qb = repo
       .createQueryBuilder("r")
@@ -3179,7 +3196,6 @@ app.get("/api/filtrosAvaliable", async (req, res) => {
 // Additional endpoints for Processador HTTP compatibility
 app.post("/api/file/processContent", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const { filePath, content } = req.body;
     if (!filePath || !content) {
       return res
@@ -3831,7 +3847,6 @@ app.post("/api/config", async (req, res) => {
 // Provide chart-oriented data for frontend dashboards
 app.get("/api/chartdata", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     // Optional query params: limit, dateStart, dateEnd
@@ -3944,7 +3959,6 @@ app.get("/api/chartdata", async (req, res) => {
 // Endpoint especializado: Agregação por Fórmulas
 app.get("/api/chartdata/formulas", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4081,7 +4095,6 @@ app.get("/api/chartdata/formulas", async (req, res) => {
 // Endpoint especializado: Agregação por Produtos
 app.get("/api/chartdata/produtos", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4216,7 +4229,6 @@ app.get("/api/chartdata/produtos", async (req, res) => {
 // Endpoint especializado: Agregação por Horário
 app.get("/api/chartdata/horarios", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4440,7 +4452,6 @@ app.get('/api/about/info', async (req, res) => {
 // Endpoint especializado: Agregação por Dia da Semana
 app.get("/api/chartdata/diasSemana", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4602,7 +4613,6 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
 // Endpoint especializado: Estatísticas Gerais
 app.get("/api/chartdata/stats", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4714,7 +4724,6 @@ app.get("/api/chartdata/stats", async (req, res) => {
 // Endpoint especializado: Dados de Semana Específica
 app.get("/api/chartdata/semana", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { weekStart, formula, codigo, numero } = req.query;
@@ -4915,7 +4924,6 @@ app.get("/api/chartdata/semana", async (req, res) => {
 // POST: compute multiple weeks in one call
 app.post("/api/chartdata/semana/bulk", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { weekStarts, formula, codigo, numero } = req.body || {};
@@ -5574,8 +5582,6 @@ app.get('/api/amendoim/metricas/rendimento', async (req, res) => {
 // GET /api/amendoim/analise - Obter dados pré-processados para gráficos de análise
 app.get('/api/amendoim/analise', async (req, res) => {
   try {
-    await ensureDatabaseConnection();
-
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
 
@@ -5812,8 +5818,6 @@ app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
 // GET /api/amendoim/exportExcel - Exportar dados de amendoim para Excel
 app.get('/api/amendoim/exportExcel', async (req, res) => {
   try {
-    await dbService.init();
-
     // Filtros
     const tipo = req.query.tipo ? String(req.query.tipo) : undefined;
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
@@ -6039,8 +6043,6 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
 // POST /api/amendoim/exportExcel - Exportar com filtros no body
 app.post('/api/amendoim/exportExcel', async (req, res) => {
   try {
-    await dbService.init();
-
     // Filtros do body
     const tipo = req.body.tipo || undefined;
     const codigoProduto = req.body.codigoProduto || undefined;
@@ -6337,11 +6339,17 @@ async function validateRuntimeDbConfig() {
 
 // main startup
 (async () => {
+  const startupTime = Date.now();
+  console.log('[Startup] 🚀 Iniciando servidor...');
+  
   // load config file first, so DB init can use it
   await validateRuntimeDbConfig();
+  
   try {
-    await ensureDatabaseConnection();
-
+    // 🔧 Inicializar banco de dados com retry
+    console.log('[Startup] Conectando ao banco de dados...');
+    await ensureDbReady();
+    
     // 🔧 Garantir que o usuário admin padrão existe
     await ensureDefaultAdminUser();
 
@@ -6379,7 +6387,10 @@ async function validateRuntimeDbConfig() {
     );
   }
 
-  app.listen(HTTP_PORT, () =>
-    console.log(`[Server] API server running on port ${HTTP_PORT}`)
-  );
+  app.listen(HTTP_PORT, () => {
+    const duration = Date.now() - startupTime;
+    console.log(`[Server] ✅ API server running on port ${HTTP_PORT} (startup: ${duration}ms)`);
+  });
 })();
+
+
