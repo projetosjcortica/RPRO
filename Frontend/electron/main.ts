@@ -24,6 +24,7 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST;
 
 let win: BrowserWindow | null;
+let splashScreen: BrowserWindow | null = null;
 let lastScriptPath: string | null = null;
 // Map to track forked child processes by PID
 const children: Map<number, ChildProcess> = new Map();
@@ -185,16 +186,8 @@ ipcMain.handle(
 );
 
 // Helper function to resolve backend script path
-function getBackendScriptPath(): string {
-  // if (app.isPackaged) {
-  //   return path.join(process.resourcesPath, "backend", "dist", "index.js");
-  // } else {
-  //   const projectRoot = path.dirname(path.dirname(__dirname));
-  //   return path.join(projectRoot, "back-end", "dist", "index.js");
-  // }
-  // if (!app.isPackaged) {
-    return path.join("backend", "index.js")
-  // }
+function getBackendScriptPath(): string { 
+    return path.join("backend", "index.js") 
 }
 
 ipcMain.handle(
@@ -510,6 +503,212 @@ ipcMain.handle(
   }
 );
 
+// ========== SPLASH SCREEN ==========
+function getLogoBase64(logoFileName: string): string {
+  try {
+    // Tentar múltiplos caminhos possíveis para as logos
+    const possiblePaths = [
+      path.join(process.env.VITE_PUBLIC || '', logoFileName),
+      path.join(__dirname, '..', 'public', logoFileName),
+      path.join(__dirname, '..', 'src', 'public', logoFileName),
+      path.join(process.env.APP_ROOT || '', 'src', 'public', logoFileName)
+    ];
+
+    for (const logoPath of possiblePaths) {
+      if (fs.existsSync(logoPath)) {
+        const logoBuffer = fs.readFileSync(logoPath);
+        return logoBuffer.toString('base64');
+      }
+    }
+    console.warn(`Logo not found in any of the paths for: ${logoFileName}`);
+  } catch (error) {
+    console.warn(`Could not load logo: ${logoFileName}`, error);
+  }
+  
+  // Fallback: retorna uma imagem SVG simples como placeholder
+  const isCortica = logoFileName.includes('logo.png');
+  const fallbackSvg = `<svg width="70" height="70" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+    <rect width="70" height="70" rx="10" fill="${isCortica ? '#ffffff' : '#e74c3c'}"/>
+    <text x="35" y="40" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="${isCortica ? '#e74c3c' : '#ffffff'}" text-anchor="middle">${isCortica ? 'J' : 'C'}</text>
+  </svg>`;
+  return Buffer.from(fallbackSvg).toString('base64');
+}
+
+// ========== SPLASH SCREEN ==========
+function createSplashScreen() {
+  const logoCorticaBase64 = getLogoBase64('Logo.png');
+  const logoCortezBase64 = getLogoBase64('logoCmono.png');
+  const appVersion = app.getVersion();
+
+  splashScreen = new BrowserWindow({
+    width: 620,
+    height: 420,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    transparent: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  const splashHtml = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%;
+    height:100%;
+    overflow:hidden;
+  }
+  body {
+    display:flex;
+    flex-direction:column;
+    background:#ffffff;
+    font-family:'Segoe UI', sans-serif;
+    position:relative;
+  }
+
+  .main-content {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    flex:1;
+    padding:20px;
+  }
+
+  .logo-cortez {
+    width:250px;
+    max-height:150px;
+    object-fit:contain;
+    animation:fadeInScale 0.8s ease-out forwards;
+    filter:drop-shadow(0 4px 12px rgba(0,0,0,0.1));
+  }
+
+  .tagline {
+    font-size:12px;
+    color:#888;
+    letter-spacing:0.5px;
+    margin-top:10px;
+    animation:fadeIn 1s ease-out 0.3s both;
+  }
+
+  .loading-section {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    margin-top:20px;
+    animation:fadeIn 1.2s ease-out 0.5s both;
+  }
+
+  .spinner {
+    width:28px;
+    height:28px;
+    border:3px solid #e8e8e8;
+    border-top:3px solid #d62828;
+    border-radius:50%;
+    animation:spin 0.9s linear infinite;
+  }
+
+  .status {
+    font-size:11px;
+    color:#aaa;
+    text-align:center;
+  }
+
+  .footer {
+    padding:15px 0 20px 0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    animation:fadeIn 1.4s ease-out 0.7s both;
+  }
+
+  .logo-cortica {
+    width:60px;
+    opacity:0.85;
+  }
+
+  .version {
+    font-size:10px;
+    color:#bbb;
+    letter-spacing:0.3px;
+  }
+
+  .bottom-accent {
+    position:absolute;
+    bottom:0;
+    left:0;
+    right:0;
+    height:5px;
+    background:linear-gradient(90deg,#aa1f1f,#d62828,#aa1f1f);
+  }
+
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+  @keyframes fadeInScale { 
+    from { opacity:0; transform:scale(0.95); } 
+    to { opacity:1; transform:scale(1); } 
+  }
+</style>
+</head>
+<body>
+
+  <div class="main-content">
+    <img class="logo-cortez" src="data:image/png;base64,${logoCortezBase64}" alt="Cortez">
+    <div class="tagline">Onde os dados servem ao seu controle.</div>
+    
+    <div class="loading-section">
+      <div class="spinner"></div>
+      <div class="status" id="status">Iniciando...</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <img class="logo-cortica" src="data:image/png;base64,${logoCorticaBase64}" alt="J.Cortiça">
+    <div class="version">v${appVersion}</div>
+  </div>
+
+  <div class="bottom-accent"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const msgs = [
+      'Iniciando...',
+      'Conectando ao banco de dados...',
+      'Carregando configurações...',
+      'Preparando interface...'
+    ];
+    let i = 0;
+    setInterval(() => {
+      i = (i + 1) % msgs.length;
+      statusEl.textContent = msgs[i];
+    }, 1500);
+  </script>
+
+</body>
+</html>
+`;
+
+
+  splashScreen.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`);
+  splashScreen.center();
+}
+
+function closeSplashScreen() {
+  if (splashScreen) {
+    splashScreen.close();
+    splashScreen = null;
+  }
+}
+
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC!, "electron-vite.svg"),
@@ -705,16 +904,61 @@ app.whenReady().then(() => {
         console.warn('[main] failed to start backend monitor', e);
       }
 
-      createWindow();
+      // Criar splash screen enquanto aguarda backend estar pronto
+      createSplashScreen();
+      
+      // Esperar backend estar pronto antes de fechar splash
+      const checkBackendReady = async () => {
+        let retries = 0;
+        const maxRetries = 60; // 60 segundos máximo
+        
+        while (retries < maxRetries) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2000);
+            
+            const response = await fetch('http://localhost:3000/api/health', { 
+              signal: controller.signal 
+            });
+            clearTimeout(timeout);
+            
+            if (response.ok) {
+              console.log('[main] backend is ready, closing splash screen');
+              closeSplashScreen();
+              // Abrir janela principal apenas quando splash fechar
+              createWindow();
+              break;
+            }
+          } catch (e) {
+            // Backend não está pronto ainda
+          }
+          
+          retries++;
+          await new Promise(r => setTimeout(r, 1000)); // aguardar 1s entre tentativas
+        }
+        
+        // Se chegou aqui e splash ainda está aberto, fechar mesmo assim
+        closeSplashScreen();
+        // E abrir janela principal
+        if (!win) {
+          createWindow();
+        }
+      };
+      
+      // Executar verificação em background
+      checkBackendReady().catch(e => console.warn('[main] error checking backend readiness:', e));
+      
   })();
 });
 
 // Encerrar backend e app corretamente
 app.on("window-all-closed", () => {
+  closeSplashScreen();
   if (process.platform !== "darwin") app.quit();
 });
 
 app.on("before-quit", () => {
+  closeSplashScreen();
   // stop monitor when quitting
   try { stopBackendMonitor(); } catch (e) {}
   // ensure spawned backend is terminated
