@@ -377,6 +377,36 @@ async function ensureDefaultAdminUser() {
   } catch (e) {
     console.warn('[Startup] Error ensuring default admin user:', e);
   }
+
+  // Migrate legacy photoPath entries (physical paths) to relative URLs
+  try {
+    const userRepo = AppDataSource.getRepository(User);
+    const allUsers = await userRepo.find();
+    let migratedCount = 0;
+    
+    for (const user of allUsers) {
+      if (!user.photoPath) continue;
+      
+      // If photoPath is already a relative URL, skip
+      if (user.photoPath.startsWith('/user_photos/')) continue;
+      
+      // If it's a full physical path, extract filename and convert to relative URL
+      if (path.isAbsolute(user.photoPath) || user.photoPath.includes('\\') || user.photoPath.includes('Program Files')) {
+        const filename = path.basename(user.photoPath);
+        const newPhotoPath = `/user_photos/${filename}`;
+        user.photoPath = newPhotoPath;
+        await userRepo.save(user);
+        migratedCount++;
+        console.log(`[Startup] Migrated photo path for user ${user.username}: ${newPhotoPath}`);
+      }
+    }
+    
+    if (migratedCount > 0) {
+      console.log(`[Startup] ✅ Migrated ${migratedCount} user photo path(s) to relative URLs`);
+    }
+  } catch (e) {
+    console.warn('[Startup] Error migrating photo paths:', e);
+  }
 }
 
 // Helper: Obter lista de produtos ativos (para filtrar produtos inativos)
@@ -2374,12 +2404,38 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
 // Stores plain-text passwords (per user request). First registered user becomes admin.
 // Determine a writable directory for user photos that works both in dev and in
 // packaged/dist builds. Allow overriding via USER_PHOTOS_DIR env var.
-const isDev = process.env.NODE_ENV !== "production";
+// Detect if running in packaged Electron app (ASAR or Program Files path)
+const isPackaged = process.execPath.includes("Cortez.exe") || process.execPath.includes("electron.exe") || (process as any).resourcesPath || __dirname.includes("app.asar");
+const isDev = process.env.NODE_ENV !== "production" && !isPackaged;
 const photosBase = process.env.USER_PHOTOS_DIR
   || (isDev ? path.resolve(process.cwd(), "user_photos") : path.resolve(process.env.APPDATA || os.homedir(), "Cortez", "user_photos"));
 
 // Ensure folder exists and is writable
-if (!fs.existsSync(photosBase)) fs.mkdirSync(photosBase, { recursive: true });
+try {
+  if (!fs.existsSync(photosBase)) {
+    fs.mkdirSync(photosBase, { recursive: true });
+    console.log(`[Server] Created user photos directory: ${photosBase}`);
+  }
+} catch (e) {
+  console.error(`[Server] ❌ Failed to create user photos directory: ${photosBase}`, e);
+  throw e;
+}
+console.log(`[Server] User photos directory: ${photosBase} (isDev: ${isDev}, isPackaged: ${isPackaged})`);
+
+// Helper function to resolve photoPath to physical file path
+// Handles both legacy full paths and new relative URLs
+const resolvePhotoPath = (photoPath: string | null | undefined): string | null => {
+  if (!photoPath) return null;
+  // If already an absolute path and exists, use it
+  if (path.isAbsolute(photoPath) && fs.existsSync(photoPath)) return photoPath;
+  // If relative URL like /user_photos/file.png, extract filename
+  if (photoPath.startsWith('/user_photos/')) {
+    const filename = photoPath.substring('/user_photos/'.length);
+    return path.join(photosBase, filename);
+  }
+  // Otherwise assume it's just a filename
+  return path.join(photosBase, path.basename(photoPath));
+};
 
 const userUpload = multer({ dest: photosBase });
 
@@ -2402,12 +2458,14 @@ app.post("/api/auth/register", async (req, res) => {
       // get this admin photo
       const adminUser = await repo.findOne({ where: { isAdmin: true } });
       if (adminUser && adminUser.photoPath) {
-        // copy admin photo to new user
-        const adminPhotoPath = path.join(photosBase, path.basename(adminUser.photoPath));
-        const newPhotoName = `${username}_${Date.now()}${path.extname(adminPhotoPath)}`;
-        const newPhotoPath = path.join(photosBase, newPhotoName);
-        fs.copyFileSync(adminPhotoPath, newPhotoPath);
-        photoPath = `/user_photos/${newPhotoName}`;
+        // copy admin photo to new user - resolve path correctly
+        const adminPhotoPath = resolvePhotoPath(adminUser.photoPath);
+        if (adminPhotoPath && fs.existsSync(adminPhotoPath)) {
+          const newPhotoName = `${username}_${Date.now()}${path.extname(adminPhotoPath)}`;
+          const newPhotoPath = path.join(photosBase, newPhotoName);
+          fs.copyFileSync(adminPhotoPath, newPhotoPath);
+          photoPath = `/user_photos/${newPhotoName}`;
+        }
       }
     }
     const u = repo.create({
@@ -2459,7 +2517,7 @@ app.post("/api/auth/photo", userUpload.single("photo"), async (req, res) => {
     const user = await repo.findOne({ where: { username } });
     if (!user) return res.status(404).json({ error: "user not found" });
     // move file to persistent path and store relative path
-    const destDir = path.resolve(process.cwd(), "user_photos");
+    const destDir = photosBase;
     if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
     const ext = path.extname(f.originalname || f.filename || "");
     const newName = `${username}_${Date.now()}${ext}`;
@@ -2493,6 +2551,205 @@ app.post("/api/auth/update", async (req, res) => {
   } catch (e: any) {
     console.error("[auth/update] error", e);
     return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// ==================== ENDPOINTS DE IMAGENS DE USUÁRIO ====================
+
+// GET /api/user-photos - Lista todas as imagens disponíveis
+app.get('/api/user-photos', async (req, res) => {
+  try {
+    const files: Array<{ name: string; url: string; size: number; mtime: string }> = [];
+    
+    if (fs.existsSync(photosBase)) {
+      const entries = fs.readdirSync(photosBase);
+      for (const entry of entries) {
+        const filePath = path.join(photosBase, entry);
+        try {
+          const stat = fs.statSync(filePath);
+          if (stat.isFile() && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(entry)) {
+            files.push({
+              name: entry,
+              url: `/user_photos/${entry}`,
+              size: stat.size,
+              mtime: stat.mtime.toISOString()
+            });
+          }
+        } catch (e) {
+          // skip files that can't be stat'd
+        }
+      }
+    }
+    
+    return res.json({ 
+      success: true, 
+      photosBase, 
+      files,
+      count: files.length 
+    });
+  } catch (e: any) {
+    console.error('[user-photos] error listing photos:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// GET /api/user-photos/:username - Busca imagem específica de um usuário
+app.get('/api/user-photos/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    if (!username) return res.status(400).json({ error: 'username required' });
+    
+    // First try to get from database
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { username } });
+    
+    if (user && user.photoPath) {
+      const physicalPath = resolvePhotoPath(user.photoPath);
+      if (physicalPath && fs.existsSync(physicalPath)) {
+        return res.json({
+          success: true,
+          username,
+          photoPath: user.photoPath,
+          physicalPath,
+          exists: true
+        });
+      }
+    }
+    
+    // Fallback: search for any file matching username pattern
+    if (fs.existsSync(photosBase)) {
+      const entries = fs.readdirSync(photosBase);
+      const userPattern = new RegExp(`^${username}[_.]`, 'i');
+      const matching = entries.filter(e => userPattern.test(e) && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(e));
+      
+      if (matching.length > 0) {
+        // Return the most recent one
+        const sorted = matching.map(name => {
+          const filePath = path.join(photosBase, name);
+          try {
+            const stat = fs.statSync(filePath);
+            return { name, mtime: stat.mtime.getTime() };
+          } catch {
+            return { name, mtime: 0 };
+          }
+        }).sort((a, b) => b.mtime - a.mtime);
+        
+        const best = sorted[0];
+        return res.json({
+          success: true,
+          username,
+          photoPath: `/user_photos/${best.name}`,
+          physicalPath: path.join(photosBase, best.name),
+          exists: true,
+          foundByPattern: true
+        });
+      }
+    }
+    
+    return res.json({
+      success: false,
+      username,
+      photoPath: null,
+      exists: false
+    });
+  } catch (e: any) {
+    console.error('[user-photos/:username] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// POST /api/user-photos/sync - Sincroniza fotos do banco com sistema de arquivos
+app.post('/api/user-photos/sync', async (req, res) => {
+  try {
+    const repo = AppDataSource.getRepository(User);
+    const users = await repo.find();
+    const results: Array<{ username: string; status: string; photoPath?: string }> = [];
+    
+    for (const user of users) {
+      const u = user as any;
+      if (!u.photoPath) {
+        results.push({ username: u.username, status: 'no-photo' });
+        continue;
+      }
+      
+      const physicalPath = resolvePhotoPath(u.photoPath);
+      if (physicalPath && fs.existsSync(physicalPath)) {
+        results.push({ username: u.username, status: 'ok', photoPath: u.photoPath });
+      } else {
+        // Try to find a matching file
+        if (fs.existsSync(photosBase)) {
+          const entries = fs.readdirSync(photosBase);
+          const userPattern = new RegExp(`^${u.username}[_.]`, 'i');
+          const matching = entries.find(e => userPattern.test(e));
+          
+          if (matching) {
+            const newPhotoPath = `/user_photos/${matching}`;
+            u.photoPath = newPhotoPath;
+            await repo.save(u);
+            results.push({ username: u.username, status: 'repaired', photoPath: newPhotoPath });
+          } else {
+            u.photoPath = null;
+            await repo.save(u);
+            results.push({ username: u.username, status: 'cleared-missing' });
+          }
+        } else {
+          results.push({ username: u.username, status: 'photos-dir-missing' });
+        }
+      }
+    }
+    
+    return res.json({ success: true, results, photosBase });
+  } catch (e: any) {
+    console.error('[user-photos/sync] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// GET /api/user-photos/info - Informações sobre diretório de fotos
+app.get('/api/user-photos/info', async (req, res) => {
+  try {
+    const exists = fs.existsSync(photosBase);
+    let writable = false;
+    let fileCount = 0;
+    let totalSize = 0;
+    
+    if (exists) {
+      try {
+        // Test write permission
+        const testFile = path.join(photosBase, `.write-test-${Date.now()}`);
+        fs.writeFileSync(testFile, 'test');
+        fs.unlinkSync(testFile);
+        writable = true;
+      } catch {
+        writable = false;
+      }
+      
+      const entries = fs.readdirSync(photosBase);
+      for (const entry of entries) {
+        try {
+          const stat = fs.statSync(path.join(photosBase, entry));
+          if (stat.isFile()) {
+            fileCount++;
+            totalSize += stat.size;
+          }
+        } catch {}
+      }
+    }
+    
+    return res.json({
+      success: true,
+      photosBase,
+      exists,
+      writable,
+      fileCount,
+      totalSize,
+      totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
+      isPackaged,
+      isDev
+    });
+  } catch (e: any) {
+    console.error('[user-photos/info] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
 
@@ -2534,7 +2791,7 @@ app.post(
   async (req, res) => {
     try {
       // Ensure folder exists
-      const destDir = path.resolve(process.cwd(), "user_photos");
+      const destDir = photosBase;
       if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
 
       // If multipart file present, move it into destDir
@@ -3443,27 +3700,95 @@ app.post("/api/config/split", async (req, res) => {
         // ignore merge failures and continue
       }
     }
-    await configService.setSettings(configObj);
+    
+    // ===== SISTEMA DE FALLBACK ROBUSTO =====
+    // Tenta salvar no CacheService (sqlite), com fallback para arquivo JSON
+    let savedToSqlite = false;
+    let savedToJson = false;
+    
+    // Fallback JSON path
+    const fallbackJsonPath = path.resolve(
+      isDev ? process.cwd() : (process.env.APPDATA || os.homedir()),
+      isDev ? 'runtime-config-fallback.json' : 'Cortez/runtime-config-fallback.json'
+    );
+    
+    // 1. Tentar salvar no sqlite (principal)
+    try {
+      await configService.setSettings(configObj);
+      savedToSqlite = true;
+      console.log('[config/split] ✅ Saved config keys to cache.sqlite:', Object.keys(configObj).join(', '));
+    } catch (sqliteError: any) {
+      console.error('[config/split] ❌ Failed to save to sqlite:', sqliteError?.message || sqliteError);
+    }
+    
+    // 2. Sempre salvar também no JSON como backup
+    try {
+      // Ensure directory exists
+      const jsonDir = path.dirname(fallbackJsonPath);
+      if (!fs.existsSync(jsonDir)) {
+        fs.mkdirSync(jsonDir, { recursive: true });
+      }
+      
+      // Read existing fallback and merge
+      let existingFallback: Record<string, any> = {};
+      if (fs.existsSync(fallbackJsonPath)) {
+        try {
+          existingFallback = JSON.parse(fs.readFileSync(fallbackJsonPath, 'utf8'));
+        } catch { existingFallback = {}; }
+      }
+      
+      // Merge new config
+      const merged = { ...existingFallback, ...configObj };
+      fs.writeFileSync(fallbackJsonPath, JSON.stringify(merged, null, 2), 'utf8');
+      savedToJson = true;
+      console.log('[config/split] ✅ Saved config to fallback JSON:', fallbackJsonPath);
+    } catch (jsonError: any) {
+      console.error('[config/split] ❌ Failed to save to fallback JSON:', jsonError?.message || jsonError);
+    }
+    
+    // Se nenhum método funcionou, retorna erro
+    if (!savedToSqlite && !savedToJson) {
+      return res.status(500).json({ 
+        error: "Failed to save config to any storage", 
+        details: "Both sqlite and JSON fallback failed"
+      });
+    }
+    
+    // Atualizar runtime config em memória
     try {
       setRuntimeConfigs(configObj);
     } catch (e) {
-      /* ignore */
+      console.warn('[config/split] Failed to update runtime config in memory:', e);
     }
-    // Configs persisted to DB via configService; no external JSON file used anymore.
+    
     // Return updated parsed values to the client so UI can synchronize without an extra GET
     const updated: Record<string, any> = {};
     for (const k of Object.keys(configObj)) {
-      const raw = await configService.getSetting(k);
-      let parsed: any = raw;
-      if (typeof raw === 'string') {
-        try { parsed = JSON.parse(raw); } catch { parsed = raw; }
+      try {
+        const raw = await configService.getSetting(k);
+        let parsed: any = raw;
+        if (typeof raw === 'string') {
+          try { parsed = JSON.parse(raw); } catch { parsed = raw; }
+        }
+        updated[k] = parsed;
+      } catch (e) {
+        // Fallback to the value we just tried to save
+        updated[k] = configObj[k];
       }
-      updated[k] = parsed;
     } 
-    return res.json({ success: true, saved: Object.keys(configObj), updated });
-  } catch (e) {
-    console.error("[config/split] Failed to split/save settings", e);
-    return res.status(500).json({ error: "internal" });
+    return res.json({ 
+      success: true, 
+      saved: Object.keys(configObj), 
+      updated,
+      storage: { sqlite: savedToSqlite, json: savedToJson, jsonPath: fallbackJsonPath }
+    });
+  } catch (e: any) {
+    console.error("[config/split] Failed to split/save settings:", {
+      message: e?.message,
+      stack: e?.stack,
+      toString: String(e)
+    });
+    return res.status(500).json({ error: "internal", details: String(e?.message || e) });
   }
 });
 
@@ -3473,53 +3798,193 @@ app.get('/api/config/:key', async (req, res) => {
     const rawKey = String(req.params.key || '').trim();
     if (!rawKey) return res.status(400).json({ error: 'missing key' });
 
-    // Special-case: return structured defaults for known config keys
-    if (rawKey === 'ihm-config' && req.query.inputs === 'true') {
-      const defaultIhm = {
-        nomeCliente: '',
-        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
-        user: '',
-        password: '',
-        localCSV: '',
-        metodoCSV: '',
-        habilitarCSV: false,
-        serverDB: '',
-        database: '',
-        userDB: '',
-        passwordDB: '',
-        mySqlDir: '',
-        dumpDir: '',
-        batchDumpDir: '',
-      };
-      return res.json({ key: rawKey, value: defaultIhm });
+    // Special-case defaults for known config keys (used when nothing persisted)
+    const defaultIhm = {
+      nomeCliente: '',
+      ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
+      user: '',
+      password: '',
+      localCSV: '',
+      metodoCSV: '',
+      habilitarCSV: false,
+      serverDB: '',
+      database: '',
+      userDB: '',
+      passwordDB: '',
+      mySqlDir: '',
+      dumpDir: '',
+      batchDumpDir: '',
+    };
+
+    const defaultDb = {
+      serverDB: String(getRuntimeConfig('mysql_ip') ?? process.env.MYSQL_HOST ?? 'localhost'),
+      port: Number(getRuntimeConfig('mysql_port') ?? process.env.MYSQL_PORT ?? 3306),
+      database: String(getRuntimeConfig('mysql_db') ?? process.env.MYSQL_DB ?? 'cadastro'),
+      userDB: String(getRuntimeConfig('mysql_user') ?? process.env.MYSQL_USER ?? 'root'),
+      passwordDB: String(getRuntimeConfig('mysql_password') ?? process.env.MYSQL_PASSWORD ?? 'root'),
+    };
+
+    // Try to load from persisted settings (sqlite first, then JSON fallback)
+    let stored: string | null = null;
+    let source = 'none';
+    
+    // 1. Try sqlite
+    try {
+      stored = await configService.getSetting(rawKey);
+      if (stored !== null && stored !== undefined) {
+        source = 'sqlite';
+      }
+    } catch (sqliteError) {
+      console.warn(`[config/:key] sqlite read failed for ${rawKey}:`, sqliteError);
+    }
+    
+    // 2. Fallback to JSON file
+    if (stored === null || stored === undefined) {
+      try {
+        const fallbackJsonPath = path.resolve(
+          isDev ? process.cwd() : (process.env.APPDATA || os.homedir()),
+          isDev ? 'runtime-config-fallback.json' : 'Cortez/runtime-config-fallback.json'
+        );
+        if (fs.existsSync(fallbackJsonPath)) {
+          const fallbackData = JSON.parse(fs.readFileSync(fallbackJsonPath, 'utf8'));
+          if (fallbackData && fallbackData[rawKey] !== undefined) {
+            stored = typeof fallbackData[rawKey] === 'string' 
+              ? fallbackData[rawKey] 
+              : JSON.stringify(fallbackData[rawKey]);
+            source = 'json-fallback';
+          }
+        }
+      } catch (jsonError) {
+        console.warn(`[config/:key] JSON fallback read failed for ${rawKey}:`, jsonError);
+      }
+    }
+    
+    if (stored !== null && stored !== undefined) {
+      let out: any = stored;
+      if (typeof stored === 'string') {
+        try { out = JSON.parse(String(stored)); } catch (e) { out = stored; }
+      }
+      return res.json({ key: rawKey, value: out, source });
     }
 
-    if (rawKey === 'db-config' && req.query.inputs === 'true') {
-      const defaultDb = {
-        serverDB: String(getRuntimeConfig('mysql_ip') ?? process.env.MYSQL_HOST ?? 'localhost'),
-        port: Number(getRuntimeConfig('mysql_port') ?? process.env.MYSQL_PORT ?? 3306),
-        database: String(getRuntimeConfig('mysql_db') ?? process.env.MYSQL_DB ?? 'cadastro'),
-        userDB: String(getRuntimeConfig('mysql_user') ?? process.env.MYSQL_USER ?? 'root'),
-        // default to 'root' if no runtime or env override exists
-        passwordDB: String(getRuntimeConfig('mysql_password') ?? process.env.MYSQL_PASSWORD ?? 'root'),
-      };
-      return res.json({ key: rawKey, value: defaultDb });
-    }
+    // Fallbacks when not persisted
+    if (rawKey === 'ihm-config') return res.json({ key: rawKey, value: defaultIhm, source: 'default' });
+    if (rawKey === 'db-config') return res.json({ key: rawKey, value: defaultDb, source: 'default' });
+    if (rawKey === 'admin-config') return res.json({ key: rawKey, value: {}, source: 'default' });
 
-    // Otherwise try to load from persisted settings
-    const stored = await configService.getSetting(rawKey);
-    if (stored === null || stored === undefined) return res.status(404).json({ error: 'not found' });
+    // If nothing stored and no defaults, return empty object instead of 404 (more resilient)
+    return res.json({ key: rawKey, value: {}, source: 'empty-default' });
 
-    // Attempt parse
-    let out: any = stored;
-    if (typeof stored === 'string') {
-      try { out = JSON.parse(stored); } catch (e) { out = stored; }
-    }
-
-    return res.json({ key: rawKey, value: out });
   } catch (e) {
     console.error('[config/:key] error', e);
     return res.status(500).json({ error: 'internal' });
+  }
+});
+
+// ==================== DIAGNÓSTICO DE CONFIGURAÇÃO ====================
+
+// GET /api/config/diagnostics - Diagnóstico completo do sistema de configuração
+app.get('/api/config-diagnostics', async (req, res) => {
+  try {
+    const diagnostics: Record<string, any> = {
+      timestamp: new Date().toISOString(),
+      environment: { isPackaged, isDev },
+      storage: {
+        sqlite: { status: 'unknown', path: '', initialized: false },
+        jsonFallback: { status: 'unknown', path: '', exists: false, writable: false }
+      },
+      keys: {}
+    };
+    
+    // Fallback JSON path
+    const fallbackJsonPath = path.resolve(
+      isDev ? process.cwd() : (process.env.APPDATA || os.homedir()),
+      isDev ? 'runtime-config-fallback.json' : 'Cortez/runtime-config-fallback.json'
+    );
+    
+    // 1. Check sqlite status
+    try {
+      await cacheService.init();
+      diagnostics.storage.sqlite.status = 'ok';
+      diagnostics.storage.sqlite.initialized = (cacheService.ds as any)?.isInitialized || false;
+      diagnostics.storage.sqlite.path = (cacheService as any).dbPath || 'unknown';
+    } catch (sqliteError: any) {
+      diagnostics.storage.sqlite.status = 'error';
+      diagnostics.storage.sqlite.error = sqliteError?.message || String(sqliteError);
+    }
+    
+    // 2. Check JSON fallback status
+    diagnostics.storage.jsonFallback.path = fallbackJsonPath;
+    try {
+      diagnostics.storage.jsonFallback.exists = fs.existsSync(fallbackJsonPath);
+      if (diagnostics.storage.jsonFallback.exists) {
+        // Check if writable
+        try {
+          const testPath = fallbackJsonPath + '.test';
+          fs.writeFileSync(testPath, 'test');
+          fs.unlinkSync(testPath);
+          diagnostics.storage.jsonFallback.writable = true;
+          diagnostics.storage.jsonFallback.status = 'ok';
+        } catch {
+          diagnostics.storage.jsonFallback.writable = false;
+          diagnostics.storage.jsonFallback.status = 'read-only';
+        }
+      } else {
+        // Try to create directory and file
+        try {
+          const dir = path.dirname(fallbackJsonPath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(fallbackJsonPath, '{}');
+          fs.unlinkSync(fallbackJsonPath);
+          diagnostics.storage.jsonFallback.writable = true;
+          diagnostics.storage.jsonFallback.status = 'creatable';
+        } catch (e: any) {
+          diagnostics.storage.jsonFallback.writable = false;
+          diagnostics.storage.jsonFallback.status = 'not-creatable';
+          diagnostics.storage.jsonFallback.error = e?.message || String(e);
+        }
+      }
+    } catch (jsonError: any) {
+      diagnostics.storage.jsonFallback.status = 'error';
+      diagnostics.storage.jsonFallback.error = jsonError?.message || String(jsonError);
+    }
+    
+    // 3. List all stored config keys
+    const configKeys = ['ihm-config', 'db-config', 'admin-config', 'general-config'];
+    for (const key of configKeys) {
+      const keyInfo: Record<string, any> = { inSqlite: false, inJson: false, value: null };
+      
+      // Check sqlite
+      try {
+        const sqliteVal = await configService.getSetting(key);
+        if (sqliteVal !== null && sqliteVal !== undefined) {
+          keyInfo.inSqlite = true;
+          keyInfo.sqliteValue = typeof sqliteVal === 'string' && sqliteVal.length > 100 
+            ? sqliteVal.substring(0, 100) + '...' 
+            : sqliteVal;
+        }
+      } catch {}
+      
+      // Check JSON fallback
+      try {
+        if (fs.existsSync(fallbackJsonPath)) {
+          const jsonData = JSON.parse(fs.readFileSync(fallbackJsonPath, 'utf8'));
+          if (jsonData && jsonData[key] !== undefined) {
+            keyInfo.inJson = true;
+            keyInfo.jsonValue = typeof jsonData[key] === 'string' && String(jsonData[key]).length > 100 
+              ? String(jsonData[key]).substring(0, 100) + '...' 
+              : jsonData[key];
+          }
+        }
+      } catch {}
+      
+      diagnostics.keys[key] = keyInfo;
+    }
+    
+    return res.json(diagnostics);
+  } catch (e: any) {
+    console.error('[config-diagnostics] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
 
@@ -3600,217 +4065,6 @@ app.post('/api/config/:key', async (req, res) => {
   } catch (e) {
     console.error('[config/:key POST] error', e);
     return res.status(500).json({ error: 'internal' });
-  }
-});
-
-app.get("/api/config/:key", async (req, res) => {
-  try {
-    const key = req.params.key;
-    if (!key) {
-      return res.status(400).json({ error: "Key parameter is required" });
-    }
-    const raw = await configService.getSetting(key);
-
-    // Known defaults for frontend topics
-    const knownDefaults: Record<string, any> = {
-      "admin-config": "",
-      "db-config": "",
-      "general-config": "",
-      "ihm-config": {
-        nomeCliente: "",
-        ip: String(getRuntimeConfig("ihm_ip") ?? process.env.IHM_IP ?? ""),
-        user: "",
-        password: "",
-        localCSV: "",
-        metodoCSV: "",
-        habilitarCSV: false,
-        serverDB: "",
-        database: "",
-        userDB: "",
-        passwordDB: "",
-        mySqlDir: "",
-        dumpDir: "",
-        batchDumpDir: "",
-      },
-      produtosInfo: {},
-    };
-
-    if (raw === null) {
-      // Return the known default structure if available
-      if (knownDefaults[key] !== undefined)
-        return res.json({ key, value: knownDefaults[key] });
-      return res.json({ key, value: {} });
-    }
-
-    // Parse/normalize the stored value similarly to the bulk endpoint
-    let out: any = raw;
-    if (typeof raw === "string") {
-      try {
-        out = JSON.parse(raw);
-      } catch (e) {
-        try {
-          const unescaped = raw.replace(/\\"/g, '"');
-          out = JSON.parse(unescaped);
-        } catch (e2) {
-          try {
-            // eslint-disable-next-line no-eval
-            out = eval("(" + raw + ")");
-          } catch (e3) {
-            out = raw;
-          }
-        }
-      }
-    }
-
-    // Reconstruct numeric-index char map if appropriate
-    if (out && typeof out === "object" && !Array.isArray(out)) {
-      const numericKeys = Object.keys(out).filter((x) => /^\d+$/.test(x));
-      if (
-        numericKeys.length > 0 &&
-        numericKeys.length === Object.keys(out).length
-      ) {
-        const chars: string[] = [];
-        numericKeys
-          .map((n) => Number(n))
-          .sort((a, b) => a - b)
-          .forEach((i) => {
-            const v = out[String(i)];
-            if (typeof v === "string") chars.push(v);
-          });
-        if (chars.length > 0) {
-          const joined = chars.join("");
-          try {
-            out = JSON.parse(joined);
-          } catch {
-            out = joined;
-          }
-        }
-      }
-    }
-
-    // If the client asked for only input fields (e.g. ?inputs=true), filter
-    // the returned object to only the input-relevant keys for known topics.
-    const onlyInputs = String(req.query?.inputs || "").toLowerCase() === "true";
-    if (onlyInputs && out && typeof out === "object" && !Array.isArray(out)) {
-      const inputsMap: Record<string, string[]> = {
-        "ihm-config": ["ip", "user", "password"],
-        "general-config": [
-          "nomeCliente",
-          "localCSV",
-          "metodoCSV",
-          "habilitarCSV",
-          "serverDB",
-          "database",
-          "userDB",
-          "passwordDB",
-          "mySqlDir",
-          "dumpDir",
-          "batchDumpDir",
-        ],
-        "admin-config": [],
-        "db-config": [],
-        produtosInfo: [],
-      };
-
-      if (Object.prototype.hasOwnProperty.call(inputsMap, key)) {
-        if (key === "produtosInfo") {
-          // For produtosInfo return only nome and unidade per column
-          const filtered: Record<string, any> = {};
-          for (const col of Object.keys(out)) {
-            const item = out[col] || {};
-            filtered[col] = {
-              nome: item.nome ?? "",
-              unidade: item.unidade ?? "",
-            };
-          }
-          out = filtered;
-        } else {
-          const fields = inputsMap[key];
-          const filtered: Record<string, any> = {};
-          for (const f of fields) {
-            // prefer value in parsed object, otherwise fallback to knownDefaults if present
-            filtered[f] =
-              out[f] !== undefined
-                ? out[f]
-                : knownDefaults[key] && knownDefaults[key][f] !== undefined
-                  ? knownDefaults[key][f]
-                  : "";
-          }
-          out = filtered;
-        }
-      }
-    }
-
-    // If the client requested the IHM config while working in the Amendoim module,
-    // prefer to return an IHM object derived from the current amendoim-config so
-    // the frontend can show the Amendoim-specific options and the collector uses them.
-    const wantsAmendoimModule = String(req.query?.module || "").toLowerCase() === "amendoim" ||
-      String(req.query?.userType || "").toLowerCase() === "amendoim" ||
-      String((req.headers || {})["x-module"] || "").toLowerCase() === "amendoim";
-
-    if (key === 'ihm-config' && wantsAmendoimModule) {
-      try {
-        // Build a base IHM config from the parsed value or known defaults
-        const baseIhm = (out && typeof out === 'object') ? { ...(knownDefaults['ihm-config'] || {}), ...out } : { ...(knownDefaults['ihm-config'] || {}) };
-
-        // Read amendoim-config and copy secondary IHM credentials if provided
-        try {
-          const amCfg = (await Promise.resolve().then(() => require('./services/AmendoimConfigService')).then(m => m.AmendoimConfigService.getConfig()));
-
-          // Copy secondary IHM creds if provided in amendoim-config
-          if (amCfg.duasIHMs && amCfg.ihm2) {
-            baseIhm.ip2 = amCfg.ihm2.ip || baseIhm.ip2;
-            baseIhm.user2 = amCfg.ihm2.user || baseIhm.user2;
-            baseIhm.password2 = amCfg.ihm2.password || baseIhm.password2;
-          }
-
-          // Ensure paths are present
-          if (amCfg.caminhoRemoto) baseIhm.localCSVPath = amCfg.caminhoRemoto;
-          if (amCfg.ihm2 && amCfg.ihm2.caminhoRemoto) baseIhm.localCSVPath2 = amCfg.ihm2.caminhoRemoto;
-
-        } catch (e) {
-          // ignore mapping failures and fall back to parsed out
-        }
-
-        out = baseIhm;
-      } catch (e) {
-        // ignore and continue to normal behavior
-      }
-    }
-
-    // If known default exists and parsed out is empty, return default
-    if (
-      (out === null ||
-        out === "" ||
-        (typeof out === "object" && Object.keys(out).length === 0)) &&
-      knownDefaults[key] !== undefined
-    ) {
-      return res.json({ key, value: knownDefaults[key] });
-    }
-
-    // Do not expose DB password over GET APIs; instead return a flag 'passwordSet'
-    if (key === 'db-config') {
-      try {
-        const saved = await configService.getSetting('db-config');
-        let savedObj: any = null;
-        if (saved) {
-          try { savedObj = JSON.parse(saved); } catch { savedObj = null; }
-        }
-        const hasPassword = !!(savedObj && (savedObj.passwordDB || savedObj.password));
-        if (out && typeof out === 'object') {
-          out.passwordSet = hasPassword;
-          if (out.passwordDB !== undefined) out.passwordDB = '';
-          if (out.password !== undefined) out.password = '';
-        }
-      } catch (e) {
-        // ignore errors here
-      }
-    }
-
-    return res.json({ key, value: out });
-  } catch (e) {
-    console.error("Failed to get setting", e);
-    res.status(500).json({ error: "internal" });
   }
 });
 
@@ -6341,6 +6595,16 @@ async function validateRuntimeDbConfig() {
 (async () => {
   const startupTime = Date.now();
   console.log('[Startup] 🚀 Iniciando servidor...');
+  
+  // Initialize cache service first (where runtime configs are stored)
+  try {
+    console.log('[Startup] Inicializando cache sqlite...');
+    await cacheService.init();
+    console.log('[Startup] ✅ Cache sqlite inicializado');
+  } catch (e) {
+    console.error('[Startup] ❌ Falha ao inicializar cache sqlite:', e);
+    throw e;
+  }
   
   // load config file first, so DB init can use it
   await validateRuntimeDbConfig();

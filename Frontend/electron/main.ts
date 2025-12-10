@@ -224,7 +224,7 @@ ipcMain.handle(
       const child = fork(scriptPath, args, {
         stdio: ["pipe", "pipe", "ipc"],
         cwd: path.dirname(scriptPath),
-        silent: false,
+        silent: true,
         env: { ...process.env },
       });
 
@@ -305,30 +305,6 @@ ipcMain.handle(
             win.webContents.send("child-message", { pid: child.pid, msg });
           }
         });
-
-        // forward stdout/stderr
-        if (child.stdout) {
-          child.stdout.on("data", (chunk) => {
-            console.log("Child stdout:", chunk.toString());
-            if (win && !win.isDestroyed()) {
-              win.webContents.send("child-stdout", {
-                pid: child.pid,
-                data: chunk.toString(),
-              });
-            }
-          });
-        }
-        if (child.stderr) {
-          child.stderr.on("data", (chunk) => {
-            console.error("Child stderr:", chunk.toString());
-            if (win && !win.isDestroyed()) {
-              win.webContents.send("child-stderr", {
-                pid: child.pid,
-                data: chunk.toString(),
-              });
-            }
-          });
-        }
       });
     } catch (error) {
       console.error("Failed to fork child process:", error);
@@ -374,6 +350,7 @@ function startBackendMonitor({ intervalMs = 15000 }: { intervalMs?: number } = {
         const refork = fork(lastScriptPath, [], {
           stdio: ["pipe", "pipe", "ipc"],
           cwd: backendDir,
+          silent: true,
           env: { ...process.env },
         });
         const newPid = refork.pid;
@@ -388,8 +365,6 @@ function startBackendMonitor({ intervalMs = 15000 }: { intervalMs?: number } = {
           refork.on('message', (msg) => {
             if (win && !win.isDestroyed()) win.webContents.send('child-message', { pid: newPid, msg });
           });
-          if (refork.stdout) refork.stdout.on('data', c => { if (win && !win.isDestroyed()) win.webContents.send('child-stdout', { pid: newPid, data: c.toString() }); console.log('[refork stdout]', c.toString()); });
-          if (refork.stderr) refork.stderr.on('data', c => { if (win && !win.isDestroyed()) win.webContents.send('child-stderr', { pid: newPid, data: c.toString() }); console.error('[refork stderr]', c.toString()); });
         }
       } else {
         console.warn('[main.monitor] lastScriptPath not set or not found — cannot refork automatically');
@@ -431,6 +406,7 @@ ipcMain.handle(
       const child = fork(scriptPath, args, {
         stdio: ["pipe", "pipe", "ipc"],
         cwd: path.dirname(scriptPath),
+        silent: true,
         env: { ...process.env },
       });
       const pid = child.pid;
@@ -440,16 +416,6 @@ ipcMain.handle(
           if (win && !win.isDestroyed())
             win.webContents.send("child-message", { pid, msg });
         });
-        if (child.stdout)
-          child.stdout.on("data", (c) => {
-            if (win && !win.isDestroyed())
-              win.webContents.send("child-stdout", { pid, data: c.toString() });
-          });
-        if (child.stderr)
-          child.stderr.on("data", (c) => {
-            if (win && !win.isDestroyed())
-              win.webContents.send("child-stderr", { pid, data: c.toString() });
-          });
       }
       return { ok: true, pid };
     } catch (err) {
@@ -485,7 +451,7 @@ ipcMain.handle(
           const refork = fork(lastScriptPath, [], {
             stdio: ["pipe", "pipe", "ipc"],
             cwd: backendDir,
-            silent: false,
+            silent: true,
             env: { ...process.env },
           });
           const newPid = refork.pid;
@@ -555,7 +521,7 @@ function createWindow() {
   });
 
   win.maximize();
-  win.setMenu(null);
+  // win.setMenu(null);
 
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
@@ -695,6 +661,7 @@ app.whenReady().then(() => {
               const child = fork(scriptPath, [], {
                 stdio: ["pipe", "pipe", "ipc"],
                 cwd: backendDir,
+                silent: true,
                 env: { ...process.env },
               });
               const pid = child.pid;
@@ -702,7 +669,7 @@ app.whenReady().then(() => {
                 children.set(pid, child);
                 console.log("[main] dev backend forked with PID", pid);
               }
-              // forward messages/stdout/stderr to renderer
+              // forward messages to renderer
               child.on("message", (msg) => {
                 if (win && !win.isDestroyed())
                   win.webContents.send("child-message", {
@@ -710,24 +677,6 @@ app.whenReady().then(() => {
                     msg,
                   });
               });
-              if (child.stdout)
-                child.stdout.on("data", (c) => {
-                  console.log("[child stdout]", c.toString());
-                  if (win && !win.isDestroyed())
-                    win.webContents.send("child-stdout", {
-                      pid: child.pid,
-                      data: c.toString(),
-                    });
-                });
-              if (child.stderr)
-                child.stderr.on("data", (c) => {
-                  console.error("[child stderr]", c.toString());
-                  if (win && !win.isDestroyed())
-                    win.webContents.send("child-stderr", {
-                      pid: child.pid,
-                      data: c.toString(),
-                    });
-                });
             } catch (devErr) {
               console.warn(
                 "[main] failed to auto-fork backend in dev:",
