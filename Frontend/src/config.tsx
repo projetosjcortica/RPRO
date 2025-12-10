@@ -357,6 +357,13 @@ export function ProfileConfig({
     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
     );
     const [userType, setUserType] = useState<'racao' | 'amendoim'>(user?.userType || 'racao');
+    
+    // Sincronizar o estado local com o user quando ele mudar
+    useEffect(() => {
+        if (user?.userType && user.userType !== userType) {
+            setUserType(user.userType);
+        }
+    }, [user?.userType]);
 
     console.log(userType);
   
@@ -589,6 +596,42 @@ export function ProfileConfig({
           onClick={async () => {
             try {
               await onSave();
+              
+              // Se o usuário mudou o tipo de perfil, enviar para o backend
+              if (userType && user?.userType !== userType) {
+                try {
+                  const res = await fetch('http://localhost:3000/api/auth/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      username: user?.username,
+                      userType: userType
+                    })
+                  });
+                  
+                  if (res.ok) {
+                    const updatedUser = await res.json();
+                    console.log('Backend response:', updatedUser);
+                    console.log('Current user before update:', user);
+                    updateUser(updatedUser);
+                    console.log('User updated, new userType should be:', updatedUser.userType);
+                    toast.success('Tipo de perfil atualizado com sucesso');
+                    
+                    // Forçar refresh da página para garantir que as mudanças sejam aplicadas
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 1000);
+                  } else {
+                    const errorData = await res.json();
+                    console.error('Update failed:', errorData);
+                    toast.error(`Erro: ${errorData.error || 'Falha ao atualizar perfil'}`);
+                  }
+                } catch (e: any) {
+                  console.error('Failed to update userType:', e);
+                  toast.error('Erro de conexão ao atualizar tipo de perfil');
+                }
+              }
+              
               try {
                 window.dispatchEvent(new Event('profile-save-request'));
               } catch (e) {}
