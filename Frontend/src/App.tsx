@@ -6,8 +6,7 @@ import About from './About';
 import useAuth from './hooks/useAuth';
 import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './config';
 import DbConfig from './DbConfig';
-import Report from './report';
-import Estoque from './estoque';
+import Report from './report'; 
 import Amendoim from './amendoim';
 import {
   Sidebar,
@@ -361,8 +360,7 @@ const App = () => {
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
             <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
-            <Route path="/amendoim-home" element={<RequireAuth><Home /></RequireAuth>} />
-            <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
+            <Route path="/amendoim-home" element={<RequireAuth><Home /></RequireAuth>} /> 
             <Route
               path="/report"
               element={

@@ -59,8 +59,9 @@ export default function Home() {
 
   // Notificação de boas-vindas na primeira montagem
   useEffect(() => {
-    if (user?.name) {
-      notify.info('Bem-vindo', `Olá, ${user.name}!`, 'home');
+    const displayName = user?.displayName || user?.username;
+    if (displayName) {
+      notify.info('Bem-vindo', `Olá, ${displayName}!`, 'home');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

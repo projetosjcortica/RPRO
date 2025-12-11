@@ -17,8 +17,6 @@ import {
   MateriaPrima,
   Batch,
   User,
-  MovimentacaoEstoque,
-  Estoque,
   Row,
   Amendoim,
 } from "./entities";
@@ -1262,8 +1260,6 @@ app.post("/api/clear/production", async (req, res) => {
     const relatorioRepo = AppDataSource.getRepository(Relatorio);
     const batchRepo = AppDataSource.getRepository(Batch);
     const rowRepo = AppDataSource.getRepository(Row);
-    const estoqueRepo = AppDataSource.getRepository(Estoque);
-    const movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
     const materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
     const amendoimRepo = AppDataSource.getRepository(Amendoim);
 
@@ -1272,8 +1268,6 @@ app.post("/api/clear/production", async (req, res) => {
     // disable-foreign-keys + TRUNCATE approach if we hit ER_TRUNCATE_ILLEGAL_FK.
     const tryNormalClear = async () => {
       // Order: deepest children first, then parents
-      await movimentacaoRepo.clear(); // references estoque
-      await estoqueRepo.clear(); // references materia_prima
       await rowRepo.clear(); // references batch
       await batchRepo.clear(); // references relatorio
       await relatorioRepo.clear();
