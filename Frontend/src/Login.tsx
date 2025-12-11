@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import useAuth from './hooks/useAuth';
-import { toast } from 'react-toastify';
+import { toast } from './lib/toastWrapper';
 import { RadioGroup, RadioGroupItem } from './components/ui/radio-group';
 import { Button } from './components/ui/button';
 import { Eye, EyeOff } from 'lucide-react';
+import { useNotify } from './hooks/useNotifications';
 
 const Login: React.FC = () => {
   const { login, register } = useAuth();
+  const notify = useNotify();
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -30,8 +32,10 @@ const Login: React.FC = () => {
     try {
       if (isRegister) {
         await register(username, password, displayName || undefined, userType);
+        notify.log('Conta criada', `Novo usuário "${username}" registrado`);
       } else {
         await login(username, password);
+        notify.log('Login', `Usuário "${username}" entrou no sistema`);
       }
       navigate('/');
     } catch (err: any) {

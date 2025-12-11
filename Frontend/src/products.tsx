@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from "./components/ui/radio-group";
 import { Label } from "./components/ui/label";
 import { Button } from "./components/ui/button";
 import { Eye, EyeOff, Calculator } from "lucide-react";
+import { useNotify } from "./hooks/useNotifications";
 
 interface ProductsProps {
   colLabels: { [key: string]: string };
@@ -14,6 +15,7 @@ interface ProductsProps {
 }
 
 function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
+  const notify = useNotify();
   const [savingProduct, setSavingProduct] = useState<string | null>(null);
   const [unidades, setUnidades] = useState<{ [key: string]: string }>({});
   const [produtosAtivos, setProdutosAtivos] = useState<{ [key: string]: boolean }>({});
@@ -165,6 +167,9 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
     
     onLabelChange(colKey, newName, unidade);
     
+    // Notificação de alteração de produto
+    notify.info('Produto alterado', `"${newName}" atualizado`, 'product-change');
+    
     try {
       window.dispatchEvent(new CustomEvent('produtos-updated', { detail: { colKey, nome: newName, unidade } }));
     } catch (e) {
@@ -253,6 +258,13 @@ function Products({ colLabels, setColLabels, onLabelChange }: ProductsProps) {
         console.log('[products] Novo estado produtosAtivos:', novo);
         return novo;
       });
+
+      // Notificação de produto ativado/desativado
+      if (result.ativo) {
+        notify.success('Produto ativado', `${colLabels[colKey] || colKey} ativado`, 'product-toggle');
+      } else {
+        notify.warning('Produto desativado', `${colLabels[colKey] || colKey} desativado`, 'product-toggle');
+      }
 
       // Notificar listeners para atualizar relatórios
       try {

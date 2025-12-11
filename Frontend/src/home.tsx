@@ -27,6 +27,9 @@ import {
 } from "recharts";
 // HomeAmendoim removido do render; charts renderizados diretamente aqui quando amendoim
 import useAuth from "./hooks/useAuth";
+import { useNotify } from "./hooks/useNotifications";
+import { trackAction } from "./lib/activityTracker";
+// ActivityLogPanel removido - logs agora são apenas internos via activityTracker
 
 export type ChartType = "formulas" | "produtos" | "horarios" | "diasSemana";
 
@@ -39,6 +42,7 @@ export default function Home() {
   const [tipoHome, setTipoHome] = useState<"relatorio" | "amendoim">("relatorio");
   // Removidos dados/métricas gerenciais do topo
   const { user } = useAuth();
+  const notify = useNotify();
   // Estados para seleção removidos (interface seguirá o padrão do dashboard de ração)
   // Datas globais removidas do cabeçalho; usaremos filtros por gráfico.
 
@@ -46,10 +50,20 @@ export default function Home() {
     // Definir tipo de home baseado no tipo do usuário (preferência absoluta)
     if (user?.userType === 'amendoim') {
       setTipoHome('amendoim');
+      trackAction('Home: Acessou dashboard Amendoim');
     } else {
       setTipoHome('relatorio');
+      trackAction('Home: Acessou dashboard Relatório');
     }
   }, [user]);
+
+  // Notificação de boas-vindas na primeira montagem
+  useEffect(() => {
+    if (user?.name) {
+      notify.info('Bem-vindo', `Olá, ${user.name}!`, 'home');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Buscar dados agregados para cards (usar semana atual por padrão)
   // (efeito definido mais abaixo após weeklyFilters)

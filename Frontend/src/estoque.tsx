@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Textarea } from './components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from './components/ui/alert';
 import { AlertCircle, AlertTriangle, ArrowDownCircle, ArrowUpCircle, Settings } from 'lucide-react';
+import { useNotify } from './hooks/useNotifications';
+import { trackAction } from './lib/activityTracker';
 
 // Formato de data para exibição
 const formatarData = (dataStr: string) => {
@@ -704,6 +706,7 @@ const AjustarInventarioDialog = ({
 
 // Componente principal de Estoque
 export default function Estoque() {
+  const notify = useNotify();
   const { 
     estoque, 
     estoqueBaixo,
@@ -720,6 +723,17 @@ export default function Estoque() {
     carregarEstoque();
     carregarEstoqueBaixo();
   }, [carregarEstoque, carregarEstoqueBaixo]);
+
+  // Notificar sobre estoque baixo
+  useEffect(() => {
+    if (estoqueBaixo.length > 0) {
+      notify.warning(
+        'Estoque baixo', 
+        `${estoqueBaixo.length} item(ns) abaixo do limite mínimo`, 
+        'estoque'
+      );
+    }
+  }, [estoqueBaixo.length, notify]);
 
   // Agrupar estoque por categoria
   const estoquePorCategoria: Record<string, EstoqueItem[]> = {};

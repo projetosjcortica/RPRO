@@ -41,6 +41,9 @@ interface ElectronAPI {
   onChildStdout: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => void;
   onChildStderr: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => void;
   onChildExit: (fn: (evt: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => void) => void;
+  
+  // Backend status notifications
+  onBackendStatus: (fn: (evt: IpcRendererEvent, data: { status: string; message: string; pid?: number }) => void) => void;
 }
 
 
@@ -68,4 +71,7 @@ interface ElectronAPI {
   onChildStdout: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => ipcRenderer.on('child-stdout', (e, data) => fn(e, data)),
   onChildStderr: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => ipcRenderer.on('child-stderr', (e, data) => fn(e, data)),
   onChildExit: (fn: (evt: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => void) => ipcRenderer.on('child-exit', (e, data) => fn(e, data)),
+  
+  // Backend status notifications
+  onBackendStatus: (fn: (evt: IpcRendererEvent, data: { status: string; message: string; pid?: number }) => void) => ipcRenderer.on('backend-status', (e, data) => fn(e, data)),
 };

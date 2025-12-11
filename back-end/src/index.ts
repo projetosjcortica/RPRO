@@ -41,12 +41,50 @@ const execFileAsync = promisify(execFile);
 
 console.log("✅ [Startup] Módulos importados com sucesso");
 
-// Global handlers for improved debugging on dev setup
-process.on('unhandledRejection', (reason) => {
-  console.error('[Global] unhandledRejection:', reason);
+// ========== SISTEMA DE RESILIÊNCIA DO BACKEND ==========
+// Armazena erros recentes para enviar ao frontend
+const recentErrors: Array<{ timestamp: string; type: string; message: string; stack?: string }> = [];
+const MAX_RECENT_ERRORS = 50;
+
+function logError(type: string, error: any) {
+  const errorInfo = {
+    timestamp: new Date().toISOString(),
+    type,
+    message: error?.message || String(error),
+    stack: error?.stack,
+  };
+  
+  recentErrors.unshift(errorInfo);
+  if (recentErrors.length > MAX_RECENT_ERRORS) {
+    recentErrors.pop();
+  }
+  
+  console.error(`[${type}]`, errorInfo.message);
+  if (errorInfo.stack) {
+    console.error(errorInfo.stack);
+  }
+}
+
+// Global handlers - NUNCA deixar o processo morrer
+process.on('unhandledRejection', (reason: any) => {
+  logError('UnhandledRejection', reason);
+  // NÃO fazer process.exit() - continuar rodando
 });
-process.on('uncaughtException', (err) => {
-  console.error('[Global] uncaughtException:', err);
+
+process.on('uncaughtException', (err: Error) => {
+  logError('UncaughtException', err);
+  // NÃO fazer process.exit() - continuar rodando
+  // Apenas logar e continuar
+});
+
+process.on('SIGTERM', () => {
+  console.log('[Backend] Recebeu SIGTERM, mas continuando...');
+  // Não encerrar - deixar o monitor do Electron decidir
+});
+
+process.on('SIGINT', () => {
+  console.log('[Backend] Recebeu SIGINT, mas continuando...');
+  // Não encerrar
 });
 
 // ========== CACHE DE MATÉRIAS-PRIMAS ==========
@@ -673,6 +711,29 @@ app.post('/api/relatorio/paginate', async (req, res) => {
 app.get('/api/ping', (_req, res) => {
   try {
     return res.json({ ok: true, ts: new Date().toISOString() });
+  } catch (e) {
+    return res.status(500).json({ ok: false });
+  }
+});
+
+// Endpoint para o frontend consultar erros recentes do backend
+app.get('/api/backend-errors', (_req, res) => {
+  try {
+    return res.json({ 
+      ok: true, 
+      errors: recentErrors.slice(0, 10), // últimos 10 erros
+      totalErrors: recentErrors.length,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: 'Falha ao obter erros' });
+  }
+});
+
+// Endpoint para limpar erros recentes
+app.delete('/api/backend-errors', (_req, res) => {
+  try {
+    recentErrors.length = 0;
+    return res.json({ ok: true });
   } catch (e) {
     return res.status(500).json({ ok: false });
   }
@@ -6650,6 +6711,27 @@ async function validateRuntimeDbConfig() {
       String(e)
     );
   }
+
+  // ========== MIDDLEWARE GLOBAL DE TRATAMENTO DE ERROS ==========
+  // Captura qualquer erro não tratado nas rotas
+  app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    logError('ExpressError', err);
+    
+    // Responder ao cliente sem crashar
+    try {
+      if (!res.headersSent) {
+        res.status(500).json({
+          ok: false,
+          error: 'Erro interno do servidor',
+          message: err?.message || 'Erro desconhecido',
+          // Em desenvolvimento, incluir stack
+          ...(process.env.NODE_ENV !== 'production' && { stack: err?.stack }),
+        });
+      }
+    } catch (e) {
+      console.error('[ErrorHandler] Falha ao enviar resposta de erro:', e);
+    }
+  });
 
   app.listen(HTTP_PORT, () => {
     const duration = Date.now() - startupTime;

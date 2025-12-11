@@ -46,7 +46,9 @@ import { RefreshButton } from "./components/RefreshButton";
 import toastManager from './lib/toastManager';
 import { getDefaultReportDateRange } from "./lib/reportDefaults";
 import useAdvancedFilters from './hooks/useAdvancedFilters';
-
+import { NotificationBell } from "./components/NotificationBell";
+import { useNotify } from "./hooks/useNotifications";
+import { trackAction } from "./lib/activityTracker";
 interface ComentarioRelatorio {
   texto: string;
   data?: string;
@@ -54,6 +56,7 @@ interface ComentarioRelatorio {
 
 export default function Report() {
   const { user } = useAuth();
+  const notify = useNotify();
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const [ihmConfig, setIhmConfig] = useState<{ ip: string; user: string; password: string } | null>(null);
 
@@ -744,6 +747,8 @@ export default function Report() {
         refetch();
         refreshResumo();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch (e) { }
+        notify.info('Coletor parado', 'O coletor de dados foi interrompido', 'relatorio');
+        trackAction('Relatório: Coletor parado');
       } else {
         // Get current IHM config before starting collector
         let ihmConfig = null;
@@ -765,6 +770,7 @@ export default function Report() {
         if (!ihmConfig || !(ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
           // User actively requested start but no IHM config present: show a single warning and abort.
           try { toastManager.showWarningOnce('collector-toggle', 'IHM não configurada. Configure a IHM em Configurações antes de iniciar a coleta.'); } catch (e) { }
+          notify.warning('Configuração necessária', 'Configure a IHM antes de iniciar a coleta', 'relatorio');
           setCollectorLoading(false);
           return;
         }
@@ -793,9 +799,12 @@ export default function Report() {
         await fetchCollectorStatus();
         refetch();
         refreshResumo();
+        notify.success('Coletor iniciado', 'O coletor de dados está rodando', 'relatorio');
+        trackAction('Relatório: Coletor iniciado');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao controlar collector:", error);
+      notify.error('Erro no coletor', error?.message || 'Erro ao controlar coletor', 'relatorio');
     } finally {
       setCollectorLoading(false);
       // no-op: global provider handles UI
@@ -1607,8 +1616,9 @@ export default function Report() {
               )}
           </div>
           <div className="flex flex-col items-end justify-end gap-1">
-            <div className="flex flex-row items-end gap-0">
+            <div className="flex flex-row items-end gap-1">
               <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
+              <NotificationBell />
               <Button
                 onClick={handleCollectorToggle}
                 disabled={collectorLoading}

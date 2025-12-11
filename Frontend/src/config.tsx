@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast } from "./lib/toastWrapper";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
@@ -11,6 +11,7 @@ import Profile from "./Profile";
 import { getProcessador } from "./Processador";
 import { resolvePhotoUrl } from "./lib/photoUtils";
 import { Switch } from "./components/ui/switch";
+import { useNotify } from "./hooks/useNotifications";
 
 import {
   AlertDialog,
@@ -560,7 +561,7 @@ export function ProfileConfig({
         
         </div>
 
-          { user?.username === 'cortica' && (
+          {/* { user?.username === 'cortica' && (
             <div className="h-20">
               <Label className="mb-2 block text-sm font-medium text-gray-700">Tipo de Perfil</Label>
               <div className="flex gap-2">
@@ -582,7 +583,7 @@ export function ProfileConfig({
                 </Button>
               </div> 
             </div>
-            )}
+            )} */}
         </>
       )}
 
@@ -929,6 +930,7 @@ export function AdminConfig({
   configKey?: string;
 }) {
   // ✅ HOOKS PRIMEIRO
+  const notify = useNotify();
   
   interface AmendoimRecord {
   id: number;
@@ -1145,6 +1147,7 @@ interface Estatisticas {
       }
 
       toast.success('Usuário criado');
+      notify.success('Usuário criado', `Novo usuário "${createUserData.username}" criado`, 'user-management');
       setCreateUserData({ username: '', password: '', displayName: '', userType: 'racao', isAdmin: false, photoFile: null });
       await fetchAdminUsers();
     } catch (e) {
@@ -1164,6 +1167,7 @@ interface Estatisticas {
         return;
       }
       toast.success('Senha alterada');
+      notify.info('Senha alterada', `Senha do usuário "${username}" alterada`, 'user-management');
     } catch (e) {
       console.error('set password', e);
       toast.error('Erro ao alterar senha');
