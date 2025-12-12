@@ -621,7 +621,7 @@ export default function Home() {
                           contentStyle={{ fontSize: 12 }}
                           formatter={(value: number) => `${value.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} kg`}
                         />
-                        <Bar dataKey="valor" fill="#ef4444" name="Entrada" />
+                        <Bar dataKey="valor" fill="#ef4444" name="Entrada" isAnimationActive={false} />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
@@ -691,7 +691,7 @@ export default function Home() {
                           contentStyle={{ fontSize: 12 }}
                           formatter={(value: number) => `${value.toLocaleString('pt-BR', {minimumFractionDigits:3, maximumFractionDigits: 3 })} kg`}
                         />
-                        <Bar dataKey="valor" fill="#6b7280" name="Saída" />
+                        <Bar dataKey="valor" fill="#6b7280" name="Saída" isAnimationActive={false}  />
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (

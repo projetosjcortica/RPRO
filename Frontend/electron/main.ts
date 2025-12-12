@@ -7,6 +7,9 @@ import {
 } from "electron";
 import * as path from "path";
 import Store from "electron-store";
+import { createTray, destroyTray, showTrayBalloon } from './trayManager';
+import { isAutoLaunchEnabled, enableAutoLaunch, disableAutoLaunch } from './autoLaunch';
+import { initAutoUpdater, registerUpdateIpcHandlers } from './autoUpdater';
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { fork, ChildProcess } from "child_process";
@@ -30,6 +33,19 @@ let lastScriptPath: string | null = null;
 const children: Map<number, ChildProcess> = new Map();
 // Track spawned backend exe when packaged
 let spawnedBackend: ChildProcessWithoutNullStreams | null = null;
+
+// ========== SINGLE INSTANCE LOCK ==========
+// Garante que apenas uma instância do app está rodando
+const gotTheLock = app.requestSingleInstanceLock();
+
+// Flag para saber se deve iniciar minimizado (cold start)
+let startMinimized = false;
+
+// Verifica se foi iniciado com argumento --minimized (startup do Windows)
+if (process.argv.includes('--minimized') || process.argv.includes('--startup')) {
+  startMinimized = true;
+  console.log('[main] Starting minimized (cold cache mode)');
+}
 
 // Define the complete form data structure to match the frontend
 interface FormData {
@@ -107,6 +123,37 @@ ipcMain.handle("load-data", async (): Promise<FormData> => {
     console.error("Erro ao carregar dados:", err);
     return initialFormData;
   }
+});
+
+// ========== AUTO-LAUNCH HANDLERS ==========
+// Verifica se o auto-launch está habilitado
+ipcMain.handle("get-auto-launch", async (): Promise<boolean> => {
+  return await isAutoLaunchEnabled();
+});
+
+// Habilita o auto-launch
+ipcMain.handle("enable-auto-launch", async (): Promise<boolean> => {
+  return await enableAutoLaunch();
+});
+
+// Desabilita o auto-launch
+ipcMain.handle("disable-auto-launch", async (): Promise<boolean> => {
+  return await disableAutoLaunch();
+});
+
+// Toggle do auto-launch
+ipcMain.handle("toggle-auto-launch", async (): Promise<{ enabled: boolean; success: boolean }> => {
+  const wasEnabled = await isAutoLaunchEnabled();
+  let success: boolean;
+  
+  if (wasEnabled) {
+    success = await disableAutoLaunch();
+  } else {
+    success = await enableAutoLaunch();
+  }
+  
+  const isEnabled = await isAutoLaunchEnabled();
+  return { enabled: isEnabled, success };
 });
 
 ipcMain.handle("select-folder", async () => {
@@ -318,9 +365,11 @@ ipcMain.handle(
 let backendMonitorInterval: NodeJS.Timeout | null = null;
 let backendStartupGracePeriod = true; // durante inicialização, não reinicia
 let consecutiveFailures = 0;
-const MAX_CONSECUTIVE_FAILURES = 3; // só reinicia após 3 falhas consecutivas
+let restartAttempts = 0;
+const MAX_CONSECUTIVE_FAILURES = 2; // reduzido para reiniciar mais rápido
+const MAX_RESTART_ATTEMPTS = 10; // máximo de tentativas de restart
 
-function startBackendMonitor({ intervalMs = 15000, gracePeriodMs = 45000 }: { intervalMs?: number; gracePeriodMs?: number } = {}) {
+function startBackendMonitor({ intervalMs = 10000, gracePeriodMs = 30000 }: { intervalMs?: number; gracePeriodMs?: number } = {}) {
   if (backendMonitorInterval) return; // already running
   console.log(`[main] starting backend monitor (interval ${intervalMs}ms, grace period ${gracePeriodMs}ms)`);
 
@@ -334,12 +383,13 @@ function startBackendMonitor({ intervalMs = 15000, gracePeriodMs = 45000 }: { in
   backendMonitorInterval = setInterval(async () => {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 5000);
+      const timeout = setTimeout(() => controller.abort(), 3000); // reduzido para 3s
       const res = await fetch("http://localhost:3000/api/ping", { signal: controller.signal });
       clearTimeout(timeout);
       if (res && res.ok) {
         // healthy - reset failure counter
         consecutiveFailures = 0;
+        restartAttempts = 0; // reset restart attempts on success
         return;
       }
     } catch (e) {
@@ -358,8 +408,23 @@ function startBackendMonitor({ intervalMs = 15000, gracePeriodMs = 45000 }: { in
       return;
     }
 
+    // Limitar tentativas de restart para evitar loops infinitos
+    if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
+      console.error(`[main.monitor] Max restart attempts (${MAX_RESTART_ATTEMPTS}) reached - stopping monitor`);
+      try {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('backend-status', { 
+            status: 'failed', 
+            message: `Backend não conseguiu iniciar após ${MAX_RESTART_ATTEMPTS} tentativas. Reinicie a aplicação.` 
+          });
+        }
+      } catch (e) {}
+      return;
+    }
+
     // If ping failed multiple times, attempt to restart backend using lastScriptPath/refork logic
-    console.warn('[main.monitor] backend appears down — attempting restart/refork');
+    restartAttempts++;
+    console.warn(`[main.monitor] backend appears down — attempting restart/refork (attempt ${restartAttempts}/${MAX_RESTART_ATTEMPTS})`);
     consecutiveFailures = 0; // reset para evitar loops rápidos de restart
     
     // Notificar o frontend que o backend está sendo reiniciado
@@ -367,7 +432,7 @@ function startBackendMonitor({ intervalMs = 15000, gracePeriodMs = 45000 }: { in
       if (win && !win.isDestroyed()) {
         win.webContents.send('backend-status', { 
           status: 'restarting', 
-          message: 'Backend está sendo reiniciado automaticamente...' 
+          message: `Reiniciando backend (tentativa ${restartAttempts}/${MAX_RESTART_ATTEMPTS})...` 
         });
       }
     } catch (e) {
@@ -388,7 +453,7 @@ function startBackendMonitor({ intervalMs = 15000, gracePeriodMs = 45000 }: { in
 
       if (lastScriptPath && fs.existsSync(lastScriptPath)) {
         // Aguarda um pouco antes de reforkar para dar tempo do processo morrer
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 1500));
         
         const backendDir = path.dirname(lastScriptPath);
         const refork = fork(lastScriptPath, [], {
@@ -861,6 +926,9 @@ function createWindow() {
 
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
+    
+    // Inicializar auto-updater quando a janela estiver pronta
+    initAutoUpdater(win!);
   });
 
   if (VITE_DEV_SERVER_URL) {
@@ -926,7 +994,29 @@ async function tryForkBackend(): Promise<boolean> {
   }
 }
 
+// ========== SINGLE INSTANCE HANDLING ==========
+// Se não conseguiu o lock, outra instância já está rodando
+if (!gotTheLock) {
+  console.log('[main] Another instance is already running. Focusing existing window.');
+  app.quit();
+} else {
+  // Quando outra instância tenta abrir, foca na janela existente
+  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+    console.log('[main] Second instance detected, focusing existing window');
+    if (win) {
+      if (win.isMinimized()) {
+        win.restore();
+      }
+      win.show();
+      win.focus();
+    }
+  });
+}
+
 app.whenReady().then(() => {
+  // Registrar handlers do auto-updater
+  registerUpdateIpcHandlers();
+  
   (async () => {
     // If running packaged we will try to spawn the backend exe included in resources
     if (app.isPackaged) {
@@ -1054,6 +1144,47 @@ app.whenReady().then(() => {
         console.warn('[main] failed to start backend monitor', e);
       }
 
+      // ========== SYSTEM TRAY ==========
+      // Criar system tray para o app ficar na bandeja
+      createTray({
+        getMainWindow: () => win,
+        createMainWindow: () => {
+          if (!win || win.isDestroyed()) {
+            createWindow();
+          }
+        },
+        onQuit: () => {
+          // Cleanup antes de sair
+          closeSplashScreen();
+          stopBackendMonitor();
+        },
+      });
+
+      // Se iniciou minimizado (cold start), só prepara o backend e fica na bandeja
+      if (startMinimized) {
+        console.log('[main] Cold start mode - backend loading in background, app in tray');
+        showTrayBalloon('Cortez', 'Iniciando em segundo plano...');
+        
+        // Aguarda backend ficar pronto em background (sem splash)
+        const waitForBackend = async () => {
+          let retries = 0;
+          while (retries < 120) { // 2 minutos max
+            try {
+              const response = await fetch('http://localhost:3000/api/health');
+              if (response.ok) {
+                console.log('[main] Backend ready (cold start)');
+                showTrayBalloon('Cortez', 'Pronto! Clique no ícone para abrir.');
+                return;
+              }
+            } catch (e) {}
+            retries++;
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        };
+        waitForBackend().catch(e => console.warn('[main] Cold start backend wait error:', e));
+        return; // Não abre janela, fica só na tray
+      }
+
       // Criar splash screen enquanto aguarda backend estar pronto
       createSplashScreen();
       
@@ -1102,13 +1233,20 @@ app.whenReady().then(() => {
 });
 
 // Encerrar backend e app corretamente
+// Quando todas as janelas fecham, minimiza para tray em vez de sair
 app.on("window-all-closed", () => {
   closeSplashScreen();
-  if (process.platform !== "darwin") app.quit();
+  // No Windows, minimiza para tray em vez de fechar
+  // O usuário pode fechar pelo menu do tray
+  if (process.platform !== "darwin") {
+    // Não fecha o app, apenas esconde
+    console.log('[main] All windows closed, app running in tray');
+  }
 });
 
 app.on("before-quit", () => {
   closeSplashScreen();
+  destroyTray();
   // stop monitor when quitting
   try { stopBackendMonitor(); } catch (e) {}
   // ensure spawned backend is terminated

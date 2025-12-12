@@ -5,12 +5,15 @@ import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
 import { Relatorio, MateriaPrima, Batch, Row, CacheFile, User, Amendoim, AmendoimRaw } from '../entities/index';
 import { getRuntimeConfig } from '../core/runtimeConfig';
+import { log } from './backendLogger';
 
 export class DBService extends BaseService {
   ds: DataSource;
   useMysql: boolean;
   sqlitePath?: string;
   private static dbChecked = false; // Cache: evita verificar DB repetidamente
+  private initPromise: Promise<void> | null = null; // Previne múltiplas inicializações simultâneas
+  private lastError: Error | null = null; // Último erro para diagnóstico
   
   constructor() {
     super('DBService');
@@ -20,6 +23,24 @@ export class DBService extends BaseService {
     // @ts-ignore - assign later in init
     this.ds = {} as DataSource;
     this.useMysql = process.env.USE_SQLITE !== 'true';
+  }
+  
+  /**
+   * Verifica se o banco está pronto para uso
+   */
+  isReady(): boolean {
+    try {
+      return this.ds && (this.ds as any).isInitialized === true;
+    } catch {
+      return false;
+    }
+  }
+  
+  /**
+   * Retorna o último erro ocorrido (para diagnóstico)
+   */
+  getLastError(): Error | null {
+    return this.lastError;
   }
   
   private async createDatabaseIfNotExists(host: string, port: number, user: string, pass: string, dbName: string) {
@@ -69,6 +90,20 @@ export class DBService extends BaseService {
     // @ts-ignore
     if ((this.ds && (this.ds as any).isInitialized)) return;
 
+    // Prevenir múltiplas inicializações simultâneas
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = this._doInit();
+    try {
+      await this.initPromise;
+    } finally {
+      this.initPromise = null;
+    }
+  }
+
+  private async _doInit() {
     // Read runtime DB config (frontend may have saved 'db-config')
     const runtimeDb = getRuntimeConfig('db-config') || {};
     const finalHost = runtimeDb.serverDB ?? process.env.MYSQL_HOST ?? 'localhost';
@@ -154,14 +189,19 @@ export class DBService extends BaseService {
           }
           console.info('[DBService] Conversion to utf8mb4 complete');
         } catch (convErr) {
-          console.error('[DBService] Failed to convert database/tables to utf8mb4:', convErr);
+          log.error('DBService', 'Failed to convert database/tables to utf8mb4', convErr);
           // Do not abort startup; conversion failure shouldn't prevent normal operation.
         }
       }
 
       return;
     } catch (err) {
-      console.error('[DBService] Database initialization failed:', err);
+      log.error('DBService', 'Database initialization failed', err, {
+        host: finalHost,
+        port: finalPort,
+        user: finalUser,
+        database: finalDb,
+      });
       console.info('[DBService] Connection details:', {
         host: finalHost,
         port: finalPort,
@@ -189,14 +229,17 @@ export class DBService extends BaseService {
           await this.ds.initialize();
           this.useMysql = false;
           console.info('[DBService] Successfully switched to SQLite');
+          this.lastError = null;
           return;
         } catch (err2) {
           console.error('[DBService] SQLite fallback also failed:', err2);
-          throw new Error(`Database initialization failed - MySQL error: ${err}\nSQLite error: ${err2}`);
+          this.lastError = new Error(`Database initialization failed - MySQL error: ${err}\nSQLite error: ${err2}`);
+          throw this.lastError;
         }
       }
 
-      throw new Error(`MySQL initialization failed and fallback disabled: ${err}`);
+      this.lastError = new Error(`MySQL initialization failed and fallback disabled: ${err}`);
+      throw this.lastError;
     }
   }
   async reconnect() {

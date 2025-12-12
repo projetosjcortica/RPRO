@@ -35,8 +35,10 @@ import { cacheService } from "./services/CacheService";
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import * as net from 'net';
+import { logger, log } from "./services/backendLogger";
 const execFileAsync = promisify(execFile);
 
+log.info('Startup', '✅ Módulos importados com sucesso');
 console.log("✅ [Startup] Módulos importados com sucesso");
 
 // ========== SISTEMA DE RESILIÊNCIA DO BACKEND ==========
@@ -57,10 +59,8 @@ function logError(type: string, error: any) {
     recentErrors.pop();
   }
   
-  console.error(`[${type}]`, errorInfo.message);
-  if (errorInfo.stack) {
-    console.error(errorInfo.stack);
-  }
+  // Usar o logger estruturado
+  log.error('System', `[${type}] ${errorInfo.message}`, error);
 }
 
 // Global handlers - NUNCA deixar o processo morrer
@@ -76,12 +76,12 @@ process.on('uncaughtException', (err: Error) => {
 });
 
 process.on('SIGTERM', () => {
-  console.log('[Backend] Recebeu SIGTERM, mas continuando...');
+  log.warn('System', 'Recebeu SIGTERM, mas continuando...');
   // Não encerrar - deixar o monitor do Electron decidir
 });
 
 process.on('SIGINT', () => {
-  console.log('[Backend] Recebeu SIGINT, mas continuando...');
+  log.warn('System', 'Recebeu SIGINT, mas continuando...');
   // Não encerrar
 });
 
@@ -342,18 +342,24 @@ let dbInitializing: Promise<void> | null = null;
  * Inicializa o banco de dados UMA ÚNICA VEZ.
  * Se já estiver inicializado, retorna imediatamente.
  * Se estiver inicializando, aguarda a inicialização em progresso.
+ * NUNCA lança exceção - apenas loga erros.
  */
-async function ensureDbReady(): Promise<void> {
-  if (dbInitialized && AppDataSource.isInitialized) return;
+async function ensureDbReady(): Promise<boolean> {
+  if (dbInitialized && AppDataSource.isInitialized) return true;
   
   if (dbInitializing) {
-    await dbInitializing;
-    return;
+    try {
+      await dbInitializing;
+      return dbInitialized;
+    } catch (e) {
+      logError('DB_Init_Wait', e);
+      return false;
+    }
   }
   
   dbInitializing = (async () => {
-    const MAX_RETRIES = 3;
-    const RETRY_DELAY = 1000;
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY = 2000;
     
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
       try {
@@ -361,24 +367,37 @@ async function ensureDbReady(): Promise<void> {
           await dbService.init();
         }
         dbInitialized = true;
+        log.info('Database', `✅ Database ready`, { attempt });
         console.log(`[DB] ✅ Database ready (attempt ${attempt})`);
         return;
-      } catch (e) {
-        console.warn(`[DB] Attempt ${attempt}/${MAX_RETRIES} failed:`, String(e));
+      } catch (e: any) {
+        const errorMsg = e?.message || String(e);
+        log.warn('Database', `Init attempt ${attempt}/${MAX_RETRIES} failed`, { error: errorMsg });
+        console.warn(`[DB] Attempt ${attempt}/${MAX_RETRIES} failed: ${errorMsg}`);
+        logError(`DB_Init_Attempt_${attempt}`, e);
+        
         if (attempt < MAX_RETRIES) {
           await new Promise(r => setTimeout(r, RETRY_DELAY * attempt));
-        } else {
-          throw e;
         }
+        // NÃO lançar exceção - apenas continuar tentando
       }
     }
+    
+    // Após todas as tentativas, o banco pode não estar pronto
+    // mas o backend continua rodando
+    log.error('Database', '⚠️ Database not ready after all attempts - some features may not work');
+    console.error('[DB] ⚠️ Database not ready after all attempts - some features may not work');
   })();
   
   try {
     await dbInitializing;
+  } catch (e) {
+    logError('DB_Init_Final', e);
   } finally {
     dbInitializing = null;
   }
+  
+  return dbInitialized;
 }
 
 // Ensure default admin user exists
@@ -496,22 +515,45 @@ async function filtrarProdutosInativos(obj: any): Promise<any> {
 
 const app = express();
 
+// ========== WRAPPER PARA ROTAS COM TRATAMENTO DE ERRO ==========
+// Garante que erros em rotas async não matam o servidor
+function asyncHandler(fn: (req: express.Request, res: express.Response, next: express.NextFunction) => Promise<any>) {
+  return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    Promise.resolve(fn(req, res, next)).catch((err) => {
+      logError('RouteError', err);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          ok: false, 
+          error: 'Erro interno', 
+          message: err?.message || 'Erro desconhecido' 
+        });
+      }
+    });
+  };
+}
+
 // ========== MIDDLEWARE: Garantir DB conectado ANTES de qualquer rota ==========
 app.use(async (req, res, next) => {
-  // Ignorar health check para não bloquear
-  if (req.path === '/api/health' || req.path === '/health') {
+  // Ignorar health check, logs e backend-errors para não bloquear
+  const skipPaths = ['/api/health', '/health', '/api/ping', '/api/backend-errors', '/api/logs'];
+  if (skipPaths.some(p => req.path.startsWith(p))) {
     return next();
   }
   
   try {
-    await ensureDbReady();
+    const ready = await ensureDbReady();
+    if (!ready) {
+      // DB não está pronto mas não bloquear completamente
+      log.warn('Middleware', 'DB not ready, but continuing...', { path: req.path });
+    }
     next();
   } catch (e) {
-    console.error('[Middleware] Database not ready:', e);
-    res.status(503).json({ error: 'Database not available', details: String(e) });
+    logError('Middleware_DB', e);
+    // Não retornar erro - apenas logar e continuar
+    // O endpoint pode funcionar mesmo sem DB em alguns casos
+    next();
   }
 });
-
 // Compressão gzip para otimizar transferência de dados
 app.use(compression({
   filter: (req: express.Request, res: express.Response) => {
@@ -538,13 +580,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// ========== HEALTH CHECK ENDPOINT ==========
+// ========== HEALTH CHECK ENDPOINTS ==========
 app.get('/api/health', (req, res) => {
   res.json({
     status: dbInitialized ? 'ok' : 'initializing',
     dbConnected: AppDataSource.isInitialized,
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    recentErrors: recentErrors.length,
+    dbLastError: dbService.getLastError()?.message || null,
   });
 });
 
@@ -719,8 +763,10 @@ app.get('/api/backend-errors', (_req, res) => {
   try {
     return res.json({ 
       ok: true, 
-      errors: recentErrors.slice(0, 10), // últimos 10 erros
+      errors: recentErrors.slice(0, 20), // últimos 20 erros
       totalErrors: recentErrors.length,
+      dbReady: dbInitialized,
+      dbLastError: dbService.getLastError()?.message || null,
     });
   } catch (e) {
     return res.status(500).json({ ok: false, error: 'Falha ao obter erros' });
@@ -734,6 +780,63 @@ app.delete('/api/backend-errors', (_req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     return res.status(500).json({ ok: false });
+  }
+});
+
+// ========== ENDPOINTS DE LOGS ==========
+
+// Obter logs recentes
+app.get('/api/logs', async (req, res) => {
+  try {
+    const count = Math.min(Number(req.query.count) || 100, 500);
+    const level = req.query.level as string | undefined;
+    
+    let logs;
+    if (level && ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'].includes(level.toUpperCase())) {
+      logs = await logger.getLogsByLevel(level.toUpperCase() as any, count);
+    } else {
+      logs = await logger.getRecentLogs(count);
+    }
+    
+    return res.json({ ok: true, logs, count: logs.length });
+  } catch (e: any) {
+    log.error('API', 'Failed to get logs', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Obter apenas erros dos logs
+app.get('/api/logs/errors', async (req, res) => {
+  try {
+    const count = Math.min(Number(req.query.count) || 50, 200);
+    const errors = await logger.getErrors(count);
+    return res.json({ ok: true, errors, count: errors.length });
+  } catch (e: any) {
+    log.error('API', 'Failed to get error logs', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Listar arquivos de log
+app.get('/api/logs/files', (_req, res) => {
+  try {
+    const files = logger.getLogFiles();
+    return res.json({ ok: true, files });
+  } catch (e: any) {
+    log.error('API', 'Failed to list log files', e);
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Limpar logs antigos
+app.delete('/api/logs/old', (req, res) => {
+  try {
+    const keepDays = Math.max(Number(req.query.keepDays) || 30, 7);
+    const deleted = logger.cleanOldLogs(keepDays);
+    return res.json({ ok: true, deleted, keepDays });
+  } catch (e: any) {
+    log.error('API', 'Failed to clean old logs', e);
+    return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
@@ -775,6 +878,30 @@ app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 
 // Statistics logging middleware
 app.use(statsMiddleware);
+
+// HTTP Request logging middleware (integrado com backendLogger)
+app.use((req, res, next) => {
+  const start = Date.now();
+  
+  // Capturar quando a resposta terminar
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    
+    // Ignorar endpoints de health check e polling frequente
+    const ignorePaths = ['/api/health', '/health', '/api/ping', '/api/logs'];
+    if (ignorePaths.some(p => req.path.startsWith(p))) {
+      return;
+    }
+    
+    // Logar requisição
+    log.request(req.method, req.path, res.statusCode, duration, {
+      query: Object.keys(req.query).length > 0 ? req.query : undefined,
+      ip: req.ip || req.socket.remoteAddress
+    });
+  });
+  
+  next();
+});
 
 // Helper: normalize incoming date strings to ISO `yyyy-MM-dd` used in DB
 function normalizeDateParam(d: any): string | null {
@@ -6729,7 +6856,11 @@ async function validateRuntimeDbConfig() {
 
   app.listen(HTTP_PORT, () => {
     const duration = Date.now() - startupTime;
+    log.info('Server', `✅ API server running on port ${HTTP_PORT}`, { startupTime: duration });
     console.log(`[Server] ✅ API server running on port ${HTTP_PORT} (startup: ${duration}ms)`);
+    
+    // Limpar logs antigos na inicialização (manter últimos 30 dias)
+    logger.cleanOldLogs(30);
   });
 })();
 

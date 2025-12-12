@@ -1,12 +1,15 @@
 ; build/installer.nsh - Custom NSIS installer script
+
 !macro customInstall
   ; Set registry view for 64-bit
-  ${If} ${RunningX64}
-    SetRegView 64
-  ${EndIf}
+  SetRegView 64
   
   ; Add registry entries
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}" "DisplayIcon" "$INSTDIR\resources\app.asar\assets\icon.ico"
+  
+  ; Adicionar ao startup do Windows (iniciar minimizado)
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Cortez" '"$INSTDIR\Cortez.exe" --minimized'
+  DetailPrint "Cortez será iniciado automaticamente com o Windows"
   
   ; Initialize database if MySQL is installed
   StrCpy $0 "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
@@ -41,12 +44,12 @@
     MessageBox MB_OK|MB_ICONINFORMATION "MySQL não encontrado. O banco de dados será inicializado automaticamente na primeira execução do programa."
     
   done_mysql:
-  ${If} ${RunningX64}
-    SetRegView 32
-  ${EndIf}
+  SetRegView 32
 !macroend
 
 !macro customUnInstall
-  ; Add custom uninstall logic here if needed
+  ; Remover do startup do Windows
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Cortez"
+  ; Remove uninstall key
   DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP_ID}"
 !macroend

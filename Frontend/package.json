@@ -1,7 +1,7 @@
 {
   "name": "cortez",
   "private": true,
-  "version": "1.5.0beta",
+  "version": "1.5.1",
   "author": "J.Cortica, Kaua Okuma, Miguel Dias",
   "description": "Sistema Cortez",
   "type": "module",
@@ -57,6 +57,7 @@
     "date-fns": "^4.1.0",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^10.1.0",
+    "electron-updater": "^6.6.2",
     "embla-carousel-react": "^8.6.0",
     "eventemitter3": "^5.0.1",
     "html-to-pdf": "^0.1.11",

@@ -3,6 +3,7 @@ import path from 'path';
 import { BaseService } from '../core/baseService';
 import { BackupMeta, hashBufferHex } from '../core/utils';
 import { cacheService } from './CacheService';
+import { log } from './backendLogger';
 
 const os = require('os');
 // Prefer runtime-config or env var, fallback to OS temp dir to ensure writable location in packaged apps
@@ -83,7 +84,9 @@ export class BackupService extends BaseService {
     
     try { 
       await cacheService.recordBackupMeta(meta, fs.statSync(fileObj.path)); 
-    } catch {}
+    } catch (err: any) {
+      log.warn('BackupService', 'Falha ao gravar meta de backup no cache', { arquivo: name, error: err?.message });
+    }
     
     console.log(`[BackupService] 💾 Backup criado: ${id} (${ihmPrefix || 'sem prefixo'})`);
     
@@ -101,8 +104,8 @@ export class BackupService extends BaseService {
           try { fs.unlinkSync(path.join(DEFAULT_BACKUP_DIR, f)); } catch (e) { /* ignore */ }
         }
       }
-    } catch (e) {
-      console.warn('[BackupService] Failed to clear backup files:', e);
+    } catch (e: any) {
+      log.warn('BackupService', 'Falha ao limpar arquivos de backup', { error: e?.message });
     }
     this.metas = [];
   }

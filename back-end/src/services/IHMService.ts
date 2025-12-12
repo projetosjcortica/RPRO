@@ -4,7 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { cacheService } from './CacheService';
 import { dbService } from './dbService';
-import { log } from 'console';
+import { log as consoleLog } from 'console';
+import { log as backendLog } from './backendLogger';
 
 export class IHMService extends BaseService {
   private cache: Map<string, number>; // chave em lower-case do nome do arquivo -> tamanho do arquivo
@@ -81,7 +82,7 @@ export class IHMService extends BaseService {
       await cacheService.saveCache(cacheEntries);
       console.log(`[IHMService] ${this.cachePrefix} - saved ${cacheEntries.length} cache entries`);
     } catch (error) {
-      console.error(`[IHMService] ${this.cachePrefix} - Error saving cache to database:`, error);
+      backendLog.error('IHMService', `${this.cachePrefix} - Erro ao salvar cache no banco`, error, { cachePrefix: this.cachePrefix });
     }
   }
 
@@ -95,39 +96,39 @@ export class IHMService extends BaseService {
 
   filterNewFiles() {
     return (f: { name: string; size: number }) => {
-      log(`[IHMService] ${this.cachePrefix} - Checking file: ${f.name}, size: ${f.size}`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - Checking file: ${f.name}, size: ${f.size}`);
       if (!f.name.toLowerCase().endsWith('.csv')) {
-        log(`[IHMService] ${this.cachePrefix} - Skipping non-CSV file: ${f.name}`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Skipping non-CSV file: ${f.name}`);
         return false;
       }
       if (f.name.endsWith('_2.csv')) { 
-        log(`[IHMService] ${this.cachePrefix} - Skipping duplicate file: ${f.name}`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Skipping duplicate file: ${f.name}`);
         return false;
       }
       if (f.name.toLowerCase().includes('_sys')) {
-        log(`[IHMService] ${this.cachePrefix} - Skipping system file: ${f.name}`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Skipping system file: ${f.name}`);
         return false;
       }
       if (f.name.toLowerCase().endsWith('_2.csv')) {
-        log(`[IHMService] ${this.cachePrefix} - Skipping system file: ${f.name}`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Skipping system file: ${f.name}`);
         return false;
       }
       const sizeNum = typeof f.size === 'number' ? f.size : Number(f.size || 0);
       if (!Number.isFinite(sizeNum) || sizeNum <= 0) {
-        log(`[IHMService] ${this.cachePrefix} - Skipping file with invalid size: ${f.name}`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Skipping file with invalid size: ${f.name}`);
         return false;
       }
       // normalize key to lower-case to compare against cache (avoid case mismatch)
       const key = String(f.name).toLowerCase();
       const cachedSize = this.cache.get(key);
       if (cachedSize != null && cachedSize === sizeNum) {
-        log(`[IHMService] ${this.cachePrefix} - File ${f.name} unchanged (size: ${sizeNum}), skipping`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - File ${f.name} unchanged (size: ${sizeNum}), skipping`);
         return false;
       }
       // update cache and remember original-casing name
       this.cache.set(key, sizeNum);
       this.originalNames.set(key, f.name);
-      log(`[IHMService] ${this.cachePrefix} - File ${f.name} is new or changed (old size: ${cachedSize}, new size: ${sizeNum})`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - File ${f.name} is new or changed (old size: ${cachedSize}, new size: ${sizeNum})`);
       return true;
     };
   }
@@ -135,37 +136,37 @@ export class IHMService extends BaseService {
   async findAndDownloadNewFiles(localDir: string) {
     const client = new Client();
     try {
-      log(`[IHMService] ${this.cachePrefix} - Connecting to FTP server: ${this.ip}`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - Connecting to FTP server: ${this.ip}`);
       await client.access({ host: this.ip, user: this.user, password: this.password, secure: false });
       await client.useDefaultSettings();
       await client.cd(this.remotePath);
-      log(`[IHMService] ${this.cachePrefix} - Changed to directory: ${this.remotePath}`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - Changed to directory: ${this.remotePath}`);
       const list = await client.list(); 
-      log(`[IHMService] ${this.cachePrefix} - Found ${list.length} files on FTP server`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - Found ${list.length} files on FTP server`);
       if (list.length === 0) {
-        log(`[IHMService] ${this.cachePrefix} - No files found on FTP server.`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - No files found on FTP server.`);
         return [];
       }
       const csvs = list.filter((f: any) => f.isFile && f.name.toLowerCase().endsWith('.csv'));
-      log(`[IHMService] ${this.cachePrefix} - Found ${csvs.length} CSV files: ${csvs.map(f => f.name).join(', ')}`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - Found ${csvs.length} CSV files: ${csvs.map(f => f.name).join(', ')}`);
        
       const newFiles =  csvs.filter(this.filterNewFiles());
-      log(`[IHMService] ${this.cachePrefix} - ${newFiles.length} files to download: ${newFiles.map(f => f.name).join(', ')}`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - ${newFiles.length} files to download: ${newFiles.map(f => f.name).join(', ')}`);
       
       const results: Array<{ name: string; localPath: string; size: number }> = [];
       for (const f of newFiles) {
         const local = path.join(localDir, f.name);
-        log(`[IHMService] ${this.cachePrefix} - Downloading ${f.name} to ${local}`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Downloading ${f.name} to ${local}`);
         await client.downloadTo(local, f.name, 0);
         const stat = fs.statSync(local);
         results.push({ name: f.name, localPath: local, size: stat.size });
-        log(`[IHMService] ${this.cachePrefix} - Downloaded ${f.name} (${stat.size} bytes)`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Downloaded ${f.name} (${stat.size} bytes)`);
       }
       await this.salvarCacheNoDB();
-      log(`[IHMService] ${this.cachePrefix} - Download completed, ${results.length} files processed`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - Download completed, ${results.length} files processed`);
       return results;
     } catch (error) {
-      log(`[IHMService] ${this.cachePrefix} - Error during FTP operation: ${error}`);
+      backendLog.error('IHMService', `${this.cachePrefix} - Erro durante operação FTP`, error, { ip: this.ip, remotePath: this.remotePath });
       throw error;
     } finally {
       client.close();
@@ -179,7 +180,7 @@ export class IHMService extends BaseService {
         const result = await dbService.insertRelatorioRows([], file.localPath);
         console.log(`Inserted ${result} rows from ${file.name}`);
       } catch (error) {
-        console.error(`Error processing file ${file.name}:`, error);
+        backendLog.error('IHMService', `Erro ao processar arquivo ${file.name}`, error, { fileName: file.name, localPath: file.localPath });
       }
     }
   }
@@ -191,7 +192,7 @@ export class IHMService extends BaseService {
   async forceDownloadFile(fileName: string, localDir: string): Promise<{ name: string; localPath: string; size: number } | null> {
     const client = new Client();
     try {
-      log(`[IHMService] ${this.cachePrefix} - [FORCE] Connecting to FTP: ${this.ip}`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Connecting to FTP: ${this.ip}`);
       await client.access({ host: this.ip, user: this.user, password: this.password, secure: false });
       await client.useDefaultSettings();
       await client.cd(this.remotePath);
@@ -200,12 +201,12 @@ export class IHMService extends BaseService {
       const targetFile = list.find((f: any) => f.isFile && f.name === fileName);
       
       if (!targetFile) {
-        log(`[IHMService] ${this.cachePrefix} - [FORCE] Arquivo não encontrado: ${fileName}`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Arquivo não encontrado: ${fileName}`);
         return null;
       }
 
       const local = path.join(localDir, fileName);
-      log(`[IHMService] ${this.cachePrefix} - [FORCE] Baixando ${fileName} para ${local}`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Baixando ${fileName} para ${local}`);
       await client.downloadTo(local, fileName, 0);
       const stat = fs.statSync(local);
       
@@ -215,10 +216,10 @@ export class IHMService extends BaseService {
       this.cache.set(key, sizeNum);
       this.originalNames.set(key, fileName);
       
-      log(`[IHMService] ${this.cachePrefix} - [FORCE] Download concluído: ${fileName} (${stat.size} bytes)`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Download concluído: ${fileName} (${stat.size} bytes)`);
       return { name: fileName, localPath: local, size: stat.size };
     } catch (error) {
-      log(`[IHMService] ${this.cachePrefix} - [FORCE] Erro: ${error}`);
+      backendLog.error('IHMService', `${this.cachePrefix} - [FORCE] Erro no download forçado`, error, { fileName, localDir, ip: this.ip });
       throw error;
     } finally {
       client.close();
@@ -232,7 +233,7 @@ export class IHMService extends BaseService {
   async listarArquivosCSV(): Promise<string[]> {
     const client = new Client();
     try {
-      log(`[IHMService] ${this.cachePrefix} - Listando CSVs no FTP: ${this.ip}`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - Listando CSVs no FTP: ${this.ip}`);
       await client.access({ host: this.ip, user: this.user, password: this.password, secure: false });
       await client.useDefaultSettings();
       await client.cd(this.remotePath);
@@ -247,13 +248,14 @@ export class IHMService extends BaseService {
         })
         .map((f: any) => f.name);
       
-      log(`[IHMService] ${this.cachePrefix} - Encontrados ${csvFiles.length} arquivos CSV`);
+      consoleLog(`[IHMService] ${this.cachePrefix} - Encontrados ${csvFiles.length} arquivos CSV`);
       return csvFiles;
     } catch (error) {
-      log(`[IHMService] ${this.cachePrefix} - Erro ao listar arquivos: ${error}`);
+      backendLog.error('IHMService', `${this.cachePrefix} - Erro ao listar arquivos CSV`, error, { ip: this.ip, remotePath: this.remotePath });
       throw error;
     } finally {
       client.close();
     }
   }
 }
+

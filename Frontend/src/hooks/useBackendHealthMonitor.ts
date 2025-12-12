@@ -99,6 +99,10 @@ export function useBackendHealthMonitor(intervalMs: number = 30000) {
     }
   }, [notify]);
 
+  // Ref para debounce de notificações - evitar spam
+  const lastNotificationTime = useRef<Record<string, number>>({});
+  const NOTIFICATION_DEBOUNCE_MS = 5000; // 5 segundos entre notificações do mesmo tipo
+
   useEffect(() => {
     // Verificar imediatamente ao montar
     checkBackendHealth();
@@ -108,8 +112,18 @@ export function useBackendHealthMonitor(intervalMs: number = 30000) {
 
     // Listener para notificações do Electron IPC sobre status do backend
     const electronAPI = (window as any).electronAPI;
+    let removeListener: (() => void) | null = null;
+    
     if (electronAPI && typeof electronAPI.onBackendStatus === 'function') {
-      electronAPI.onBackendStatus((_evt: any, data: BackendStatusData) => {
+      const handler = (_evt: any, data: BackendStatusData) => {
+        // Debounce: evitar spam de notificações do mesmo tipo
+        const now = Date.now();
+        const lastTime = lastNotificationTime.current[data.status] || 0;
+        if (now - lastTime < NOTIFICATION_DEBOUNCE_MS) {
+          return; // Ignorar notificação duplicada
+        }
+        lastNotificationTime.current[data.status] = now;
+        
         console.log('[BackendHealthMonitor] Recebeu status do Electron:', data);
         
         switch (data.status) {
@@ -144,14 +158,34 @@ export function useBackendHealthMonitor(intervalMs: number = 30000) {
               'backend-crash'
             );
             break;
+          case 'failed':
+            notify.error(
+              'Backend falhou',
+              data.message || 'O backend não conseguiu iniciar',
+              'backend-failed'
+            );
+            break;
           default:
-            console.log('[BackendHealthMonitor] Status desconhecido:', data.status);
+            // Não logar status desconhecido para evitar spam
+            break;
         }
-      });
+      };
+      
+      // Usar ipcRenderer.once se disponível para evitar múltiplos listeners
+      // ou manter referência para remover depois
+      electronAPI.onBackendStatus(handler);
+      
+      // Guardar referência para cleanup (se a API suportar removeListener)
+      if (electronAPI.removeBackendStatusListener) {
+        removeListener = () => electronAPI.removeBackendStatusListener(handler);
+      }
     }
 
     return () => {
       clearInterval(interval);
+      if (removeListener) {
+        removeListener();
+      }
     };
   }, [checkBackendHealth, intervalMs, notify]);
 

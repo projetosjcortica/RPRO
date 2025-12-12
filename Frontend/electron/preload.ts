@@ -42,8 +42,24 @@ interface ElectronAPI {
   onChildStderr: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => void;
   onChildExit: (fn: (evt: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => void) => void;
   
-  // Backend status notifications
+  // Backend status notifications - usando 'once' internamente para evitar múltiplos listeners
   onBackendStatus: (fn: (evt: IpcRendererEvent, data: { status: string; message: string; pid?: number }) => void) => void;
+  removeBackendStatusListener: (fn: any) => void;
+
+  // Auto-launch (iniciar com Windows)
+  getAutoLaunch: () => Promise<boolean>;
+  enableAutoLaunch: () => Promise<boolean>;
+  disableAutoLaunch: () => Promise<boolean>;
+  toggleAutoLaunch: () => Promise<{ enabled: boolean; success: boolean }>;
+
+  // Auto-updater
+  checkForUpdates: () => Promise<{ ok: boolean; updateAvailable?: boolean; version?: string; releaseNotes?: string; error?: string }>;
+  downloadUpdate: () => Promise<{ ok: boolean; error?: string }>;
+  installUpdate: () => Promise<{ ok: boolean; error?: string }>;
+  getAppVersion: () => Promise<string>;
+  isPackaged: () => Promise<boolean>;
+  onUpdateStatus: (fn: (evt: IpcRendererEvent, data: { status: string; info?: any; progress?: any; error?: string }) => void) => void;
+  removeUpdateStatusListener: () => void;
 }
 
 
@@ -72,6 +88,33 @@ interface ElectronAPI {
   onChildStderr: (fn: (evt: IpcRendererEvent, data: { pid: number; data: string }) => void) => ipcRenderer.on('child-stderr', (e, data) => fn(e, data)),
   onChildExit: (fn: (evt: IpcRendererEvent, data: { pid: number; code?: number | null; signal?: string | null }) => void) => ipcRenderer.on('child-exit', (e, data) => fn(e, data)),
   
-  // Backend status notifications
-  onBackendStatus: (fn: (evt: IpcRendererEvent, data: { status: string; message: string; pid?: number }) => void) => ipcRenderer.on('backend-status', (e, data) => fn(e, data)),
+  // Backend status notifications - remove listeners antigos antes de adicionar novo
+  onBackendStatus: (fn: (evt: IpcRendererEvent, data: { status: string; message: string; pid?: number }) => void) => {
+    // Remove todos os listeners antigos para evitar duplicação
+    ipcRenderer.removeAllListeners('backend-status');
+    ipcRenderer.on('backend-status', (e, data) => fn(e, data));
+  },
+  removeBackendStatusListener: (_fn: any) => {
+    ipcRenderer.removeAllListeners('backend-status');
+  },
+
+  // Auto-launch (iniciar com Windows)
+  getAutoLaunch: () => ipcRenderer.invoke('get-auto-launch'),
+  enableAutoLaunch: () => ipcRenderer.invoke('enable-auto-launch'),
+  disableAutoLaunch: () => ipcRenderer.invoke('disable-auto-launch'),
+  toggleAutoLaunch: () => ipcRenderer.invoke('toggle-auto-launch'),
+
+  // Auto-updater
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  downloadUpdate: () => ipcRenderer.invoke('download-update'),
+  installUpdate: () => ipcRenderer.invoke('install-update'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  isPackaged: () => ipcRenderer.invoke('is-packaged'),
+  onUpdateStatus: (fn: (evt: IpcRendererEvent, data: { status: string; info?: any; progress?: any; error?: string }) => void) => {
+    ipcRenderer.removeAllListeners('update-status');
+    ipcRenderer.on('update-status', (e, data) => fn(e, data));
+  },
+  removeUpdateStatusListener: () => {
+    ipcRenderer.removeAllListeners('update-status');
+  },
 };

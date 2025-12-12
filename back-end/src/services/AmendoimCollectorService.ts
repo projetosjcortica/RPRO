@@ -6,6 +6,7 @@ import { backupSvc } from './backupService';
 import { IHMService } from './IHMService';
 import { getRuntimeConfig, setRuntimeConfigs } from '../core/runtimeConfig';
 import { cacheService } from './CacheService';
+import { log } from './backendLogger';
 
 interface ChangeDetectionRecord {
   filePath: string;
@@ -114,7 +115,7 @@ export class AmendoimCollectorService {
         console.log(`[AmendoimCollector] ✓ Arquivo (${label}) baixado: ${downloaded.name} (${downloaded.size} bytes)`);
         return downloaded;
       } catch (err: any) {
-        console.warn(`[AmendoimCollector] Erro no download FTP: ${err?.message || err}`);
+        log.error('AmendoimCollector', `Erro no download FTP (${label}): ${err?.message || err}`, err, { fileName, label });
         return null;
       }
     };
@@ -330,17 +331,32 @@ export class AmendoimCollectorService {
     console.log(`[AmendoimCollector] Iniciando coletor (intervalo: ${intervalMinutes} minutos)`);
 
     // Garantir que o diretório temporário existe
-    if (!fs.existsSync(this.TMP_DIR)) {
-      fs.mkdirSync(this.TMP_DIR, { recursive: true });
+    try {
+      if (!fs.existsSync(this.TMP_DIR)) {
+        fs.mkdirSync(this.TMP_DIR, { recursive: true });
+      }
+    } catch (e: any) {
+      console.error('[AmendoimCollector] Erro ao criar diretório temporário:', e.message);
+      // Continua mesmo assim
     }
 
-    // Executa imediatamente
-    await this.collectOnce();
+    // Executa imediatamente (com tratamento de erro)
+    try {
+      await this.collectOnce();
+    } catch (e: any) {
+      console.error('[AmendoimCollector] Erro na primeira coleta:', e.message);
+      // NÃO propagar erro - continua o coletor
+    }
 
     // Configura execução periódica
     this.intervalId = setInterval(async () => {
-      if (this.isRunning) {
-        await this.collectOnce();
+      if (this.isRunning && !this.stopRequested) {
+        try {
+          await this.collectOnce();
+        } catch (e: any) {
+          console.error('[AmendoimCollector] Erro no ciclo de coleta:', e.message);
+          // NÃO propagar erro - continua o loop
+        }
       }
     }, intervalMinutes * 60 * 1000);
   }
@@ -367,6 +383,7 @@ export class AmendoimCollectorService {
   /**
    * Executa uma coleta única
    * Coleta arquivos de entrada e saída conforme configuração
+   * NUNCA lança exceções - sempre retorna resultado
    */
   static async collectOnce(): Promise<{
     success: boolean;
@@ -397,9 +414,14 @@ export class AmendoimCollectorService {
     };
 
     try {
-      // ⚡ INICIALIZAR CACHE antes de processar
-      await cacheService.init();
-      console.log('[AmendoimCollector] Cache service inicializado');
+      // ⚡ INICIALIZAR CACHE antes de processar (com tratamento de erro)
+      try {
+        await cacheService.init();
+        console.log('[AmendoimCollector] Cache service inicializado');
+      } catch (cacheErr: any) {
+        console.warn('[AmendoimCollector] Aviso: Cache não inicializado:', cacheErr.message);
+        // Continua sem cache
+      }
 
       // Garantir TMP_DIR existe e é gravável
       try {
@@ -411,7 +433,9 @@ export class AmendoimCollectorService {
       } catch (permErr: any) {
         const msg = `TMP_DIR não gravável: ${this.TMP_DIR} - ${permErr?.message || permErr}`;
         console.error(`[AmendoimCollector] ❌ ${msg}`);
-        throw new Error(msg);
+        result.errors.push(msg);
+        result.success = false;
+        return result; // Retornar sem lançar exceção
       }
 
       // Usar configuração do ihm-config (preferida) ou amendoim-config quando disponível
@@ -539,7 +563,7 @@ export class AmendoimCollectorService {
           arquivosParaColetar.push({ arquivo, caminho: caminhoPadrao, ihmService: ihm1Service, ihmLabel: 'IHM1' });
         });
       } catch (err: any) {
-        console.error(`[AmendoimCollector] ❌ Erro ao listar CSVs da IHM1:`, err.message);
+        log.error('AmendoimCollector', 'Erro ao listar CSVs da IHM1', err, { ip: ipPadrao });
       }
 
       // Listar CSVs da IHM2 se configurada
@@ -577,7 +601,7 @@ export class AmendoimCollectorService {
             arquivosParaColetar.push({ arquivo, caminho: caminhoIhm2, ihmService: ihm2Service!, ihmLabel: 'IHM2' });
           });
         } catch (err: any) {
-          console.error(`[AmendoimCollector] ❌ Erro ao listar CSVs da IHM2:`, err.message);
+          log.error('AmendoimCollector', 'Erro ao listar CSVs da IHM2', err, { ip: ih2cfg?.ip, caminhoRemoto: ih2cfg?.caminhoRemoto });
         }
       }
 
@@ -703,7 +727,7 @@ export class AmendoimCollectorService {
             }, arquivoInfo.ihmLabel);
             console.log(`💾 [AmendoimCollector] Backup criado: ${arquivoInfo.ihmLabel}_${downloadedFile.name}`);
           } catch (backupErr: any) {
-            console.warn(`[AmendoimCollector] ⚠️  Erro ao criar backup: ${backupErr.message}`);
+            log.warn('AmendoimCollector', `Erro ao criar backup: ${backupErr.message}`, { arquivo: downloadedFile.name, ihm: arquivoInfo.ihmLabel });
           }
 
           // Atualizar cache - salvar total de linhas do arquivo ATUAL
@@ -723,7 +747,7 @@ export class AmendoimCollectorService {
 
         } catch (err: any) {
           const errorMsg = `Erro ao coletar ${arquivoInfo.ihmLabel}/${arquivoInfo.arquivo}: ${err.message}`;
-          console.error(`[AmendoimCollector] ❌ ${errorMsg}`);
+          log.error('AmendoimCollector', 'Erro ao processar arquivo CSV', err, { ihm: arquivoInfo.ihmLabel, arquivo: arquivoInfo.arquivo });
           return { ...DEFAULT_RESULT, erros: [errorMsg] };
         }
       });
@@ -761,7 +785,7 @@ export class AmendoimCollectorService {
       console.log('[AmendoimCollector] ========================================');
       console.log('[AmendoimCollector] Ciclo de coleta concluído.');
     } catch (err: any) {
-      console.error('[AmendoimCollector] Erro na coleta:', err);
+      log.error('AmendoimCollector', 'Erro geral na coleta', err);
       result.errors.push(`Erro: ${err.message}`);
       result.success = false;
     }
@@ -786,8 +810,8 @@ export class AmendoimCollectorService {
         await repo.remove(cacheRecord);
         console.log(`🗑️  [AmendoimCollector] Cache DB limpo para: ${fileName}`);
       }
-    } catch (err) {
-      console.warn(`[AmendoimCollector] Erro ao limpar cache DB: ${err}`);
+    } catch (err: any) {
+      log.warn('AmendoimCollector', `Erro ao limpar cache DB`, { fileName, error: err?.message });
     }
     
     if (deletedMemory) {
@@ -821,8 +845,8 @@ export class AmendoimCollectorService {
         await repo.remove(amendoimRecords);
         console.log(`🗑️  [AmendoimCollector] Cache DB limpo (${amendoimRecords.length} registro(s) de amendoim)`);
       }
-    } catch (err) {
-      console.warn(`[AmendoimCollector] Erro ao limpar cache DB: ${err}`);
+    } catch (err: any) {
+      log.warn('AmendoimCollector', 'Erro ao limpar todo cache DB', { error: err?.message });
     }
   }
 

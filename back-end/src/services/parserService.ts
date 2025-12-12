@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { BaseService } from '../core/baseService';
 import { ParserResult, ParserRow, parseRowDateTime } from '../core/utils';
+import { log } from './backendLogger';
 
 export class ParserService extends BaseService {
   tmpDir: string;
@@ -271,7 +272,7 @@ export class ParserService extends BaseService {
 
       return { date, time, label, form1, form2, values };
     } catch (error: any) {
-      console.error('Error parsing row:', parts, error);
+      log.warn('ParserService', 'Erro ao parsear linha do CSV', { parts: parts?.slice(0, 5), error: error?.message });
       return null;
     }
   }

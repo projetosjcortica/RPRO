@@ -7,6 +7,7 @@ import { CacheFile, Setting } from '../entities/index';
 import fs from 'fs';
 import child_process from 'child_process';
 import { BackupMeta } from '../core/utils';
+import { log } from './backendLogger';
 
 export class CacheService extends BaseService {
   ds: DataSource;
@@ -100,10 +101,10 @@ export class CacheService extends BaseService {
             this.creatingDatasource = false;
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         // reset promise so subsequent attempts can retry
         this.initPromise = null;
-        console.error(`[CacheService] Failed to initialize:`, err);
+        log.error('CacheService', 'Falha ao inicializar DataSource', err, { dbPath: this.dbPath });
         throw err;
       }
     })();
@@ -160,13 +161,13 @@ export class CacheService extends BaseService {
     try {
       // try the high-level clear first
       await repo.clear();
-    } catch (e) {
+    } catch (e: any) {
       // fallback to DELETE via QueryBuilder in case clear() maps to TRUNCATE or is unsupported
       try {
-        console.warn('[CacheService] repo.clear() failed, falling back to delete:', String(e));
+        log.warn('CacheService', 'repo.clear() falhou, usando delete fallback', { error: e?.message });
         await repo.createQueryBuilder().delete().execute();
-      } catch (e2) {
-        console.error('[CacheService] fallback delete also failed:', String(e2));
+      } catch (e2: any) {
+        log.error('CacheService', 'Fallback delete também falhou', e2);
         throw e2;
       }
     }
