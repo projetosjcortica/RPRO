@@ -6,8 +6,7 @@ import About from './About';
 import useAuth from './hooks/useAuth';
 import { ProfileConfig, IHMConfig, AdminConfig, usePersistentForm } from './config';
 import DbConfig from './DbConfig';
-import Report from './report';
-import Estoque from './estoque';
+import Report from './report'; 
 import Amendoim from './amendoim';
 import {
   Sidebar,
@@ -50,13 +49,37 @@ import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import monoLogo from './public/logoCmono.png';
 import SettingsPopover from './components/SettingsPopover';
 import packageJson from '../package.json';
-// import { set } from 'date-fns';
+// NotificationBell moved to individual pages (report.tsx, amendoim.tsx)
+import { useNotify } from './hooks/useNotifications';
+import { activityTracker } from './lib/activityTracker';
+import { useBackendHealthMonitor } from './hooks/useBackendHealthMonitor';
 
 const App = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, updateUser } = useAuth();
   const [sideBarOpen, setSideBarOpen] = useState(true);
+  const notify = useNotify();
+  
+  // Monitorar saúde do backend e notificar erros
+  useBackendHealthMonitor(30000); // verificar a cada 30 segundos
+  
+  // Atualizar usuário no tracker quando mudar
+  useEffect(() => {
+    if (user) {
+      activityTracker.setUser(user.id, user.username);
+    } else {
+      activityTracker.setUser(undefined, undefined);
+    }
+  }, [user]);
+  
+  // Log de navegação entre páginas
+  useEffect(() => {
+    if (user && location.pathname !== '/login') {
+      notify.log('Navegou para página', location.pathname, location.pathname);
+    }
+  }, [location.pathname, user]);
+
   // ... (seus useEffects anteriores permanecem iguais) ...
   useEffect(() => {
     const publicPaths = ['/login'];
@@ -287,7 +310,7 @@ const App = () => {
                                   <DialogTrigger asChild>
                                     <SidebarMenuSubButton className='[&>svg]:stroke-black hover:[&>svg]:stroke-white ml-4'><GalleryThumbnails/>IHM</SidebarMenuSubButton>
                                   </DialogTrigger>
-                                  <DialogContent>
+                                  <DialogContent className='w-100% p-5'>
                                     <DialogHeader>
                                       <DialogTitle> IHM</DialogTitle>
                                       <DialogDescription>
@@ -331,25 +354,26 @@ const App = () => {
           </Sidebar>
         </SidebarProvider>
       </div>
-      <div id='main-content' className='flex flex-1 flex-col overflow-hidden w-full h-full py-2 px-2 md:px-4'>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
-          <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
-          <Route path="/amendoim-home" element={<RequireAuth><Home /></RequireAuth>} />
-          <Route path="/estoque" element={<RequireAuth><Estoque /></RequireAuth>} />
-          <Route
-            path="/report"
-            element={
-              <RequireAuth>
-                {user?.userType === 'amendoim' ? <Amendoim proprietario={sideInfo.proprietario} /> : <Report />}
-              </RequireAuth>
-            }
-          />
-          {/* <Route path="/db-config" element={<RequireAuth><DbConfig /></RequireAuth>} /> */}
-          <Route path="/about" element={<RequireAuth><About /></RequireAuth>} />
-          <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />
-        </Routes>
+      <div id='main-content' className='flex flex-1 flex-col overflow-hidden w-full h-full'>
+        <div className="flex-1 overflow-auto py-2 px-2 md:px-4">
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
+            <Route path="/home" element={<RequireAuth><Home /></RequireAuth>} />
+            <Route path="/amendoim-home" element={<RequireAuth><Home /></RequireAuth>} /> 
+            <Route
+              path="/report"
+              element={
+                <RequireAuth>
+                  {user?.userType === 'amendoim' ? <Amendoim proprietario={sideInfo.proprietario} /> : <Report />}
+                </RequireAuth>
+              }
+            />
+            {/* <Route path="/db-config" element={<RequireAuth><DbConfig /></RequireAuth>} /> */}
+            <Route path="/about" element={<RequireAuth><About /></RequireAuth>} />
+            <Route path="*" element={<RequireAuth><h1>404 - Página não encontrada</h1></RequireAuth>} />
+          </Routes>
+        </div>
         <ToastContainer
           position="bottom-right"
           autoClose={3000}

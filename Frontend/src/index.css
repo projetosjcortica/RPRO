@@ -38,6 +38,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+*:focus {
+  outline: none !important;
+}
 
 h1 {
   font-size: 3.2em;
@@ -85,6 +88,7 @@ input {
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --breakpoint-3xl: 110rem;
+  --breakpoint-4xl: 140rem;
 }
 
 @layer base {

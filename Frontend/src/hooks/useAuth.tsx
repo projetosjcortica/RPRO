@@ -74,10 +74,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateUser = (u: User) => {
     try {
-      if (u) localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
-      else localStorage.removeItem(STORAGE_KEY);
-    } catch (e) {}
-    setUser(u);
+      if (u) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+        setUser({ ...u }); // Força re-render com novo objeto
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+        setUser(null);
+      }
+    } catch (e) {
+      console.error('Error updating user:', e);
+    }
   };
 
   return (

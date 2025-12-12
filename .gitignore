@@ -3,3 +3,5 @@ Relatorio_SAIDA_TESTE.csv
 Frontend/dist-electron/main.js
 tools/*
 *.mjs
+back-end/runtime-config-fallback.json
+Frontend/package-lock.json

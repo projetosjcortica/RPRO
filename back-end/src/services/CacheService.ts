@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import path from 'path';
+import os from 'os';
 import { BaseService } from '../core/baseService';
 import { CacheFile, Setting } from '../entities/index';
 import fs from 'fs';
@@ -15,30 +16,86 @@ export class CacheService extends BaseService {
   private deletingFile = false;
   constructor() {
     super('CacheService');
-    const dbPath = process.env.CACHE_SQLITE_PATH || 'cache.sqlite';
+    // Detect if running in packaged Electron app (ASAR or Program Files path)
+    const isPackaged = process.execPath.includes("Cortez.exe") || process.execPath.includes("electron.exe") || (process as any).resourcesPath || __dirname.includes("app.asar");
+    
+    // In packaged mode, use writable APPDATA location; in dev use project root
+    let dbPath = process.env.CACHE_SQLITE_PATH;
+    if (!dbPath) {
+      dbPath = isPackaged 
+        ? path.resolve(process.env.APPDATA || os.homedir(), "Cortez", "cache.sqlite")
+        : path.resolve(process.cwd(), "cache.sqlite");
+    }
+    
     const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
     this.dbPath = absPath;
+    
+    console.log(`[CacheService] Using sqlite cache at: ${absPath} (isPackaged: ${isPackaged})`);
+    
+    // Try to ensure parent directory exists, but don't fail if it doesn't
+    // The init() method will handle it more robustly
+    try {
+      const dir = path.dirname(absPath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        console.log(`[CacheService] Created cache directory: ${dir}`);
+      }
+    } catch (e) {
+      console.warn(`[CacheService] Warning: could not create cache directory in constructor:`, e);
+      // Continue anyway - init() will handle this
+    }
+    
     // Include Setting entity so runtime configs can be persisted into the cache DB.
     this.ds = new DataSource({ type: 'sqlite', database: absPath, synchronize: true, logging: false, entities: [CacheFile, Setting] });
   }
   async init() {
     // If already initialized, return
-    if ((this.ds as any)?.isInitialized) return;
+    if ((this.ds as any)?.isInitialized) {
+      console.log(`[CacheService] DataSource already initialized`);
+      return;
+    }
     // If an initialization is in-flight, wait for it
-    if (this.initPromise) return this.initPromise;
+    if (this.initPromise) {
+      console.log(`[CacheService] Waiting for in-flight initialization...`);
+      return this.initPromise;
+    }
     // Otherwise start initialization and store promise so concurrent callers wait
     this.initPromise = (async () => {
       try {
+        // Ensure parent directory exists before initializing DataSource
+        try {
+          const dir = path.dirname(this.dbPath);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+            console.log(`[CacheService] Created cache directory: ${dir}`);
+          }
+        } catch (e) {
+          console.error(`[CacheService] Failed to create cache directory:`, e);
+          throw new Error(`Cannot create cache directory: ${String(e)}`);
+        }
+        
         // If a deletion is in progress, wait until it finishes so we don't re-open the file
         while (this.deletingFile) {
           await new Promise((r) => setTimeout(r, 100));
         }
         if (!((this.ds as any)?.isInitialized)) {
           // prevent recursive datasource creation
-          if (this.creatingDatasource) return;
+          if (this.creatingDatasource) {
+            console.log(`[CacheService] DataSource creation already in progress, waiting...`);
+            // Wait for the in-progress creation to finish
+            let attempts = 0;
+            while (this.creatingDatasource && attempts < 50) {
+              await new Promise((r) => setTimeout(r, 100));
+              attempts++;
+            }
+            if ((this.ds as any)?.isInitialized) return;
+            throw new Error('DataSource initialization timed out');
+          }
           this.creatingDatasource = true;
           try {
+            console.log(`[CacheService] Initializing DataSource for: ${this.dbPath}`);
             await this.ds.initialize();
+            console.log(`[CacheService] ✅ DataSource initialized successfully`);
           } finally {
             this.creatingDatasource = false;
           }
@@ -46,6 +103,7 @@ export class CacheService extends BaseService {
       } catch (err) {
         // reset promise so subsequent attempts can retry
         this.initPromise = null;
+        console.error(`[CacheService] Failed to initialize:`, err);
         throw err;
       }
     })();
@@ -128,7 +186,7 @@ export class CacheService extends BaseService {
         }
       }
       // recreate datasource instance so future init() will reinitialize cleanly
-      this.ds = new DataSource({ type: 'sqlite', database: this.dbPath, synchronize: true, logging: false, entities: [CacheFile] });
+      this.ds = new DataSource({ type: 'sqlite', database: this.dbPath, synchronize: true, logging: false, entities: [CacheFile, Setting] });
     } finally {
       // allow re-init in the future
       this.initPromise = null;

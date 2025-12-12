@@ -299,9 +299,7 @@ export function TableComponent({
       // Fallback: análise client-side
       return dados.some(row => {
         const value = row.values?.[colIndex];
-        if (value === null || value === undefined || value === '' || value === 0 || value === '0') return false;
-        // Considerar strings formatadas como zero (0.000, 0,000, etc)
-        if (typeof value === 'string' && parseFloat(value.replace(',', '.')) === 0) return false;
+        if (value === null || value === undefined || value === 0) return false;
         return true;
       });
     });
@@ -407,8 +405,6 @@ export function TableComponent({
   // ================
   // RENDERIZAÇÃO DA TABELA
   // ================
-
-  const allColumns = [...FIXED_COLUMNS, ...dynamicColumns];
 
   const renderSortIcon = (col: string) => {
     if (sortByProp === col) {
@@ -541,15 +537,15 @@ export function TableComponent({
           {/* CORPO DA TABELA */}
           <div>
             {dados.map((row, idx) => {
-              const dia = formatDate(safeString(row.Dia || row.dia));
-              const hora = safeString(row.Hora || row.hora);
-              const nome = safeString(row.Nome || row.nome);
-              const codigo = safeString(row.Codigo || row.codigo);
-              const numero = safeString(row.Numero || row.numero);
+              const dia = formatDate(safeString(row.Dia));
+              const hora = safeString(row.Hora);
+              const nome = safeString(row.Nome);
+              const codigo = safeString(row.Codigo);
+              const numero = safeString(row.Numero);
 
               return (
                 <div
-                  key={row.id ?? `r_${idx}`}
+                  key={`r_${idx}`}
                   className={`${idx % 2 === 0 ? 'bg-white' : 'bg-gray-100'} flex border-b border-gray-300`}
                 >
                   {/* Colunas Fixas */}

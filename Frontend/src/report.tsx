@@ -9,7 +9,6 @@ import TableComponent from "./TableComponent";
 import Products from "./products";
 import { getProcessador } from "./Processador";
 import { useReportData } from "./hooks/useReportData";
-import { useDebounce } from "./hooks/useDebounce";
 import { cn } from "./lib/utils";
 import { ExportDropdown } from "./components/ExportDropdown";
 
@@ -47,7 +46,9 @@ import { RefreshButton } from "./components/RefreshButton";
 import toastManager from './lib/toastManager';
 import { getDefaultReportDateRange } from "./lib/reportDefaults";
 import useAdvancedFilters from './hooks/useAdvancedFilters';
-
+import { NotificationBell } from "./components/NotificationBell";
+import { useNotify } from "./hooks/useNotifications";
+import { trackAction } from "./lib/activityTracker";
 interface ComentarioRelatorio {
   texto: string;
   data?: string;
@@ -55,6 +56,7 @@ interface ComentarioRelatorio {
 
 export default function Report() {
   const { user } = useAuth();
+  const notify = useNotify();
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const [ihmConfig, setIhmConfig] = useState<{ ip: string; user: string; password: string } | null>(null);
 
@@ -266,12 +268,11 @@ export default function Report() {
 
   // Pagination and sorting states
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(50);
+  const [pageSize] = useState(50);
   const [sortBy, setSortBy] = useState<string>('Dia');
   const [sortDir, setSortDir] = useState<'ASC' | 'DESC'>('DESC');
   const [collectorRunning, setCollectorRunning] = useState(false);
   const [collectorLoading, setCollectorLoading] = useState(false);
-  const [collectorError, setCollectorError] = useState<string | null>(null);
 
   // OTIMIZAÇÃO: Buscar dados imediatamente (paralelo com produtos)
   const [allowDataFetch] = useState(true); // Sempre true para busca paralela
@@ -343,7 +344,6 @@ export default function Report() {
         const msg = `Falha ao consultar coletor (HTTP ${res.status}). Verifique backend e rede.`;
         toastManager.updateError('collector-status', msg);
         setCollectorRunning(false);
-        setCollectorError(msg);
         return;
       }
 
@@ -352,7 +352,6 @@ export default function Report() {
       setCollectorRunning(isRunning);
 
       const lastError = status?.lastError ?? null;
-      setCollectorError(lastError);
 
       if (lastError) {
         // Categorize and suggest remediation
@@ -375,7 +374,6 @@ export default function Report() {
       const message = err?.message || String(err) || 'Erro desconhecido';
       toastManager.updateError('collector-status', `Erro de comunicação com o coletor: ${message}. Verifique se o backend está rodando e se existe bloqueio de firewall.`);
       setCollectorRunning(false);
-      setCollectorError(message);
     }
   }, []);
 
@@ -738,7 +736,6 @@ export default function Report() {
   const handleCollectorToggle = async () => {
     if (collectorLoading) return;
     setCollectorLoading(true);
-    setCollectorError(null);
     try {
       if (collectorRunning) {
         const res = await fetch("http://localhost:3000/api/collector/stop", {
@@ -750,6 +747,8 @@ export default function Report() {
         refetch();
         refreshResumo();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch (e) { }
+        notify.info('Coletor parado', 'O coletor de dados foi interrompido', 'relatorio');
+        trackAction('Relatório: Coletor parado');
       } else {
         // Get current IHM config before starting collector
         let ihmConfig = null;
@@ -771,6 +770,7 @@ export default function Report() {
         if (!ihmConfig || !(ihmConfig.ip || ihmConfig.user || ihmConfig.password)) {
           // User actively requested start but no IHM config present: show a single warning and abort.
           try { toastManager.showWarningOnce('collector-toggle', 'IHM não configurada. Configure a IHM em Configurações antes de iniciar a coleta.'); } catch (e) { }
+          notify.warning('Configuração necessária', 'Configure a IHM antes de iniciar a coleta', 'relatorio');
           setCollectorLoading(false);
           return;
         }
@@ -799,14 +799,12 @@ export default function Report() {
         await fetchCollectorStatus();
         refetch();
         refreshResumo();
+        notify.success('Coletor iniciado', 'O coletor de dados está rodando', 'relatorio');
+        trackAction('Relatório: Coletor iniciado');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao controlar collector:", error);
-      setCollectorError(
-        error instanceof Error
-          ? error.message
-          : "Não foi possível comunicar com o coletor."
-      );
+      notify.error('Erro no coletor', error?.message || 'Erro ao controlar coletor', 'relatorio');
     } finally {
       setCollectorLoading(false);
       // no-op: global provider handles UI
@@ -1588,148 +1586,79 @@ export default function Report() {
   );
 
   return (
-    <div className="flex flex-col gap-1.5 w-full h-full">
-      <div className="flex flex-row justify-between w-full">
-        <div className="flex flex-row items-end gap-1">
-          <Button
-            onClick={() => setView("table")}
-            className={view === "table" ? "bg-red-800 border border-gray-300" : ""}
-          >
-            Relatórios
-          </Button>
-          <Button
-            onClick={() => setView("product")}
-            className={view === "product" ? "bg-red-800 border border-gray-300" : ""}
-          >
-            Produtos
-          </Button>
-        </div>
-        <div className="flex flex-col items-end justify-end gap-1">
-          <div className="flex flex-row items-end gap-1 3xl:gap-0">
-            <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
+    <div className="flex flex-col justify-evenly w-full h-screen ">
+      <div className="flex flex-col justify-evenly w-full h-1/22  ">
+        <div className="flex flex-row justify-between items-center">
+
+          <div className="flex flex-row items-end gap-1">
             <Button
-              onClick={handleCollectorToggle}
-              disabled={collectorLoading}
-              className={cn(
-                "flex items-center gap-1",
-                collectorRunning
+              onClick={() => setView("table")}
+              className={view === "table" ? "bg-red-800 border border-gray-300" : ""}
+            >
+              Relatórios
+            </Button>
+            <Button
+              onClick={() => setView("product")}
+              className={view === "product" ? "bg-red-800 border border-gray-300" : ""}
+            >
+              Produtos
+            </Button>
+              {view === "table" && resetTableColumns && (
+                <div className="flex justify-start">
+                  <Button
+                    onClick={resetTableColumns}
+                    variant="ghost"
+                    className=" text-gray-500 hover:text-gray-700 hover:underline transition-colors"
+                    >
+                    Resetar colunas
+                  </Button>
+                </div>
+              )}
+          </div>
+          <div className="flex flex-col items-end justify-end gap-1">
+            <div className="flex flex-row items-end gap-1">
+              <FiltrosBar onAplicarFiltros={handleAplicarFiltros} />
+              <NotificationBell />
+              <Button
+                onClick={handleCollectorToggle}
+                disabled={collectorLoading}
+                className={cn(
+                  "flex items-center gap-1",
+                  collectorRunning
                   ? "bg-gray-600 hover:bg-red-700"
                   : "bg-red-600 hover:bg-gray-700"
-              )}
-            >
-              {collectorLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : collectorRunning ? (
-                <Square className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              {collectorLoading ? (
-                <p className="md:flex ">Processando...</p>
-              ) : collectorRunning ? (
-                <p className="md:flex "> Parar coleta</p>
-              ) : (
-                <p className="md:flex ">Iniciar coleta</p>
-              )}
-            </Button>
+                )}
+                >
+                {collectorLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : collectorRunning ? (
+                  <Square className="h-4 w-4" />
+                ) : (
+                  <Play className="h-4 w-4" />
+                )}
+                {collectorLoading ? (
+                  <p className="md:flex ">Processando...</p>
+                ) : collectorRunning ? (
+                  <p className="md:flex "> Parar coleta</p>
+                ) : (
+                  <p className="md:flex ">Iniciar coleta</p>
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
-
-      {view === "table" && resetTableColumns && (
-        <div className="flex justify-start">
-          <Button
-            onClick={resetTableColumns}
-            variant="ghost"
-            className=" text-gray-500 hover:text-gray-700 hover:underline transition-colors"
-          >
-            Resetar colunas
-          </Button>
-        </div>
-      )}
-      <div className="flex flex-row gap-2 justify-start w-full">
-        <div className="flex-1 flex flex-col w-70 items-start justify-start h-fit">
-          <div className="flex w-full h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
+      <div className="flex flex-row gap-2 justify-start w-full h-18/22 my-2">
+        <div className="flex-1 flex flex-col w-1/20 items-start h-full justify-start">
+          <div className="flex w-full overflow-hidden shadow-xl rounded flex border h-full border-gray-300">
             {content}
           </div>
 
-          {/* Paginação */}
-          <div className="flex flex-row items-center justify-end mt-2">
-            <Pagination className="flex flex-row justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <button
-                    onClick={() => {
-                      if (page !== 1) {
-                        // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        setPage(Math.max(1, page - 1));
-                      }
-                    }}
-                    disabled={page === 1 || loading}
-                    className="p-1"
-                    title="Página anterior"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                </PaginationItem>
-
-                {pages.map((p) => {
-                  const isActive = p === page;
-                  return (
-                    <PaginationItem key={p}>
-                      <button
-                        onClick={() => {
-                          if (p !== page) {
-                            // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                            setPage(p);
-                          }
-                        }}
-                        aria-current={isActive ? "page" : undefined}
-                        disabled={loading && p !== page}
-                        className={cn(
-                          buttonVariants({ variant: "default" }),
-                          isActive
-                            ? "bg-red-600 text-white"
-                            : loading && p !== page
-                              ? "bg-gray-200 text-gray-500 cursor-not-allowed"
-                              : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
-                        )}
-                      >
-                        {p}
-                      </button>
-                    </PaginationItem>
-                  );
-                })}
-                {/* 
-                pau no seu cu
-                se leu seu cu é meu
-                 */}
-                <PaginationItem>
-                  <button
-                    onClick={() => {
-                      if (page !== totalPages) {
-                        // Aplicar feedback visual imediato mesmo antes de dados carregarem
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        setPage(Math.min(page + 1, totalPages));
-                      }
-                    }}
-                    disabled={page === totalPages || loading}
-                    className="p-1"
-                    title="Próxima página"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
         </div>
 
         {/* Side Info com drawer de gráficos atrás */}
         <div
-          className="relative w-87 h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
+          className="relative w-80 h-full flex flex-col p-2 shadow-xl rounded border border-gray-300 gap-2 flex-shrink-0"
           style={{ zIndex: 10 }}
         >
           {/* Drawer de gráficos compacto, por trás do sideinfo */}
@@ -1860,7 +1789,7 @@ export default function Report() {
 
                   {/* Horários BarChart - só renderiza se houver dados */}
                   {resumo && (resumo.totalPesos > 0 || resumo.batitdasTotais > 0) && (
-                    <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow">
+                    <div className="border-2 border-gray-200 rounded-xl bg-white shadow-sm h-fit hover:shadow-md transition-shadow">
                       <div className="px-4 py-3 border-b-2 border-gray-100 bg-gradient-to-r from-gray-50 to-white">
                         <div className="text-sm font-bold text-gray-800">
                           Horários de Produção
@@ -1926,7 +1855,7 @@ export default function Report() {
           {/* Conteúdo do sideinfo (em cima do drawer) */}
           {/* Informações Gerais */}
           <div className="grid grid-cols-1 gap-2" style={{ zIndex: 15 }}>
-            <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
+            <div className="w-76 h-28 max-h-28 rounded-lg flex flex-col justify-center p-2 pt-0 shadow-md/16">
               <div className="flex justify-end p-0 m-0">
                 <RefreshButton
                   type="ihm"
@@ -1960,7 +1889,7 @@ export default function Report() {
                 ).toLocaleString("pt-BR")}
               </p>
             </div>
-            <div className="w-83 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
+            <div className="w-76 h-28 max-h-28 rounded-lg flex flex-col justify-center shadow-md/16">
               <p className="text-center font-bold">Período: {""}</p>
               <div className="flex flex-row justify-around px-8 gap-4">
                 <div className="flex flex-col justify-center gap-1">
@@ -2186,6 +2115,28 @@ export default function Report() {
                 // onPdfExport={handlePrint}
                 onExcelExport={handleExcelExport}
                 pdfDocument={createPdfDocument()}
+                pdfFileName={(() => {
+                  // Follow backend export naming conventions: prefer filtros.dataInicio/_dataFim if present
+                  const di = filtros?.dataInicio;
+                  const df = filtros?.dataFim;
+                  if (di && df) return `relatorio_${di}_${df}`;
+                  if (di) return `relatorio_${di}`;
+                  if (df) return `relatorio_ate_${df}`;
+                  // fallback: use periodoInicio/periodoFim from tableSelection/resumo
+                  const start = tableSelection?.periodoInicio || resumo?.periodoInicio;
+                  const end = tableSelection?.periodoFim || resumo?.periodoFim;
+                  const sanitize = (s?: string) => {
+                    if (!s) return undefined;
+                    return s.replace(/\//g, '-').replace(/\s+/g, '_');
+                  };
+                  const s = sanitize(start);
+                  const e = sanitize(end);
+                  if (s && e) return `relatorio_${s}_${e}`;
+                  if (s) return `relatorio_${s}`;
+                  const now = new Date();
+                  const today = `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                  return `relatorio_${today}`;
+                })()}
                 showComments={showPdfComments}
                 showCharts={showPdfCharts}
                 onToggleComments={() => setShowPdfComments(!showPdfComments)}
@@ -2202,6 +2153,72 @@ export default function Report() {
           </div>
         </div>
       </div>
+        {/* Paginação */}
+          <Pagination className="flex flex-row justify-start h-1/22 pb-5 mt-2">
+            <PaginationContent>
+              <PaginationItem>
+                <button
+                  onClick={() => {
+                    if (page !== 1) {
+                      // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                      setPage(Math.max(1, page - 1));
+                    }
+                  }}
+                  disabled={page === 1 || loading}
+                  className="p-1"
+                  title="Página anterior"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+              </PaginationItem>
+
+              {pages.map((p) => {
+                const isActive = p === page;
+                return (
+                  <PaginationItem key={p}>
+                    <button
+                      onClick={() => {
+                        if (p !== page) {
+                          // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                          setPage(p);
+                        }
+                      }}
+                      aria-current={isActive ? "page" : undefined}
+                      disabled={loading && p !== page}
+                      className={cn(
+                        buttonVariants({ variant: "default" }),
+                        isActive
+                          ? "bg-red-600 text-white"
+                          : loading && p !== page
+                            ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                            : "bg-gray-300 text-black hover:bg-gray-400 transition-colors"
+                      )}
+                    >
+                      {p}
+                    </button>
+                  </PaginationItem>
+                );
+              })}
+              <PaginationItem>
+                <button
+                  onClick={() => {
+                    if (page !== totalPages) {
+                      // Aplicar feedback visual imediato mesmo antes de dados carregarem
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                      setPage(Math.min(page + 1, totalPages));
+                    }
+                  }}
+                  disabled={page === totalPages || loading}
+                  className="p-1"
+                  title="Próxima página"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
     </div>
   );
 }
