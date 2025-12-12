@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import FixedDashboard from "./FixedDashboard";
+// ActivityLogPanel removido - logs agora são apenas internos via activityTracker
 
 // Tipos básicos
 type Entry = {

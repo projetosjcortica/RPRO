@@ -8,17 +8,15 @@ import { parserService } from "./services/parserService";
 import { fileProcessorService } from "./services/fileProcessorService";
 import { IHMService } from "./services/IHMService";
 import { materiaPrimaService } from "./services/materiaPrimaService";
-import { resumoService } from "./services/resumoService"; // Importação do serviço de resumo
+import { resumoService } from "./services/resumoService";
 import ExcelJS from "exceljs";
-import { unidadesService } from "./services/unidadesService"; // Importação do serviço de unidades
-import { dumpConverterService } from "./services/dumpConverterService"; // Importação do serviço de conversão de dump
+import { unidadesService } from "./services/unidadesService";
+import { dumpConverterService } from "./services/dumpConverterService";
 import {
   Relatorio,
   MateriaPrima,
   Batch,
   User,
-  MovimentacaoEstoque,
-  Estoque,
   Row,
   Amendoim,
 } from "./entities";
@@ -28,7 +26,6 @@ import cors from "cors";
 import compression from "compression";
 import multer from "multer";
 import { configService } from "./services/configService";
-import { wsbridge } from './websocket/WebSocketBridge';
 import { setRuntimeConfigs, setRuntimeConfig, getRuntimeConfig, getAllRuntimeConfigs } from "./core/runtimeConfig";
 import { csvConverterService } from "./services/csvConverterService";
 import iconv from 'iconv-lite';
@@ -41,14 +38,51 @@ import * as net from 'net';
 const execFileAsync = promisify(execFile);
 
 console.log("✅ [Startup] Módulos importados com sucesso");
-console.log("✅ [Startup] fileProcessorService:", fileProcessorService ? "LOADED" : "UNDEFINED");
 
-// Global handlers for improved debugging on dev setup
-process.on('unhandledRejection', (reason) => {
-  console.error('[Global] unhandledRejection:', reason);
+// ========== SISTEMA DE RESILIÊNCIA DO BACKEND ==========
+// Armazena erros recentes para enviar ao frontend
+const recentErrors: Array<{ timestamp: string; type: string; message: string; stack?: string }> = [];
+const MAX_RECENT_ERRORS = 50;
+
+function logError(type: string, error: any) {
+  const errorInfo = {
+    timestamp: new Date().toISOString(),
+    type,
+    message: error?.message || String(error),
+    stack: error?.stack,
+  };
+  
+  recentErrors.unshift(errorInfo);
+  if (recentErrors.length > MAX_RECENT_ERRORS) {
+    recentErrors.pop();
+  }
+  
+  console.error(`[${type}]`, errorInfo.message);
+  if (errorInfo.stack) {
+    console.error(errorInfo.stack);
+  }
+}
+
+// Global handlers - NUNCA deixar o processo morrer
+process.on('unhandledRejection', (reason: any) => {
+  logError('UnhandledRejection', reason);
+  // NÃO fazer process.exit() - continuar rodando
 });
-process.on('uncaughtException', (err) => {
-  console.error('[Global] uncaughtException:', err);
+
+process.on('uncaughtException', (err: Error) => {
+  logError('UncaughtException', err);
+  // NÃO fazer process.exit() - continuar rodando
+  // Apenas logar e continuar
+});
+
+process.on('SIGTERM', () => {
+  console.log('[Backend] Recebeu SIGTERM, mas continuando...');
+  // Não encerrar - deixar o monitor do Electron decidir
+});
+
+process.on('SIGINT', () => {
+  console.log('[Backend] Recebeu SIGINT, mas continuando...');
+  // Não encerrar
 });
 
 // ========== CACHE DE MATÉRIAS-PRIMAS ==========
@@ -300,15 +334,50 @@ export async function stopCollector(): Promise<{
   };
 }
 
-// Ensure database connection before starting
-async function ensureDatabaseConnection() {
+// ========== OTIMIZAÇÃO: Flag global de inicialização ==========
+let dbInitialized = false;
+let dbInitializing: Promise<void> | null = null;
+
+/**
+ * Inicializa o banco de dados UMA ÚNICA VEZ.
+ * Se já estiver inicializado, retorna imediatamente.
+ * Se estiver inicializando, aguarda a inicialização em progresso.
+ */
+async function ensureDbReady(): Promise<void> {
+  if (dbInitialized && AppDataSource.isInitialized) return;
+  
+  if (dbInitializing) {
+    await dbInitializing;
+    return;
+  }
+  
+  dbInitializing = (async () => {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY = 1000;
+    
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (!AppDataSource.isInitialized) {
+          await dbService.init();
+        }
+        dbInitialized = true;
+        console.log(`[DB] ✅ Database ready (attempt ${attempt})`);
+        return;
+      } catch (e) {
+        console.warn(`[DB] Attempt ${attempt}/${MAX_RETRIES} failed:`, String(e));
+        if (attempt < MAX_RETRIES) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY * attempt));
+        } else {
+          throw e;
+        }
+      }
+    }
+  })();
+  
   try {
-    // dbService.init() handles MySQL initialization and will fallback to SQLite
-    await dbService.init();
-    console.log("Database connection established (via dbService)");
-  } catch (e) {
-    console.warn("[DB] ensureDatabaseConnection failed:", String(e));
-    throw e;
+    await dbInitializing;
+  } finally {
+    dbInitializing = null;
   }
 }
 
@@ -343,6 +412,36 @@ async function ensureDefaultAdminUser() {
     }
   } catch (e) {
     console.warn('[Startup] Error ensuring default admin user:', e);
+  }
+
+  // Migrate legacy photoPath entries (physical paths) to relative URLs
+  try {
+    const userRepo = AppDataSource.getRepository(User);
+    const allUsers = await userRepo.find();
+    let migratedCount = 0;
+    
+    for (const user of allUsers) {
+      if (!user.photoPath) continue;
+      
+      // If photoPath is already a relative URL, skip
+      if (user.photoPath.startsWith('/user_photos/')) continue;
+      
+      // If it's a full physical path, extract filename and convert to relative URL
+      if (path.isAbsolute(user.photoPath) || user.photoPath.includes('\\') || user.photoPath.includes('Program Files')) {
+        const filename = path.basename(user.photoPath);
+        const newPhotoPath = `/user_photos/${filename}`;
+        user.photoPath = newPhotoPath;
+        await userRepo.save(user);
+        migratedCount++;
+        console.log(`[Startup] Migrated photo path for user ${user.username}: ${newPhotoPath}`);
+      }
+    }
+    
+    if (migratedCount > 0) {
+      console.log(`[Startup] ✅ Migrated ${migratedCount} user photo path(s) to relative URLs`);
+    }
+  } catch (e) {
+    console.warn('[Startup] Error migrating photo paths:', e);
   }
 }
 
@@ -397,6 +496,22 @@ async function filtrarProdutosInativos(obj: any): Promise<any> {
 
 const app = express();
 
+// ========== MIDDLEWARE: Garantir DB conectado ANTES de qualquer rota ==========
+app.use(async (req, res, next) => {
+  // Ignorar health check para não bloquear
+  if (req.path === '/api/health' || req.path === '/health') {
+    return next();
+  }
+  
+  try {
+    await ensureDbReady();
+    next();
+  } catch (e) {
+    console.error('[Middleware] Database not ready:', e);
+    res.status(503).json({ error: 'Database not available', details: String(e) });
+  }
+});
+
 // Compressão gzip para otimizar transferência de dados
 app.use(compression({
   filter: (req: express.Request, res: express.Response) => {
@@ -423,12 +538,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// ========== HEALTH CHECK ENDPOINT ==========
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: dbInitialized ? 'ok' : 'initializing',
+    dbConnected: AppDataSource.isInitialized,
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', dbReady: dbInitialized });
+});
+
 // POST handler: aceitar body.params + body.advancedFilters (compatível com Processador.relatorioPaginate)
 app.post('/api/relatorio/paginate', async (req, res) => {
   const startTime = Date.now();
   try {
-    if (!AppDataSource.isInitialized) await dbService.init();
-
+    // ✅ DB já garantido pelo middleware global - removido
     const params = req.body?.params || {};
     const advancedFilters = req.body?.advancedFilters || null;
 
@@ -586,6 +714,29 @@ app.get('/api/ping', (_req, res) => {
   }
 });
 
+// Endpoint para o frontend consultar erros recentes do backend
+app.get('/api/backend-errors', (_req, res) => {
+  try {
+    return res.json({ 
+      ok: true, 
+      errors: recentErrors.slice(0, 10), // últimos 10 erros
+      totalErrors: recentErrors.length,
+    });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: 'Falha ao obter erros' });
+  }
+});
+
+// Endpoint para limpar erros recentes
+app.delete('/api/backend-errors', (_req, res) => {
+  try {
+    recentErrors.length = 0;
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ ok: false });
+  }
+});
+
 // Defensive: log and respond to preflight OPTIONS explicitly so the browser
 // receives the required CORS headers even if some route middleware would
 // otherwise interfere.
@@ -650,8 +801,6 @@ function normalizeDateParam(d: any): string | null {
 
 app.get("/api/materiaprima/labels", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
-
     // 🔄 Sempre buscar dados frescos do banco (não usar cache)
     // pois esta API é chamada ao carregar produtos e precisa estar atualizada
     const materias = await materiaPrimaService.getAll();
@@ -686,7 +835,6 @@ app.get("/api/materiaprima/labels", async (req, res) => {
 // Labels de fórmulas: retorna map { codigo: nome }
 app.get('/api/formulas/labels', async (req, res) => {
   try {
-    if (!AppDataSource.isInitialized) await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const raw = await repo
       .createQueryBuilder('r')
@@ -712,7 +860,6 @@ app.get('/api/formulas/labels', async (req, res) => {
 // Alternar status ativo/inativo de um produto
 app.patch("/api/materiaprima/:num/toggle", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const num = parseInt(req.params.num);
 
     console.log(`[MateriaPrima Toggle] Recebido request para produto num=${num}`);
@@ -763,7 +910,6 @@ app.patch("/api/materiaprima/:num/toggle", async (req, res) => {
 // Alternar status ignorar cálculos de um produto
 app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const num = parseInt(req.params.num);
 
     console.log(`[MateriaPrima ToggleIgnorarCalculos] Recebido request para produto num=${num}`);
@@ -814,8 +960,6 @@ app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => 
 // Reativar todos os produtos (resetar para padrão)
 app.post("/api/materiaprima/reset-all", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
-
     console.log('[MateriaPrima Reset] Reativando todos os produtos...');
 
     const repo = AppDataSource.getRepository(MateriaPrima);
@@ -857,7 +1001,6 @@ app.get("/api/ping", async (req, res) => {
 
 app.get("/api/db/status", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const count = await repo.count();
     return res.json({
@@ -880,8 +1023,6 @@ app.get("/api/db/status", async (req, res) => {
 // Synchronize database schema (add missing columns)
 app.post("/api/db/sync-schema", async (req, res) => {
   try {
-    await dbService.init();
-
     // Forçar adição da coluna 'ativo' na tabela materia_prima se não existir
     const queryRunner = AppDataSource.createQueryRunner();
     await queryRunner.connect();
@@ -913,7 +1054,6 @@ app.post("/api/db/sync-schema", async (req, res) => {
 // Clear entire database (DELETE all rows from all entities)
 app.post("/api/db/clear", async (req, res) => {
   try {
-    await dbService.init();
     await dbService.clearAll();
     return res.json({ ok: true });
   } catch (e: any) {
@@ -936,7 +1076,6 @@ app.post("/api/database/clean", async (req, res) => {
 // Export DB dump as JSON (and optionally save to disk). Returns { dump, savedPath }
 app.get("/api/db/dump", async (req, res) => {
   try {
-    await dbService.init();
     const result = await dbService.exportDump(true);
     return res.json({
       ok: true,
@@ -954,7 +1093,6 @@ app.post("/api/db/import", async (req, res) => {
   try {
     const dumpObj = req.body;
     if (!dumpObj) return res.status(400).json({ error: "dump body required" });
-    await dbService.init();
     const result = await dbService.importDump(dumpObj);
     return res.json({ ok: true, ...result });
   } catch (e: any) {
@@ -1024,8 +1162,6 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
     const skipCreateTable = req.query.skipCreateTable === 'true';
 
     // Execute SQL dump using dbService
-    await dbService.init();
-
     // Import the SQL file with options
     const result = await dbService.executeSqlFile(tmpDumpPath, {
       failOnError: false,
@@ -1065,8 +1201,6 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
 // Export database as SQL dump file
 app.get("/api/db/export-sql", async (req, res) => {
   try {
-    await dbService.init();
-
     console.log('[api/db/export-sql] Generating SQL dump...');
 
     const result = await dbService.exportSqlDump();
@@ -1104,7 +1238,6 @@ app.post("/api/cache/clear", async (req, res) => {
 // Unified clear all: DB + backups
 app.post("/api/clear/all", async (req, res) => {
   try {
-    await dbService.init();
     await backupSvc.listBackups();
     // perform clears
     await dbService.clearAll();
@@ -1123,14 +1256,10 @@ app.post("/api/clear/all", async (req, res) => {
 // Clear production data but keep users and materia prima with default setup
 app.post("/api/clear/production", async (req, res) => {
   try {
-    await dbService.init();
-
     // Clear production tables (keep User; MateriaPrima will be reset below)
     const relatorioRepo = AppDataSource.getRepository(Relatorio);
     const batchRepo = AppDataSource.getRepository(Batch);
     const rowRepo = AppDataSource.getRepository(Row);
-    const estoqueRepo = AppDataSource.getRepository(Estoque);
-    const movimentacaoRepo = AppDataSource.getRepository(MovimentacaoEstoque);
     const materiaPrimaRepo = AppDataSource.getRepository(MateriaPrima);
     const amendoimRepo = AppDataSource.getRepository(Amendoim);
 
@@ -1139,8 +1268,6 @@ app.post("/api/clear/production", async (req, res) => {
     // disable-foreign-keys + TRUNCATE approach if we hit ER_TRUNCATE_ILLEGAL_FK.
     const tryNormalClear = async () => {
       // Order: deepest children first, then parents
-      await movimentacaoRepo.clear(); // references estoque
-      await estoqueRepo.clear(); // references materia_prima
       await rowRepo.clear(); // references batch
       await batchRepo.clear(); // references relatorio
       await relatorioRepo.clear();
@@ -1244,7 +1371,6 @@ app.post("/api/clear/production", async (req, res) => {
 
 app.get("/api/backup/list", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const data = await backupSvc.listBackups();
     return res.json(data);
   } catch (e) {
@@ -1255,7 +1381,6 @@ app.get("/api/backup/list", async (req, res) => {
 
 app.get("/api/file/process", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const filePath = String(req.query.filePath || req.query.path || "");
     if (!filePath)
       return res.status(400).json({ error: "filePath is required" });
@@ -1275,7 +1400,6 @@ const upload = multer({ dest: TMP_DIR_BASE });
 app.post("/api/file/upload", upload.single("file"), async (req, res) => {
   const startTime = Date.now();
   try {
-    await ensureDatabaseConnection();
     const f: any = req.file;
     if (!f)
       return res
@@ -1504,7 +1628,6 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     // Verificar conexão do banco
     if (!AppDataSource.isInitialized) {
       console.warn('[relatorio/paginate] ⚠️ Database não inicializado, inicializando...');
-      await dbService.init();
     }
 
     // Parse and validate pagination params to avoid passing NaN/invalid values to TypeORM
@@ -1538,7 +1661,6 @@ app.get("/api/relatorio/paginate", async (req, res) => {
     const includeIgnored = String(req.query.includeIgnored || "").toLowerCase() === "true";
 
     try {
-      await dbService.init();
     } catch (dbError: any) {
       console.error(
         "[relatorio/paginate] Database initialization failed:",
@@ -1725,16 +1847,40 @@ app.get("/api/relatorio/paginate", async (req, res) => {
 
     const totalPages = Math.ceil(total / pageSizeNum);
 
+    // 🔍 Detectar colunas vazias (produtos sem valor em nenhuma linha)
+    const usedProductIndices = new Set<number>();
+    for (const row of mappedRows) {
+      for (let i = 0; i < 65; i++) {
+        const rawValue = row.valuesRaw[i];
+        if (rawValue > 0) {
+          usedProductIndices.add(i); // 0-indexed for products array
+        }
+      }
+    }
+
+    // Criar array booleano indicando quais produtos estão vazios
+    // emptyColumns.products[i] = true se produto i está vazio, false se tem dados
+    const emptyProductsArray = new Array(65);
+    for (let i = 0; i < 65; i++) {
+      emptyProductsArray[i] = !usedProductIndices.has(i); // true se NÃO está em usedProductIndices
+    }
+
+    const emptyColumns = {
+      products: emptyProductsArray,
+    };
+
     const responseData = {
       rows: mappedRows,
       total,
       page: pageNum,
       pageSize: pageSizeNum,
       totalPages,
+      emptyColumns,
     };
 
     const duration = Date.now() - startTime;
-    console.log(`[relatorio/paginate] ✅ Query completed in ${duration}ms (${rows.length} rows)`);
+    const emptyCount = emptyProductsArray.filter(e => e).length;
+    console.log(`[relatorio/paginate] ✅ Query completed in ${duration}ms (${rows.length} rows), empty products: ${emptyCount}`);
 
     // Headers para otimização de navegador (sem cache de servidor)
     res.set({
@@ -1748,11 +1894,116 @@ app.get("/api/relatorio/paginate", async (req, res) => {
   }
 });
 
+// 🔍 Endpoint especializado: Detecta colunas vazias em TODO o período/filtro (sem paginação)
+app.get("/api/relatorio/empty-columns", async (req, res) => {
+  try {
+    const repo = AppDataSource.getRepository(Relatorio);
+    let qb = repo.createQueryBuilder("r");
+
+    // Aplicar os MESMOS filtros do paginate
+    const codigoRaw = req.query.codigo ?? null;
+    const numeroRaw = req.query.numero ?? null;
+    const formulaRaw = req.query.formula ?? null;
+    const dataInicio = req.query.dataInicio ?? null;
+    const dataFim = req.query.dataFim ?? null;
+    
+    const normDataInicio = normalizeDateParam(dataInicio) || null;
+    const normDataFim = normalizeDateParam(dataFim) || null;
+
+    // Aplicar filtros
+    if (codigoRaw != null && String(codigoRaw) !== "") {
+      const c = Number(codigoRaw);
+      if (!Number.isNaN(c)) qb.andWhere("r.Form1 = :c", { c });
+    }
+
+    if (numeroRaw != null && String(numeroRaw) !== "") {
+      const num = Number(numeroRaw);
+      if (!Number.isNaN(num)) qb.andWhere("r.Form2 = :num", { num });
+    }
+
+    if (formulaRaw != null && String(formulaRaw) !== "") {
+      const fNum = Number(String(formulaRaw));
+      if (!Number.isNaN(fNum)) {
+        qb.andWhere("r.Form1 = :fNum", { fNum });
+      } else {
+        const fStr = String(formulaRaw).toLowerCase();
+        qb.andWhere("LOWER(r.Nome) LIKE :fStr", { fStr: `%${fStr}%` });
+      }
+    }
+
+    if (normDataInicio) qb.andWhere("r.Dia >= :ds", { ds: normDataInicio });
+    if (normDataFim) {
+      const parts = normDataFim.split("-");
+      let dePlus = normDataFim;
+      try {
+        const dt = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        dt.setDate(dt.getDate() + 1);
+        const y = dt.getFullYear();
+        const m = String(dt.getMonth() + 1).padStart(2, "0");
+        const d = String(dt.getDate()).padStart(2, "0");
+        dePlus = `${y}-${m}-${d}`;
+      } catch (e) {
+        dePlus = normDataFim;
+      }
+      qb.andWhere("r.Dia < :dePlus", { dePlus });
+    }
+
+    // Aplicar advancedFilters se houver
+    const advancedFiltersRaw = req.query.advancedFilters as string | undefined;
+    let advancedFilters: any = null;
+    if (advancedFiltersRaw) {
+      try {
+        advancedFilters = JSON.parse(decodeURIComponent(advancedFiltersRaw));
+      } catch (e) {
+        console.warn('[relatorio/empty-columns] Erro ao parsear advancedFilters:', e);
+      }
+    }
+
+    const materiasByNum = await getMateriaPrimaCache();
+    if (advancedFilters) applyAdvancedFiltersToQuery(qb, advancedFilters, materiasByNum);
+
+    // 🔑 CHAVE: Buscar TODOS os rows (sem paginação) apenas para analisar produtos usados
+    const allRows = await qb.getMany();
+
+    // 🔍 Detectar quais produtos têm dados em QUALQUER linha do período
+    const usedProductIndices = new Set<number>();
+    for (const row of allRows) {
+      for (let i = 1; i <= 65; i++) {
+        const prodValue = row[`Prod_${i}`];
+        const v = typeof prodValue === "number" ? prodValue : (prodValue != null ? Number(prodValue) : 0);
+        if (v > 0) {
+          usedProductIndices.add(i - 1); // 0-indexed
+        }
+      }
+    }
+
+    // Criar array booleano: true = VAZIO (não usado em nenhuma linha), false = TEM DADOS
+    const emptyProductsArray = new Array(65);
+    for (let i = 0; i < 65; i++) {
+      emptyProductsArray[i] = !usedProductIndices.has(i);
+    }
+
+    const emptyColumns = {
+      products: emptyProductsArray,
+    };
+
+    const emptyCount = emptyProductsArray.filter(e => e).length;
+    console.log(`[relatorio/empty-columns] ✅ Analyzed ${allRows.length} total rows, empty products: ${emptyCount}`);
+
+    res.set({
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+    });
+
+    return res.json(emptyColumns);
+  } catch (e: any) {
+    console.error("[relatorio/empty-columns] Error:", e);
+    return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
 // PDF DATA: Retorna dados TOTALMENTE processados, calculados e formatados para PDF
 app.get("/api/relatorio/pdf-data", async (req, res) => {
   try {
-    await dbService.init();
-
     // Mesmos filtros do paginate
     const codigoRaw = req.query.codigo ?? null;
     const numeroRaw = req.query.numero ?? null;
@@ -1945,8 +2196,6 @@ app.get("/api/relatorio/exportExcel", async (req, res) => {
     const normDataFim = normalizeDateParam(dataFim) || null;
     const sortBy = String(req.query.sortBy || "Dia");
     const sortDir = String(req.query.sortDir || "ASC");
-
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const qb = repo.createQueryBuilder("r");
 
@@ -2097,8 +2346,6 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
     const normDataFim = normalizeDateParam(dataFim) || null;
     const sortBy = String(req.body.sortBy || "Dia");
     const sortDir = String(req.body.sortDir || "ASC");
-
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const qb = repo.createQueryBuilder("r");
 
@@ -2212,12 +2459,38 @@ app.post("/api/relatorio/exportExcel", async (req, res) => {
 // Stores plain-text passwords (per user request). First registered user becomes admin.
 // Determine a writable directory for user photos that works both in dev and in
 // packaged/dist builds. Allow overriding via USER_PHOTOS_DIR env var.
-const isDev = process.env.NODE_ENV !== "production";
+// Detect if running in packaged Electron app (ASAR or Program Files path)
+const isPackaged = process.execPath.includes("Cortez.exe") || process.execPath.includes("electron.exe") || (process as any).resourcesPath || __dirname.includes("app.asar");
+const isDev = process.env.NODE_ENV !== "production" && !isPackaged;
 const photosBase = process.env.USER_PHOTOS_DIR
   || (isDev ? path.resolve(process.cwd(), "user_photos") : path.resolve(process.env.APPDATA || os.homedir(), "Cortez", "user_photos"));
 
 // Ensure folder exists and is writable
-if (!fs.existsSync(photosBase)) fs.mkdirSync(photosBase, { recursive: true });
+try {
+  if (!fs.existsSync(photosBase)) {
+    fs.mkdirSync(photosBase, { recursive: true });
+    console.log(`[Server] Created user photos directory: ${photosBase}`);
+  }
+} catch (e) {
+  console.error(`[Server] ❌ Failed to create user photos directory: ${photosBase}`, e);
+  throw e;
+}
+console.log(`[Server] User photos directory: ${photosBase} (isDev: ${isDev}, isPackaged: ${isPackaged})`);
+
+// Helper function to resolve photoPath to physical file path
+// Handles both legacy full paths and new relative URLs
+const resolvePhotoPath = (photoPath: string | null | undefined): string | null => {
+  if (!photoPath) return null;
+  // If already an absolute path and exists, use it
+  if (path.isAbsolute(photoPath) && fs.existsSync(photoPath)) return photoPath;
+  // If relative URL like /user_photos/file.png, extract filename
+  if (photoPath.startsWith('/user_photos/')) {
+    const filename = photoPath.substring('/user_photos/'.length);
+    return path.join(photosBase, filename);
+  }
+  // Otherwise assume it's just a filename
+  return path.join(photosBase, path.basename(photoPath));
+};
 
 const userUpload = multer({ dest: photosBase });
 
@@ -2226,7 +2499,6 @@ app.use("/user_photos", express.static(photosBase));
 
 app.post("/api/auth/register", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const { username, password, displayName, userType } = req.body;
     if (!username || !password)
       return res.status(400).json({ error: "usuário e senha requeridos" });
@@ -2241,12 +2513,14 @@ app.post("/api/auth/register", async (req, res) => {
       // get this admin photo
       const adminUser = await repo.findOne({ where: { isAdmin: true } });
       if (adminUser && adminUser.photoPath) {
-        // copy admin photo to new user
-        const adminPhotoPath = path.join(photosBase, path.basename(adminUser.photoPath));
-        const newPhotoName = `${username}_${Date.now()}${path.extname(adminPhotoPath)}`;
-        const newPhotoPath = path.join(photosBase, newPhotoName);
-        fs.copyFileSync(adminPhotoPath, newPhotoPath);
-        photoPath = `/user_photos/${newPhotoName}`;
+        // copy admin photo to new user - resolve path correctly
+        const adminPhotoPath = resolvePhotoPath(adminUser.photoPath);
+        if (adminPhotoPath && fs.existsSync(adminPhotoPath)) {
+          const newPhotoName = `${username}_${Date.now()}${path.extname(adminPhotoPath)}`;
+          const newPhotoPath = path.join(photosBase, newPhotoName);
+          fs.copyFileSync(adminPhotoPath, newPhotoPath);
+          photoPath = `/user_photos/${newPhotoName}`;
+        }
       }
     }
     const u = repo.create({
@@ -2269,7 +2543,6 @@ app.post("/api/auth/register", async (req, res) => {
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const { username, password } = req.body;
     if (!username || !password)
       return res.status(400).json({ error: "usuário e senha requeridos" });
@@ -2288,7 +2561,6 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.post("/api/auth/photo", userUpload.single("photo"), async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const f: any = req.file;
     const username = req.body.username;
     if (!username) return res.status(400).json({ error: "username required" });
@@ -2300,7 +2572,7 @@ app.post("/api/auth/photo", userUpload.single("photo"), async (req, res) => {
     const user = await repo.findOne({ where: { username } });
     if (!user) return res.status(404).json({ error: "user not found" });
     // move file to persistent path and store relative path
-    const destDir = path.resolve(process.cwd(), "user_photos");
+    const destDir = photosBase;
     if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
     const ext = path.extname(f.originalname || f.filename || "");
     const newName = `${username}_${Date.now()}${ext}`;
@@ -2319,7 +2591,6 @@ app.post("/api/auth/photo", userUpload.single("photo"), async (req, res) => {
 
 app.post("/api/auth/update", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const { username, displayName, userType } = req.body;
     if (!username) return res.status(400).json({ error: "username required" });
     const repo = AppDataSource.getRepository(User);
@@ -2335,6 +2606,205 @@ app.post("/api/auth/update", async (req, res) => {
   } catch (e: any) {
     console.error("[auth/update] error", e);
     return res.status(500).json({ error: e?.message || "internal" });
+  }
+});
+
+// ==================== ENDPOINTS DE IMAGENS DE USUÁRIO ====================
+
+// GET /api/user-photos - Lista todas as imagens disponíveis
+app.get('/api/user-photos', async (req, res) => {
+  try {
+    const files: Array<{ name: string; url: string; size: number; mtime: string }> = [];
+    
+    if (fs.existsSync(photosBase)) {
+      const entries = fs.readdirSync(photosBase);
+      for (const entry of entries) {
+        const filePath = path.join(photosBase, entry);
+        try {
+          const stat = fs.statSync(filePath);
+          if (stat.isFile() && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(entry)) {
+            files.push({
+              name: entry,
+              url: `/user_photos/${entry}`,
+              size: stat.size,
+              mtime: stat.mtime.toISOString()
+            });
+          }
+        } catch (e) {
+          // skip files that can't be stat'd
+        }
+      }
+    }
+    
+    return res.json({ 
+      success: true, 
+      photosBase, 
+      files,
+      count: files.length 
+    });
+  } catch (e: any) {
+    console.error('[user-photos] error listing photos:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// GET /api/user-photos/:username - Busca imagem específica de um usuário
+app.get('/api/user-photos/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    if (!username) return res.status(400).json({ error: 'username required' });
+    
+    // First try to get from database
+    const repo = AppDataSource.getRepository(User);
+    const user = await repo.findOne({ where: { username } });
+    
+    if (user && user.photoPath) {
+      const physicalPath = resolvePhotoPath(user.photoPath);
+      if (physicalPath && fs.existsSync(physicalPath)) {
+        return res.json({
+          success: true,
+          username,
+          photoPath: user.photoPath,
+          physicalPath,
+          exists: true
+        });
+      }
+    }
+    
+    // Fallback: search for any file matching username pattern
+    if (fs.existsSync(photosBase)) {
+      const entries = fs.readdirSync(photosBase);
+      const userPattern = new RegExp(`^${username}[_.]`, 'i');
+      const matching = entries.filter(e => userPattern.test(e) && /\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(e));
+      
+      if (matching.length > 0) {
+        // Return the most recent one
+        const sorted = matching.map(name => {
+          const filePath = path.join(photosBase, name);
+          try {
+            const stat = fs.statSync(filePath);
+            return { name, mtime: stat.mtime.getTime() };
+          } catch {
+            return { name, mtime: 0 };
+          }
+        }).sort((a, b) => b.mtime - a.mtime);
+        
+        const best = sorted[0];
+        return res.json({
+          success: true,
+          username,
+          photoPath: `/user_photos/${best.name}`,
+          physicalPath: path.join(photosBase, best.name),
+          exists: true,
+          foundByPattern: true
+        });
+      }
+    }
+    
+    return res.json({
+      success: false,
+      username,
+      photoPath: null,
+      exists: false
+    });
+  } catch (e: any) {
+    console.error('[user-photos/:username] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// POST /api/user-photos/sync - Sincroniza fotos do banco com sistema de arquivos
+app.post('/api/user-photos/sync', async (req, res) => {
+  try {
+    const repo = AppDataSource.getRepository(User);
+    const users = await repo.find();
+    const results: Array<{ username: string; status: string; photoPath?: string }> = [];
+    
+    for (const user of users) {
+      const u = user as any;
+      if (!u.photoPath) {
+        results.push({ username: u.username, status: 'no-photo' });
+        continue;
+      }
+      
+      const physicalPath = resolvePhotoPath(u.photoPath);
+      if (physicalPath && fs.existsSync(physicalPath)) {
+        results.push({ username: u.username, status: 'ok', photoPath: u.photoPath });
+      } else {
+        // Try to find a matching file
+        if (fs.existsSync(photosBase)) {
+          const entries = fs.readdirSync(photosBase);
+          const userPattern = new RegExp(`^${u.username}[_.]`, 'i');
+          const matching = entries.find(e => userPattern.test(e));
+          
+          if (matching) {
+            const newPhotoPath = `/user_photos/${matching}`;
+            u.photoPath = newPhotoPath;
+            await repo.save(u);
+            results.push({ username: u.username, status: 'repaired', photoPath: newPhotoPath });
+          } else {
+            u.photoPath = null;
+            await repo.save(u);
+            results.push({ username: u.username, status: 'cleared-missing' });
+          }
+        } else {
+          results.push({ username: u.username, status: 'photos-dir-missing' });
+        }
+      }
+    }
+    
+    return res.json({ success: true, results, photosBase });
+  } catch (e: any) {
+    console.error('[user-photos/sync] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// GET /api/user-photos/info - Informações sobre diretório de fotos
+app.get('/api/user-photos/info', async (req, res) => {
+  try {
+    const exists = fs.existsSync(photosBase);
+    let writable = false;
+    let fileCount = 0;
+    let totalSize = 0;
+    
+    if (exists) {
+      try {
+        // Test write permission
+        const testFile = path.join(photosBase, `.write-test-${Date.now()}`);
+        fs.writeFileSync(testFile, 'test');
+        fs.unlinkSync(testFile);
+        writable = true;
+      } catch {
+        writable = false;
+      }
+      
+      const entries = fs.readdirSync(photosBase);
+      for (const entry of entries) {
+        try {
+          const stat = fs.statSync(path.join(photosBase, entry));
+          if (stat.isFile()) {
+            fileCount++;
+            totalSize += stat.size;
+          }
+        } catch {}
+      }
+    }
+    
+    return res.json({
+      success: true,
+      photosBase,
+      exists,
+      writable,
+      fileCount,
+      totalSize,
+      totalSizeMB: (totalSize / 1024 / 1024).toFixed(2),
+      isPackaged,
+      isDev
+    });
+  } catch (e: any) {
+    console.error('[user-photos/info] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
 
@@ -2376,7 +2846,7 @@ app.post(
   async (req, res) => {
     try {
       // Ensure folder exists
-      const destDir = path.resolve(process.cwd(), "user_photos");
+      const destDir = photosBase;
       if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
 
       // If multipart file present, move it into destDir
@@ -2406,7 +2876,6 @@ app.post("/api/admin/set-default-photo", async (req, res) => {
     const { path: photoPath } = req.body || {};
     if (!photoPath) return res.status(400).json({ error: "path is required" });
 
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
 
     // Bulk update all users to use the provided photoPath
@@ -2422,7 +2891,6 @@ app.post("/api/admin/set-default-photo", async (req, res) => {
 // Admin: list users (public, but only useful to admin UI)
 app.get('/api/admin/users', async (_req, res) => {
   try {
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
     const users = await repo.find();
     const sanitized = users.map(u => ({ id: u.id, username: u.username, displayName: u.displayName, photoPath: u.photoPath, isAdmin: u.isAdmin, userType: u.userType }));
@@ -2438,7 +2906,6 @@ app.post('/api/admin/delete-user', async (req, res) => {
   try {
     const { username, id } = req.body || {};
     if (!username && !id) return res.status(400).json({ ok: false, error: 'username or id required' });
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
     if (id) {
       await repo.delete({ id: Number(id) });
@@ -2457,7 +2924,6 @@ app.post('/api/admin/toggle-admin', async (req, res) => {
   try {
     const { username, id, isAdmin } = req.body || {};
     if ((!username && !id) || typeof isAdmin !== 'boolean') return res.status(400).json({ ok: false, error: 'username/id and isAdmin required' });
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
     const target = id ? await repo.findOne({ where: { id: Number(id) } }) : await repo.findOne({ where: { username: String(username) } });
     if (!target) return res.status(404).json({ ok: false, error: 'user not found' });
@@ -2475,7 +2941,6 @@ app.post('/api/admin/set-password', async (req, res) => {
   try {
     const { username, id, newPassword } = req.body || {};
     if ((!username && !id) || !newPassword) return res.status(400).json({ ok: false, error: 'username/id and newPassword required' });
-    await ensureDatabaseConnection();
     const repo = AppDataSource.getRepository(User);
     const target = id ? await repo.findOne({ where: { id: Number(id) } }) : await repo.findOne({ where: { username: String(username) } });
     if (!target) return res.status(404).json({ ok: false, error: 'user not found' });
@@ -2545,7 +3010,6 @@ app.post('/api/ihm/test', async (req, res) => {
 
 app.get("/api/db/listBatches", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Batch);
     const [items, total] = await repo.findAndCount({
       take: 50,
@@ -2633,7 +3097,6 @@ app.post('/api/db/test', async (req, res) => {
  */
 app.post("/api/db/setupMateriaPrima", async (req, res) => {
   try {
-    await dbService.init();
     const items = Array.isArray(req.body.items) ? req.body.items : [];
 
     // Sanitize and validate items
@@ -2691,7 +3154,6 @@ app.get("/api/db/getMateriaPrima", async (req, res) => {
 
 app.get("/api/db/syncLocalToMain", async (req, res) => {
   try {
-    await dbService.init();
     const limit = Number(req.query.limit || 1000);
     const repo = AppDataSource.getRepository(Relatorio);
     const rows = await repo.find({ take: Number(limit) });
@@ -3005,7 +3467,6 @@ app.get("/api/filtrosAvaliable", async (req, res) => {
     const codigos = Array.from(codigosSet).sort((a, b) => a - b);
 
     // For numeros (Form2) we need to query DB for distinct Form2 values within date range
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
     const qb = repo
       .createQueryBuilder("r")
@@ -3047,7 +3508,6 @@ app.get("/api/filtrosAvaliable", async (req, res) => {
 // Additional endpoints for Processador HTTP compatibility
 app.post("/api/file/processContent", async (req, res) => {
   try {
-    await ensureDatabaseConnection();
     const { filePath, content } = req.body;
     if (!filePath || !content) {
       return res
@@ -3295,30 +3755,95 @@ app.post("/api/config/split", async (req, res) => {
         // ignore merge failures and continue
       }
     }
-    await configService.setSettings(configObj);
+    
+    // ===== SISTEMA DE FALLBACK ROBUSTO =====
+    // Tenta salvar no CacheService (sqlite), com fallback para arquivo JSON
+    let savedToSqlite = false;
+    let savedToJson = false;
+    
+    // Fallback JSON path
+    const fallbackJsonPath = path.resolve(
+      isDev ? process.cwd() : (process.env.APPDATA || os.homedir()),
+      isDev ? 'runtime-config-fallback.json' : 'Cortez/runtime-config-fallback.json'
+    );
+    
+    // 1. Tentar salvar no sqlite (principal)
+    try {
+      await configService.setSettings(configObj);
+      savedToSqlite = true;
+      console.log('[config/split] ✅ Saved config keys to cache.sqlite:', Object.keys(configObj).join(', '));
+    } catch (sqliteError: any) {
+      console.error('[config/split] ❌ Failed to save to sqlite:', sqliteError?.message || sqliteError);
+    }
+    
+    // 2. Sempre salvar também no JSON como backup
+    try {
+      // Ensure directory exists
+      const jsonDir = path.dirname(fallbackJsonPath);
+      if (!fs.existsSync(jsonDir)) {
+        fs.mkdirSync(jsonDir, { recursive: true });
+      }
+      
+      // Read existing fallback and merge
+      let existingFallback: Record<string, any> = {};
+      if (fs.existsSync(fallbackJsonPath)) {
+        try {
+          existingFallback = JSON.parse(fs.readFileSync(fallbackJsonPath, 'utf8'));
+        } catch { existingFallback = {}; }
+      }
+      
+      // Merge new config
+      const merged = { ...existingFallback, ...configObj };
+      fs.writeFileSync(fallbackJsonPath, JSON.stringify(merged, null, 2), 'utf8');
+      savedToJson = true;
+      console.log('[config/split] ✅ Saved config to fallback JSON:', fallbackJsonPath);
+    } catch (jsonError: any) {
+      console.error('[config/split] ❌ Failed to save to fallback JSON:', jsonError?.message || jsonError);
+    }
+    
+    // Se nenhum método funcionou, retorna erro
+    if (!savedToSqlite && !savedToJson) {
+      return res.status(500).json({ 
+        error: "Failed to save config to any storage", 
+        details: "Both sqlite and JSON fallback failed"
+      });
+    }
+    
+    // Atualizar runtime config em memória
     try {
       setRuntimeConfigs(configObj);
     } catch (e) {
-      /* ignore */
+      console.warn('[config/split] Failed to update runtime config in memory:', e);
     }
-    // Configs persisted to DB via configService; no external JSON file used anymore.
+    
     // Return updated parsed values to the client so UI can synchronize without an extra GET
     const updated: Record<string, any> = {};
     for (const k of Object.keys(configObj)) {
-      const raw = await configService.getSetting(k);
-      let parsed: any = raw;
-      if (typeof raw === 'string') {
-        try { parsed = JSON.parse(raw); } catch { parsed = raw; }
+      try {
+        const raw = await configService.getSetting(k);
+        let parsed: any = raw;
+        if (typeof raw === 'string') {
+          try { parsed = JSON.parse(raw); } catch { parsed = raw; }
+        }
+        updated[k] = parsed;
+      } catch (e) {
+        // Fallback to the value we just tried to save
+        updated[k] = configObj[k];
       }
-      updated[k] = parsed;
-    }
-    try {
-      wsbridge.sendEvent('config-changed', { keys: Object.keys(configObj), updated });
-    } catch (e) { /* ignore */ }
-    return res.json({ success: true, saved: Object.keys(configObj), updated });
-  } catch (e) {
-    console.error("[config/split] Failed to split/save settings", e);
-    return res.status(500).json({ error: "internal" });
+    } 
+    return res.json({ 
+      success: true, 
+      saved: Object.keys(configObj), 
+      updated,
+      storage: { sqlite: savedToSqlite, json: savedToJson, jsonPath: fallbackJsonPath }
+    });
+  } catch (e: any) {
+    console.error("[config/split] Failed to split/save settings:", {
+      message: e?.message,
+      stack: e?.stack,
+      toString: String(e)
+    });
+    return res.status(500).json({ error: "internal", details: String(e?.message || e) });
   }
 });
 
@@ -3328,53 +3853,193 @@ app.get('/api/config/:key', async (req, res) => {
     const rawKey = String(req.params.key || '').trim();
     if (!rawKey) return res.status(400).json({ error: 'missing key' });
 
-    // Special-case: return structured defaults for known config keys
-    if (rawKey === 'ihm-config' && req.query.inputs === 'true') {
-      const defaultIhm = {
-        nomeCliente: '',
-        ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
-        user: '',
-        password: '',
-        localCSV: '',
-        metodoCSV: '',
-        habilitarCSV: false,
-        serverDB: '',
-        database: '',
-        userDB: '',
-        passwordDB: '',
-        mySqlDir: '',
-        dumpDir: '',
-        batchDumpDir: '',
-      };
-      return res.json({ key: rawKey, value: defaultIhm });
+    // Special-case defaults for known config keys (used when nothing persisted)
+    const defaultIhm = {
+      nomeCliente: '',
+      ip: String(getRuntimeConfig('ihm_ip') ?? process.env.IHM_IP ?? ''),
+      user: '',
+      password: '',
+      localCSV: '',
+      metodoCSV: '',
+      habilitarCSV: false,
+      serverDB: '',
+      database: '',
+      userDB: '',
+      passwordDB: '',
+      mySqlDir: '',
+      dumpDir: '',
+      batchDumpDir: '',
+    };
+
+    const defaultDb = {
+      serverDB: String(getRuntimeConfig('mysql_ip') ?? process.env.MYSQL_HOST ?? 'localhost'),
+      port: Number(getRuntimeConfig('mysql_port') ?? process.env.MYSQL_PORT ?? 3306),
+      database: String(getRuntimeConfig('mysql_db') ?? process.env.MYSQL_DB ?? 'cadastro'),
+      userDB: String(getRuntimeConfig('mysql_user') ?? process.env.MYSQL_USER ?? 'root'),
+      passwordDB: String(getRuntimeConfig('mysql_password') ?? process.env.MYSQL_PASSWORD ?? 'root'),
+    };
+
+    // Try to load from persisted settings (sqlite first, then JSON fallback)
+    let stored: string | null = null;
+    let source = 'none';
+    
+    // 1. Try sqlite
+    try {
+      stored = await configService.getSetting(rawKey);
+      if (stored !== null && stored !== undefined) {
+        source = 'sqlite';
+      }
+    } catch (sqliteError) {
+      console.warn(`[config/:key] sqlite read failed for ${rawKey}:`, sqliteError);
+    }
+    
+    // 2. Fallback to JSON file
+    if (stored === null || stored === undefined) {
+      try {
+        const fallbackJsonPath = path.resolve(
+          isDev ? process.cwd() : (process.env.APPDATA || os.homedir()),
+          isDev ? 'runtime-config-fallback.json' : 'Cortez/runtime-config-fallback.json'
+        );
+        if (fs.existsSync(fallbackJsonPath)) {
+          const fallbackData = JSON.parse(fs.readFileSync(fallbackJsonPath, 'utf8'));
+          if (fallbackData && fallbackData[rawKey] !== undefined) {
+            stored = typeof fallbackData[rawKey] === 'string' 
+              ? fallbackData[rawKey] 
+              : JSON.stringify(fallbackData[rawKey]);
+            source = 'json-fallback';
+          }
+        }
+      } catch (jsonError) {
+        console.warn(`[config/:key] JSON fallback read failed for ${rawKey}:`, jsonError);
+      }
+    }
+    
+    if (stored !== null && stored !== undefined) {
+      let out: any = stored;
+      if (typeof stored === 'string') {
+        try { out = JSON.parse(String(stored)); } catch (e) { out = stored; }
+      }
+      return res.json({ key: rawKey, value: out, source });
     }
 
-    if (rawKey === 'db-config' && req.query.inputs === 'true') {
-      const defaultDb = {
-        serverDB: String(getRuntimeConfig('mysql_ip') ?? process.env.MYSQL_HOST ?? 'localhost'),
-        port: Number(getRuntimeConfig('mysql_port') ?? process.env.MYSQL_PORT ?? 3306),
-        database: String(getRuntimeConfig('mysql_db') ?? process.env.MYSQL_DB ?? 'cadastro'),
-        userDB: String(getRuntimeConfig('mysql_user') ?? process.env.MYSQL_USER ?? 'root'),
-        // default to 'root' if no runtime or env override exists
-        passwordDB: String(getRuntimeConfig('mysql_password') ?? process.env.MYSQL_PASSWORD ?? 'root'),
-      };
-      return res.json({ key: rawKey, value: defaultDb });
-    }
+    // Fallbacks when not persisted
+    if (rawKey === 'ihm-config') return res.json({ key: rawKey, value: defaultIhm, source: 'default' });
+    if (rawKey === 'db-config') return res.json({ key: rawKey, value: defaultDb, source: 'default' });
+    if (rawKey === 'admin-config') return res.json({ key: rawKey, value: {}, source: 'default' });
 
-    // Otherwise try to load from persisted settings
-    const stored = await configService.getSetting(rawKey);
-    if (stored === null || stored === undefined) return res.status(404).json({ error: 'not found' });
+    // If nothing stored and no defaults, return empty object instead of 404 (more resilient)
+    return res.json({ key: rawKey, value: {}, source: 'empty-default' });
 
-    // Attempt parse
-    let out: any = stored;
-    if (typeof stored === 'string') {
-      try { out = JSON.parse(stored); } catch (e) { out = stored; }
-    }
-
-    return res.json({ key: rawKey, value: out });
   } catch (e) {
     console.error('[config/:key] error', e);
     return res.status(500).json({ error: 'internal' });
+  }
+});
+
+// ==================== DIAGNÓSTICO DE CONFIGURAÇÃO ====================
+
+// GET /api/config/diagnostics - Diagnóstico completo do sistema de configuração
+app.get('/api/config-diagnostics', async (req, res) => {
+  try {
+    const diagnostics: Record<string, any> = {
+      timestamp: new Date().toISOString(),
+      environment: { isPackaged, isDev },
+      storage: {
+        sqlite: { status: 'unknown', path: '', initialized: false },
+        jsonFallback: { status: 'unknown', path: '', exists: false, writable: false }
+      },
+      keys: {}
+    };
+    
+    // Fallback JSON path
+    const fallbackJsonPath = path.resolve(
+      isDev ? process.cwd() : (process.env.APPDATA || os.homedir()),
+      isDev ? 'runtime-config-fallback.json' : 'Cortez/runtime-config-fallback.json'
+    );
+    
+    // 1. Check sqlite status
+    try {
+      await cacheService.init();
+      diagnostics.storage.sqlite.status = 'ok';
+      diagnostics.storage.sqlite.initialized = (cacheService.ds as any)?.isInitialized || false;
+      diagnostics.storage.sqlite.path = (cacheService as any).dbPath || 'unknown';
+    } catch (sqliteError: any) {
+      diagnostics.storage.sqlite.status = 'error';
+      diagnostics.storage.sqlite.error = sqliteError?.message || String(sqliteError);
+    }
+    
+    // 2. Check JSON fallback status
+    diagnostics.storage.jsonFallback.path = fallbackJsonPath;
+    try {
+      diagnostics.storage.jsonFallback.exists = fs.existsSync(fallbackJsonPath);
+      if (diagnostics.storage.jsonFallback.exists) {
+        // Check if writable
+        try {
+          const testPath = fallbackJsonPath + '.test';
+          fs.writeFileSync(testPath, 'test');
+          fs.unlinkSync(testPath);
+          diagnostics.storage.jsonFallback.writable = true;
+          diagnostics.storage.jsonFallback.status = 'ok';
+        } catch {
+          diagnostics.storage.jsonFallback.writable = false;
+          diagnostics.storage.jsonFallback.status = 'read-only';
+        }
+      } else {
+        // Try to create directory and file
+        try {
+          const dir = path.dirname(fallbackJsonPath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(fallbackJsonPath, '{}');
+          fs.unlinkSync(fallbackJsonPath);
+          diagnostics.storage.jsonFallback.writable = true;
+          diagnostics.storage.jsonFallback.status = 'creatable';
+        } catch (e: any) {
+          diagnostics.storage.jsonFallback.writable = false;
+          diagnostics.storage.jsonFallback.status = 'not-creatable';
+          diagnostics.storage.jsonFallback.error = e?.message || String(e);
+        }
+      }
+    } catch (jsonError: any) {
+      diagnostics.storage.jsonFallback.status = 'error';
+      diagnostics.storage.jsonFallback.error = jsonError?.message || String(jsonError);
+    }
+    
+    // 3. List all stored config keys
+    const configKeys = ['ihm-config', 'db-config', 'admin-config', 'general-config'];
+    for (const key of configKeys) {
+      const keyInfo: Record<string, any> = { inSqlite: false, inJson: false, value: null };
+      
+      // Check sqlite
+      try {
+        const sqliteVal = await configService.getSetting(key);
+        if (sqliteVal !== null && sqliteVal !== undefined) {
+          keyInfo.inSqlite = true;
+          keyInfo.sqliteValue = typeof sqliteVal === 'string' && sqliteVal.length > 100 
+            ? sqliteVal.substring(0, 100) + '...' 
+            : sqliteVal;
+        }
+      } catch {}
+      
+      // Check JSON fallback
+      try {
+        if (fs.existsSync(fallbackJsonPath)) {
+          const jsonData = JSON.parse(fs.readFileSync(fallbackJsonPath, 'utf8'));
+          if (jsonData && jsonData[key] !== undefined) {
+            keyInfo.inJson = true;
+            keyInfo.jsonValue = typeof jsonData[key] === 'string' && String(jsonData[key]).length > 100 
+              ? String(jsonData[key]).substring(0, 100) + '...' 
+              : jsonData[key];
+          }
+        }
+      } catch {}
+      
+      diagnostics.keys[key] = keyInfo;
+    }
+    
+    return res.json(diagnostics);
+  } catch (e: any) {
+    console.error('[config-diagnostics] error:', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
   }
 });
 
@@ -3450,223 +4115,11 @@ app.post('/api/config/:key', async (req, res) => {
     let outParsed: any = toStore;
     try {
       outParsed = JSON.parse(toStore);
-    } catch { /* ignore */ }
-    try { wsbridge.sendEvent('config-changed', { keys: [rawKey], value: outParsed }); } catch (ee) {}
+    } catch { /* ignore */ } 
     return res.json({ success: true, key: rawKey, value: outParsed });
   } catch (e) {
     console.error('[config/:key POST] error', e);
     return res.status(500).json({ error: 'internal' });
-  }
-});
-
-app.get("/api/config/:key", async (req, res) => {
-  try {
-    const key = req.params.key;
-    if (!key) {
-      return res.status(400).json({ error: "Key parameter is required" });
-    }
-    const raw = await configService.getSetting(key);
-
-    // Known defaults for frontend topics
-    const knownDefaults: Record<string, any> = {
-      "admin-config": "",
-      "db-config": "",
-      "general-config": "",
-      "ihm-config": {
-        nomeCliente: "",
-        ip: String(getRuntimeConfig("ihm_ip") ?? process.env.IHM_IP ?? ""),
-        user: "",
-        password: "",
-        localCSV: "",
-        metodoCSV: "",
-        habilitarCSV: false,
-        serverDB: "",
-        database: "",
-        userDB: "",
-        passwordDB: "",
-        mySqlDir: "",
-        dumpDir: "",
-        batchDumpDir: "",
-      },
-      produtosInfo: {},
-    };
-
-    if (raw === null) {
-      // Return the known default structure if available
-      if (knownDefaults[key] !== undefined)
-        return res.json({ key, value: knownDefaults[key] });
-      return res.json({ key, value: {} });
-    }
-
-    // Parse/normalize the stored value similarly to the bulk endpoint
-    let out: any = raw;
-    if (typeof raw === "string") {
-      try {
-        out = JSON.parse(raw);
-      } catch (e) {
-        try {
-          const unescaped = raw.replace(/\\"/g, '"');
-          out = JSON.parse(unescaped);
-        } catch (e2) {
-          try {
-            // eslint-disable-next-line no-eval
-            out = eval("(" + raw + ")");
-          } catch (e3) {
-            out = raw;
-          }
-        }
-      }
-    }
-
-    // Reconstruct numeric-index char map if appropriate
-    if (out && typeof out === "object" && !Array.isArray(out)) {
-      const numericKeys = Object.keys(out).filter((x) => /^\d+$/.test(x));
-      if (
-        numericKeys.length > 0 &&
-        numericKeys.length === Object.keys(out).length
-      ) {
-        const chars: string[] = [];
-        numericKeys
-          .map((n) => Number(n))
-          .sort((a, b) => a - b)
-          .forEach((i) => {
-            const v = out[String(i)];
-            if (typeof v === "string") chars.push(v);
-          });
-        if (chars.length > 0) {
-          const joined = chars.join("");
-          try {
-            out = JSON.parse(joined);
-          } catch {
-            out = joined;
-          }
-        }
-      }
-    }
-
-    // If the client asked for only input fields (e.g. ?inputs=true), filter
-    // the returned object to only the input-relevant keys for known topics.
-    const onlyInputs = String(req.query?.inputs || "").toLowerCase() === "true";
-    if (onlyInputs && out && typeof out === "object" && !Array.isArray(out)) {
-      const inputsMap: Record<string, string[]> = {
-        "ihm-config": ["ip", "user", "password"],
-        "general-config": [
-          "nomeCliente",
-          "localCSV",
-          "metodoCSV",
-          "habilitarCSV",
-          "serverDB",
-          "database",
-          "userDB",
-          "passwordDB",
-          "mySqlDir",
-          "dumpDir",
-          "batchDumpDir",
-        ],
-        "admin-config": [],
-        "db-config": [],
-        produtosInfo: [],
-      };
-
-      if (Object.prototype.hasOwnProperty.call(inputsMap, key)) {
-        if (key === "produtosInfo") {
-          // For produtosInfo return only nome and unidade per column
-          const filtered: Record<string, any> = {};
-          for (const col of Object.keys(out)) {
-            const item = out[col] || {};
-            filtered[col] = {
-              nome: item.nome ?? "",
-              unidade: item.unidade ?? "",
-            };
-          }
-          out = filtered;
-        } else {
-          const fields = inputsMap[key];
-          const filtered: Record<string, any> = {};
-          for (const f of fields) {
-            // prefer value in parsed object, otherwise fallback to knownDefaults if present
-            filtered[f] =
-              out[f] !== undefined
-                ? out[f]
-                : knownDefaults[key] && knownDefaults[key][f] !== undefined
-                  ? knownDefaults[key][f]
-                  : "";
-          }
-          out = filtered;
-        }
-      }
-    }
-
-    // If the client requested the IHM config while working in the Amendoim module,
-    // prefer to return an IHM object derived from the current amendoim-config so
-    // the frontend can show the Amendoim-specific options and the collector uses them.
-    const wantsAmendoimModule = String(req.query?.module || "").toLowerCase() === "amendoim" ||
-      String(req.query?.userType || "").toLowerCase() === "amendoim" ||
-      String((req.headers || {})["x-module"] || "").toLowerCase() === "amendoim";
-
-    if (key === 'ihm-config' && wantsAmendoimModule) {
-      try {
-        // Build a base IHM config from the parsed value or known defaults
-        const baseIhm = (out && typeof out === 'object') ? { ...(knownDefaults['ihm-config'] || {}), ...out } : { ...(knownDefaults['ihm-config'] || {}) };
-
-        // Read amendoim-config and copy secondary IHM credentials if provided
-        try {
-          const amCfg = (await Promise.resolve().then(() => require('./services/AmendoimConfigService')).then(m => m.AmendoimConfigService.getConfig()));
-
-          // Copy secondary IHM creds if provided in amendoim-config
-          if (amCfg.duasIHMs && amCfg.ihm2) {
-            baseIhm.ip2 = amCfg.ihm2.ip || baseIhm.ip2;
-            baseIhm.user2 = amCfg.ihm2.user || baseIhm.user2;
-            baseIhm.password2 = amCfg.ihm2.password || baseIhm.password2;
-          }
-
-          // Ensure paths are present
-          if (amCfg.caminhoRemoto) baseIhm.localCSVPath = amCfg.caminhoRemoto;
-          if (amCfg.ihm2 && amCfg.ihm2.caminhoRemoto) baseIhm.localCSVPath2 = amCfg.ihm2.caminhoRemoto;
-
-        } catch (e) {
-          // ignore mapping failures and fall back to parsed out
-        }
-
-        out = baseIhm;
-      } catch (e) {
-        // ignore and continue to normal behavior
-      }
-    }
-
-    // If known default exists and parsed out is empty, return default
-    if (
-      (out === null ||
-        out === "" ||
-        (typeof out === "object" && Object.keys(out).length === 0)) &&
-      knownDefaults[key] !== undefined
-    ) {
-      return res.json({ key, value: knownDefaults[key] });
-    }
-
-    // Do not expose DB password over GET APIs; instead return a flag 'passwordSet'
-    if (key === 'db-config') {
-      try {
-        const saved = await configService.getSetting('db-config');
-        let savedObj: any = null;
-        if (saved) {
-          try { savedObj = JSON.parse(saved); } catch { savedObj = null; }
-        }
-        const hasPassword = !!(savedObj && (savedObj.passwordDB || savedObj.password));
-        if (out && typeof out === 'object') {
-          out.passwordSet = hasPassword;
-          if (out.passwordDB !== undefined) out.passwordDB = '';
-          if (out.password !== undefined) out.password = '';
-        }
-      } catch (e) {
-        // ignore errors here
-      }
-    }
-
-    return res.json({ key, value: out });
-  } catch (e) {
-    console.error("Failed to get setting", e);
-    res.status(500).json({ error: "internal" });
   }
 });
 
@@ -3703,7 +4156,6 @@ app.post("/api/config", async (req, res) => {
 // Provide chart-oriented data for frontend dashboards
 app.get("/api/chartdata", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     // Optional query params: limit, dateStart, dateEnd
@@ -3816,7 +4268,6 @@ app.get("/api/chartdata", async (req, res) => {
 // Endpoint especializado: Agregação por Fórmulas
 app.get("/api/chartdata/formulas", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -3953,7 +4404,6 @@ app.get("/api/chartdata/formulas", async (req, res) => {
 // Endpoint especializado: Agregação por Produtos
 app.get("/api/chartdata/produtos", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4088,7 +4538,6 @@ app.get("/api/chartdata/produtos", async (req, res) => {
 // Endpoint especializado: Agregação por Horário
 app.get("/api/chartdata/horarios", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4312,7 +4761,6 @@ app.get('/api/about/info', async (req, res) => {
 // Endpoint especializado: Agregação por Dia da Semana
 app.get("/api/chartdata/diasSemana", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4474,7 +4922,6 @@ app.get("/api/chartdata/diasSemana", async (req, res) => {
 // Endpoint especializado: Estatísticas Gerais
 app.get("/api/chartdata/stats", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { formula, dataInicio, dataFim, codigo, numero } = req.query;
@@ -4586,7 +5033,6 @@ app.get("/api/chartdata/stats", async (req, res) => {
 // Endpoint especializado: Dados de Semana Específica
 app.get("/api/chartdata/semana", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { weekStart, formula, codigo, numero } = req.query;
@@ -4787,7 +5233,6 @@ app.get("/api/chartdata/semana", async (req, res) => {
 // POST: compute multiple weeks in one call
 app.post("/api/chartdata/semana/bulk", async (req, res) => {
   try {
-    await dbService.init();
     const repo = AppDataSource.getRepository(Relatorio);
 
     const { weekStarts, formula, codigo, numero } = req.body || {};
@@ -5446,8 +5891,6 @@ app.get('/api/amendoim/metricas/rendimento', async (req, res) => {
 // GET /api/amendoim/analise - Obter dados pré-processados para gráficos de análise
 app.get('/api/amendoim/analise', async (req, res) => {
   try {
-    await ensureDatabaseConnection();
-
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
 
@@ -5684,8 +6127,6 @@ app.delete('/api/amendoim/collector/cache/:fileName', async (req, res) => {
 // GET /api/amendoim/exportExcel - Exportar dados de amendoim para Excel
 app.get('/api/amendoim/exportExcel', async (req, res) => {
   try {
-    await dbService.init();
-
     // Filtros
     const tipo = req.query.tipo ? String(req.query.tipo) : undefined;
     const codigoProduto = req.query.codigoProduto ? String(req.query.codigoProduto) : undefined;
@@ -5911,8 +6352,6 @@ app.get('/api/amendoim/exportExcel', async (req, res) => {
 // POST /api/amendoim/exportExcel - Exportar com filtros no body
 app.post('/api/amendoim/exportExcel', async (req, res) => {
   try {
-    await dbService.init();
-
     // Filtros do body
     const tipo = req.body.tipo || undefined;
     const codigoProduto = req.body.codigoProduto || undefined;
@@ -6209,11 +6648,27 @@ async function validateRuntimeDbConfig() {
 
 // main startup
 (async () => {
+  const startupTime = Date.now();
+  console.log('[Startup] 🚀 Iniciando servidor...');
+  
+  // Initialize cache service first (where runtime configs are stored)
+  try {
+    console.log('[Startup] Inicializando cache sqlite...');
+    await cacheService.init();
+    console.log('[Startup] ✅ Cache sqlite inicializado');
+  } catch (e) {
+    console.error('[Startup] ❌ Falha ao inicializar cache sqlite:', e);
+    throw e;
+  }
+  
   // load config file first, so DB init can use it
   await validateRuntimeDbConfig();
+  
   try {
-    await ensureDatabaseConnection();
-
+    // 🔧 Inicializar banco de dados com retry
+    console.log('[Startup] Conectando ao banco de dados...');
+    await ensureDbReady();
+    
     // 🔧 Garantir que o usuário admin padrão existe
     await ensureDefaultAdminUser();
 
@@ -6251,7 +6706,31 @@ async function validateRuntimeDbConfig() {
     );
   }
 
-  app.listen(HTTP_PORT, () =>
-    console.log(`[Server] API server running on port ${HTTP_PORT}`)
-  );
+  // ========== MIDDLEWARE GLOBAL DE TRATAMENTO DE ERROS ==========
+  // Captura qualquer erro não tratado nas rotas
+  app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    logError('ExpressError', err);
+    
+    // Responder ao cliente sem crashar
+    try {
+      if (!res.headersSent) {
+        res.status(500).json({
+          ok: false,
+          error: 'Erro interno do servidor',
+          message: err?.message || 'Erro desconhecido',
+          // Em desenvolvimento, incluir stack
+          ...(process.env.NODE_ENV !== 'production' && { stack: err?.stack }),
+        });
+      }
+    } catch (e) {
+      console.error('[ErrorHandler] Falha ao enviar resposta de erro:', e);
+    }
+  });
+
+  app.listen(HTTP_PORT, () => {
+    const duration = Date.now() - startupTime;
+    console.log(`[Server] ✅ API server running on port ${HTTP_PORT} (startup: ${duration}ms)`);
+  });
 })();
+
+

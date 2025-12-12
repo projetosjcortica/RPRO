@@ -6,8 +6,13 @@ import './index.css'
 import { RuntimeConfigProvider } from './hooks/useRuntimeConfig';
 import { AuthProvider } from './hooks/useAuth';
 import { GlobalConnectionProvider } from './hooks/useGlobalConnection';
+import { NotificationProvider } from './hooks/useNotifications';
 import { Processador, getProcessador, setProcessador } from './Processador' // Ajuste o caminho se necessário
 import { HashRouter } from 'react-router-dom' // Se estiver usando rotas
+import { activityTracker } from './lib/activityTracker'; // Sistema de rastreamento
+
+// Inicializar tracker globalmente
+activityTracker.init();
 
 // Export for use in other components
 export { Processador, getProcessador, setProcessador };
@@ -65,11 +70,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <RuntimeConfigProvider>
       <AuthProvider>
-        <GlobalConnectionProvider>
-          <HashRouter> {/* Se estiver usando rotas */}
-            <App />
-          </HashRouter>
-        </GlobalConnectionProvider>
+        <NotificationProvider>
+          <GlobalConnectionProvider>
+            <HashRouter> {/* Se estiver usando rotas */}
+              <App />
+            </HashRouter>
+          </GlobalConnectionProvider>
+        </NotificationProvider>
       </AuthProvider>
     </RuntimeConfigProvider>
   </React.StrictMode>,

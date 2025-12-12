@@ -31,7 +31,6 @@ export default function SettingsPopover({
   profileDialogOpen,
   setProfileDialogOpen,
   user,
-  styles,
 }: Props) {
   return (
     <div>

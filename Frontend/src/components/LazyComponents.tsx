@@ -1,17 +1,17 @@
-import React, { Suspense, lazy } from 'react';
+// import React, { Suspense, lazy } from 'react';
 
-// OTIMIZAÇÃO: Lazy loading de componentes pesados
-// Reduz o bundle inicial e melhora o tempo de carregamento
+// // OTIMIZAÇÃO: Lazy loading de componentes pesados
+// // Reduz o bundle inicial e melhora o tempo de carregamento
 
-// Componentes PDF (grandes e raramente usados)
-export const Pdf = lazy(() => import('./Pdf'));
-export const CustomPdf = lazy(() => import('./CustomPdf'));
+// // Componentes PDF (grandes e raramente usados)
+// export const Pdf = lazy(() => import('./Pdf'));
+// export const CustomPdf = lazy(() => import('./CustomPdf'));
 
-// Componente de relatório (grande)
-export const Report = lazy(() => import('./report'));
+// // Componente de relatório (grande)
+// export const Report = lazy(() => import('./report'));
 
-// Componente de tabela (pode ser grande com muitos dados)
-export const TableComponent = lazy(() => import('./TableComponent'));
+// // Componente de tabela (pode ser grande com muitos dados)
+// export const TableComponent = lazy(() => import('./TableComponent'));
 
 // Componente de loading para Suspense
 export const LoadingFallback: React.FC<{ message?: string }> = ({ 

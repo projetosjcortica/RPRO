@@ -20,6 +20,9 @@ import {
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
 import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
+import { NotificationBell } from "./components/NotificationBell";
+import { useNotify } from "./hooks/useNotifications";
+import { trackAction } from "./lib/activityTracker";
 
 interface AmendoimRecord {
   id: number;
@@ -145,6 +148,7 @@ interface FiltrosAmendoim {
 
 export default function Amendoim({ proprietario }: { proprietario?: string } = {}) {
   const { user } = useAuth();
+  const notify = useNotify();
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const [ihmConfig, setIhmConfig] = useState<{ ip: string; user: string; password: string } | null>(null);
   const [registros, setRegistros] = useState<AmendoimRecord[]>([]);
@@ -578,6 +582,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         await fetchRegistros();
         await fetchEstatisticas();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch(e){}
+        notify.info('Coletor parado', 'O coletor de amendoim foi interrompido', 'amendoim');
+        trackAction('Amendoim: Coletor parado');
   } else {
         // Verificar se há erros de validação antes de iniciar
         if (validationErrors.length > 0) {
@@ -585,6 +591,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
             'collector-validation',
             'Configure o sistema antes de iniciar a coleta'
           );
+          notify.warning('Configuração necessária', 'Configure o sistema antes de iniciar a coleta', 'amendoim');
           setShowIhmModal(true);
           setCollectorLoading(false);
           return;
@@ -603,9 +610,12 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         await fetchRegistros();
         await fetchEstatisticas();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor iniciado'); } catch(e){}
+        notify.success('Coletor iniciado', 'O coletor de amendoim está rodando', 'amendoim');
+        trackAction('Amendoim: Coletor iniciado');
       }
     } catch (error: any) {
       console.error("Erro ao controlar collector:", error);
+      notify.error('Erro no coletor', error.message || 'Erro ao controlar coletor', 'amendoim');
     } finally {
       setCollectorLoading(false);
     }
@@ -618,6 +628,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
     setUploading(true);
     setError(null);
+    trackAction('Amendoim: Upload de arquivo', file.name);
 
     try {
       const processador = getProcessador();
@@ -634,6 +645,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       } catch (e) {
         console.error('Toast error:', e);
       }
+      notify.success('Upload concluído', mensagemSucesso, 'amendoim');
 
       // Recarregar registros após upload bem-sucedido
       if (data.salvos > 0) {
@@ -648,6 +660,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       } catch (e) {
         console.error('Toast error:', e);
       }
+      notify.error('Erro no upload', mensagemErro, 'amendoim');
       setError(mensagemErro);
     } finally {
       setUploading(false);
@@ -684,9 +697,9 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   
 
   return (
-    <div className="flex flex-col gap-5 w-full h-full justify-start">
+    <div className="flex flex-col w-full h-full justify-evenly">
       {/* Header */}
-      <div className=" flex flex-row justify-between mt-4 w-full">
+      <div className=" flex flex-row justify-between w-full h-1/21 items-center">
         <div className="flex flex-row items-end gap-1">
           {/* Resetar colunas: posição alinhada com o relatório (ração) */}
           <div>
@@ -705,6 +718,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
               onAplicarFiltros={handleAplicarFiltros} 
               tipo={viewMode}
             /> 
+            <NotificationBell />
             {/* Collector toggle (mesma UI do Report) */}
             <Button
               onClick={handleCollectorToggle}
@@ -749,12 +763,12 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         </div>
       )}
 
-      <div className="flex flex-row gap-2 justify-start w-full">
+      <div className="flex flex-row h-18/21 gap-2 justify-start w-full">
           {/* Conteúdo principal */}
-          <div className="flex-1 flex flex-col gap-1 items-start justify-start h-fit w-[68px]">
+          <div className="flex-1 flex flex-col gap-1 items-start justify-start  w-[68px]">
 
           {/* Table */}
-          <div className="flex w-full h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] overflow-hidden shadow-xl rounded flex border border-gray-300">
+          <div className="flex w-full h-full overflow-hidden shadow-xl rounded flex border border-gray-300">
         {loading && registros.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[54vh] w-full text-center">
             <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
@@ -798,78 +812,11 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           </div>
           )}
           </div>
-
-          {/* Pagination */}
-          <div className="flex flex-row items-center justify-end mt-2">
-            <Pagination className="flex flex-row justify-end">
-              <PaginationContent>
-                <PaginationItem>
-                  <button
-                    onClick={() => {
-                      if (page !== 1) {
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        setPage(Math.max(1, page - 1));
-                      }
-                    }}
-                    disabled={page === 1 || loading}
-                    className="p-1 active:bg-red-500 transition-colors rounded"
-                    title="Página anterior"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                </PaginationItem>
-
-                {pages.map((p) => {
-                  const isActive = p === page;
-                  return (
-                    <PaginationItem key={p}>
-                      <button
-                        onClick={() => {
-                          if (p !== page) {
-                            window.scrollTo({ top: 0, behavior: "smooth" });
-                            setPage(p);
-                          }
-                        }}
-                        aria-current={isActive ? "page" : undefined}
-                        disabled={loading && p !== page}
-                        className={cn(
-                          buttonVariants({ variant: "default" }),
-                          isActive
-                            ? "bg-red-600 text-white max-w-10"
-                            : loading && p !== page
-                              ? "bg-gray-200 text-gray-500 max-w-10 cursor-not-allowed"
-                              : "bg-gray-300 text-black  max-w-10 hover:bg-gray-400 transition-colors cursor-pointer"
-                        )}
-                      >
-                        {p}
-                      </button>
-                    </PaginationItem>
-                  );
-                })}
-
-                <PaginationItem>
-                  <button
-                    onClick={() => {
-                      if (page !== totalPages) {
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                        setPage(Math.min(page + 1, totalPages));
-                      }
-                    }}
-                    disabled={page === totalPages || loading}
-                    className="p-1 active:bg-red-500 transition-colors rounded"
-                    title="Próxima página"
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </button>
-                </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
         </div>
 
       {/* Side Info com drawer de gráficos */}
       <div
-        className="relative w-87 h-[70vh] 2xl:h-[82vh] 3xl:h-[86vh] flex flex-col shadow-xl rounded border border-gray-300 flex-shrink-0"
+        className="relative w-87 h-full flex flex-col shadow-xl rounded border border-gray-300 flex-shrink-0"
         style={{ zIndex: 10 }}
       >
       <div className="flex flex-col p-2 gap-2 justify-center items-center flex-1 overflow-hidden">
@@ -1150,9 +1097,18 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           {(() => {
             const comentariosComId = comentarios.map((c, idx) => ({ id: String(idx), texto: c.texto, data: c.data || new Date().toLocaleString('pt-BR') }));
 
+            const pdfFileName = (() => {
+              const di = filtrosAtivos?.dataInicio;
+              const df = filtrosAtivos?.dataFim;
+              if (di && df) return `relatorio_${di}_${df}`;
+              if (di) return `relatorio_${di}`;
+              if (df) return `relatorio_ate_${df}`;
+              return `relatorio_${formatDateFn(new Date(), 'yyyy-MM-dd')}`;
+            })();
+
             return (
-              <AmendoimExport
-                filtros={{ ...filtrosAtivos, ...(viewMode !== 'comparativo' ? { tipo: viewMode } : {}) }}
+                <AmendoimExport
+                  filtros={{ ...filtrosAtivos, ...(viewMode !== 'comparativo' ? { tipo: viewMode } : {}) }}
                 comentarios={comentariosComId}
                 onAddComment={(texto) => setComentarios((s) => [...s, { texto, data: new Date().toLocaleString('pt-BR') }])}
                 onRemoveComment={(id) => {
@@ -1162,6 +1118,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
                 logoUrl={logoUrl}
                 proprietario={proprietario}
                 onPdfModalOpenChange={setIsPdfModalOpen}
+                pdfFileName={pdfFileName}
               />
             );
           })()}
@@ -1183,6 +1140,71 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           }
         }}
       />
+          <div className="flex flex-row h-1/21 items-center justify-end ">
+            <Pagination className="flex flex-row justify-start">
+              <PaginationContent>
+                <PaginationItem>
+                  <button
+                    onClick={() => {
+                      if (page !== 1) {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                        setPage(Math.max(1, page - 1));
+                      }
+                    }}
+                    disabled={page === 1 || loading}
+                    className="p-1 active:bg-red-500 transition-colors rounded"
+                    title="Página anterior"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                </PaginationItem>
+
+                {pages.map((p) => {
+                  const isActive = p === page;
+                  return (
+                    <PaginationItem key={p}>
+                      <button
+                        onClick={() => {
+                          if (p !== page) {
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                            setPage(p);
+                          }
+                        }}
+                        aria-current={isActive ? "page" : undefined}
+                        disabled={loading && p !== page}
+                        className={cn(
+                          buttonVariants({ variant: "default" }),
+                          isActive
+                            ? "bg-red-600 text-white max-w-10"
+                            : loading && p !== page
+                              ? "bg-gray-200 text-gray-500 max-w-10 cursor-not-allowed"
+                              : "bg-gray-300 text-black  max-w-10 hover:bg-gray-400 transition-colors cursor-pointer"
+                        )}
+                      >
+                        {p}
+                      </button>
+                    </PaginationItem>
+                  );
+                })}
+
+                <PaginationItem>
+                  <button
+                    onClick={() => {
+                      if (page !== totalPages) {
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                        setPage(Math.min(page + 1, totalPages));
+                      }
+                    }}
+                    disabled={page === totalPages || loading}
+                    className="p-1 active:bg-red-500 transition-colors rounded"
+                    title="Próxima página"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
     </div>
   );
 }

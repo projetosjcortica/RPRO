@@ -21,6 +21,7 @@ type ChartDatum = {
 };
 
 import { DASHBOARD_COLORS as COLORS } from "../lib/colors";
+// import { he } from "date-fns/locale";
 
 // Intentionally do NOT cache chart data in memory to ensure charts always show
 // the most up-to-date production numbers. The paginate endpoint still uses
@@ -424,27 +425,29 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
       {!compact && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
-            <div className="text-xs text-gray-500">Total</div>
-            <div className="text-lg font-bold text-red-600">
+            <div className="text-xs 3xl:text-lg text-gray-500">Total</div>
+            <div className=" text-sm  3xl:text-xl font-bold text-red-600">
               {(stats?.total ?? data.reduce((s, d) => s + d.value, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
             </div>
-            <div className="text-xs text-gray-500">{displayUnit}</div>
+            <div className="text-xs 3xl:text-lg text-gray-500">{displayUnit}</div>
           </div>
         </div>
       )}
 
       <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
+        <PieChart >
+          <Pie  
             data={data}
             cx="50%"
             cy="50%"
-            innerRadius={compact ? 50 : 70}
-            outerRadius={compact ? 80 : 110}
+            // preciso que ele aumente ou diminua o tamanho do gráfico mediante a responsividade]
+            innerRadius={compact?"40%":"50%"} 
+            outerRadius={compact?"70%":"80%"} 
             dataKey="value"
             labelLine={false}
             onMouseLeave={handleMouseLeave}
             isAnimationActive={false}
+
           >
             {data.map((d, index) => {
               const isHighlighted = !!highlightName && d.name === highlightName;
@@ -600,11 +603,11 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
   const displayUnit = unit || "kg";
 
   return (
-    <div className="3xl:h-100 h-54 flex flex-col relative">
+    <div className="h-[31dvh] flex flex-col relative">
       <div className="text-gray-700 font-semibold z-10">
         {displayTitle}
       </div>
-      <ResponsiveContainer  width="100%" height="87%">
+      <ResponsiveContainer  width="100%" height="100%">
         <BarChart data={data} layout="horizontal" margin={{ left: 20, top: 35 }}>
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
@@ -683,7 +686,7 @@ export const WeeklyChartWidget = React.memo(({ rows, weekStart }: { rows: Entry[
   }, [rows, currentWeekStart]);
 
   return (
-    <div className="3xl:h-95 h-54 flex flex-col relative">
+    <div className="h-[90%] flex flex-col relative">
       <div className=" text-gray-700 font-semibold z-10">
         Produção (kg)
       </div>
