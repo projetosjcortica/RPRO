@@ -4,7 +4,7 @@ import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import { Label } from './components/ui/label';
 import { Input } from './components/ui/input';
 import { Button } from './components/ui/button';
-import { toast } from 'react-toastify';
+import { toast } from './lib/toastWrapper';
 import { Loader2 } from 'lucide-react';
 
 export default function DbConfig() {

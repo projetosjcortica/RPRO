@@ -608,7 +608,7 @@ export const BarChartWidget = React.memo(({ chartType = "formulas", config, titl
         {displayTitle}
       </div>
       <ResponsiveContainer  width="100%" height="100%">
-        <BarChart data={data} layout="horizontal" margin={{ left: 20, top: 35 }}>
+        <BarChart data={data} layout="horizontal" margin={{ left: 20, top: 35 }} >
           <YAxis type="number" dataKey="value" />
           <XAxis type="category" dataKey="name" width={60} />
           <Tooltip content={<CustomTooltip stats={stats} unit={displayUnit} />} />

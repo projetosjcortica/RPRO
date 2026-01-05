@@ -3,7 +3,7 @@ import useAuth from "./hooks/useAuth";
 import { resolvePhotoUrl } from "./lib/photoUtils";
 import { Avatar, AvatarImage, AvatarFallback } from "./components/ui/avatar";
 import { Button } from "./components/ui/button";
-import { toast } from 'react-toastify';
+import { toast } from './lib/toastWrapper';
 import { Input } from "./components/ui/input";
 import { Label } from "./components/ui/label"; 
 

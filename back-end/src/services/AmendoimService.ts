@@ -1,6 +1,7 @@
 import { Amendoim } from "../entities/Amendoim";
 import { parse } from "csv-parse/sync";
 import { AppDataSource } from "./dbService";
+import { log } from "./backendLogger";
 
 /**
  * Service para processar arquivos CSV de amendoim.
@@ -75,7 +76,17 @@ export class AmendoimService {
       });
 
       const repo = AppDataSource.getRepository(Amendoim);
-      const registrosParaSalvar: Amendoim[] = [];
+      // Usar objetos plain em vez de instâncias de Amendoim para evitar erro "entity id not set"
+      const registrosParaSalvar: Array<{
+        tipo: 'entrada' | 'saida';
+        dia: string;
+        hora: string;
+        codigoProduto: string;
+        codigoCaixa: string;
+        nomeProduto: string;
+        peso: number;
+        balanca?: string;
+      }> = [];
       // For forceSaveAll mode, also collect raw rows to persist in amendoim_raw
       const rawRows: any[] = [];
 
@@ -137,18 +148,8 @@ export class AmendoimService {
             // forceSaveAll: set peso zero quando inválido
           }
 
-          // Criar registro
-          const registro = new Amendoim();
-          
           // ⚡ DETERMINAR TIPO BASEADO NA BALANÇA
           const tipoRegistro = this.determinarTipoPorBalanca(balanca ? String(balanca).trim() : undefined);
-          registro.tipo = tipoRegistro;
-          
-          registro.dia = diaStr;
-          registro.hora = horaStr;
-          // MUDANÇA: codigoProduto agora vem da coluna 5 (antes era codigoCaixa)
-          registro.codigoProduto = codigoProduto ? this.fixEncoding(String(codigoProduto).trim()) : ""; 
-          registro.codigoCaixa = "";
           
           // Log de debug: formato de data sendo salvo
           if (i === 0) {
@@ -157,9 +158,18 @@ export class AmendoimService {
           
           // Fallback para nome do produto vazio — normalizar texto recebido da IHM
           const nomeProcessado = this.fixEncoding(nomeProduto ? String(nomeProduto).trim() : "");
-          registro.nomeProduto = nomeProcessado || "Sem nome";
-          registro.peso = Number(peso) || 0;
-          registro.balanca = balanca ? this.fixEncoding(String(balanca).trim()) : undefined;
+
+          // Criar registro como objeto PLAIN (não usar new Amendoim() para evitar erro "entity id not set")
+          const registro = {
+            tipo: tipoRegistro as 'entrada' | 'saida',
+            dia: diaStr,
+            hora: horaStr,
+            codigoProduto: codigoProduto ? this.fixEncoding(String(codigoProduto).trim()) : "",
+            codigoCaixa: "",
+            nomeProduto: nomeProcessado || "Sem nome",
+            peso: Number(peso) || 0,
+            balanca: balanca ? this.fixEncoding(String(balanca).trim()) : undefined,
+          };
 
           registrosParaSalvar.push(registro);
 
@@ -178,6 +188,7 @@ export class AmendoimService {
             });
           }
         } catch (err: any) {
+          log.warn('AmendoimService', `Erro ao processar linha ${i + 1} do CSV`, { error: err.message, linha: i + 1 });
           erros.push(`Linha ${i + 1}: ${err.message}`);
         }
       }
@@ -186,13 +197,25 @@ export class AmendoimService {
       let duplicatasInternas = 0;
       let duplicatasDB = 0;
 
+      // Tipo para registros plain (sem id/createdAt)
+      type PlainAmendoim = {
+        tipo: 'entrada' | 'saida';
+        dia: string;
+        hora: string;
+        codigoProduto: string;
+        codigoCaixa: string;
+        nomeProduto: string;
+        peso: number;
+        balanca?: string;
+      };
+
       if (registrosParaSalvar.length > 0) {
         console.log(`[AmendoimService] 🛡️ Iniciando proteção anti-duplicatas para ${registrosParaSalvar.length} registros...`);
         
         // PROTEÇÃO NÍVEL 1: Verificação por hash único composto
         // Gera hash MD5 de: tipo+dia+hora+codigoProduto+peso
         const crypto = require('crypto');
-        const hashMap = new Map<string, Amendoim>();
+        const hashMap = new Map<string, PlainAmendoim>();
         
         for (const registro of registrosParaSalvar) {
           const hashKey = crypto
@@ -256,22 +279,17 @@ export class AmendoimService {
         // PROTEÇÃO NÍVEL 3: Save com tratamento de erro de constraint unique
         if (registrosNovos.length > 0) {
           try {
-            // Usar insert em massa com IGNORE para MySQL (evita ER_DUP_ENTRY)
-            // Isso gera um INSERT IGNORE ... que ignora chaves duplicadas e continua
-            const insertResult: any = await AppDataSource.createQueryBuilder()
-              .insert()
-              .into(Amendoim)
-              .values(registrosNovos)
-              .orIgnore() // Gera INSERT IGNORE em MySQL
-              .execute();
+            // Usar INSERT IGNORE com query raw para evitar problemas do TypeORM com entity id
+            const values = registrosNovos.map(r => 
+              `('${r.tipo}', '${r.dia}', '${r.hora}', '${(r.codigoProduto || '').replace(/'/g, "''")}', '${(r.codigoCaixa || '').replace(/'/g, "''")}', '${(r.nomeProduto || '').replace(/'/g, "''")}', ${r.peso}, ${r.balanca ? `'${r.balanca}'` : 'NULL'})`
+            ).join(',\n');
+            
+            const sql = `INSERT IGNORE INTO amendoim (tipo, dia, hora, codigoProduto, codigoCaixa, nomeProduto, peso, balanca) VALUES ${values}`;
+            
+            const insertResult = await AppDataSource.query(sql);
 
-            // Tentar inferir quantos foram realmente inseridos
-            const affected = (insertResult?.raw && (insertResult.raw.affectedRows ?? insertResult.raw.affectedRows === 0))
-              ? insertResult.raw.affectedRows
-              : (insertResult?.generatedMaps ? insertResult.generatedMaps.length : undefined);
-
-            if (typeof affected === 'number') salvos = affected;
-            else salvos = registrosNovos.length; // fallback conservador
+            // MySQL retorna affectedRows no resultado
+            salvos = insertResult?.affectedRows ?? registrosNovos.length;
 
             // Contar entradas/saidas com base nos registrosNovos (salvos pode incluir ignorados)
             entradasSalvas = registrosNovos.filter(r => r.tipo === 'entrada').length;
@@ -286,16 +304,11 @@ export class AmendoimService {
 
             for (const registro of registrosNovos) {
               try {
-                const singleResult: any = await AppDataSource.createQueryBuilder()
-                  .insert()
-                  .into(Amendoim)
-                  .values(registro)
-                  .orIgnore()
-                  .execute();
-
-                const singleAffected = (singleResult?.raw && (singleResult.raw.affectedRows ?? singleResult.raw.affectedRows === 0))
-                  ? singleResult.raw.affectedRows
-                  : (singleResult?.generatedMaps ? singleResult.generatedMaps.length : undefined);
+                // Usar SQL RAW para evitar problemas do TypeORM com entity id
+                const sql = `INSERT IGNORE INTO amendoim (tipo, dia, hora, codigoProduto, codigoCaixa, nomeProduto, peso, balanca) VALUES ('${registro.tipo}', '${registro.dia}', '${registro.hora}', '${(registro.codigoProduto || '').replace(/'/g, "''")}', '${(registro.codigoCaixa || '').replace(/'/g, "''")}', '${(registro.nomeProduto || '').replace(/'/g, "''")}', ${registro.peso}, ${registro.balanca ? `'${registro.balanca}'` : 'NULL'})`;
+                
+                const singleResult = await AppDataSource.query(sql);
+                const singleAffected = singleResult?.affectedRows ?? 0;
 
                 if (singleAffected === 1) {
                   salvos++;

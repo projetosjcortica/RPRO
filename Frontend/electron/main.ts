@@ -7,6 +7,9 @@ import {
 } from "electron";
 import * as path from "path";
 import Store from "electron-store";
+import { createTray, destroyTray, showTrayBalloon } from './trayManager';
+import { isAutoLaunchEnabled, enableAutoLaunch, disableAutoLaunch } from './autoLaunch';
+import { initAutoUpdater, registerUpdateIpcHandlers } from './autoUpdater';
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { fork, ChildProcess } from "child_process";
@@ -24,11 +27,25 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL
   : RENDERER_DIST;
 
 let win: BrowserWindow | null;
+let splashScreen: BrowserWindow | null = null;
 let lastScriptPath: string | null = null;
 // Map to track forked child processes by PID
 const children: Map<number, ChildProcess> = new Map();
 // Track spawned backend exe when packaged
 let spawnedBackend: ChildProcessWithoutNullStreams | null = null;
+
+// ========== SINGLE INSTANCE LOCK ==========
+// Garante que apenas uma instância do app está rodando
+const gotTheLock = app.requestSingleInstanceLock();
+
+// Flag para saber se deve iniciar minimizado (cold start)
+let startMinimized = false;
+
+// Verifica se foi iniciado com argumento --minimized (startup do Windows)
+if (process.argv.includes('--minimized') || process.argv.includes('--startup')) {
+  startMinimized = true;
+  console.log('[main] Starting minimized (cold cache mode)');
+}
 
 // Define the complete form data structure to match the frontend
 interface FormData {
@@ -108,6 +125,37 @@ ipcMain.handle("load-data", async (): Promise<FormData> => {
   }
 });
 
+// ========== AUTO-LAUNCH HANDLERS ==========
+// Verifica se o auto-launch está habilitado
+ipcMain.handle("get-auto-launch", async (): Promise<boolean> => {
+  return await isAutoLaunchEnabled();
+});
+
+// Habilita o auto-launch
+ipcMain.handle("enable-auto-launch", async (): Promise<boolean> => {
+  return await enableAutoLaunch();
+});
+
+// Desabilita o auto-launch
+ipcMain.handle("disable-auto-launch", async (): Promise<boolean> => {
+  return await disableAutoLaunch();
+});
+
+// Toggle do auto-launch
+ipcMain.handle("toggle-auto-launch", async (): Promise<{ enabled: boolean; success: boolean }> => {
+  const wasEnabled = await isAutoLaunchEnabled();
+  let success: boolean;
+  
+  if (wasEnabled) {
+    success = await disableAutoLaunch();
+  } else {
+    success = await enableAutoLaunch();
+  }
+  
+  const isEnabled = await isAutoLaunchEnabled();
+  return { enabled: isEnabled, success };
+});
+
 ipcMain.handle("select-folder", async () => {
   const result = await dialog.showOpenDialog(win!, {
     properties: ["openDirectory"],
@@ -185,16 +233,8 @@ ipcMain.handle(
 );
 
 // Helper function to resolve backend script path
-function getBackendScriptPath(): string {
-  // if (app.isPackaged) {
-  //   return path.join(process.resourcesPath, "backend", "dist", "index.js");
-  // } else {
-  //   const projectRoot = path.dirname(path.dirname(__dirname));
-  //   return path.join(projectRoot, "back-end", "dist", "index.js");
-  // }
-  // if (!app.isPackaged) {
-    return path.join("backend", "index.js")
-  // }
+function getBackendScriptPath(): string { 
+    return path.join("backend", "index.js") 
 }
 
 ipcMain.handle(
@@ -278,12 +318,16 @@ ipcMain.handle(
             `Child process ${child.pid} exited with code ${code} and signal ${signal}`
           );
           if (typeof child.pid === "number") children.delete(child.pid);
-          if (win && !win.isDestroyed()) {
-            win.webContents.send("child-exit", {
-              pid: child.pid,
-              code,
-              signal,
-            });
+          try {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send("child-exit", {
+                pid: child.pid,
+                code,
+                signal,
+              });
+            }
+          } catch (e) {
+            console.warn('[main] Error sending child-exit:', e);
           }
           clearTimeout(timeoutId);
           reject(new Error(`Child process exited with code ${code}`));
@@ -301,8 +345,12 @@ ipcMain.handle(
             // Already handled above
             return;
           }
-          if (win && !win.isDestroyed()) {
-            win.webContents.send("child-message", { pid: child.pid, msg });
+          try {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send("child-message", { pid: child.pid, msg });
+            }
+          } catch (e) {
+            console.warn('[main] Error sending child-message:', e);
           }
         });
       });
@@ -315,24 +363,82 @@ ipcMain.handle(
 
 // Monitor that periodically pings the backend and attempts to restart it when unresponsive
 let backendMonitorInterval: NodeJS.Timeout | null = null;
-function startBackendMonitor({ intervalMs = 15000 }: { intervalMs?: number } = {}) {
+let backendStartupGracePeriod = true; // durante inicialização, não reinicia
+let consecutiveFailures = 0;
+let restartAttempts = 0;
+const MAX_CONSECUTIVE_FAILURES = 2; // reduzido para reiniciar mais rápido
+const MAX_RESTART_ATTEMPTS = 10; // máximo de tentativas de restart
+
+function startBackendMonitor({ intervalMs = 10000, gracePeriodMs = 30000 }: { intervalMs?: number; gracePeriodMs?: number } = {}) {
   if (backendMonitorInterval) return; // already running
-  console.log(`[main] starting backend monitor (interval ${intervalMs}ms)`);
+  console.log(`[main] starting backend monitor (interval ${intervalMs}ms, grace period ${gracePeriodMs}ms)`);
+
+  // Durante o período de graça, não mata o backend mesmo se o ping falhar
+  backendStartupGracePeriod = true;
+  setTimeout(() => {
+    backendStartupGracePeriod = false;
+    console.log('[main.monitor] grace period ended, monitoring active');
+  }, gracePeriodMs);
 
   backendMonitorInterval = setInterval(async () => {
     try {
-      const res = await fetch("http://localhost:3000/api/ping");
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000); // reduzido para 3s
+      const res = await fetch("http://localhost:3000/api/ping", { signal: controller.signal });
+      clearTimeout(timeout);
       if (res && res.ok) {
-        // healthy
-        // console.log('[main.monitor] backend healthy');
+        // healthy - reset failure counter
+        consecutiveFailures = 0;
+        restartAttempts = 0; // reset restart attempts on success
         return;
       }
     } catch (e) {
-      console.warn('[main.monitor] backend ping failed');
+      consecutiveFailures++;
+      console.warn(`[main.monitor] backend ping failed (${consecutiveFailures}/${MAX_CONSECUTIVE_FAILURES})`);
     }
 
-    // If ping failed, attempt to restart backend using lastScriptPath/refork logic
-    console.warn('[main.monitor] backend appears down — attempting restart/refork');
+    // Durante o período de graça, apenas logamos mas não reiniciamos
+    if (backendStartupGracePeriod) {
+      console.log('[main.monitor] still in grace period, waiting for backend to start...');
+      return;
+    }
+
+    // Só reinicia após N falhas consecutivas
+    if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) {
+      return;
+    }
+
+    // Limitar tentativas de restart para evitar loops infinitos
+    if (restartAttempts >= MAX_RESTART_ATTEMPTS) {
+      console.error(`[main.monitor] Max restart attempts (${MAX_RESTART_ATTEMPTS}) reached - stopping monitor`);
+      try {
+        if (win && !win.isDestroyed()) {
+          win.webContents.send('backend-status', { 
+            status: 'failed', 
+            message: `Backend não conseguiu iniciar após ${MAX_RESTART_ATTEMPTS} tentativas. Reinicie a aplicação.` 
+          });
+        }
+      } catch (e) {}
+      return;
+    }
+
+    // If ping failed multiple times, attempt to restart backend using lastScriptPath/refork logic
+    restartAttempts++;
+    console.warn(`[main.monitor] backend appears down — attempting restart/refork (attempt ${restartAttempts}/${MAX_RESTART_ATTEMPTS})`);
+    consecutiveFailures = 0; // reset para evitar loops rápidos de restart
+    
+    // Notificar o frontend que o backend está sendo reiniciado
+    try {
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('backend-status', { 
+          status: 'restarting', 
+          message: `Reiniciando backend (tentativa ${restartAttempts}/${MAX_RESTART_ATTEMPTS})...` 
+        });
+      }
+    } catch (e) {
+      console.warn('[main.monitor] Error sending backend-status:', e);
+    }
+    
     try {
       // Kill any existing children that seem to be backend processes
       for (const [pid, child] of Array.from(children.entries())) {
@@ -346,6 +452,9 @@ function startBackendMonitor({ intervalMs = 15000 }: { intervalMs?: number } = {
       }
 
       if (lastScriptPath && fs.existsSync(lastScriptPath)) {
+        // Aguarda um pouco antes de reforkar para dar tempo do processo morrer
+        await new Promise(r => setTimeout(r, 1500));
+        
         const backendDir = path.dirname(lastScriptPath);
         const refork = fork(lastScriptPath, [], {
           stdio: ["pipe", "pipe", "ipc"],
@@ -357,13 +466,55 @@ function startBackendMonitor({ intervalMs = 15000 }: { intervalMs?: number } = {
         if (typeof newPid === 'number') {
           children.set(newPid, refork);
           console.log('[main.monitor] reforked backend PID', newPid);
-          if (win && !win.isDestroyed()) {
-            win.webContents.send('child-message', { pid: newPid, msg: { type: 'event', event: 'monitor-reforked' } });
+          
+          // Período de graça para o novo processo
+          backendStartupGracePeriod = true;
+          setTimeout(() => {
+            backendStartupGracePeriod = false;
+          }, 30000); // 30s para inicializar
+          
+          // Notificar o frontend que o backend foi reiniciado com sucesso
+          try {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send('backend-status', { 
+                status: 'restarted', 
+                message: 'Backend reiniciado com sucesso',
+                pid: newPid 
+              });
+              win.webContents.send('child-message', { pid: newPid, msg: { type: 'event', event: 'monitor-reforked' } });
+            }
+          } catch (e) {
+            console.warn('[main.monitor] Error sending backend-status:', e);
           }
+          
+          // Capturar erros do processo filho
+          refork.on('error', (err) => {
+            console.error('[backend:error]', err);
+            try {
+              if (win && !win.isDestroyed()) {
+                win.webContents.send('backend-status', { 
+                  status: 'error', 
+                  message: `Erro no backend: ${err.message}` 
+                });
+              }
+            } catch (e) {}
+          });
 
           // Wire up logging for the new child
           refork.on('message', (msg) => {
-            if (win && !win.isDestroyed()) win.webContents.send('child-message', { pid: newPid, msg });
+            try {
+              if (win && !win.isDestroyed()) win.webContents.send('child-message', { pid: newPid, msg });
+            } catch (e) {
+              console.warn('[main.monitor] Error sending child-message:', e);
+            }
+          });
+          
+          // Log stdout/stderr do backend
+          refork.stdout?.on('data', (data) => {
+            console.log('[backend]', data.toString().trim());
+          });
+          refork.stderr?.on('data', (data) => {
+            console.error('[backend:err]', data.toString().trim());
           });
         }
       } else {
@@ -413,8 +564,12 @@ ipcMain.handle(
       if (typeof pid === "number") {
         children.set(pid, child);
         child.on("message", (msg) => {
-          if (win && !win.isDestroyed())
-            win.webContents.send("child-message", { pid, msg });
+          try {
+            if (win && !win.isDestroyed())
+              win.webContents.send("child-message", { pid, msg });
+          } catch (e) {
+            console.warn('[collector] Error sending child-message:', e);
+          }
         });
       }
       return { ok: true, pid };
@@ -457,15 +612,19 @@ ipcMain.handle(
           const newPid = refork.pid;
           if (typeof newPid === "number") {
             children.set(newPid, refork);
-            if (win && !win.isDestroyed()) {
-              win.webContents.send("child-message", {
-                pid: newPid,
-                msg: {
-                  type: "event",
-                  event: "reforked",
-                  payload: { oldPid: pid, newPid },
-                },
-              });
+            try {
+              if (win && !win.isDestroyed()) {
+                win.webContents.send("child-message", {
+                  pid: newPid,
+                  msg: {
+                    type: "event",
+                    event: "reforked",
+                    payload: { oldPid: pid, newPid },
+                  },
+                });
+              }
+            } catch (e) {
+              console.warn('[main] Error sending reforked message:', e);
             }
             try {
               refork.send(msg);
@@ -510,6 +669,248 @@ ipcMain.handle(
   }
 );
 
+// ========== SPLASH SCREEN ==========
+function getLogoBase64(logoFileName: string): string {
+  try {
+    // Tentar múltiplos caminhos possíveis para as logos
+    const possiblePaths = [
+      // Caminhos para app empacotado
+      path.join(process.resourcesPath || '', 'dist', 'assets', logoFileName),
+      path.join(process.resourcesPath || '', 'app.asar', 'dist', 'assets', logoFileName),
+      // Caminhos para desenvolvimento
+      path.join(__dirname, '..', 'dist', 'assets', logoFileName),
+      path.join(__dirname, '..', 'src', 'public', logoFileName),
+      path.join(process.env.APP_ROOT || '', 'dist', 'assets', logoFileName),
+      path.join(process.env.APP_ROOT || '', 'src', 'public', logoFileName),
+      path.join(process.env.VITE_PUBLIC || '', logoFileName),
+    ];
+
+    // Se nome do arquivo não tem hash, tentar buscar com padrão
+    const baseName = logoFileName.replace(/\.[^.]+$/, '');
+    const extension = logoFileName.split('.').pop();
+    
+    for (const basePath of possiblePaths) {
+      // Tentar path exato primeiro
+      if (fs.existsSync(basePath)) {
+        const logoBuffer = fs.readFileSync(basePath);
+        console.log(`[splash] Logo found at: ${basePath}`);
+        return logoBuffer.toString('base64');
+      }
+      
+      // Tentar buscar arquivo com hash (ex: logo-abc123.png)
+      const dir = path.dirname(basePath);
+      if (fs.existsSync(dir)) {
+        try {
+          const files = fs.readdirSync(dir);
+          // Busca case-insensitive
+          const baseNameLower = baseName.toLowerCase();
+          const matchingFile = files.find(f => 
+            f.toLowerCase().startsWith(baseNameLower) && f.toLowerCase().endsWith(`.${extension}`)
+          );
+          if (matchingFile) {
+            const fullPath = path.join(dir, matchingFile);
+            const logoBuffer = fs.readFileSync(fullPath);
+            console.log(`[splash] Logo found with hash at: ${fullPath}`);
+            return logoBuffer.toString('base64');
+          }
+        } catch (e) {
+          // Diretório pode não ser legível
+        }
+      }
+    }
+    console.warn(`[splash] Logo not found in any of the paths for: ${logoFileName}`);
+  } catch (error) {
+    console.warn(`Could not load logo: ${logoFileName}`, error);
+  }
+  
+  // Fallback: retorna uma imagem SVG simples como placeholder
+  const isCortica = logoFileName.includes('logo.png');
+  const fallbackSvg = `<svg width="70" height="70" viewBox="0 0 70 70" xmlns="http://www.w3.org/2000/svg">
+    <rect width="70" height="70" rx="10" fill="${isCortica ? '#ffffff' : '#e74c3c'}"/>
+    <text x="35" y="40" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="${isCortica ? '#e74c3c' : '#ffffff'}" text-anchor="middle">${isCortica ? 'J' : 'C'}</text>
+  </svg>`;
+  return Buffer.from(fallbackSvg).toString('base64');
+}
+
+// ========== SPLASH SCREEN ==========
+function createSplashScreen() {
+  const logoCorticaBase64 = getLogoBase64('logo.png');
+  const logoCortezBase64 = getLogoBase64('logoCmono.png');
+  const appVersion = app.getVersion();
+
+  splashScreen = new BrowserWindow({
+    width: 620,
+    height: 420,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    transparent: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+    },
+  });
+
+  const splashHtml = `
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%;
+    height:100%;
+    overflow:hidden;
+  }
+  body {
+    display:flex;
+    flex-direction:column;
+    background:#ffffff;
+    font-family:'Segoe UI', sans-serif;
+    position:relative;
+  }
+
+  .main-content {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    flex:1;
+    padding:20px;
+  }
+
+  .logo-cortez {
+    width:250px;
+    max-height:150px;
+    object-fit:contain;
+    animation:fadeInScale 0.8s ease-out forwards;
+    filter:drop-shadow(0 4px 12px rgba(0,0,0,0.1));
+  }
+
+  .tagline {
+    font-size:12px;
+    color:#888;
+    letter-spacing:0.5px;
+    margin-top:10px;
+    animation:fadeIn 1s ease-out 0.3s both;
+  }
+
+  .loading-section {
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    margin-top:20px;
+    animation:fadeIn 1.2s ease-out 0.5s both;
+  }
+
+  .spinner {
+    width:28px;
+    height:28px;
+    border:3px solid #e8e8e8;
+    border-top:3px solid #d62828;
+    border-radius:50%;
+    animation:spin 0.9s linear infinite;
+  }
+
+  .status {
+    font-size:11px;
+    color:#aaa;
+    text-align:center;
+  }
+
+  .footer {
+    padding:15px 0 20px 0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:6px;
+    animation:fadeIn 1.4s ease-out 0.7s both;
+  }
+
+  .logo-cortica {
+    width:60px;
+    opacity:0.85;
+  }
+
+  .version {
+    font-size:10px;
+    color:#bbb;
+    letter-spacing:0.3px;
+  }
+
+  .bottom-accent {
+    position:absolute;
+    bottom:0;
+    left:0;
+    right:0;
+    height:5px;
+    background:linear-gradient(90deg,#aa1f1f,#d62828,#aa1f1f);
+  }
+
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+  @keyframes fadeInScale { 
+    from { opacity:0; transform:scale(0.95); } 
+    to { opacity:1; transform:scale(1); } 
+  }
+</style>
+</head>
+<body>
+
+  <div class="main-content">
+    <img class="logo-cortez" src="data:image/png;base64,${logoCortezBase64}" alt="Cortez">
+    <div class="tagline">Onde os dados servem ao seu controle.</div>
+    
+    <div class="loading-section">
+      <div class="spinner"></div>
+      <div class="status" id="status">Iniciando...</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <img class="logo-cortica" src="data:image/png;base64,${logoCorticaBase64}" alt="J.Cortiça">
+    <div class="version">v${appVersion}</div>
+  </div>
+
+  <div class="bottom-accent"></div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const msgs = [
+      'Iniciando...',
+      'Conectando ao banco de dados...',
+      'Carregando configurações...',
+      'Preparando interface...'
+    ];
+    let i = 0;
+    setInterval(() => {
+      i = (i + 1) % msgs.length;
+      statusEl.textContent = msgs[i];
+    }, 1500);
+  </script>
+
+</body>
+</html>
+`;
+
+
+  splashScreen.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHtml)}`);
+  splashScreen.center();
+}
+
+function closeSplashScreen() {
+  if (splashScreen && !splashScreen.isDestroyed()) {
+    try {
+      splashScreen.close();
+    } catch (e) {
+      console.warn('[splash] Error closing splash screen:', e);
+    }
+  }
+  splashScreen = null;
+}
+
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC!, "electron-vite.svg"),
@@ -525,6 +926,9 @@ function createWindow() {
 
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());
+    
+    // Inicializar auto-updater quando a janela estiver pronta
+    initAutoUpdater(win!);
   });
 
   if (VITE_DEV_SERVER_URL) {
@@ -587,7 +991,29 @@ async function tryForkBackend(): Promise<boolean> {
   }
 }
 
+// ========== SINGLE INSTANCE HANDLING ==========
+// Se não conseguiu o lock, outra instância já está rodando
+if (!gotTheLock) {
+  console.log('[main] Another instance is already running. Focusing existing window.');
+  app.quit();
+} else {
+  // Quando outra instância tenta abrir, foca na janela existente
+  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+    console.log('[main] Second instance detected, focusing existing window');
+    if (win) {
+      if (win.isMinimized()) {
+        win.restore();
+      }
+      win.show();
+      win.focus();
+    }
+  });
+}
+
 app.whenReady().then(() => {
+  // Registrar handlers do auto-updater
+  registerUpdateIpcHandlers();
+  
   (async () => {
     // If running packaged we will try to spawn the backend exe included in resources
     if (app.isPackaged) {
@@ -609,22 +1035,31 @@ app.whenReady().then(() => {
           spawnedBackend = null;
         });
         spawnedBackend.on("exit", (code, signal) => {
+          const exitedPid = spawnedBackend?.pid;
           console.log(
             `[main] spawned backend exited with code ${code} and signal ${signal}`
           );
           spawnedBackend = null;
-          if (win && !win.isDestroyed()) {
-            win.webContents.send("child-exit", { pid: spawnedBackend?.pid, code, signal });
+          try {
+            if (win && !win.isDestroyed()) {
+              win.webContents.send("child-exit", { pid: exitedPid, code, signal });
+            }
+          } catch (e) {
+            console.warn('[main] Error sending child-exit:', e);
           }
         });
         if (spawnedBackend.stdout) {
           spawnedBackend.stdout.on("data", (c) => {
             console.log("[spawned backend stdout]", c.toString());
-            if (win && !win.isDestroyed())
-              win.webContents.send("child-stdout", {
-                pid: spawnedBackend?.pid,
-                data: c.toString(),
-              });
+            try {
+              if (win && !win.isDestroyed())
+                win.webContents.send("child-stdout", {
+                  pid: spawnedBackend?.pid,
+                  data: c.toString(),
+                });
+            } catch (e) {
+              console.warn('[main] Error sending child-stdout:', e);
+            }
           });
           console.log("[main] spawned backend stdout attached");
         }
@@ -668,11 +1103,15 @@ app.whenReady().then(() => {
               }
               // forward messages to renderer
               child.on("message", (msg) => {
-                if (win && !win.isDestroyed())
-                  win.webContents.send("child-message", {
-                    pid: child.pid,
-                    msg,
-                  });
+                try {
+                  if (win && !win.isDestroyed())
+                    win.webContents.send("child-message", {
+                      pid: child.pid,
+                      msg,
+                    });
+                } catch (e) {
+                  console.warn('[main] Error sending child-message in dev:', e);
+                }
               });
             } catch (devErr) {
               console.warn(
@@ -702,16 +1141,109 @@ app.whenReady().then(() => {
         console.warn('[main] failed to start backend monitor', e);
       }
 
-      createWindow();
+      // ========== SYSTEM TRAY ==========
+      // Criar system tray para o app ficar na bandeja
+      createTray({
+        getMainWindow: () => win,
+        createMainWindow: () => {
+          if (!win || win.isDestroyed()) {
+            createWindow();
+          }
+        },
+        onQuit: () => {
+          // Cleanup antes de sair
+          closeSplashScreen();
+          stopBackendMonitor();
+        },
+      });
+
+      // Se iniciou minimizado (cold start), só prepara o backend e fica na bandeja
+      if (startMinimized) {
+        console.log('[main] Cold start mode - backend loading in background, app in tray');
+        showTrayBalloon('Cortez', 'Iniciando em segundo plano...');
+        
+        // Aguarda backend ficar pronto em background (sem splash)
+        const waitForBackend = async () => {
+          let retries = 0;
+          while (retries < 120) { // 2 minutos max
+            try {
+              const response = await fetch('http://localhost:3000/api/health');
+              if (response.ok) {
+                console.log('[main] Backend ready (cold start)');
+                showTrayBalloon('Cortez', 'Pronto! Clique no ícone para abrir.');
+                return;
+              }
+            } catch (e) {}
+            retries++;
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        };
+        waitForBackend().catch(e => console.warn('[main] Cold start backend wait error:', e));
+        return; // Não abre janela, fica só na tray
+      }
+
+      // Criar splash screen enquanto aguarda backend estar pronto
+      createSplashScreen();
+      
+      // Esperar backend estar pronto antes de fechar splash
+      const checkBackendReady = async () => {
+        let retries = 0;
+        const maxRetries = 60; // 60 segundos máximo
+        
+        while (retries < maxRetries) {
+          try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2000);
+            
+            const response = await fetch('http://localhost:3000/api/health', { 
+              signal: controller.signal 
+            });
+            clearTimeout(timeout);
+            
+            if (response.ok) {
+              console.log('[main] backend is ready, closing splash screen');
+              closeSplashScreen();
+              // Abrir janela principal apenas quando splash fechar
+              createWindow();
+              break;
+            }
+          } catch (e) {
+            // Backend não está pronto ainda
+          }
+          
+          retries++;
+          await new Promise(r => setTimeout(r, 1000)); // aguardar 1s entre tentativas
+        }
+        
+        // Se chegou aqui e splash ainda está aberto, fechar mesmo assim
+        closeSplashScreen();
+        // E abrir janela principal
+        if (!win) {
+          createWindow();
+        }
+      };
+      
+      // Executar verificação em background
+      checkBackendReady().catch(e => console.warn('[main] error checking backend readiness:', e));
+      
   })();
 });
 
 // Encerrar backend e app corretamente
+// Quando todas as janelas fecham, minimiza para tray em vez de sair
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  closeSplashScreen();
+  // No Windows, minimiza para tray em vez de fechar
+  // O usuário pode fechar pelo menu do tray
+  if (process.platform !== "darwin") {
+    // Não fecha o app, apenas esconde
+    console.log('[main] All windows closed, app running in tray');
+  }
 });
 
 app.on("before-quit", () => {
+  closeSplashScreen();
+  destroyTray();
   // stop monitor when quitting
   try { stopBackendMonitor(); } catch (e) {}
   // ensure spawned backend is terminated

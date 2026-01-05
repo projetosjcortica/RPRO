@@ -6,6 +6,7 @@ import { backupSvc } from "./backupService";
 import { parserService } from "./parserService";
 import { dbService } from "./dbService";
 import { cacheService } from "./CacheService";
+import { log } from "./backendLogger";
 
 class Subject<T> {
   private observers: Array<{ update(payload: T): Promise<void> }> = [];
@@ -185,8 +186,8 @@ export class FileProcessorService extends BaseService {
         if (horasNull > 0) {
           console.warn(`⚠️  [FileProcessorService] ${horasNull} registros com Hora=NULL (esperado se hora vazia no CSV)`);
         }
-      } catch (err) {
-        console.error('Failed to insert relatorio rows into DB:', err);
+      } catch (err: any) {
+        log.error('FileProcessor', 'Falha ao inserir linhas do relatório no banco', err, { file: originalName, rowCount: mappedRows.length });
         try {
           const errDir = path.join(path.dirname(fullPath), 'errors');
           if (!fs.existsSync(errDir)) fs.mkdirSync(errDir, { recursive: true });
@@ -198,8 +199,8 @@ export class FileProcessorService extends BaseService {
           };
           fs.writeFileSync(errPath, JSON.stringify(dump, null, 2), 'utf8');
           console.log(`Wrote error dump to: ${errPath}`);
-        } catch (fsErr) {
-          console.error('Failed to write error dump:', fsErr);
+        } catch (fsErr: any) {
+          log.warn('FileProcessor', 'Falha ao escrever dump de erro', { file: originalName, error: fsErr?.message });
         }
         // Rethrow so higher-level caller is aware, or optionally continue
         throw err;

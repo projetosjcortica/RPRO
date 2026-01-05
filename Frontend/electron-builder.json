@@ -5,6 +5,12 @@
     "output": "release",
     "buildResources": "build"
   },
+  "publish": {
+    "provider": "github",
+    "owner": "projetosjcortica",
+    "repo": "RPRO",
+    "releaseType": "release"
+  },
   "files": [
     "dist/**/*",
     "dist-electron/**/*",
@@ -36,7 +42,8 @@
         "arch": ["x64"]
       }
     ],
-    "icon": "public/icon.ico"
+    "icon": "build/public/icon.ico",
+    "requestedExecutionLevel": "requireAdministrator"
   },
   "nsis": {
     "oneClick": false,
@@ -49,8 +56,8 @@
     "createDesktopShortcut": true,
     "createStartMenuShortcut": true,
     "menuCategory": "Cortez",
-    "installerIcon": "public/icon.ico",
-    "uninstallerIcon": "public/icon.ico"
+    "installerIcon": "build/public/icon.ico",
+    "uninstallerIcon": "build/public/icon.ico"
   },
   "compression": "store",
   "asar": true,

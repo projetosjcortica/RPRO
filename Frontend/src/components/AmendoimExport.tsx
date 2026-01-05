@@ -32,7 +32,7 @@ import { cn } from "@/lib/utils";
 import { format, parse } from "date-fns";
 import { pt } from "date-fns/locale";
 import { type DateRange } from "react-day-picker";
-import { toast } from "react-toastify";
+import { toast } from "../lib/toastWrapper";
 // import { PDFViewer, PDFDownloadLink } from "@react-pdf/renderer";
 import { PDFViewer, pdf } from "@react-pdf/renderer";
 import { AmendoimPDFDocument } from "./AmendoimPDF";

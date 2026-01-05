@@ -20,6 +20,9 @@ import {
   ChartPerdaAcumulada,
 } from "./components/AmendoimCharts";
 import { Pagination, PaginationContent, PaginationItem } from "./components/ui/pagination";
+import { NotificationBell } from "./components/NotificationBell";
+import { useNotify } from "./hooks/useNotifications";
+import { trackAction } from "./lib/activityTracker";
 
 interface AmendoimRecord {
   id: number;
@@ -145,6 +148,7 @@ interface FiltrosAmendoim {
 
 export default function Amendoim({ proprietario }: { proprietario?: string } = {}) {
   const { user } = useAuth();
+  const notify = useNotify();
   const [logoUrl, setLogoUrl] = useState<string | undefined>(undefined);
   const [ihmConfig, setIhmConfig] = useState<{ ip: string; user: string; password: string } | null>(null);
   const [registros, setRegistros] = useState<AmendoimRecord[]>([]);
@@ -578,6 +582,8 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         await fetchRegistros();
         await fetchEstatisticas();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch(e){}
+        notify.info('Coletor parado', 'O coletor de amendoim foi interrompido', 'amendoim');
+        trackAction('Amendoim: Coletor parado');
   } else {
         // Verificar se há erros de validação antes de iniciar
         if (validationErrors.length > 0) {
@@ -585,6 +591,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
             'collector-validation',
             'Configure o sistema antes de iniciar a coleta'
           );
+          notify.warning('Configuração necessária', 'Configure o sistema antes de iniciar a coleta', 'amendoim');
           setShowIhmModal(true);
           setCollectorLoading(false);
           return;
@@ -603,9 +610,12 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         await fetchRegistros();
         await fetchEstatisticas();
         try { toastManager.updateSuccess('collector-toggle', 'Coletor iniciado'); } catch(e){}
+        notify.success('Coletor iniciado', 'O coletor de amendoim está rodando', 'amendoim');
+        trackAction('Amendoim: Coletor iniciado');
       }
     } catch (error: any) {
       console.error("Erro ao controlar collector:", error);
+      notify.error('Erro no coletor', error.message || 'Erro ao controlar coletor', 'amendoim');
     } finally {
       setCollectorLoading(false);
     }
@@ -618,6 +628,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
     setUploading(true);
     setError(null);
+    trackAction('Amendoim: Upload de arquivo', file.name);
 
     try {
       const processador = getProcessador();
@@ -634,6 +645,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       } catch (e) {
         console.error('Toast error:', e);
       }
+      notify.success('Upload concluído', mensagemSucesso, 'amendoim');
 
       // Recarregar registros após upload bem-sucedido
       if (data.salvos > 0) {
@@ -648,6 +660,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
       } catch (e) {
         console.error('Toast error:', e);
       }
+      notify.error('Erro no upload', mensagemErro, 'amendoim');
       setError(mensagemErro);
     } finally {
       setUploading(false);
@@ -705,6 +718,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
               onAplicarFiltros={handleAplicarFiltros} 
               tipo={viewMode}
             /> 
+            <NotificationBell />
             {/* Collector toggle (mesma UI do Report) */}
             <Button
               onClick={handleCollectorToggle}

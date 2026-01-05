@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast } from "./lib/toastWrapper";
 import { Label } from "./components/ui/label";
 import { Input } from "./components/ui/input";
 import { Button } from "./components/ui/button";
@@ -11,6 +11,7 @@ import Profile from "./Profile";
 import { getProcessador } from "./Processador";
 import { resolvePhotoUrl } from "./lib/photoUtils";
 import { Switch } from "./components/ui/switch";
+import { useNotify } from "./hooks/useNotifications";
 
 import {
   AlertDialog,
@@ -357,6 +358,13 @@ export function ProfileConfig({
     user?.photoPath ? resolvePhotoUrl(user.photoPath) : null
     );
     const [userType, setUserType] = useState<'racao' | 'amendoim'>(user?.userType || 'racao');
+    
+    // Sincronizar o estado local com o user quando ele mudar
+    useEffect(() => {
+        if (user?.userType && user.userType !== userType) {
+            setUserType(user.userType);
+        }
+    }, [user?.userType]);
 
     console.log(userType);
   
@@ -553,7 +561,7 @@ export function ProfileConfig({
         
         </div>
 
-          { user?.username === 'cortica' && (
+          {/* { user?.username === 'cortica' && (
             <div className="h-20">
               <Label className="mb-2 block text-sm font-medium text-gray-700">Tipo de Perfil</Label>
               <div className="flex gap-2">
@@ -575,7 +583,7 @@ export function ProfileConfig({
                 </Button>
               </div> 
             </div>
-            )}
+            )} */}
         </>
       )}
 
@@ -589,6 +597,42 @@ export function ProfileConfig({
           onClick={async () => {
             try {
               await onSave();
+              
+              // Se o usuário mudou o tipo de perfil, enviar para o backend
+              if (userType && user?.userType !== userType) {
+                try {
+                  const res = await fetch('http://localhost:3000/api/auth/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      username: user?.username,
+                      userType: userType
+                    })
+                  });
+                  
+                  if (res.ok) {
+                    const updatedUser = await res.json();
+                    console.log('Backend response:', updatedUser);
+                    console.log('Current user before update:', user);
+                    updateUser(updatedUser);
+                    console.log('User updated, new userType should be:', updatedUser.userType);
+                    toast.success('Tipo de perfil atualizado com sucesso');
+                    
+                    // Forçar refresh da página para garantir que as mudanças sejam aplicadas
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 1000);
+                  } else {
+                    const errorData = await res.json();
+                    console.error('Update failed:', errorData);
+                    toast.error(`Erro: ${errorData.error || 'Falha ao atualizar perfil'}`);
+                  }
+                } catch (e: any) {
+                  console.error('Failed to update userType:', e);
+                  toast.error('Erro de conexão ao atualizar tipo de perfil');
+                }
+              }
+              
               try {
                 window.dispatchEvent(new Event('profile-save-request'));
               } catch (e) {}
@@ -886,6 +930,7 @@ export function AdminConfig({
   configKey?: string;
 }) {
   // ✅ HOOKS PRIMEIRO
+  const notify = useNotify();
   
   interface AmendoimRecord {
   id: number;
@@ -1102,6 +1147,7 @@ interface Estatisticas {
       }
 
       toast.success('Usuário criado');
+      notify.success('Usuário criado', `Novo usuário "${createUserData.username}" criado`, 'user-management');
       setCreateUserData({ username: '', password: '', displayName: '', userType: 'racao', isAdmin: false, photoFile: null });
       await fetchAdminUsers();
     } catch (e) {
@@ -1121,6 +1167,7 @@ interface Estatisticas {
         return;
       }
       toast.success('Senha alterada');
+      notify.info('Senha alterada', `Senha do usuário "${username}" alterada`, 'user-management');
     } catch (e) {
       console.error('set password', e);
       toast.error('Erro ao alterar senha');

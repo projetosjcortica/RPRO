@@ -5,12 +5,26 @@ type ToastMap = Map<string, ToastId>;
 const activeToasts: ToastMap = new Map();
 const shownOnce = new Set<string>();
 
-// Configurações
+// Configurações - toasts mais curtos (3s ao invés de 7s)
 const MAX_TOASTS = 3;
 const TOAST_DEDUPE_WINDOW = 1000; // 1 segundo
+const DEFAULT_AUTO_CLOSE = 3000; // 3 segundos (era 7s)
 
 // Rastreamento de mensagens recentes para evitar duplicatas
 const recentMessages = new Map<string, number>();
+
+/**
+ * Emite evento para o sistema de notificações capturar
+ */
+function emitNotification(type: 'success' | 'error' | 'info' | 'warning', message: string) {
+  try {
+    window.dispatchEvent(new CustomEvent('toast-notification', {
+      detail: { type, message }
+    }));
+  } catch (e) {
+    // Ignora erro se não estiver no browser
+  }
+}
 
 /**
  * Limpa toasts antigos se exceder o limite
@@ -65,7 +79,7 @@ export function showLoading(key: string, message: string) {
   }
 }
 
-export function updateSuccess(key: string, message: string, autoClose = 3000) {
+export function updateSuccess(key: string, message: string, autoClose = DEFAULT_AUTO_CLOSE) {
   try {
     if (isDuplicate(message)) return null as unknown as ToastId;
     
@@ -73,17 +87,19 @@ export function updateSuccess(key: string, message: string, autoClose = 3000) {
     if (id) {
       toast.update(id, { render: message, type: 'success', isLoading: false, autoClose } as UpdateOptions);
       activeToasts.delete(key);
+      emitNotification('success', message);
       return id;
     }
     
     enforceToastLimit();
+    emitNotification('success', message);
     return toast.success(message, { autoClose });
   } catch (e) {
     return null as unknown as ToastId;
   }
 }
 
-export function updateError(key: string, message: string, autoClose = 6000) {
+export function updateError(key: string, message: string, autoClose = 4000) {
   try {
     if (isDuplicate(message)) return null as unknown as ToastId;
     
@@ -91,32 +107,36 @@ export function updateError(key: string, message: string, autoClose = 6000) {
     if (id) {
       toast.update(id, { render: message, type: 'error', isLoading: false, autoClose } as UpdateOptions);
       activeToasts.delete(key);
+      emitNotification('error', message);
       return id;
     }
     
     enforceToastLimit();
+    emitNotification('error', message);
     return toast.error(message, { autoClose });
   } catch (e) {
     return null as unknown as ToastId;
   }
 }
 
-export function showInfoOnce(key: string, message: string, autoClose = 3000) {
+export function showInfoOnce(key: string, message: string, autoClose = DEFAULT_AUTO_CLOSE) {
   try {
     if (shownOnce.has(key) || isDuplicate(message)) return null as unknown as ToastId;
     shownOnce.add(key);
     enforceToastLimit();
+    emitNotification('info', message);
     return toast.info(message, { autoClose });
   } catch (e) {
     return null as unknown as ToastId;
   }
 }
 
-export function showWarningOnce(key: string, message: string, autoClose = 4000) {
+export function showWarningOnce(key: string, message: string, autoClose = DEFAULT_AUTO_CLOSE) {
   try {
     if (shownOnce.has(key) || isDuplicate(message)) return null as unknown as ToastId;
     shownOnce.add(key);
     enforceToastLimit();
+    emitNotification('warning', message);
     return toast.warning(message, { autoClose });
   } catch (e) {
     return null as unknown as ToastId;

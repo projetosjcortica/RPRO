@@ -130,8 +130,8 @@ export function ChartEntradaSaidaPorHorario({ dados, bare }: ChartEntradaSaidaPo
           }}
         />
         <Legend />
-        <Bar dataKey="entrada" fill={COLORS.entrada} name="Entrada" />
-        <Bar dataKey="saida" fill={COLORS.saida} name="Saída" />
+        <Bar dataKey="entrada" fill={COLORS.entrada} name="Entrada" isAnimationActive={false} />
+        <Bar dataKey="saida" fill={COLORS.saida} name="Saída" isAnimationActive={false} />
       </BarChart>
     </ResponsiveContainer>
   );

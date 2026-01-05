@@ -3,14 +3,17 @@ import fs from 'fs';
 import path from 'path';
 import { DataSource } from 'typeorm';
 import { BaseService } from '../core/baseService';
-import { Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, User, Amendoim, AmendoimRaw } from '../entities/index';
+import { Relatorio, MateriaPrima, Batch, Row, CacheFile, User, Amendoim, AmendoimRaw } from '../entities/index';
 import { getRuntimeConfig } from '../core/runtimeConfig';
+import { log } from './backendLogger';
 
 export class DBService extends BaseService {
   ds: DataSource;
   useMysql: boolean;
   sqlitePath?: string;
   private static dbChecked = false; // Cache: evita verificar DB repetidamente
+  private initPromise: Promise<void> | null = null; // Previne múltiplas inicializações simultâneas
+  private lastError: Error | null = null; // Último erro para diagnóstico
   
   constructor() {
     super('DBService');
@@ -20,6 +23,24 @@ export class DBService extends BaseService {
     // @ts-ignore - assign later in init
     this.ds = {} as DataSource;
     this.useMysql = process.env.USE_SQLITE !== 'true';
+  }
+  
+  /**
+   * Verifica se o banco está pronto para uso
+   */
+  isReady(): boolean {
+    try {
+      return this.ds && (this.ds as any).isInitialized === true;
+    } catch {
+      return false;
+    }
+  }
+  
+  /**
+   * Retorna o último erro ocorrido (para diagnóstico)
+   */
+  getLastError(): Error | null {
+    return this.lastError;
   }
   
   private async createDatabaseIfNotExists(host: string, port: number, user: string, pass: string, dbName: string) {
@@ -69,6 +90,20 @@ export class DBService extends BaseService {
     // @ts-ignore
     if ((this.ds && (this.ds as any).isInitialized)) return;
 
+    // Prevenir múltiplas inicializações simultâneas
+    if (this.initPromise) {
+      return this.initPromise;
+    }
+
+    this.initPromise = this._doInit();
+    try {
+      await this.initPromise;
+    } finally {
+      this.initPromise = null;
+    }
+  }
+
+  private async _doInit() {
     // Read runtime DB config (frontend may have saved 'db-config')
     const runtimeDb = getRuntimeConfig('db-config') || {};
     const finalHost = runtimeDb.serverDB ?? process.env.MYSQL_HOST ?? 'localhost';
@@ -77,7 +112,7 @@ export class DBService extends BaseService {
     const finalPass = runtimeDb.passwordDB ?? process.env.MYSQL_PASSWORD ?? 'root';
     const finalDb = runtimeDb.database ?? process.env.MYSQL_DB ?? 'cadastro';
 
-    const allEntities: any[] = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, User, Amendoim, AmendoimRaw];
+    const allEntities: any[] = [Relatorio, MateriaPrima, Batch, Row, CacheFile, User, Amendoim, AmendoimRaw];
     try {
       const schemaCfg = getRuntimeConfig('db-schemas');
       let selectedEntities = allEntities;
@@ -123,17 +158,19 @@ export class DBService extends BaseService {
         });
       } else {
         // Explicitly requested sqlite as primary environment
-        const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
-        const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
-        this.sqlitePath = absPath;
-        const typeormSync = process.env.TYPEORM_SYNC !== 'false';
-        this.ds = new DataSource({
-          type: 'sqlite',
-          database: absPath,
-          synchronize: typeormSync,
-          logging: false,
-          entities: selectedEntities,
-        });
+        // const dbPath = process.env.DATABASE_PATH || 'data.sqlite';
+        // const absPath = path.isAbsolute(dbPath) ? dbPath : path.resolve(process.cwd(), dbPath);
+        // this.sqlitePath = absPath;
+        // const typeormSync = process.env.TYPEORM_SYNC !== 'false';
+        // this.ds = new DataSource({
+        //   type: 'sqlite',
+        //   database: absPath,
+        //   synchronize: typeormSync,
+        //   logging: false,
+        //   entities: selectedEntities,
+        // });
+        throw new Error('SQLite as primary database is not yet implemented.');
+
       }
       await this.ds.initialize();
 
@@ -152,14 +189,19 @@ export class DBService extends BaseService {
           }
           console.info('[DBService] Conversion to utf8mb4 complete');
         } catch (convErr) {
-          console.error('[DBService] Failed to convert database/tables to utf8mb4:', convErr);
+          log.error('DBService', 'Failed to convert database/tables to utf8mb4', convErr);
           // Do not abort startup; conversion failure shouldn't prevent normal operation.
         }
       }
 
       return;
     } catch (err) {
-      console.error('[DBService] Database initialization failed:', err);
+      log.error('DBService', 'Database initialization failed', err, {
+        host: finalHost,
+        port: finalPort,
+        user: finalUser,
+        database: finalDb,
+      });
       console.info('[DBService] Connection details:', {
         host: finalHost,
         port: finalPort,
@@ -187,14 +229,17 @@ export class DBService extends BaseService {
           await this.ds.initialize();
           this.useMysql = false;
           console.info('[DBService] Successfully switched to SQLite');
+          this.lastError = null;
           return;
         } catch (err2) {
           console.error('[DBService] SQLite fallback also failed:', err2);
-          throw new Error(`Database initialization failed - MySQL error: ${err}\nSQLite error: ${err2}`);
+          this.lastError = new Error(`Database initialization failed - MySQL error: ${err}\nSQLite error: ${err2}`);
+          throw this.lastError;
         }
       }
 
-      throw new Error(`MySQL initialization failed and fallback disabled: ${err}`);
+      this.lastError = new Error(`MySQL initialization failed and fallback disabled: ${err}`);
+      throw this.lastError;
     }
   }
   async reconnect() {
@@ -462,7 +507,7 @@ export class DBService extends BaseService {
    */
   async clearAll() {
     await this.init();
-    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, CacheFile, User, Amendoim, AmendoimRaw];
+    const entities = [Relatorio, MateriaPrima, Batch, Row, CacheFile, User, Amendoim, AmendoimRaw];
     // Use a transaction to ensure atomicity when supported
     const queryRunner = this.ds.createQueryRunner();
     await queryRunner.connect();
@@ -514,8 +559,6 @@ export class DBService extends BaseService {
       MateriaPrima,
       Batch,
       Row,
-      Estoque,
-      MovimentacaoEstoque,
       User,
       Amendoim,
       AmendoimRaw,
@@ -557,8 +600,6 @@ export class DBService extends BaseService {
       MateriaPrima,
       Batch,
       Row,
-      Estoque,
-      MovimentacaoEstoque,
       User,
       Amendoim,
     };
@@ -759,7 +800,7 @@ export class DBService extends BaseService {
 
     console.log(`[DBService] Exporting SQL dump to: ${outputPath}`);
 
-    const entities = [Relatorio, MateriaPrima, Batch, Row, Estoque, MovimentacaoEstoque, User, Amendoim];
+    const entities = [Relatorio, MateriaPrima, Batch, Row, User, Amendoim];
     const exportedTables: string[] = [];
     let sqlContent = '';
 
