@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import useAuth from './hooks/useAuth';
 import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import { Label } from './components/ui/label';
 import { Input } from './components/ui/input';
@@ -12,30 +11,29 @@ export default function DbConfig() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [passwordSet, setPasswordSet] = useState(false);
-  const { user } = useAuth();
   const runtime = useRuntimeConfig();
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const res = await fetch('/api/config/db-config?inputs=true');
+        // Use the new JSON file endpoint
+        const res = await fetch('/api/db/config-file?inputs=true');
         if (!res.ok) return;
-        const j = await res.json();
-        const v = j?.value || {};
+        const config = await res.json();
         setDbConfig({
-          serverDB: String(v.serverDB ?? v.host ?? ''),
-          port: Number(v.port ?? 3306),
-          userDB: String(v.userDB ?? v.user ?? ''),
-          passwordDB: String(v.passwordDB ?? v.password ?? ''),
-          database: String(v.database ?? ''),
+          serverDB: String(config.serverDB ?? ''),
+          port: Number(config.port ?? 3306),
+          userDB: String(config.userDB ?? ''),
+          passwordDB: String(config.passwordDB ?? ''),
+          database: String(config.database ?? ''),
         });
-        // Also fetch the full setting to discover whether a password is stored (server will not return password itself)
+        // Check if password is set
         try {
-          const r2 = await fetch('/api/config/db-config');
+          const r2 = await fetch('/api/db/config-file');
           if (r2.ok) {
             const j2 = await r2.json();
-            const pwFlag = !!(j2?.value?.passwordSet);
+            const pwFlag = !!(j2?.passwordSet);
             setPasswordSet(pwFlag);
           }
         } catch (e) {}
@@ -51,51 +49,63 @@ export default function DbConfig() {
   const save = async () => {
     try {
       setSaving(true);
-      // Use /api/config/split to persist as top-level settings and update runtime store
-      const dbToSave: any = { ...dbConfig };
-      if (!user?.isAdmin) delete dbToSave.passwordDB;
-      const payload: any = { 'db-config': dbToSave };
-      const res = await fetch('/api/config/split', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error('failed');
-      const j = await res.json().catch(() => null);
-      // If backend returned updated values, reflect them in the UI
-      if (j && j.updated && j.updated['db-config']) {
-        const newCfg = j.updated['db-config'];
+      // Use the new JSON file endpoint - ALWAYS saves, even if connection fails
+      const res = await fetch('/api/db/config-file', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(dbConfig) 
+      });
+      
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || 'failed to save');
+      }
+      
+      const result = await res.json();
+      
+      // Check connection status
+      if (result.connectionOk) {
+        toast.success('Configuração salva e conexão OK: ' + (result.configPath || 'arquivo local'));
+      } else {
+        toast.warning('Configuração salva, mas conexão falhou: ' + (result.connectionError || 'erro desconhecido'));
+      }
+      
+      // Update state with saved config
+      if (result.config) {
         setDbConfig({
-          serverDB: String(newCfg.serverDB ?? newCfg.host ?? ''),
-          port: Number(newCfg.port ?? 3306),
-          userDB: String(newCfg.userDB ?? newCfg.user ?? ''),
-          passwordDB: String(newCfg.passwordDB ?? newCfg.password ?? ''),
-          database: String(newCfg.database ?? ''),
+          serverDB: String(result.config.serverDB ?? ''),
+          port: Number(result.config.port ?? 3306),
+          userDB: String(result.config.userDB ?? ''),
+          passwordDB: String(result.config.passwordDB ?? ''),
+          database: String(result.config.database ?? ''),
         });
       }
-      toast.success('Configuração do banco salva para todos os usuários');
-      // Try to apply immediately by requesting reconnect
-      try {
-        const r2 = await fetch('/api/db/reconnect', { method: 'POST' });
-        if (r2.ok) {
-          toast.success('Reconexão ao banco iniciada com as novas configurações');
-        } else {
-          const txt = await r2.text().catch(() => '');
-          toast.warn('Reconexão falhou: ' + (txt || r2.status));
+      
+      // Try to apply immediately by requesting reconnect (only if connection was OK)
+      if (result.connectionOk) {
+        try {
+          const r2 = await fetch('/api/db/reconnect', { method: 'POST' });
+          if (r2.ok) {
+            toast.success('Reconexão ao banco iniciada');
+          }
+        } catch (err) {
+          console.warn('reconnect failed', err);
         }
-      } catch (err) {
-        console.warn('reconnect failed', err);
-        toast.warn('Erro ao solicitar reconexão do banco');
       }
-      // After saving and reconnect attempt, reload runtime configs so all frontend components update
+      
+      // Reload runtime configs
       try { await runtime.reload(); } catch (e) { /* ignore */ }
-    } catch (e) {
+    } catch (e: any) {
       console.error('save db-config failed', e);
-      toast.error('Falha ao salvar configuração do banco');
+      toast.error('Falha ao salvar: ' + (String(e?.message || e)));
     } finally {
       setSaving(false);
       // Refresh passwordSet flag after saving
       try {
-        const r = await fetch('/api/config/db-config');
+        const r = await fetch('/api/db/config-file');
         if (r.ok) {
           const j = await r.json();
-          setPasswordSet(!!(j?.value?.passwordSet));
+          setPasswordSet(!!(j?.passwordSet));
         }
       } catch (err) {}
     }
@@ -141,11 +151,12 @@ export default function DbConfig() {
           </div>
           <div className="flex gap-2 items-center">
             <Label className="w-36">Senha DB</Label>
-            {user?.isAdmin ? (
-              <Input type="password" value={dbConfig.passwordDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, passwordDB: e.target.value })} />
-            ) : (
-              <div className="text-sm text-gray-600">{passwordSet ? 'Senha configurada (requer admin para alterar)' : 'Nenhuma senha configurada'}</div>
-            )}
+            <Input 
+              type="password" 
+              value={dbConfig.passwordDB || ''} 
+              onChange={(e) => setDbConfig({ ...dbConfig, passwordDB: e.target.value })} 
+              placeholder={passwordSet ? '••••••••' : 'Digite a senha do banco'}
+            />
           </div>
           <div className="flex justify-end gap-2">
             <Button onClick={test} className="bg-gray-600 hover:bg-gray-700" disabled={saving}>{/* test button */} Testar</Button>

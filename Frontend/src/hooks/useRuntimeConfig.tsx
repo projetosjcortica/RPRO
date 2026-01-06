@@ -40,12 +40,15 @@ async function fetchAllConfigs(): Promise<Record<string, any>> {
           const maybeObj = JSON.parse(v);
           out = maybeObj;
         } catch {
-          // fallback: try to parse as object with numeric keys (already string),
-          // reconstruct if pattern matches: keys are '0','1',... and some other named keys
-          try {
-            const candidate = eval('(' + v + ')'); // last-resort; v is from server
-            out = candidate;
-          } catch {
+          // fallback: if v looks like JSON (starts with { or [), try parsing it as-is
+          if ((v.trim().startsWith('{') || v.trim().startsWith('['))) {
+            try {
+              out = JSON.parse(v);
+            } catch {
+              // Not valid JSON, keep as string
+              out = v;
+            }
+          } else {
             out = v;
           }
         }

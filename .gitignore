@@ -5,3 +5,4 @@ tools/*
 *.mjs
 back-end/runtime-config-fallback.json
 Frontend/package-lock.json
+back-end/db-config.example.json

@@ -44,7 +44,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
-      events: path.resolve(__dirname, "src/shims/events-shim.ts"),
+      // Use the real 'events' package from npm instead of custom shim
+      events: "events",
       stream: "stream-browserify",
       process: "process/browser",
       util: "util/",
@@ -52,7 +53,11 @@ export default defineConfig({
   },
 
   optimizeDeps: {
-    include: ["stream-browserify", "process", "util"],
+    include: ["stream-browserify", "process", "util", "events", "@react-pdf/renderer"],
+    esbuildOptions: {
+      // Ensure proper handling of ES classes for @react-pdf/renderer
+      target: 'es2020',
+    },
   },
 
   build: {

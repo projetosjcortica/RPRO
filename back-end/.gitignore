@@ -24,6 +24,8 @@ yarn-error.log*
 *.db
 *.spec.js
 *.spec.ts
+db-config.json
+runtime-config-fallback.json
 debug/
 logs/
 backups/

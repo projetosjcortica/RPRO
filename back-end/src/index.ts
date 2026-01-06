@@ -26,6 +26,7 @@ import cors from "cors";
 import compression from "compression";
 import multer from "multer";
 import { configService } from "./services/configService";
+import { persistenceService } from "./services/PersistenceService";
 import { setRuntimeConfigs, setRuntimeConfig, getRuntimeConfig, getAllRuntimeConfigs } from "./core/runtimeConfig";
 import { csvConverterService } from "./services/csvConverterService";
 import iconv from 'iconv-lite';
@@ -2592,6 +2593,44 @@ const isDev = process.env.NODE_ENV !== "production" && !isPackaged;
 const photosBase = process.env.USER_PHOTOS_DIR
   || (isDev ? path.resolve(process.cwd(), "user_photos") : path.resolve(process.env.APPDATA || os.homedir(), "Cortez", "user_photos"));
 
+// Helper to get db-config.json path
+const getDbConfigPath = () => {
+  return isDev 
+    ? path.resolve(process.cwd(), 'db-config.json')
+    : path.resolve(process.env.APPDATA || os.homedir(), 'Cortez', 'db-config.json');
+};
+
+// Helper to read db config from JSON file
+const readDbConfigFromFile = (): any => {
+  try {
+    const configPath = getDbConfigPath();
+    if (fs.existsSync(configPath)) {
+      const data = fs.readFileSync(configPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (e) {
+    console.warn('[readDbConfigFromFile] Error reading db-config.json:', e);
+  }
+  return null;
+};
+
+// Helper to write db config to JSON file
+const writeDbConfigToFile = (config: any): boolean => {
+  try {
+    const configPath = getDbConfigPath();
+    const dir = path.dirname(configPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
+    console.log('[writeDbConfigToFile] Saved to:', configPath);
+    return true;
+  } catch (e) {
+    console.error('[writeDbConfigToFile] Error writing db-config.json:', e);
+    return false;
+  }
+};
+
 // Ensure folder exists and is writable
 try {
   if (!fs.existsSync(photosBase)) {
@@ -3146,6 +3185,120 @@ app.get("/api/db/listBatches", async (req, res) => {
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "internal" });
+  }
+});
+
+// GET endpoint to read db-config from JSON file
+app.get('/api/db/config-file', async (req, res) => {
+  try {
+    const includePassword = req.query.inputs === 'true';
+    let config = readDbConfigFromFile();
+    
+    // Apply defaults if no config found
+    if (!config) {
+      config = {
+        serverDB: 'localhost',
+        port: 3306,
+        database: 'cadastro',
+        userDB: 'root',
+        passwordDB: 'root',
+      };
+    }
+    
+    // Apply fallbacks
+    if (!config.userDB) config.userDB = 'root';
+    if (!config.passwordDB) config.passwordDB = 'root';
+    if (!config.serverDB) config.serverDB = 'localhost';
+    if (!config.port) config.port = 3306;
+    if (!config.database) config.database = 'cadastro';
+    
+    const response: any = {
+      serverDB: config.serverDB,
+      port: config.port,
+      database: config.database,
+      userDB: config.userDB,
+      configPath: getDbConfigPath(),
+    };
+    
+    if (includePassword) {
+      response.passwordDB = config.passwordDB;
+    } else {
+      response.passwordSet = !!(config.passwordDB);
+    }
+    
+    return res.json(response);
+  } catch (e: any) {
+    console.error('[api/db/config-file] error', e);
+    return res.status(500).json({ error: e?.message || 'internal' });
+  }
+});
+
+// POST endpoint to save db-config to JSON file
+app.post('/api/db/config-file', async (req, res) => {
+  try {
+    const { serverDB, port, database, userDB, passwordDB } = req.body;
+    
+    // Merge with existing config
+    let existing = readDbConfigFromFile() || {};
+    
+    const newConfig = {
+      serverDB: serverDB ?? existing.serverDB ?? 'localhost',
+      port: port ?? existing.port ?? 3306,
+      database: database ?? existing.database ?? 'cadastro',
+      userDB: userDB ?? existing.userDB ?? 'root',
+      passwordDB: passwordDB ?? existing.passwordDB ?? 'root',
+    };
+    
+    // Usar PersistenceService para salvar em múltiplos locais com fallback automático
+    const persistResult = await configService.setSetting('db-config', JSON.stringify(newConfig));
+    
+    if (!persistResult.success) {
+      return res.status(500).json({ 
+        error: 'Failed to persist config in any location',
+        persistence: persistResult
+      });
+    }
+    
+    // Update runtime config
+    setRuntimeConfig('db-config', newConfig);
+    
+    // Test connection after saving (optional, just for user feedback)
+    let connectionOk = false;
+    let connectionError = null;
+    try {
+      await dbService.testConnection({
+        host: newConfig.serverDB,
+        port: newConfig.port,
+        database: newConfig.database,
+        user: newConfig.userDB,
+        password: newConfig.passwordDB,
+      });
+      connectionOk = true;
+    } catch (testErr: any) {
+      console.warn('[api/db/config-file] Connection test failed (config saved anyway):', testErr);
+      connectionError = testErr?.message || String(testErr);
+    }
+    
+    return res.json({ 
+      success: true, 
+      config: newConfig,
+      configPath: getDbConfigPath(),
+      connectionOk,
+      connectionError,
+      persistence: persistResult  // Feedback detalhado sobre persistência
+    });
+  } catch (e: any) {
+    console.error('[api/db/config-file] error', e);
+    return res.status(500).json({ 
+      error: e?.message || 'internal',
+      persistence: {
+        success: false,
+        savedIn: [],
+        failedIn: ['sqlite', 'json-fallback', 'json-file'],
+        errors: { exception: String(e) },
+        timestamp: new Date().toISOString(),
+      }
+    });
   }
 });
 
@@ -4041,17 +4194,47 @@ app.get('/api/config/:key', async (req, res) => {
       }
     }
     
+    // Check if client wants raw inputs (including password) via query param
+    const includeInputs = req.query.inputs === 'true';
+    
     if (stored !== null && stored !== undefined) {
       let out: any = stored;
       if (typeof stored === 'string') {
         try { out = JSON.parse(String(stored)); } catch (e) { out = stored; }
       }
+      
+      // If db-config: apply password fallback and handle masking
+      if (rawKey === 'db-config' && typeof out === 'object') {
+        // Apply fallback password if missing
+        if (!out.passwordDB) {
+          out.passwordDB = 'root';
+        }
+        if (!out.userDB) {
+          out.userDB = 'root';
+        }
+        
+        // If not requesting inputs, mask password
+        if (!includeInputs) {
+          const hasPassword = !!(out.passwordDB);
+          out = { ...out, passwordSet: hasPassword };
+          delete out.passwordDB;
+        }
+      }
+      
       return res.json({ key: rawKey, value: out, source });
     }
 
     // Fallbacks when not persisted
     if (rawKey === 'ihm-config') return res.json({ key: rawKey, value: defaultIhm, source: 'default' });
-    if (rawKey === 'db-config') return res.json({ key: rawKey, value: defaultDb, source: 'default' });
+    if (rawKey === 'db-config') {
+      if (!includeInputs) {
+        // Return without password but with passwordSet flag
+        const hasPassword = !!(defaultDb.passwordDB);
+        const { passwordDB, ...rest } = defaultDb;
+        return res.json({ key: rawKey, value: { ...rest, passwordSet: hasPassword }, source: 'default' });
+      }
+      return res.json({ key: rawKey, value: defaultDb, source: 'default' });
+    }
     if (rawKey === 'admin-config') return res.json({ key: rawKey, value: {}, source: 'default' });
 
     // If nothing stored and no defaults, return empty object instead of 404 (more resilient)
@@ -4231,22 +4414,38 @@ app.post('/api/config/:key', async (req, res) => {
         return res.status(400).json({ error: 'db-config validation failed', details: String(e?.message || e) });
       }
     }
-    await configService.setSetting(rawKey, toStore);
+    
+    // Usar PersistenceService com fallback automático
+    const result = await configService.setSetting(rawKey, toStore);
 
     // update in-memory runtime configs as well
     try { setRuntimeConfigs({ [rawKey]: value }); } catch (e) { /* ignore */ }
-    // persist to runtime-config file if we updated a critical key
-    // Configs are persisted to DB via configService; no external JSON file used.
 
-    // Return updated parsed value to the client so UI can sync without extra GET
+    // Return detailed persistence status + updated value
     let outParsed: any = toStore;
     try {
       outParsed = JSON.parse(toStore);
     } catch { /* ignore */ } 
-    return res.json({ success: true, key: rawKey, value: outParsed });
+    
+    return res.json({ 
+      success: result.success,
+      key: rawKey, 
+      value: outParsed,
+      persistence: result  // Feedback detalhado sobre onde foi salvo
+    });
   } catch (e) {
     console.error('[config/:key POST] error', e);
-    return res.status(500).json({ error: 'internal' });
+    return res.status(500).json({ 
+      success: false,
+      error: 'internal',
+      persistence: {
+        success: false,
+        savedIn: [],
+        failedIn: ['sqlite', 'json-fallback', 'json-file'],
+        errors: { exception: String(e) },
+        timestamp: new Date().toISOString(),
+      }
+    });
   }
 });
 
@@ -4266,17 +4465,33 @@ app.post("/api/config", async (req, res) => {
     if (keys.length === 0) {
       return res.status(400).json({ error: "No config keys provided" });
     }
-    // Salva todas as configurações de uma vez e atualiza runtime
-    await configService.setSettings(configObj);
+    
+    // Salva todas as configurações de uma vez com fallback automático
+    const result = await configService.setSettings(configObj);
     try {
       setRuntimeConfigs(configObj);
     } catch (e) {
       /* ignore */
     }
-    res.json({ success: true, saved: keys });
+    
+    res.json({ 
+      success: result.success,
+      saved: keys,
+      persistence: result  // Feedback detalhado sobre onde foi salvo
+    });
   } catch (e) {
     console.error("Failed to set settings", e);
-    res.status(500).json({ error: "internal" });
+    res.status(500).json({ 
+      success: false,
+      error: "internal",
+      persistence: {
+        success: false,
+        savedIn: [],
+        failedIn: ['sqlite', 'json-fallback', 'json-file'],
+        errors: { exception: String(e) },
+        timestamp: new Date().toISOString(),
+      }
+    });
   }
 });
 
@@ -6786,6 +7001,20 @@ async function validateRuntimeDbConfig() {
   } catch (e) {
     console.error('[Startup] ❌ Falha ao inicializar cache sqlite:', e);
     throw e;
+  }
+  
+  // Load db-config from JSON file first (highest priority)
+  try {
+    const fileConfig = readDbConfigFromFile();
+    if (fileConfig) {
+      console.log('[Startup] Carregando db-config de arquivo JSON:', getDbConfigPath());
+      setRuntimeConfig('db-config', fileConfig);
+      console.log('[Startup] ✅ db-config carregado do arquivo JSON');
+    } else {
+      console.log('[Startup] Nenhum arquivo db-config.json encontrado, usando defaults');
+    }
+  } catch (e) {
+    console.warn('[Startup] Erro ao carregar db-config do arquivo:', e);
   }
   
   // load config file first, so DB init can use it

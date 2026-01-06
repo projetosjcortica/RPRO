@@ -172,6 +172,21 @@ export interface MyDocumentProps {
   pdfCustomization?: PdfCustomization;
   codigoCliente?: string | number;
   codigoPrograma?: string | number;
+  // Debug props (temporário)
+  debugCellPadding?: number;
+  debugCellPaddingTop?: number;
+  debugCellPaddingBottom?: number;
+  debugCellMinHeight?: number;
+  debugHeaderPadding?: number;
+  debugHeaderPaddingTop?: number;
+  debugTableFontSize?: number;
+  debugSectionMarginTop?: number;
+  debugSectionMarginBottom?: number;
+  debugSectionTitleMarginBottom?: number;
+  debugSectionTitlePadding?: number;
+  debugCellBorderWidth?: number;
+  debugRowGap?: number;
+  debugLineHeight?: number;
 }
 
 export const MyDocument: FC<MyDocumentProps> = ({
@@ -198,6 +213,20 @@ export const MyDocument: FC<MyDocumentProps> = ({
   codigoCliente,
 
   codigoPrograma,
+  debugCellPadding,
+  debugCellPaddingTop,
+  debugCellPaddingBottom,
+  debugCellMinHeight,
+  debugHeaderPadding,
+  debugHeaderPaddingTop,
+  debugTableFontSize,
+  debugSectionMarginTop,
+  debugSectionMarginBottom,
+  debugSectionTitleMarginBottom,
+  debugSectionTitlePadding,
+  debugCellBorderWidth,
+  debugRowGap,
+  debugLineHeight,
   // produtosChartData = [],
   // formulasChartData = [],
   // horariosChartData = [],
@@ -282,33 +311,43 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // you know the typical content length.
   const rowsPerPageFormulasByFont: Record<string, number> = {
     // defaults for formula tables
-    small: 28,
-    medium: 19,
-    large: 18,
+    small: simplifiedLayout ? 60 : 10,
+    medium: simplifiedLayout ? 48 : 9,
+    large: simplifiedLayout ? 40 : 8,
   };
   const rowsPerPageFormulas = rowsPerPageFormulasByFont[pdfCustomization.fontSize] || 5;
 
   // Reserve a modest space on the first page for header/metadata for formulas
-  const reserveForHeaderAndInfoFormulas = 20; // estimated rows taken by header/other content
-  const firstChunkSizeFormulas = Math.max(11, rowsPerPageFormulas - reserveForHeaderAndInfoFormulas);
+  const reserveForHeaderAndInfoFormulas = simplifiedLayout ? 3 : 8; // estimated rows taken by header/other content
+  const firstChunkSizeFormulas = Math.max(16, rowsPerPageFormulas - reserveForHeaderAndInfoFormulas);
 
   // Separate controls for produtos pagination so products first chunk can be
   // independent from formulas (requested change).
   const rowsPerPageProdutosByFont: Record<string, number> = {
-    small: 28,
-    medium: 20,
-    large: 18,
+    small: simplifiedLayout ? 60 : 11,
+    medium: simplifiedLayout ? 48 : 9,
+    large: simplifiedLayout ? 40 : 8,
   };
   const rowsPerPageProdutos = rowsPerPageProdutosByFont[pdfCustomization.fontSize] || 5;
-  const reserveForHeaderAndInfoProdutos = 6; // products typically share less header space
+  const reserveForHeaderAndInfoProdutos = simplifiedLayout ? 2 : 4; // products typically share less header space
   const firstChunkSizeProdutos = Math.max(20, rowsPerPageProdutos - reserveForHeaderAndInfoProdutos);
 
+  // For simplified layout, use the high-capacity chunks. For normal layout, use smaller chunks.
   const formulaChunks: typeof formulasOrdenadas[] = [];
   if (formulasOrdenadas.length > 0) {
-    // first chunk limited to firstChunkSizeFormulas
-    formulaChunks.push(formulasOrdenadas.slice(0, firstChunkSizeFormulas));
-    for (let i = firstChunkSizeFormulas; i < formulasOrdenadas.length; i += rowsPerPageFormulas) {
-      formulaChunks.push(formulasOrdenadas.slice(i, i + rowsPerPageFormulas));
+    if (simplifiedLayout) {
+      // Simplified: high capacity per page
+      formulaChunks.push(formulasOrdenadas.slice(0, firstChunkSizeFormulas));
+      for (let i = firstChunkSizeFormulas; i < formulasOrdenadas.length; i += rowsPerPageFormulas) {
+        formulaChunks.push(formulasOrdenadas.slice(i, i + rowsPerPageFormulas));
+      }
+    } else {
+      // Normal layout: smaller, tighter chunks
+      const maxFirstChunk = Math.max(17, rowsPerPageFormulas - reserveForHeaderAndInfoFormulas);
+      formulaChunks.push(formulasOrdenadas.slice(0, maxFirstChunk));
+      for (let i = maxFirstChunk; i < formulasOrdenadas.length; i += rowsPerPageFormulas) {
+        formulaChunks.push(formulasOrdenadas.slice(i, i + rowsPerPageFormulas));
+      }
     }
   }
 
@@ -411,10 +450,26 @@ export const MyDocument: FC<MyDocumentProps> = ({
   // Table padding sizes depend on whether we're rendering the simplified layout.
   // When simplifiedLayout is false we keep the older, larger paddings for
   // table headers and cells so the full PDF follows the legacy visual density.
-  const headerPadding = simplifiedLayout ? 3 : 8;
-  const headerPaddingTop = simplifiedLayout ? 2 : 14;
-  const cellPadding = simplifiedLayout ? 3 : 6;
-  const cellPaddingTop = simplifiedLayout ? 3 : 9;
+  const headerPadding = simplifiedLayout ? (debugHeaderPadding ?? 1) : 8;
+  const headerPaddingTop = simplifiedLayout ? (debugHeaderPaddingTop ?? 0) : 14;
+  const cellPadding = simplifiedLayout ? (debugCellPadding ?? 1) : 6;
+  const cellPaddingTop = simplifiedLayout ? (debugCellPaddingTop ?? 3) : 9;
+  const cellPaddingBottom = simplifiedLayout ? (debugCellPaddingBottom ?? 3) : 0;
+  const cellMinHeight = simplifiedLayout ? (debugCellMinHeight ?? 0) : 0;
+  
+  // Font size para tabelas: muito menor no layout simplificado para caber tudo
+  const tableFontSize = simplifiedLayout ? (debugTableFontSize ?? 7) : currentFontSizes.table;
+
+  // Section spacing for simplified layout
+  const sectionMarginTop = simplifiedLayout ? (debugSectionMarginTop ?? 8) : 0;
+  const sectionMarginBottom = simplifiedLayout ? (debugSectionMarginBottom ?? 8) : 0;
+  const sectionTitleMarginBottom = simplifiedLayout ? (debugSectionTitleMarginBottom ?? 8) : 8;
+  const sectionTitlePadding = simplifiedLayout ? (debugSectionTitlePadding ?? 4) : 4;
+
+  // Cell border and spacing
+  const cellBorderWidth = simplifiedLayout ? (debugCellBorderWidth ?? 1) : 1;
+  const rowGap = simplifiedLayout ? (debugRowGap ?? 0) : 0;
+  const textLineHeight = simplifiedLayout ? (debugLineHeight ?? 1.5) : 1.5;
 
   const renderTable = (
     rows: Produto[],
@@ -424,10 +479,10 @@ export const MyDocument: FC<MyDocumentProps> = ({
       <View style={styles.table}>
         {/* header as first row inside the table so it flows with pages */}
           <View style={[styles.tableRow, styles.tableHeaderRow]}>
-            <Text style={[{ width: '80%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#af1e1eff', padding: headerPadding, paddingTop: headerPaddingTop }]}>
+            <Text style={[{ width: '80%', fontWeight: 'bold', fontSize: tableFontSize, color: '#af1e1eff', padding: headerPadding, paddingTop: headerPaddingTop }]}>
               Nome
             </Text>
-            <Text style={[{ width: '20%', fontWeight: 'bold', fontSize: currentFontSizes.table, color: '#af1e1eff', textAlign: 'right', paddingHorizontal: headerPadding, paddingTop: headerPaddingTop, borderLeftWidth: 1, borderLeftColor: '#d1d5db' }]}>
+            <Text style={[{ width: '20%', fontWeight: 'bold', fontSize: tableFontSize, color: '#af1e1eff', textAlign: 'right', paddingHorizontal: headerPadding, paddingTop: headerPaddingTop, borderLeftWidth: 1, borderLeftColor: '#d1d5db' }]}>
               Total
             </Text>
           </View>
@@ -436,10 +491,13 @@ export const MyDocument: FC<MyDocumentProps> = ({
           return (
             <View
               key={i}
-              style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
+              style={[
+                i % 2 === 0 ? styles.tableRow : styles.tableRowEven,
+                { marginTop: rowGap }
+              ]}
      >
-              <Text style={[styles.tableCol, { width: '80%', paddingTop: cellPaddingTop, paddingBottom: 0, paddingHorizontal: cellPadding, fontSize: currentFontSizes.table }]}>{col1}</Text>
-              <Text style={[styles.tableColSmall, { width: '20%', paddingTop: cellPaddingTop, paddingBottom: 0, paddingHorizontal: cellPadding, borderLeftColor: '#d1d5db', borderLeftWidth: 1, fontSize: currentFontSizes.table }]}>{col2}</Text>
+              <Text style={[styles.tableCol, { width: '80%', paddingTop: cellPaddingTop, paddingBottom: cellPaddingBottom, paddingHorizontal: cellPadding, fontSize: tableFontSize, minHeight: cellMinHeight, borderBottomWidth: cellBorderWidth, lineHeight: textLineHeight }]}>{col1}</Text>
+              <Text style={[styles.tableColSmall, { width: '20%', paddingTop: cellPaddingTop, paddingBottom: cellPaddingBottom, paddingHorizontal: cellPadding, borderLeftColor: '#d1d5db', borderLeftWidth: 1, fontSize: tableFontSize, minHeight: cellMinHeight, borderBottomWidth: cellBorderWidth, lineHeight: textLineHeight }]}>{col2}</Text>
             </View>
           );
         })}
@@ -452,21 +510,25 @@ export const MyDocument: FC<MyDocumentProps> = ({
     formulas: Array<{ numero: number; nome: string; quantidade: number; porcentagem: number; somatoriaTotal: number; batidas?: number; codigo?: string }>
   ) => (
     <View style={styles.table}>
-      <View style={styles.tableRow}>
-        <Text style={[{ width: "12%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: headerPadding, paddingTop: headerPaddingTop, fontWeight: "bold", color: "#af1e1eff", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>Código</Text>
-        <Text style={[{ width: "63%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: headerPadding, paddingTop: headerPaddingTop, fontWeight: "bold", color: "#af1e1eff", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>Nome Fórmula</Text>
-        <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: headerPadding, paddingTop: headerPaddingTop, fontWeight: "bold", color: "#af1e1eff", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>Batidas</Text>
-        <Text style={[{ width: "15%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: headerPadding, paddingTop: headerPaddingTop, fontWeight: "bold", color: "#af1e1eff", textAlign:"right" }, { fontSize: currentFontSizes.table }]}>Total</Text>
+      {/* Header com propriedade repeat para aparecer em todas as páginas */}
+      <View style={[styles.tableRow, { position: 'relative' }]}>
+        <Text style={[{ width: "12%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: headerPadding, paddingTop: headerPaddingTop, fontWeight: "bold", color: "#af1e1eff", textAlign: "center" }, { fontSize: tableFontSize }]}>Código</Text>
+        <Text style={[{ width: "60%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: headerPadding, paddingTop: headerPaddingTop, fontWeight: "bold", color: "#af1e1eff", flexWrap: 'wrap' }, { fontSize: tableFontSize }]}>Nome Fórmula</Text>
+        <Text style={[{ width: "10%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: headerPadding, paddingTop: headerPaddingTop, fontWeight: "bold", color: "#af1e1eff", textAlign: "center" }, { fontSize: tableFontSize }]}>Batidas</Text>
+        <Text style={[{ width: "18%", borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", backgroundColor: "#e2e2e2ff", padding: headerPadding, paddingTop: headerPaddingTop, fontWeight: "bold", color: "#af1e1eff", textAlign:"right" }, { fontSize: tableFontSize }]}>Total</Text>
       </View>
       {formulas.map((f, i) => (
         <View
           key={i}
-          style={i % 2 === 0 ? styles.tableRow : styles.tableRowEven}
+          style={[
+            i % 2 === 0 ? styles.tableRow : styles.tableRowEven,
+            { marginTop: rowGap }
+          ]}
         >
-          <Text style={[{ width: "12%", paddingTop: cellPaddingTop , paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.codigo || f.numero || '-'}</Text>
-          <Text style={[{ width: "63%", paddingTop: cellPaddingTop , paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", flexWrap: 'wrap' }, { fontSize: currentFontSizes.table }]}>{f.nome}</Text>
-          <Text style={[{ width: "10%", paddingTop: cellPaddingTop , paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "center" }, { fontSize: currentFontSizes.table }]}>{f.batidas || f.quantidade || '-'}</Text>
-          <Text style={[{ width: "15%", paddingTop: cellPaddingTop , paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: 1, borderColor: "#d1d5db", textAlign: "right" }, { fontSize: currentFontSizes.table }]}> 
+          <Text style={[{ width: "12%", paddingTop: cellPaddingTop, paddingBottom: cellPaddingBottom, paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: cellBorderWidth, borderColor: "#d1d5db", textAlign: "center", minHeight: cellMinHeight, lineHeight: textLineHeight }, { fontSize: tableFontSize }]}>{f.codigo || f.numero || '-'}</Text>
+          <Text style={[{ width: "60%", paddingTop: cellPaddingTop, paddingBottom: cellPaddingBottom, paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: cellBorderWidth, borderColor: "#d1d5db", flexWrap: 'wrap', minHeight: cellMinHeight, lineHeight: textLineHeight }, { fontSize: tableFontSize }]}>{f.nome}</Text>
+          <Text style={[{ width: "10%", paddingTop: cellPaddingTop, paddingBottom: cellPaddingBottom, paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: cellBorderWidth, borderColor: "#d1d5db", textAlign: "center", minHeight: cellMinHeight, lineHeight: textLineHeight }, { fontSize: tableFontSize }]}>{f.batidas || f.quantidade || '-'}</Text>
+          <Text style={[{ width: "18%", paddingTop: cellPaddingTop, paddingBottom: cellPaddingBottom, paddingHorizontal: cellPadding, borderRightWidth: 1, borderBottomWidth: cellBorderWidth, borderColor: "#d1d5db", textAlign: "right", minHeight: cellMinHeight, lineHeight: textLineHeight }, { fontSize: tableFontSize }]}> 
             {f.somatoriaTotal.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg
           </Text>
         </View>
@@ -479,7 +541,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
     return (
       <Document>
         {/* Página 1 */}
-        <Page size="A4" style={[styles.page, { paddingBottom: 3 }]} orientation={orientation}>
+        <Page size="A4" style={[styles.page, { padding: 18, paddingBottom: 18 }]} orientation={orientation}>
           <View style={styles.header}>
             {/* Logo à esquerda */}
             {logoUrl && (
@@ -510,8 +572,8 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           {/* Principais Fórmulas e Tabela de Fórmulas (compacto) */}
           {(formulasOrdenadas.length > 0 || (formulaSums && Object.keys(formulaSums).length > 0) || (chartData && chartData.length > 0)) && (
-            <View style={{ marginTop: 8}}>
-              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop: 0, marginBottom: 8 }]}>Tabela de Fórmulas</Text>
+            <View style={{ marginTop: sectionMarginTop, marginBottom: sectionMarginBottom}}>
+              <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section - 2, marginTop: 0, marginBottom: sectionTitleMarginBottom, padding: sectionTitlePadding }]}>Tabela de Fórmulas</Text>
               {formulasOrdenadas.length > 0 ? (
                 renderFormulaTable(formulaChunks[0] || [])
               ) : (
@@ -526,7 +588,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
 
           {/* Tabela de produtos (apenas) */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginTop: 8, marginBottom: 8 }]}>Tabela de Produtos</Text>
+            <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section - 2, marginTop: sectionMarginTop, marginBottom: sectionTitleMarginBottom, padding: sectionTitlePadding }]}>Tabela de Produtos</Text>
             {produtoChunks.length > 0 ? (
               renderTable(produtoChunks[0], (p) => {
                 const valueNum = Number(p.qtd) || 0;
@@ -543,25 +605,25 @@ export const MyDocument: FC<MyDocumentProps> = ({
           {/* Se houver apenas 1 página de produtos, mostrar totais aqui */}
           {produtoChunks.length <= 1 && (
             <>
-               <View style={{ marginTop: 8, marginBottom: 8, paddingTop: 8, paddingBottom: 8 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
-                    <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Total:</Text>
-                    <Text style={{ fontSize: currentFontSizes.base }}>{total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg</Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                    <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Batidas:</Text>
-                    <Text style={{ fontSize: currentFontSizes.base }}>{batidas}</Text>
+               <View style={{ marginTop: 8, marginBottom: 0, paddingTop: 8, paddingBottom: 0 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 40 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 8 }}>Total:</Text>
+                      <Text style={{ fontSize: currentFontSizes.base }}>{total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 8 }}>Batidas:</Text>
+                      <Text style={{ fontSize: currentFontSizes.base }}>{batidas}</Text>
+                    </View>
                   </View>
                </View>
             </>
           )}
-
-          {renderRodape()}
         </Page>
 
         {/* Página 2 - Comentários (layout simplificado) */}
         {comentarios && comentarios.length > 0 && (
-          <Page size="A4" style={[styles.page, { paddingBottom: 30 }]} orientation={orientation}>
+          <Page size="A4" style={[styles.page, { padding: 18, paddingBottom: 18 }]} orientation={orientation}>
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { fontSize: currentFontSizes.section, marginBottom: 12 }]}>Comentários do Relatório</Text>
               {comentarios.map((c, i) => (
@@ -571,7 +633,6 @@ export const MyDocument: FC<MyDocumentProps> = ({
                 </View>
               ))}
             </View>
-            {renderRodape()}
           </Page>
         )}
 
@@ -592,14 +653,16 @@ export const MyDocument: FC<MyDocumentProps> = ({
             {/* Se for a última página, mostrar totais */}
             {idx === (produtoChunks.length - 2) && ( // -2 because slice(1) removes the first chunk
                <>
-                 <View style={{ marginTop: 10, marginBottom: 8, paddingTop: 8, paddingBottom: 8 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 4 }}>
-                      <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Total:</Text>
-                      <Text style={{ fontSize: currentFontSizes.base }}>{total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg</Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
-                      <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 10 }}>Batidas:</Text>
-                      <Text style={{ fontSize: currentFontSizes.base }}>{batidas}</Text>
+                 <View style={{ marginTop: 10, marginBottom: 0, paddingTop: 8, paddingBottom: 0 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 40 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 8 }}>Total:</Text>
+                        <Text style={{ fontSize: currentFontSizes.base }}>{total.toLocaleString("pt-BR", { minimumFractionDigits: 3 })} kg</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ fontSize: currentFontSizes.base, fontWeight: 'bold', marginRight: 8 }}>Batidas:</Text>
+                        <Text style={{ fontSize: currentFontSizes.base }}>{batidas}</Text>
+                      </View>
                     </View>
                  </View>
                </>
@@ -758,7 +821,9 @@ export const MyDocument: FC<MyDocumentProps> = ({
         {renderRodape()}
       </Page>
     ))}
-    {/* Página 3 */}
+
+    {/* Página 3 - renderizar apenas se houver conteúdo (gráficos, comentários ou observações) */}
+    {(showCharts || (chartChunks && chartChunks.length <= 1 && comentarios && comentarios.length > 0) || observacoes) && (
     <Page size="A4" style={[styles.page, { paddingBottom: pagePaddingBottom }]} orientation={orientation} wrap>
 
       {/* Gráficos */}
@@ -818,6 +883,7 @@ export const MyDocument: FC<MyDocumentProps> = ({
         
       {renderRodape()}
     </Page>
+    )}
 
     {/* Comentários serão renderizados após todas as páginas de gráfico (inseridos abaixo). */}
 

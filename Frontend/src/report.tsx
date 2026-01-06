@@ -48,6 +48,7 @@ import { getDefaultReportDateRange } from "./lib/reportDefaults";
 import useAdvancedFilters from './hooks/useAdvancedFilters';
 import { NotificationBell } from "./components/NotificationBell";
 import { useNotify } from "./hooks/useNotifications";
+// import { PdfDebugPanel } from "./components/PdfDebugPanel";
 import { trackAction } from "./lib/activityTracker";
 interface ComentarioRelatorio {
   texto: string;
@@ -178,6 +179,35 @@ export default function Report() {
   // Drawer de gráficos (atrás do sideinfo)
   const [chartsOpen, setChartsOpen] = useState<boolean>(false);
   const [highlightProduto, setHighlightProduto] = useState<string | null>(null);
+
+  // DEBUG PANEL (TEMPORÁRIO) - ativado com Ctrl+Shift+D
+  // Debug panel disabled - optimal values are now defaults in Pdf.tsx
+  // const [showDebugPanel, setShowDebugPanel] = useState(false);
+  const debugCellPadding = 1;
+  const debugCellPaddingTop = 3;
+  const debugCellPaddingBottom = 3;
+  const debugCellMinHeight = 0;
+  const debugHeaderPadding = 1;
+  const debugHeaderPaddingTop = 0;
+  const debugTableFontSize = 7;
+  const debugSectionMarginTop = 8;
+  const debugSectionMarginBottom = 8;
+  const debugSectionTitleMarginBottom = 8;
+  const debugSectionTitlePadding = 4;
+  const debugCellBorderWidth = 0.7;
+  const debugRowGap = 0;
+  const debugLineHeight = 1;
+
+  // useEffect(() => {
+  //   const handleKeyDown = (e: KeyboardEvent) => {
+  //     if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+  //       e.preventDefault();
+  //       setShowDebugPanel(prev => !prev);
+  //     }
+  //   };
+  //   window.addEventListener('keydown', handleKeyDown);
+  //   return () => window.removeEventListener('keydown', handleKeyDown);
+  // }, []);
   const [highlightFormula, setHighlightFormula] = useState<string | null>(null);
   const [sideListMode, setSideListMode] = useState<"produtos" | "formulas">(
     "produtos"
@@ -1414,6 +1444,20 @@ export default function Report() {
         diasSemanaChartData={diasSemanaBarData}
         pdfCustomization={pdfCustomization}
         simplifiedLayout={pdfCustomization.simplifiedLayout}
+        debugCellPadding={debugCellPadding}
+        debugCellPaddingTop={debugCellPaddingTop}
+        debugCellPaddingBottom={debugCellPaddingBottom}
+        debugCellMinHeight={debugCellMinHeight}
+        debugHeaderPadding={debugHeaderPadding}
+        debugHeaderPaddingTop={debugHeaderPaddingTop}
+        debugTableFontSize={debugTableFontSize}
+        debugSectionMarginTop={debugSectionMarginTop}
+        debugSectionMarginBottom={debugSectionMarginBottom}
+        debugSectionTitleMarginBottom={debugSectionTitleMarginBottom}
+        debugSectionTitlePadding={debugSectionTitlePadding}
+        debugCellBorderWidth={debugCellBorderWidth}
+        debugRowGap={debugRowGap}
+        debugLineHeight={debugLineHeight}
       />
     );
   };
@@ -2219,6 +2263,41 @@ export default function Report() {
               </PaginationItem>
             </PaginationContent>
           </Pagination>
+
+    {/* DEBUG PANEL (TEMPORÁRIO) */}
+    {/* {showDebugPanel && (
+      <PdfDebugPanel
+        onClose={() => setShowDebugPanel(false)}
+        cellPadding={debugCellPadding}
+        cellPaddingTop={debugCellPaddingTop}
+        cellPaddingBottom={debugCellPaddingBottom}
+        cellMinHeight={debugCellMinHeight}
+        headerPadding={debugHeaderPadding}
+        headerPaddingTop={debugHeaderPaddingTop}
+        tableFontSize={debugTableFontSize}
+        sectionMarginTop={debugSectionMarginTop}
+        sectionMarginBottom={debugSectionMarginBottom}
+        sectionTitleMarginBottom={debugSectionTitleMarginBottom}
+        sectionTitlePadding={debugSectionTitlePadding}
+        cellBorderWidth={debugCellBorderWidth}
+        rowGap={debugRowGap}
+        lineHeight={debugLineHeight}
+        onCellPaddingChange={setDebugCellPadding}
+        onCellPaddingTopChange={setDebugCellPaddingTop}
+        onCellPaddingBottomChange={setDebugCellPaddingBottom}
+        onCellMinHeightChange={setDebugCellMinHeight}
+        onHeaderPaddingChange={setDebugHeaderPadding}
+        onHeaderPaddingTopChange={setDebugHeaderPaddingTop}
+        onTableFontSizeChange={setDebugTableFontSize}
+        onSectionMarginTopChange={setDebugSectionMarginTop}
+        onSectionMarginBottomChange={setDebugSectionMarginBottom}
+        onSectionTitleMarginBottomChange={setDebugSectionTitleMarginBottom}
+        onSectionTitlePaddingChange={setDebugSectionTitlePadding}
+        onCellBorderWidthChange={setDebugCellBorderWidth}
+        onRowGapChange={setDebugRowGap}
+        onLineHeightChange={setDebugLineHeight}
+      />
+    )} */}
     </div>
   );
 }
