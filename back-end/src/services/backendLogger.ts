@@ -150,20 +150,19 @@ class BackendLogger {
   private write(entry: LogEntry): void {
     if (!this.shouldLog(entry.level)) return;
 
-    // Console output
-    if (this.logToConsole) {
-      console.log(this.formatForConsole(entry));
-    }
+    // Console output 
+    console.log(this.formatForConsole(entry));
+  
 
-    // File output (buffered)
-    if (this.logToFile) {
-      this.buffer.push(this.formatForFile(entry));
+    // // File output (buffered)
+    // if (this.logToFile) {
+    //   this.buffer.push(this.formatForFile(entry));
       
-      // Flush immediately on error/fatal or if buffer is full
-      if (entry.level === 'ERROR' || entry.level === 'FATAL' || this.buffer.length >= this.maxBufferSize) {
-        this.flushBuffer();
-      }
-    }
+    //   // Flush immediately on error/fatal or if buffer is full
+    //   if (entry.level === 'ERROR' || entry.level === 'FATAL' || this.buffer.length >= this.maxBufferSize) {
+    //     this.flushBuffer();
+    //   }
+    // }
   }
 
   // ============ PUBLIC API ============
