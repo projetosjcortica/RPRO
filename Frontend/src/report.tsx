@@ -119,8 +119,7 @@ export default function Report() {
   useEffect(() => {
     const loadIhmConfig = async () => {
       try {
-        const moduleParam = user?.userType === 'amendoim' ? '?module=amendoim' : '';
-        const res = await fetch(`http://localhost:3000/api/config/ihm-config${moduleParam}`);
+        const res = await fetch(`http://localhost:3000/api/config/ihm-config`);
         if (!res.ok) return;
         const data = await res.json();
         if (data.value) {
@@ -783,9 +782,8 @@ export default function Report() {
         // Get current IHM config before starting collector
         let ihmConfig = null;
         try {
-          const moduleParam = user?.userType === 'amendoim' ? '?module=amendoim' : '';
           const configRes = await fetch(
-            `http://localhost:3000/api/config/ihm-config${moduleParam}`
+            `http://localhost:3000/api/config/ihm-config`
           );
           if (configRes.ok) {
             const configData = await configRes.json();
@@ -821,12 +819,12 @@ export default function Report() {
 
         if (!res.ok) throw new Error("Falha ao iniciar o coletor.");
         const payload = await res.json().catch(() => ({}));
-        if (payload && payload.started === true) {
-          await fetchCollectorStatus();
+        if (payload && payload.started === false) {
           stopConnecting();
           throw new Error(payload?.message || "Coletor não pôde ser iniciado.");
         }
         await fetchCollectorStatus();
+        stopConnecting();
         refetch();
         refreshResumo();
         notify.success('Coletor iniciado', 'O coletor de dados está rodando', 'relatorio');
@@ -886,8 +884,7 @@ export default function Report() {
       // Modal closing: if it was running before, resume it
       if (wasCollectorRunningRef.current) {
         try {
-          const moduleParam = user?.userType === 'amendoim' ? '?module=amendoim' : '';
-          const configRes = await fetch(`http://localhost:3000/api/config/ihm-config${moduleParam}`);
+          const configRes = await fetch(`http://localhost:3000/api/config/ihm-config`);
           if (configRes.ok) {
             const configData = await configRes.json();
             const cfg = configData.value;
