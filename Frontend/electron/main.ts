@@ -922,7 +922,7 @@ function createWindow() {
   });
 
   win.maximize();
-  // win.setMenu(null);  //TIRATIRA
+  win.setMenu(null);
 
   win.webContents.on("did-finish-load", () => {
     win?.webContents.send("main-process-message", new Date().toLocaleString());

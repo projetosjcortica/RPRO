@@ -7092,5 +7092,3 @@ async function validateRuntimeDbConfig() {
     logger.cleanOldLogs(30);
   });
 })();
-
-
