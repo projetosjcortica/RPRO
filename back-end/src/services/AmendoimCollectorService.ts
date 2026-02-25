@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import iconv from 'iconv-lite';
 import { AmendoimService } from './AmendoimService';
 import { backupSvc } from './backupService';
 import { IHMService } from './IHMService';
@@ -642,8 +643,14 @@ export class AmendoimCollectorService {
             : `${arquivoInfo.ihmLabel}_${downloadedFile.name}`;
           console.log(`[AmendoimCollector] ✓ Arquivo baixado da ${arquivoInfo.ihmLabel}: ${downloadedFile.name} (${downloadedFile.size} bytes) - cacheKey: ${cacheKey}`);
 
-          // Ler conteúdo CSV
-          const csvContent = fs.readFileSync(downloadedFile.localPath, 'utf8');
+          // Ler conteúdo CSV com fallback de encoding (tentar UTF-8, senão windows-1252)
+          const buffer = fs.readFileSync(downloadedFile.localPath);
+          let csvContent = buffer.toString('utf8');
+          // heurística: se houver caractere de substituição ou sinais de garbling CP1252
+          if (csvContent.includes('\uFFFD') || /Ã|Â|Ã©|Ã¡|Ã£|Ã§/.test(csvContent)) {
+            console.log('[AmendoimCollector] UTF-8 falhou, tentando win1252...');
+            csvContent = iconv.decode(buffer, 'win1252');
+          }
 
           // Verificar cache - contar linhas no arquivo atual
           let csvDeduplicated = csvContent;

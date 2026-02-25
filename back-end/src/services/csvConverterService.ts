@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import iconv from 'iconv-lite';
 import { BaseService } from '../core/baseService';
 
 /**
@@ -129,9 +130,9 @@ export class CSVConverterService extends BaseService {
       raw = buffer.toString('utf8');
       
       // Se contiver caracteres de substituição, tentar latin1
-      if (raw.includes('\uFFFD')) {
-        console.log('[CSVConverter] UTF-8 falhou, tentando latin1...');
-        raw = buffer.toString('latin1');
+      if (raw.includes('\uFFFD') || /Ã|Â|Ã©|Ã¡|Ã£|Ã§/.test(raw)) {
+        console.log('[CSVConverter] UTF-8 falhou ou CP1252 detectado, tentando windows-1252...');
+        raw = iconv.decode(buffer, 'win1252');
       }
 
       // Remover BOM se existir
