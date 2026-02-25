@@ -1627,7 +1627,7 @@ export default function Report() {
   );
 
   return (
-    <div className="flex flex-col justify-evenly w-full h-screen ">
+    <div className="flex flex-col justify-evenly w-full h-screen overflow-hidden">
       <div className="flex flex-col justify-evenly w-full h-1/22  ">
         <div className="flex flex-row justify-between items-center">
 
