@@ -37,8 +37,7 @@ class BackendLogger {
   private currentLogFile: string;
   private writeStream: fs.WriteStream | null = null;
   private minLevel: LogLevel = 'DEBUG';
-  private logToConsole: boolean = true;
-  private logToFile: boolean = true;
+  private logToFile: boolean = false;
   private buffer: string[] = [];
   private flushInterval: NodeJS.Timeout | null = null;
   private maxBufferSize = 100;
@@ -135,6 +134,8 @@ class BackendLogger {
     return this.levelPriority[level] >= this.levelPriority[this.minLevel];
   }
 
+ //AQUI ESCREVE NO ARQUIVO DO BACKEND/LOGS
+ 
   private flushBuffer(): void {
     if (this.buffer.length === 0 || !this.logToFile) return;
     
@@ -156,7 +157,7 @@ class BackendLogger {
 
     // // File output (buffered)
     // if (this.logToFile) {
-    //   this.buffer.push(this.formatForFile(entry));
+    //   this.buffer.push(this.formatForFile(entry));  
       
     //   // Flush immediately on error/fatal or if buffer is full
     //   if (entry.level === 'ERROR' || entry.level === 'FATAL' || this.buffer.length >= this.maxBufferSize) {
@@ -169,10 +170,6 @@ class BackendLogger {
 
   setMinLevel(level: LogLevel): void {
     this.minLevel = level;
-  }
-
-  enableConsole(enable: boolean): void {
-    this.logToConsole = enable;
   }
 
   enableFile(enable: boolean): void {
