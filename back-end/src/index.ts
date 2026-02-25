@@ -1086,7 +1086,7 @@ app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => 
 });
 
 // Reativar todos os produtos (resetar para padrão)
-app.post("/api/materiaprima/reset-all", async (req, res) => {
+/*app.post("/api/materiaprima/reset-all", async (req, res) => {
   try {
     console.log('[MateriaPrima Reset] Reativando todos os produtos...');
 
@@ -1114,7 +1114,7 @@ app.post("/api/materiaprima/reset-all", async (req, res) => {
     console.error("Failed to reset products", e);
     return res.status(500).json({ error: e?.message || "Erro ao resetar produtos" });
   }
-});
+});*/
 
 // --- HTTP API parity for websocket commands ---
 
@@ -1324,7 +1324,6 @@ app.post("/api/db/import-legacy", dumpUpload.single("dump"), async (req, res) =>
     });
   }
 });
-// PAU NO SEU CU
 
 // Export database as SQL dump file
 app.get("/api/db/export-sql", async (req, res) => {

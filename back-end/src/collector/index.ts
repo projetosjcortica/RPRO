@@ -43,7 +43,7 @@ export function stopCollector() {
 // Prefer runtime-config topic 'ihm-config' if present (ip, user, password)
 const ihmCfg = getRuntimeConfig('ihm-config') || {};
 const ihmService = new IHMService(
-  ihmCfg.ip || process.env.IHM_IP || '192.168.5.252',
+  ihmCfg.ip || process.env.IHM_IP || '192.168.5.254',
   ihmCfg.user || process.env.IHM_USER || 'anonymous',
   ihmCfg.password || process.env.IHM_PASSWORD || ''
 );
@@ -155,7 +155,7 @@ class Collector {
 
 const collector = new Collector(
   new IHMService(
-    (getRuntimeConfig('ihm-config') || {}).ip || process.env.IHM_IP || '192.168.5.252',
+    (getRuntimeConfig('ihm-config') || {}).ip || process.env.IHM_IP || '192.168.5.254',
     (getRuntimeConfig('ihm-config') || {}).user || process.env.IHM_USER || 'anonymous',
     (getRuntimeConfig('ihm-config') || {}).password || process.env.IHM_PASS || ''
   )
