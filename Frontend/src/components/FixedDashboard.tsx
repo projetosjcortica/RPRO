@@ -30,7 +30,7 @@ interface FixedDashboardProps {
   filters?: any;
 }
 
-export default function FixedDashboard({ rows, filters }: FixedDashboardProps) {
+export default function edDashboard({ rows, filters }: FixedDashboardProps) {
   // Sidebar will show backend resumo data (more accurate and normalized)
   const [resumo, setResumo] = useState<any | null>(null);
   const [loadingResumo, setLoadingResumo] = useState(false);
@@ -466,7 +466,7 @@ const formatShortDate = (raw?: string | null) => {
                         const prevWeekStart = new Date(weeklyDateRange.from);
                         prevWeekStart.setDate(prevWeekStart.getDate() - 7);
                         handleWeeklyDateChange(prevWeekStart);
-                      }}
+                      }} 
                       className="h-8 px-1.5"
                     >
                       ←

@@ -30,7 +30,7 @@ export default function HomeRelatorio() {
         if (f.codigo) params.set('codigo', String(f.codigo));
         if (f.numero) params.set('numero', String(f.numero));
 
-        const url = `http://localhost:3000/api/chartdata?${params.toString()}`;
+        const url = `http://localhost:3000/api/chartdata?limit=100&${params.toString()}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const body = await res.json();
@@ -65,7 +65,7 @@ export default function HomeRelatorio() {
 
   return (
     <div className="min-h-screen overflow-auto">
-      <div className="h-fit">
+      <div className="h-fit py-2">
         <FixedDashboard rows={rows} filters={filtros} />
       </div>
     </div>

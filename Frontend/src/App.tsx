@@ -354,8 +354,8 @@ const App = () => {
           </Sidebar>
         </SidebarProvider>
       </div>
-      <div id='main-content' className='flex flex-1 flex-col overflow-hidden w-full h-full'>
-        <div className="flex-1 py-2 px-2 md:px-4">
+      <div id='main-content' className='flex flex-1 flex-col overflow-auto w-full h-full'>
+        <div className="flex-1 px-2">
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<RequireAuth><Home /></RequireAuth>} />
