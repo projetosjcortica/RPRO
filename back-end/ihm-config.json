@@ -1,6 +1,6 @@
 {
   "nomeCliente": "",
-  "ip": "192.168.5.253",
+  "ip": "192.168.5.254",
   "user": "",
   "password": "",
   "localCSV": "",
@@ -14,7 +14,7 @@
   "dumpDir": "",
   "batchDumpDir": "",
   "duasIHMs": true,
-  "ip2": "192.168.5.254",
+  "ip2": "192.168.5.253",
   "user2": "",
   "password2": "",
   "metodoCSV2": "mensal",

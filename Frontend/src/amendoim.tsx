@@ -697,9 +697,9 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
   
 
   return (
-    <div className="flex flex-col w-full h-full justify-evenly">
+    <div className="flex flex-col w-full justify-evenly">
       {/* Header */}
-      <div className=" flex flex-row justify-between w-full h-1/21 items-center">
+      <div className=" flex flex-row justify-between w-full py-2 items-center">
         <div className="flex flex-row items-end gap-1">
           {/* Resetar colunas: posição alinhada com o relatório (ração) */}
           <div>
@@ -763,12 +763,12 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
         </div>
       )}
 
-      <div className="flex flex-row h-18/21 gap-2 justify-start w-full">
+      <div className="flex flex-row gap-2 justify-start w-full">
           {/* Conteúdo principal */}
           <div className="flex-1 flex flex-col gap-1 items-start justify-start  w-[68px]">
 
           {/* Table */}
-          <div className="flex w-full h-full overflow-hidden shadow-xl rounded flex border border-gray-300">
+          <div className="flex w-full h-[85dvh] overflow-hidden shadow-xl rounded flex border border-gray-300">
         {loading && registros.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-8 space-y-4 h-[54vh] w-full text-center">
             <Loader2 className="h-10 w-10 animate-spin text-red-600 mx-auto" />
@@ -816,7 +816,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
 
       {/* Side Info com drawer de gráficos */}
       <div
-        className="relative w-87 h-full flex flex-col shadow-xl rounded border border-gray-300 flex-shrink-0"
+        className="relative w-87 h-[85dvh] flex flex-col shadow-xl rounded border border-gray-300 flex-shrink-0"
         style={{ zIndex: 10 }}
       >
       <div className="flex flex-col p-2 gap-2 justify-center items-center flex-1 overflow-hidden">
@@ -1140,7 +1140,7 @@ export default function Amendoim({ proprietario }: { proprietario?: string } = {
           }
         }}
       />
-          <div className="flex flex-row h-1/21 items-center justify-end ">
+          <div className="flex flex-row items-center h-15 justify-end">
             <Pagination className="flex flex-row justify-start">
               <PaginationContent>
                 <PaginationItem>
