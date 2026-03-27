@@ -1,5 +1,5 @@
 import { BaseService } from '../core/baseService';
-import { Client } from 'basic-ftp';
+import SftpClient from 'ssh2-sftp-client';
 import path from 'path';
 import fs from 'fs';
 import { cacheService } from './CacheService';
@@ -14,7 +14,7 @@ export class IHMService extends BaseService {
   private remotePath: string;
   private cachePrefix: string; // Identificador único para cache desta IHM
 
-  constructor(private ip: string, private user = 'anonymous', private password = '', remotePath = '/InternalStorage/data/') {
+  constructor(private ip: string, private user = 'Admin', private password = '', remotePath = '/public/') {
     super('IHMService');
     this.cache = new Map(); // mapa para armazenar o cache e identificar arquivos novos
     this.originalNames = new Map();
@@ -134,42 +134,48 @@ export class IHMService extends BaseService {
   }
 
   async findAndDownloadNewFiles(localDir: string) {
-    const client = new Client();
+    const client = new SftpClient();
     try {
       consoleLog(`[IHMService] ${this.cachePrefix} - Connecting to FTP server: ${this.ip}`);
-      await client.access({ host: this.ip, user: this.user, password: this.password, secure: false });
-      await client.useDefaultSettings();
-      await client.cd(this.remotePath);
-      consoleLog(`[IHMService] ${this.cachePrefix} - Changed to directory: ${this.remotePath}`);
-      const list = await client.list(); 
-      consoleLog(`[IHMService] ${this.cachePrefix} - Found ${list.length} files on FTP server`);
+      await client.connect({
+        host: this.ip,
+        port: 22,
+        username: this.user,
+        password: this.password
+      });
+        consoleLog(`[IHMService] ${this.cachePrefix} - Changed to directory: ${this.remotePath}`);
+      const list = await client.list(this.remotePath);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Found ${list.length} files on FTP server`);
       if (list.length === 0) {
         consoleLog(`[IHMService] ${this.cachePrefix} - No files found on FTP server.`);
         return [];
       }
-      const csvs = list.filter((f: any) => f.isFile && f.name.toLowerCase().endsWith('.csv'));
-      consoleLog(`[IHMService] ${this.cachePrefix} - Found ${csvs.length} CSV files: ${csvs.map(f => f.name).join(', ')}`);
+      const csvs = list.filter((f: any) => (f.isFile || f.type === '-' || f.type === 'f') && f.name.toLowerCase().endsWith('.csv'));
+        consoleLog(`[IHMService] ${this.cachePrefix} - Found ${csvs.length} CSV files: ${csvs.map((f: any) => f.name).join(', ')}`);
        
       const newFiles =  csvs.filter(this.filterNewFiles());
-      consoleLog(`[IHMService] ${this.cachePrefix} - ${newFiles.length} files to download: ${newFiles.map(f => f.name).join(', ')}`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - ${newFiles.length} files to download: ${newFiles.map((f: any) => f.name).join(', ')}`);
       
       const results: Array<{ name: string; localPath: string; size: number }> = [];
       for (const f of newFiles) {
         const local = path.join(localDir, f.name);
-        consoleLog(`[IHMService] ${this.cachePrefix} - Downloading ${f.name} to ${local}`);
-        await client.downloadTo(local, f.name, 0);
+          consoleLog(`[IHMService] ${this.cachePrefix} - Downloading ${f.name} to ${local}`);
+        await client.fastGet(
+          `${this.remotePath}/${f.name}`,
+          local
+        );
         const stat = fs.statSync(local);
-        results.push({ name: f.name, localPath: local, size: stat.size });
-        consoleLog(`[IHMService] ${this.cachePrefix} - Downloaded ${f.name} (${stat.size} bytes)`);
+          results.push({ name: f.name, localPath: local, size: stat.size });
+          consoleLog(`[IHMService] ${this.cachePrefix} - Downloaded ${f.name} (${stat.size} bytes)`);
       }
       await this.salvarCacheNoDB();
-      consoleLog(`[IHMService] ${this.cachePrefix} - Download completed, ${results.length} files processed`);
+        consoleLog(`[IHMService] ${this.cachePrefix} - Download completed, ${results.length} files processed`);
       return results;
     } catch (error) {
       backendLog.error('IHMService', `${this.cachePrefix} - Erro durante operação FTP`, error, { ip: this.ip, remotePath: this.remotePath });
-      throw error;
+        throw error;
     } finally {
-      client.close();
+      client.end();
     }
   }
 
@@ -190,14 +196,17 @@ export class IHMService extends BaseService {
    * Usado para coleta incremental onde precisamos ler o conteúdo mesmo sem mudança de tamanho.
    */
   async forceDownloadFile(fileName: string, localDir: string): Promise<{ name: string; localPath: string; size: number } | null> {
-    const client = new Client();
+    const client = new SftpClient();
     try {
       consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Connecting to FTP: ${this.ip}`);
-      await client.access({ host: this.ip, user: this.user, password: this.password, secure: false });
-      await client.useDefaultSettings();
-      await client.cd(this.remotePath);
-      
-      const list = await client.list();
+      await client.connect({
+        host: this.ip,
+        port: 22,
+        username: this.user,
+        password: this.password
+      });
+
+      const list = await client.list(this.remotePath);
       const targetFile = list.find((f: any) => f.isFile && f.name === fileName);
       
       if (!targetFile) {
@@ -207,7 +216,10 @@ export class IHMService extends BaseService {
 
       const local = path.join(localDir, fileName);
       consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Baixando ${fileName} para ${local}`);
-      await client.downloadTo(local, fileName, 0);
+      await client.fastGet(
+        `${this.remotePath}/${fileName}`,
+        local
+      );
       const stat = fs.statSync(local);
       
       // Atualizar cache interno
@@ -222,7 +234,7 @@ export class IHMService extends BaseService {
       backendLog.error('IHMService', `${this.cachePrefix} - [FORCE] Erro no download forçado`, error, { fileName, localDir, ip: this.ip });
       throw error;
     } finally {
-      client.close();
+      client.end();
     }
   }
 
@@ -231,16 +243,18 @@ export class IHMService extends BaseService {
    * Retorna apenas os nomes dos arquivos.
    */
   async listarArquivosCSV(): Promise<string[]> {
-    const client = new Client();
+    const client = new SftpClient();
     try {
       consoleLog(`[IHMService] ${this.cachePrefix} - Listando CSVs no FTP: ${this.ip}`);
-      await client.access({ host: this.ip, user: this.user, password: this.password, secure: false });
-      await client.useDefaultSettings();
-      await client.cd(this.remotePath);
-      
-      const list = await client.list();
+      await client.connect({
+        host: this.ip,
+        port: 22,
+        username: this.user,
+        password: this.password
+      });
+      const list = await client.list(this.remotePath);
       const csvFiles = list
-        .filter((f: any) => f.isFile && f.name.toLowerCase().endsWith('.csv'))
+        .filter((f: any) => (f.isFile || f.type === '-' || f.type === 'f') && f.name.toLowerCase().endsWith('.csv'))
         .filter((f: any) => {
           // Filtrar arquivos _2.csv e _sys
           const name = f.name.toLowerCase();
@@ -254,7 +268,7 @@ export class IHMService extends BaseService {
       backendLog.error('IHMService', `${this.cachePrefix} - Erro ao listar arquivos CSV`, error, { ip: this.ip, remotePath: this.remotePath });
       throw error;
     } finally {
-      client.close();
+      client.end();
     }
   }
 }

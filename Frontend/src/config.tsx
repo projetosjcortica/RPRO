@@ -27,6 +27,8 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './components/ui/dialog';
 // Popover and `cn` not used in this file; imports removed to satisfy build
 import toastManager from "./lib/toastManager";
+import { Field, FieldGroup } from "./components/ui/field";
+import { Checkbox } from "./components/ui/checkbox";
 
 export const initialFormData = {
   nomeCliente: "",
@@ -85,6 +87,8 @@ export interface FormDataOptional {
   // per-IHM file method for first IHM if needed (keeps backward compatibility)
   metodoCSV?: string;
   localCSV?: string;
+  // SFTP configuration flag
+  sftp?: boolean;
 }
 
 type FormDataKey = keyof FormData;
@@ -769,14 +773,6 @@ export function IHMConfig({
         const ipKey = sel === 1 ? 'ip' : 'ip2';
         const userKey = sel === 1 ? 'user' : 'user2';
         const passKey = sel === 1 ? 'password' : 'password2';
-        const metodoKey = sel === 1 ? 'metodoCSV' : 'metodoCSV2';
-        const localKey = sel === 1 ? 'localCSV' : 'localCSV2';
-
-        // generate mensal filename using current date
-        const now = new Date();
-        const yyyy = now.getFullYear();
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        const mensalName = `Relatorio_${yyyy}_${mm}.csv`;
 
         return (
           <div className="flex flex-col gap-3">
@@ -814,62 +810,17 @@ export function IHMConfig({
             </Label>
 
             <div className="flex flex-col gap-2">
-              <Label className="font-medium text-gray-700">Arquivo tipo</Label>
-              <div className="flex gap-4 items-center">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`metodo-${sel}`}
-                    value="mensal"
-                    checked={(formData as any)[metodoKey] === 'mensal'}
+              <FieldGroup>
+                <Field orientation="horizontal">
+                  <Label className="font-medium text-gray-700">SFTP</Label>
+                  <Checkbox
+                    checked={(formData as any).sftp ?? false}
+                    onCheckedChange={(checked) => onChange("sftp", !!checked)}
                     disabled={!isEditing}
-                    onChange={() => onChange(metodoKey as any, 'mensal')}
-                  />
-                  Mensal
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`metodo-${sel}`}
-                    value="geral"
-                    checked={(formData as any)[metodoKey] === 'geral'}
-                    disabled={!isEditing}
-                    onChange={() => onChange(metodoKey as any, 'geral')}
-                  />
-                  Geral
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name={`metodo-${sel}`}
-                    value="custom"
-                    checked={(formData as any)[metodoKey] === 'custom'}
-                    disabled={!isEditing}
-                    onChange={() => onChange(metodoKey as any, 'custom')}
-                    className="bg-gray-200 checked:bg-red-600"
-                  />
-                  Customizado
-                </label>
-              </div>
 
-              {/* show file name depending on selection */}
-              <div className="mt-2">
-                {((formData as any)[metodoKey] === 'mensal') && (
-                  <Input readOnly value={mensalName} />
-                )}
-                {((formData as any)[metodoKey] === 'geral') && (
-                  <Input readOnly value={'Relatorio_1.csv'} />
-                )}
-                {((formData as any)[metodoKey] === 'custom') && (
-                  <div className="flex gap-2">
-                    <Input
-                      value={(formData as any)[localKey] ?? ''}
-                      onChange={(e) => onChange(localKey as any, e.target.value)}
-                      disabled={!isEditing}
-                    />
-                  </div>
-                )}
-              </div>
+                  />
+                </Field>
+              </FieldGroup>
             </div>
           </div>
         );
