@@ -6235,15 +6235,10 @@ app.get('/api/amendoim/analise', async (req, res) => {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
 
-    console.log('[API /api/amendoim/analise] REQUEST - dataInicio:', dataInicio, 'dataFim:', dataFim);
-
     const dadosAnalise = await AmendoimService.obterDadosAnalise({
       dataInicio,
       dataFim,
     });
-
-    console.log('[API /api/amendoim/analise] RESPONSE - entradaSaidaPorHorario length:', dadosAnalise.entradaSaidaPorHorario.length);
-    console.log('[API /api/amendoim/analise] RESPONSE - sample:', JSON.stringify(dadosAnalise.entradaSaidaPorHorario.slice(0, 3)));
 
     return res.json(dadosAnalise);
   } catch (e: any) {

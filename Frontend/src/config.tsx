@@ -53,6 +53,7 @@ export const initialFormData = {
   metodoCSV2: "",
   localCSV2: "",
   selectedIhm: 1,
+  sftp: false,
 };
 
 export interface FormData {
@@ -733,18 +734,6 @@ export function IHMConfig({
   return (
     <div id="webCfg" className="flex flex-col gap-4 bg-white">
       {/* duasIHMs toggle */}
-      <div className="flex items-center justify-between">
-        <Label className="font-medium text-gray-700">Usar duas IHMs</Label>
-        <label className="inline-flex items-center gap-2">
-          <input
-            type="checkbox"
-            className="h-5 w-5 text-red-600 rounded bg-gray-50"
-            checked={!!(formData as any).duasIHMs}
-            disabled={!isEditing}
-            onChange={(e) => onChange("duasIHMs", !!e.target.checked)}
-          />
-        </label>
-      </div>
 
 
 
@@ -810,15 +799,22 @@ export function IHMConfig({
             </Label>
 
             <div className="flex flex-col gap-2">
-              <FieldGroup>
+              <FieldGroup className="flex flex-col">
                 <Field orientation="horizontal">
-                  <Label className="font-medium text-gray-700">SFTP</Label>
                   <Checkbox
                     checked={(formData as any).sftp ?? false}
                     onCheckedChange={(checked) => onChange("sftp", !!checked)}
                     disabled={!isEditing}
-
                   />
+                  <Label className="font-medium text-gray-700">Usar protocolo SFTP</Label>
+                </Field>
+                <Field orientation="horizontal">
+                  <Checkbox
+                    checked={!!(formData as any).duasIHMs}
+                    onCheckedChange={(checked) => onChange("duasIHMs", !!checked)}
+                    disabled={!isEditing}
+                  />
+                  <Label className="font-medium text-gray-700">Usar duas IHMs</Label>
                 </Field>
               </FieldGroup>
             </div>

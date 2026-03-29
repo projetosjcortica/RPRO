@@ -36,6 +36,31 @@ export class AmendoimService {
     return "entrada";
   }
 
+  private static getDiaOperacional(dia: string, hora: string): string {
+  const [d, m, y] = dia.split('/');
+  const ano = Number(y) < 50 ? 2000 + Number(y) : 1900 + Number(y);
+
+  const data = new Date(
+    ano,
+    Number(m) - 1,
+    Number(d),
+    Number(hora.substring(0, 2)),
+    Number(hora.substring(3, 5)),
+    Number(hora.substring(6, 8))
+  );
+
+  // regra do cliente: -7 horas
+  data.setHours(data.getHours() - 7);
+
+  const diaFinal = String(data.getDate()).padStart(2, '0');
+  const mesFinal = String(data.getMonth() + 1).padStart(2, '0');
+  const anoFinal = String(data.getFullYear()).slice(-2);
+
+  return `${diaFinal}/${mesFinal}/${anoFinal}`;
+}
+
+
+
   /**
    * Processa um arquivo CSV de amendoim e salva no banco de dados.
    * O tipo (entrada/saida) é determinado AUTOMATICAMENTE pela balança:
@@ -801,13 +826,14 @@ export class AmendoimService {
     // Query para dados agrupados por dia
     let qbDia = repo.createQueryBuilder("amendoim")
       .select("amendoim.dia", "dia")
+      .addSelect("amendoim.hora", "hora")
       .addSelect("amendoim.tipo", "tipo")
       .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
 
     if (dataInicioDB) qbDia.andWhere("STR_TO_DATE(amendoim.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicio, '%d/%m/%y')", { dataInicio: dataInicioDB });
     if (dataFimDB) qbDia.andWhere("STR_TO_DATE(amendoim.dia, '%d/%m/%y') < STR_TO_DATE(:dataFim, '%d/%m/%y')", { dataFim: dataFimDB });
 
-    const dadosDia = await qbDia.groupBy("amendoim.dia, amendoim.tipo").orderBy("STR_TO_DATE(amendoim.dia, '%d/%m/%y')", "ASC").getRawMany();
+    const dadosDia = await qbDia.groupBy("amendoim.dia, amendoim.hora, amendoim.tipo").orderBy("STR_TO_DATE(amendoim.dia, '%d/%m/%y')", "ASC").getRawMany();
     console.log('[AmendoimService.obterDadosAnalise] dadosDia resultado:', dadosDia.length, 'registros');
 
     // Query para dia da semana (MySQL: DAYOFWEEK retorna 1=domingo, 2=segunda, etc.)
@@ -832,14 +858,21 @@ export class AmendoimService {
     }
 
     // Processar dados por dia
-    const diasUnicos = [...new Set(dadosDia.map((d: any) => d.dia))].sort();
+    const dadosAjustados = dadosDia.map((d: any) => ({
+      ...d,
+      diaOperacional: this.getDiaOperacional(d.dia, d.hora),
+    }));
+
+    const diasUnicos = [
+      ...new Set(dadosAjustados.map((d: any) => d.diaOperacional)),
+    ].sort();
     const rendimentoPorDia: Array<{ dia: string; entrada: number; saida: number; rendimento: number }> = [];
     const perdaAcumulada: Array<{ dia: string; perdaDiaria: number; perdaAcumulada: number }> = [];
     let perdaTotal = 0;
 
     diasUnicos.forEach((dia) => {
-      const entrada = Number(dadosDia.find((d: any) => d.dia === dia && d.tipo === "entrada")?.peso || 0);
-      const saida = Number(dadosDia.find((d: any) => d.dia === dia && d.tipo === "saida")?.peso || 0);
+      const entrada = Number(dadosDia.find((d: any) => d.diaOperacional === dia && d.tipo === "entrada")?.peso || 0);
+      const saida = Number(dadosDia.find((d: any) => d.diaOperacional === dia && d.tipo === "saida")?.peso || 0);
       const rendimento = entrada > 0 ? (saida / entrada) * 100 : 0;
       const perdaDiaria = entrada - saida;
       perdaTotal += perdaDiaria;

@@ -139,7 +139,7 @@ export class IHMService extends BaseService {
       consoleLog(`[IHMService] ${this.cachePrefix} - Connecting to FTP server: ${this.ip}`);
       await client.connect({
         host: this.ip,
-        port: 22,
+        port: 2222,
         username: this.user,
         password: this.password
       });
