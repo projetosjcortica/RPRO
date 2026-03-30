@@ -50,12 +50,12 @@ export class AmendoimService {
   );
 
   // regra do cliente: -7 horas
-  data.setHours(data.getHours() - 7);
+  data.setHours(data.getHours() - 0);
 
   const diaFinal = String(data.getDate()).padStart(2, '0');
   const mesFinal = String(data.getMonth() + 1).padStart(2, '0');
   const anoFinal = String(data.getFullYear()).slice(-2);
-
+ 
   return `${diaFinal}/${mesFinal}/${anoFinal}`;
 }
 
@@ -858,21 +858,34 @@ export class AmendoimService {
     }
 
     // Processar dados por dia
-    const dadosAjustados = dadosDia.map((d: any) => ({
-      ...d,
-      diaOperacional: this.getDiaOperacional(d.dia, d.hora),
-    }));
+    // const dadosAjustados = dadosDia.map((d: any) => ({
+    //   ...d,
+    //   diaOperacional: this.getDiaOperacional(d.dia, d.hora),
+    // }));
 
+    // const diasUnicos = [
+    //   ...new Set(dadosAjustados.map((d: any) => d.diaOperacional)),
+    // ].sort();
+    
+    // Usar diretamente o campo dia do banco, sem ajustes
     const diasUnicos = [
-      ...new Set(dadosAjustados.map((d: any) => d.diaOperacional)),
+      ...new Set(dadosDia.map((d: any) => d.dia)),
     ].sort();
+    
     const rendimentoPorDia: Array<{ dia: string; entrada: number; saida: number; rendimento: number }> = [];
     const perdaAcumulada: Array<{ dia: string; perdaDiaria: number; perdaAcumulada: number }> = [];
     let perdaTotal = 0;
 
     diasUnicos.forEach((dia) => {
-      const entrada = Number(dadosDia.find((d: any) => d.diaOperacional === dia && d.tipo === "entrada")?.peso || 0);
-      const saida = Number(dadosDia.find((d: any) => d.diaOperacional === dia && d.tipo === "saida")?.peso || 0);
+      // Somar TODAS as entradas e saídas do dia (não apenas a primeira encontrada)
+      const entrada = dadosDia
+        .filter((d: any) => d.dia === dia && d.tipo === "entrada")
+        .reduce((sum, d) => sum + Number(d.peso || 0), 0);
+      
+      const saida = dadosDia
+        .filter((d: any) => d.dia === dia && d.tipo === "saida")
+        .reduce((sum, d) => sum + Number(d.peso || 0), 0);
+      
       const rendimento = entrada > 0 ? (saida / entrada) * 100 : 0;
       const perdaDiaria = entrada - saida;
       perdaTotal += perdaDiaria;

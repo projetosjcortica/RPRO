@@ -6094,7 +6094,7 @@ app.get('/api/amendoim/config', async (req, res) => {
         ip: config.ip2 || '',
         user: config.user2 || 'anonymous',
         password: config.password2 || '',
-        caminhoRemoto: config.localCSV2 || '/InternalStorage/data/',
+        caminhoRemoto: config.localCSV2 || '/public/internalStorage/data/',
         usadaPara: 'saida',
       };
       // Salvar configuração migrada
@@ -6136,7 +6136,7 @@ app.get('/api/amendoim/config', async (req, res) => {
         ip: '',
         user: 'anonymous',
         password: '',
-        caminhoRemoto: '/InternalStorage/data/',
+        caminhoRemoto: '/public/internalStorage/data/',
         usadaPara: 'saida',
       };
     }
@@ -6234,7 +6234,6 @@ app.get('/api/amendoim/analise', async (req, res) => {
   try {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
-
     const dadosAnalise = await AmendoimService.obterDadosAnalise({
       dataInicio,
       dataFim,

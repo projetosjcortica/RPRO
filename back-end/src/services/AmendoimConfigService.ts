@@ -32,7 +32,7 @@ export const AMENDOIM_CONFIG_DEFAULT: AmendoimConfig = {
   ip: "",
   user: "anonymous",
   password: "",
-  caminhoRemoto: "/InternalStorage/data/",
+  caminhoRemoto: "/public//internalStorage/data/",
   duasIHMs: false,
 };
 

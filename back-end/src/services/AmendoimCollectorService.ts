@@ -133,7 +133,7 @@ export class AmendoimCollectorService {
         try {
           console.log(`[AmendoimCollector] Tentando IHM2 (${ih2.ip}) como fallback`);
           const runtime = getRuntimeConfig('ihm-config') || {};
-          const defaultRemote = runtime.caminhoRemoto || '/InternalStorage/data/';
+          const defaultRemote = runtime.caminhoRemoto || '/public/internalStorage/data/';
           const svc2 = new IHMService(
             String(ih2.ip || '192.168.5.250'),
             String(ih2.user || 'anonymous'),
@@ -482,7 +482,7 @@ export class AmendoimCollectorService {
       const ipPadrao = ihmCfg.ip || process.env.IHM_IP || '';
       const userPadrao = ihmCfg.user || process.env.IHM_USER || 'anonymous';
       const passwordPadrao = ihmCfg.password || process.env.IHM_PASSWORD || '';
-      const caminhoPadrao = ihmCfg.caminhoRemoto || '/InternalStorage/data/';
+      const caminhoPadrao = ihmCfg.caminhoRemoto || '/public/internalStorage/data/';
       console.log('[AmendoimCollector] ========================================');
       console.log(`  - duasIHMs: ${ihmCfg.duasIHMs}`);
       console.log(`  - IHM1 IP: ${ipPadrao}`);

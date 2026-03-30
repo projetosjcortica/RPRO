@@ -58,7 +58,7 @@ export default function AmendoimConfig({ isOpen, onClose, onSave }: AmendoimConf
       ip: "",
       user: "anonymous",
       password: "",
-      caminhoRemoto: "/InternalStorage/data/",
+      caminhoRemoto: "/public/internalStorage/data/",
       usadaPara: "ambos",
     },
     entrada: {

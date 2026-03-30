@@ -14,7 +14,7 @@ export class IHMService extends BaseService {
   private remotePath: string;
   private cachePrefix: string; // Identificador único para cache desta IHM
 
-  constructor(private ip: string, private user = 'Admin', private password = '', remotePath = '/public/') {
+  constructor(private ip: string, private user = 'Admin', private password = '', remotePath = '/public/internalStorage/data') {
     super('IHMService');
     this.cache = new Map(); // mapa para armazenar o cache e identificar arquivos novos
     this.originalNames = new Map();
@@ -139,7 +139,7 @@ export class IHMService extends BaseService {
       consoleLog(`[IHMService] ${this.cachePrefix} - Connecting to FTP server: ${this.ip}`);
       await client.connect({
         host: this.ip,
-        port: 2222,
+        port: 22,
         username: this.user,
         password: this.password
       });
@@ -207,8 +207,23 @@ export class IHMService extends BaseService {
       });
 
       const list = await client.list(this.remotePath);
-      const targetFile = list.find((f: any) => f.isFile && f.name === fileName);
-      
+      let targetFile = list.find((f: any) =>
+        (f.isFile || f.type === '-' || f.type === 'f') &&
+        f.name === fileName
+      );
+
+      if (!targetFile) {
+        // Tentar busca case-insensitive para evitar discrepâncias de casing em servidores FTP
+        targetFile = list.find((f: any) =>
+          (f.isFile || f.type === '-' || f.type === 'f') &&
+          String(f.name || '').toLowerCase() === String(fileName || '').toLowerCase()
+        );
+
+        if (targetFile) {
+          backendLog.warn('IHMService', `${this.cachePrefix} - [FORCE] Arquivo encontrado por case-insensitive: ${fileName} -> ${targetFile.name}`, { fileName, foundName: targetFile.name });
+        }
+      }
+
       if (!targetFile) {
         consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Arquivo não encontrado: ${fileName}`);
         return null;
