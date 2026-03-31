@@ -394,9 +394,7 @@ export default function Home() {
         const end = weeklyFilters?.dataFim;
         if (!start || !end) {
           setComparativo(null);
-          return;
-        }
-        const s = new Date(start + 'T00:00:00');
+          retur, weeklyFilters?.dataInicio, weeklyFilters?.dataFimT00:00:00');
         const e = new Date(end + 'T23:59:59');
         const days = Math.round((e.getTime() - s.getTime()) / (24 * 3600 * 1000)) + 1;
 
@@ -476,9 +474,7 @@ export default function Home() {
               dia: d.dia,
               valor: d.saida || 0
             }));
-            setDadosSaidaPorDia(dadosSaida);
-            // Calculate sum
-            const sum = dadosSaida.reduce((acc: number, d: any) => acc + d.valor, 0);
+            setDadosSaidaPorDia(da`http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}&turnoInicio=7&turnoFim=6`r, 0);
             setSaidaSum(sum);
           } else {
             setDadosSaidaPorDia([]);

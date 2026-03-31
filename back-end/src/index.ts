@@ -6234,9 +6234,16 @@ app.get('/api/amendoim/analise', async (req, res) => {
   try {
     const dataInicio = req.query.dataInicio ? String(req.query.dataInicio) : undefined;
     const dataFim = req.query.dataFim ? String(req.query.dataFim) : undefined;
+    const turnoInicio = req.query.turnoInicio ? parseInt(String(req.query.turnoInicio)) : undefined;
+    const turnoFim = req.query.turnoFim ? parseInt(String(req.query.turnoFim)) : undefined;
+    const turnoNome = req.query.turnoNome ? String(req.query.turnoNome) : undefined;
+    
     const dadosAnalise = await AmendoimService.obterDadosAnalise({
       dataInicio,
       dataFim,
+      turnoInicio,
+      turnoFim,
+      turnoNome,
     });
 
     return res.json(dadosAnalise);
