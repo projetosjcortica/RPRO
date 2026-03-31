@@ -78,9 +78,15 @@ export default function Home() {
   });
   const [horariosFilters, setHorariosFilters] = useState<any>(() => {
     const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setDate(yesterday.getDate() - 1);
     const dateStr = formatDate(yesterday, 'yyyy-MM-dd');
-    return { dataInicio: dateStr, dataFim: dateStr };
+
+    return { 
+      dataInicio: dateStr, 
+      dataFim: dateStr,
+      turnoInicio: 7,
+      turnoFim: 6
+    };
   });
   const handleHorariosDateChange = (range: any) => {
     if (!range) {
@@ -95,9 +101,17 @@ export default function Home() {
     if (horariosDateRange?.from) {
       const start = formatDate(horariosDateRange.from, 'yyyy-MM-dd');
       const end = horariosDateRange.to ? formatDate(horariosDateRange.to, 'yyyy-MM-dd') : start;
-      setHorariosFilters({ dataInicio: start, dataFim: end });
+      setHorariosFilters({ 
+        dataInicio: start, 
+        dataFim: end,
+        turnoInicio: 7,
+        turnoFim: 6
+      });
     } else {
-      setHorariosFilters({ dataInicio: '', dataFim: '' });
+      setHorariosFilters({ 
+        dataInicio: '', 
+        dataFim: '' 
+      });
     }
   };
   const clearHorariosFilters = () => {
@@ -125,7 +139,12 @@ export default function Home() {
     start.setDate(today.getDate() - (day === 0 ? 0 : day));
     const end = new Date(today);
     end.setDate(today.getDate() + (day === 0 ? 6 : 6 - day));
-    return { dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd') };
+    return { 
+      dataInicio: formatDate(start, 'yyyy-MM-dd'), 
+      dataFim: formatDate(end, 'yyyy-MM-dd'),
+      turnoInicio: 7,
+      turnoFim: 6
+    };
   });
   const handleWeeklyDateChange = (date?: Date) => {
     if (!date) {
@@ -136,7 +155,7 @@ export default function Home() {
       const end = new Date(today);
       end.setDate(today.getDate() + (6 - dow));
       setWeeklyDateRange({ from: start, to: end });
-      setWeeklyFilters({ dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd') });
+      setWeeklyFilters({ dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd'), turnoInicio: 7, turnoFim: 6, turnoInicio: 7, turnoFim: 6, turnoInicio: 7, turnoFim: 6, turnoInicio: 7, turnoFim: 6 });
       return;
     }
     const dow = date.getDay();
@@ -256,14 +275,14 @@ export default function Home() {
     if (entradaDateRange?.from) {
       const start = formatDate(entradaDateRange.from, 'yyyy-MM-dd');
       const end = entradaDateRange.to ? formatDate(entradaDateRange.to, 'yyyy-MM-dd') : start;
-      setEntradaFilters({ dataInicio: start, dataFim: end });
+      setEntradaFilters({ dataInicio: start, dataFim: end, turnoInicio: 7, turnoFim: 6 });
     } else {
       setEntradaFilters({ dataInicio: '', dataFim: '' });
     }
   };
   const clearEntradaFilters = () => {
     setEntradaDateRange({ ...weeklyDateRange });
-    setEntradaFilters({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim });
+    setEntradaFilters({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim, turnoInicio: weeklyFilters.turnoInicio, turnoFim: weeklyFilters.turnoFim });
   };
 
   // Per-card handlers for Saída
@@ -280,14 +299,14 @@ export default function Home() {
     if (saidaDateRange?.from) {
       const start = formatDate(saidaDateRange.from, 'yyyy-MM-dd');
       const end = saidaDateRange.to ? formatDate(saidaDateRange.to, 'yyyy-MM-dd') : start;
-      setSaidaFilters({ dataInicio: start, dataFim: end });
+      setSaidaFilters({ dataInicio: start, dataFim: end, turnoInicio: 7, turnoFim: 6 });
     } else {
       setSaidaFilters({ dataInicio: '', dataFim: '' });
     }
   };
   const clearSaidaFilters = () => {
     setSaidaDateRange({ ...weeklyDateRange });
-    setSaidaFilters({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim });
+    setSaidaFilters({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim, turnoInicio: weeklyFilters.turnoInicio, turnoFim: weeklyFilters.turnoFim });
   };
 
   // Dados específicos por gráfico
@@ -303,9 +322,9 @@ export default function Home() {
   const [dadosSaidaPorDia, setDadosSaidaPorDia] = useState<any[]>([]);
   // Per-card date ranges and filters for testing
   const [entradaDateRange, setEntradaDateRange] = useState<any>(() => ({ ...weeklyDateRange }));
-  const [entradaFilters, setEntradaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim }));
+  const [entradaFilters, setEntradaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim, turnoInicio: weeklyFilters.turnoInicio, turnoFim: weeklyFilters.turnoFim }));
   const [saidaDateRange, setSaidaDateRange] = useState<any>(() => ({ ...weeklyDateRange }));
-  const [saidaFilters, setSaidaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim }));
+  const [saidaFilters, setSaidaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim, turnoInicio: weeklyFilters.turnoInicio, turnoFim: weeklyFilters.turnoFim }));
 
   console.log(dadosTurnos, comparativo, dadosRendimento30);
 
@@ -345,12 +364,23 @@ export default function Home() {
   }, [tipoHome]);
 
   // Fetch por gráfico
-  const fetchAnaliseFor = async (fi: { dataInicio?: string; dataFim?: string }) => {
-    const params = new URLSearchParams({ ...(fi.dataInicio ? { dataInicio: fi.dataInicio } : {}), ...(fi.dataFim ? { dataFim: fi.dataFim } : {}) });
+  const fetchAnaliseFor = async (fi: { 
+    dataInicio?: string; 
+    dataFim?: string;
+    turnoInicio?: number;
+    turnoFim?: number;
+  }) => {
+    const params = new URLSearchParams({
+      ...(fi.dataInicio ? { dataInicio: fi.dataInicio } : {}),
+      ...(fi.dataFim ? { dataFim: fi.dataFim } : {}),
+      ...(fi.turnoInicio !== undefined ? { turnoInicio: String(fi.turnoInicio) } : {}),
+      ...(fi.turnoFim !== undefined ? { turnoFim: String(fi.turnoFim) } : {}),
+    });
+
     const url = `http://localhost:3000/api/amendoim/analise?${params.toString()}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return res.json();
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
   };
 
   useEffect(() => {
@@ -394,7 +424,9 @@ export default function Home() {
         const end = weeklyFilters?.dataFim;
         if (!start || !end) {
           setComparativo(null);
-          retur, weeklyFilters?.dataInicio, weeklyFilters?.dataFimT00:00:00');
+          return;
+        }
+        const s = new Date(start + 'T00:00:00');
         const e = new Date(end + 'T23:59:59');
         const days = Math.round((e.getTime() - s.getTime()) / (24 * 3600 * 1000)) + 1;
 
@@ -442,7 +474,7 @@ export default function Home() {
 
         // Fetch entrada data
         if (eStart && eEnd) {
-          const urlEntrada = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(eStart)}&dataFim=${encodeURIComponent(eEnd)}`;
+          const urlEntrada = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(eStart)}&dataFim=${encodeURIComponent(eEnd)}&turnoInicio=7&turnoFim=6`;
           const resEntrada = await fetch(urlEntrada);
           if (resEntrada.ok) {
             const dataEntrada = await resEntrada.json();
@@ -466,7 +498,7 @@ export default function Home() {
 
         // Fetch saida data
         if (sStart && sEnd) {
-          const urlSaida = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}`;
+          const urlSaida = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}&turnoInicio=7&turnoFim=6`;
           const resSaida = await fetch(urlSaida);
           if (resSaida.ok) {
             const dataSaida = await resSaida.json();
@@ -474,7 +506,9 @@ export default function Home() {
               dia: d.dia,
               valor: d.saida || 0
             }));
-            setDadosSaidaPorDia(da`http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}&turnoInicio=7&turnoFim=6`r, 0);
+            setDadosSaidaPorDia(dadosSaida);
+            // Calculate sum
+            const sum = dadosSaida.reduce((acc: number, d: any) => acc + d.valor, 0);
             setSaidaSum(sum);
           } else {
             setDadosSaidaPorDia([]);
