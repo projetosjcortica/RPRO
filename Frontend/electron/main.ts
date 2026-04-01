@@ -215,7 +215,7 @@ ipcMain.handle(
       });
 
       await printWin.loadFile(filePath);
-      printWin.setMenu(null)
+      // printWin.setMenu(null)
 
       printWin.webContents.on("did-finish-load", () => {
         printWin.webContents.print({

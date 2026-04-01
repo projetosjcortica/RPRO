@@ -514,7 +514,7 @@ export default function Home() {
   if (tipoHome === "amendoim") {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-1 overflow-auto 3xl:overflow-hidden pb-4 3xl:pb-0">
+        <div className="flex-1 overflow-auto 3xl:overflow-hidden pt-3 3xl:pb-0">
           <div className=" space">
 
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
