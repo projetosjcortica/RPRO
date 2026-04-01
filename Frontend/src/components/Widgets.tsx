@@ -427,63 +427,63 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
         </div>
       )}
       
-      <div className={`min-h-0 flex-1 ${showLegend ? 'grid grid-cols-[minmax(0,1fr)_minmax(180px,220px)] gap-3' : ''}`}>
-        <div className="relative min-w-0 h-full">
-      {!compact && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center">
-            <div className="text-xs 3xl:text-lg text-gray-500">Total</div>
-            <div className=" text-sm  3xl:text-xl font-bold text-red-600">
-              {(stats?.total ?? displayTotal).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+      <div className={`min-h-0 flex-1 ${showLegend ? 'grid grid-cols-2' : ''} `}>
+        <div className="relative min-w-0 h-full hidden lg:block">
+          {!compact && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <div className="text-xs 3xl:text-lg text-gray-500">Total</div>
+                <div className=" text-sm  3xl:text-xl font-bold text-red-600">
+                  {(stats?.total ?? displayTotal).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                </div>
+                <div className="text-xs 3xl:text-lg text-gray-500">{displayUnit}</div>
+              </div>
             </div>
-            <div className="text-xs 3xl:text-lg text-gray-500">{displayUnit}</div>
-          </div>
-        </div>
-      )}
+          )}
 
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart >
-          <Pie  
-            data={data}
-            cx="50%"
-            cy="50%"
-            // preciso que ele aumente ou diminua o tamanho do gráfico mediante a responsividade]
-            innerRadius={compact?"30%":"40%"} 
-            outerRadius={compact?"60%":"70%"} 
-            dataKey="value"
-            labelLine={false}
-            onMouseLeave={handleMouseLeave}
-            isAnimationActive={false}
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart> 
+              <Pie  
+                data={data}
+                cx="50%"
+                cy="50%"
+                // preciso que ele aumente ou diminua o tamanho do gráfico mediante a responsividade]
+                innerRadius={compact?"40%":"50%"} 
+                outerRadius={compact?"70%":"80%"} 
+                dataKey="value"
+                labelLine={false}
+                onMouseLeave={handleMouseLeave}
+                isAnimationActive={false}
 
-          >
-            {data.map((d, index) => {
-              const isHighlighted = !!effectiveHighlightName && d.name === effectiveHighlightName;
-              const dimmed = !!effectiveHighlightName && d.name !== effectiveHighlightName;
-              return (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={COLORS[index % COLORS.length]}
-                  fillOpacity={dimmed ? 0.35 : 1}
-                  stroke={isHighlighted ? '#111827' : '#ffffff'}
-                  strokeWidth={isHighlighted ? 2 : 1}
-                  onMouseEnter={() => {
-                    onSliceHover?.(d.name);
-                  }}
-                />
-              );
-            })}
-          </Pie>
-          <Tooltip 
-            content={compact ? <CompactDonutTooltip stats={stats} /> : <CustomTooltip stats={stats} />}
-            cursor={{ fill: 'transparent' }}
-          />
-        </PieChart>
-      </ResponsiveContainer>
+              >
+                {data.map((d, index) => {
+                  const isHighlighted = !!effectiveHighlightName && d.name === effectiveHighlightName;
+                  const dimmed = !!effectiveHighlightName && d.name !== effectiveHighlightName;
+                  return (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={COLORS[index % COLORS.length]}
+                      fillOpacity={dimmed ? 0.35 : 1}
+                      stroke={isHighlighted ? '#111827' : '#ffffff'}
+                      strokeWidth={isHighlighted ? 2 : 1}
+                      onMouseEnter={() => {
+                        onSliceHover?.(d.name);
+                      }}
+                    />
+                  );
+                })}
+              </Pie>
+              <Tooltip 
+                content={compact ? <CompactDonutTooltip stats={stats} /> : <CustomTooltip stats={stats} />}
+                cursor={{ fill: 'transparent' }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
 
         {showLegend && (
-          <div className="min-w-0 h-full border-l border-gray-200 pl-3 overflow-y-auto">
-            <div className="h-full overflow-y-auto pr-1">
+          <div className="min-w-50 h-full border-l border-gray-200 pl-3 overflow-y-auto w-full">
+            <div className="h-[90%] overflow-y-auto pr-1 w-full">
               <div className="space-y-2">
                 {legendData.map((item, index) => {
                   const percentage = displayTotal > 0 ? (item.value / displayTotal) * 100 : 0;
