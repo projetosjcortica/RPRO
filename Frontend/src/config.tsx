@@ -35,6 +35,7 @@ export const initialFormData = {
   ip: "",
   user: "",
   password: "",
+  caminhoRemoto: "/public/internalStorage/data/",
   localCSV: "",
   metodoCSV: "", // '1' ou '2'
   habilitarCSV: false,
@@ -50,6 +51,7 @@ export const initialFormData = {
   ip2: "",
   user2: "",
   password2: "",
+  caminhoRemoto2: "/public/internalStorage/data/",
   metodoCSV2: "",
   localCSV2: "",
   selectedIhm: 1,
@@ -61,6 +63,7 @@ export interface FormData {
   ip: string;
   user: string;
   password: string;
+  caminhoRemoto?: string;
   localCSV: string;
   metodoCSV: string;
   habilitarCSV: boolean;
@@ -81,11 +84,13 @@ export interface FormDataOptional {
   ip2?: string;
   user2?: string;
   password2?: string;
+  caminhoRemoto2?: string;
   metodoCSV2?: string; // 'mensal' | 'geral' | 'custom'
   localCSV2?: string;
   // optionally remember which IHM tab is active
   selectedIhm?: number;
   // per-IHM file method for first IHM if needed (keeps backward compatibility)
+  caminhoRemoto?: string;
   metodoCSV?: string;
   localCSV?: string;
   // SFTP configuration flag
@@ -766,6 +771,7 @@ export function IHMConfig({
         const ipKey = sel === 1 ? 'ip' : 'ip2';
         const userKey = sel === 1 ? 'user' : 'user2';
         const passKey = sel === 1 ? 'password' : 'password2';
+        const remoteKey = sel === 1 ? 'caminhoRemoto' : 'caminhoRemoto2';
 
         return (
           <div className="flex flex-col gap-3">
@@ -798,6 +804,18 @@ export function IHMConfig({
                 value={(formData as any)[passKey] ?? ''}
                 onChange={(e) => onChange(passKey as any, e.target.value)}
                 disabled={!isEditing}
+                className="mt-2 p-3 border w-92 border-gray-500 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              />
+            </Label>
+
+            <Label className="font-medium text-gray-700 flex flex-row justify-between items-center">
+              Diretório:
+              <Input
+                type="text"
+                value={(formData as any)[remoteKey] ?? 'internalStorage/data/'}
+                onChange={(e) => onChange(remoteKey as any, e.target.value)}
+                disabled={!isEditing}
+                placeholder="internalStorage/data/"
                 className="mt-2 p-3 border w-92 border-gray-500 rounded-md focus:ring-2 focus:ring-red-500 focus:border-transparent"
               />
             </Label>
