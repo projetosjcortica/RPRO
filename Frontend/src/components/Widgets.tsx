@@ -483,7 +483,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
 
         {showLegend && (
           <div className="min-w-50 h-full border-l border-gray-200 pl-3 overflow-y-auto w-full">
-            <div className="h-[90%] overflow-y-auto pr-1 w-full">
+            <div className="h-[99%] overflow-y-auto pr-1 w-full">
               <div className="space-y-2">
                 {legendData.map((item, index) => {
                   const percentage = displayTotal > 0 ? (item.value / displayTotal) * 100 : 0;
