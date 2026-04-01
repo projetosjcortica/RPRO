@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 // import { useLocation } from "react-router-dom";
 import HomeRelatorio from "./components/HomeRelatorio";
 // Amendoim: render charts directly in Home when módulo for amendoim
@@ -110,7 +110,9 @@ export default function Home() {
     } else {
       setHorariosFilters({ 
         dataInicio: '', 
-        dataFim: '' 
+        dataFim: '',
+        turnoInicio: 7,
+        turnoFim: 6,
       });
     }
   };
@@ -119,7 +121,7 @@ export default function Home() {
     y.setDate(y.getDate() - 1);
     setHorariosDateRange({ from: y, to: y });
     const ds = formatDate(y, 'yyyy-MM-dd');
-    setHorariosFilters({ dataInicio: ds, dataFim: ds });
+    setHorariosFilters({ dataInicio: ds, dataFim: ds, turnoInicio: 7, turnoFim: 6 });
   };
 
   // Semanal (semana atual, domingo-sábado)
@@ -155,7 +157,7 @@ export default function Home() {
       const end = new Date(today);
       end.setDate(today.getDate() + (6 - dow));
       setWeeklyDateRange({ from: start, to: end });
-      setWeeklyFilters({ dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd'), turnoInicio: 7, turnoFim: 6, turnoInicio: 7, turnoFim: 6, turnoInicio: 7, turnoFim: 6, turnoInicio: 7, turnoFim: 6 });
+      setWeeklyFilters({ dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd'), turnoInicio: 7, turnoFim: 6 });
       return;
     }
     const dow = date.getDay();
@@ -164,7 +166,12 @@ export default function Home() {
     const end = new Date(date);
     end.setDate(date.getDate() + (dow === 0 ? 6 : 6 - dow));
     setWeeklyDateRange({ from: start, to: end });
-    setWeeklyFilters({ dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd') });
+    setWeeklyFilters({
+      dataInicio: formatDate(start, 'yyyy-MM-dd'),
+      dataFim: formatDate(end, 'yyyy-MM-dd'),
+      turnoInicio: 7,
+      turnoFim: 6,
+    });
   };
   const clearWeeklyFilters = () => handleWeeklyDateChange(undefined);
 
@@ -229,38 +236,6 @@ export default function Home() {
     setProdutosFilters({ dataInicio: formatDate(inicio, 'yyyy-MM-dd'), dataFim: formatDate(hoje, 'yyyy-MM-dd') });
   };
 
-  // Turnos (range simples: usar mesma lógica do horários por padrão)
-  const [turnosDateRange, setTurnosDateRange] = useState<any>(() => {
-    const y = new Date();
-    y.setDate(y.getDate() - 1);
-    return { from: y, to: y };
-  });
-  const [turnosFilters, setTurnosFilters] = useState<any>(() => {
-    const y = new Date();
-    y.setDate(y.getDate() - 1);
-    const ds = formatDate(y, 'yyyy-MM-dd');
-    return { dataInicio: ds, dataFim: ds };
-  });
-  const handleTurnosDateChange = (range: any) => setTurnosDateRange(range);
-  const applyTurnosFilters = () => {
-    if (turnosDateRange?.from) {
-      const start = formatDate(turnosDateRange.from, 'yyyy-MM-dd');
-      const end = turnosDateRange.to ? formatDate(turnosDateRange.to, 'yyyy-MM-dd') : start;
-      setTurnosFilters({ dataInicio: start, dataFim: end });
-    } else {
-      setTurnosFilters({ dataInicio: '', dataFim: '' });
-    }
-  };
-  const clearTurnosFilters = () => {
-    const y = new Date();
-    y.setDate(y.getDate() - 1);
-    setTurnosDateRange({ from: y, to: y });
-    const ds = formatDate(y, 'yyyy-MM-dd');
-    setTurnosFilters({ dataInicio: ds, dataFim: ds });
-  };
-
-  console.log(handleTurnosDateChange.name, applyTurnosFilters.name, clearTurnosFilters.name);
-
   // Per-card handlers for Entrada
   const handleEntradaDateChange = (range: any) => {
     if (!range) {
@@ -312,21 +287,15 @@ export default function Home() {
   // Dados específicos por gráfico
   const [dadosHorarios, setDadosHorarios] = useState<any[]>([]);
   const [dadosSemanal, setDadosSemanal] = useState<any[]>([]);
-  const [dadosTurnos, setDadosTurnos] = useState<any[]>([]);
-  // New: entrada/saida period charts and comparativo
-  const [comparativo, setComparativo] = useState<any>(null);
-  const [dadosRendimento30, setDadosRendimento30] = useState<any[]>([]);
   const [entradaSum, setEntradaSum] = useState<number | null>(null);
   const [saidaSum, setSaidaSum] = useState<number | null>(null);
   const [dadosEntradaPorDia, setDadosEntradaPorDia] = useState<any[]>([]);
   const [dadosSaidaPorDia, setDadosSaidaPorDia] = useState<any[]>([]);
-  // Per-card date ranges and filters for testing
+  const analiseRequestsRef = useRef<Map<string, Promise<any>>>(new Map());
   const [entradaDateRange, setEntradaDateRange] = useState<any>(() => ({ ...weeklyDateRange }));
   const [entradaFilters, setEntradaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim, turnoInicio: weeklyFilters.turnoInicio, turnoFim: weeklyFilters.turnoFim }));
   const [saidaDateRange, setSaidaDateRange] = useState<any>(() => ({ ...weeklyDateRange }));
   const [saidaFilters, setSaidaFilters] = useState<any>(() => ({ dataInicio: weeklyFilters.dataInicio, dataFim: weeklyFilters.dataFim, turnoInicio: weeklyFilters.turnoInicio, turnoFim: weeklyFilters.turnoFim }));
-
-  console.log(dadosTurnos, comparativo, dadosRendimento30);
 
   // Função auxiliar para calcular os últimos 30 dias
   const getUltimos30Dias = () => {
@@ -349,12 +318,13 @@ export default function Home() {
     
     // Atualizar filtros para últimos 30 dias (exceto produção semanal)
     setHorariosDateRange({ from: inicio, to: fim });
-    setHorariosFilters(ultimos30);
+    setHorariosFilters({
+      ...ultimos30,
+      turnoInicio: 7,
+      turnoFim: 6,
+    });
     
     // weeklyFilters mantém seu comportamento original (semana atual)
-    
-    setTurnosDateRange({ from: inicio, to: fim });
-    setTurnosFilters(ultimos30);
     
     setEntradaDateRange({ from: inicio, to: fim });
     setEntradaFilters(ultimos30);
@@ -364,6 +334,27 @@ export default function Home() {
   }, [tipoHome]);
 
   // Fetch por gráfico
+  const fetchAnaliseByUrl = async (url: string) => {
+    const inFlight = analiseRequestsRef.current.get(url);
+    if (inFlight) {
+      return inFlight;
+    }
+
+    const request = (async () => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })();
+
+    analiseRequestsRef.current.set(url, request);
+
+    try {
+      return await request;
+    } finally {
+      analiseRequestsRef.current.delete(url);
+    }
+  };
+
   const fetchAnaliseFor = async (fi: { 
     dataInicio?: string; 
     dataFim?: string;
@@ -378,42 +369,34 @@ export default function Home() {
     });
 
     const url = `http://localhost:3000/api/amendoim/analise?${params.toString()}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
+    return fetchAnaliseByUrl(url);
   };
 
   useEffect(() => {
     if (tipoHome !== 'amendoim') return;
     (async () => {
       try {
-        console.log('[DEBUG HORÁRIOS] Buscando com filtros:', horariosFilters);
         const data = await fetchAnaliseFor(horariosFilters);
-        console.log('[DEBUG HORÁRIOS] Dados recebidos:', data);
-        console.log('[DEBUG HORÁRIOS] Array entradaSaidaPorHorario:', data?.entradaSaidaPorHorario);
         setDadosHorarios(data?.entradaSaidaPorHorario || []);
       } catch (err) {
         console.error('Erro ao buscar dados horários:', err);
         setDadosHorarios([]);
       }
     })();
-  }, [tipoHome, horariosFilters?.dataInicio, horariosFilters?.dataFim]);
+  }, [tipoHome, horariosFilters?.dataInicio, horariosFilters?.dataFim, horariosFilters?.turnoInicio, horariosFilters?.turnoFim]);
 
   useEffect(() => {
     if (tipoHome !== 'amendoim') return;
     (async () => {
       try {
-        console.log('[DEBUG SEMANAL] Buscando com filtros:', weeklyFilters);
         const data = await fetchAnaliseFor(weeklyFilters);
-        console.log('[DEBUG SEMANAL] Dados recebidos:', data);
-        console.log('[DEBUG SEMANAL] Array fluxoSemanal:', data?.fluxoSemanal);
         setDadosSemanal(data?.fluxoSemanal || []);
       } catch (err) {
         console.error('Erro ao buscar dados semanais:', err);
         setDadosSemanal([]);
       }
     })();
-  }, [tipoHome, weeklyFilters?.dataInicio, weeklyFilters?.dataFim]);
+  }, [tipoHome, weeklyFilters?.dataInicio, weeklyFilters?.dataFim, weeklyFilters?.turnoInicio, weeklyFilters?.turnoFim]);
 
   // Fetch comparativo: compare selected weeklyFilters period vs previous period
   useEffect(() => {
@@ -423,7 +406,6 @@ export default function Home() {
         const start = weeklyFilters?.dataInicio;
         const end = weeklyFilters?.dataFim;
         if (!start || !end) {
-          setComparativo(null);
           return;
         }
         const s = new Date(start + 'T00:00:00');
@@ -442,21 +424,10 @@ export default function Home() {
 
         const [resCurr, resPrev] = await Promise.all([fetch(urlCurr), fetch(urlPrev)]);
         if (!resCurr.ok || !resPrev.ok) {
-          setComparativo(null);
           return;
         }
-        const curr = await resCurr.json();
-        const prev = await resPrev.json();
-
-        setComparativo({
-          entradaCurrent: Number(curr.pesoEntrada || 0),
-          saidaCurrent: Number(curr.pesoSaida || 0),
-          entradaPrev: Number(prev.pesoEntrada || 0),
-          saidaPrev: Number(prev.pesoSaida || 0),
-        });
       } catch (err) {
         console.error('Erro ao buscar comparativo:', err);
-        setComparativo(null);
       }
     };
     void fetchComparativo();
@@ -471,65 +442,44 @@ export default function Home() {
         const eEnd = entradaFilters?.dataFim;
         const sStart = saidaFilters?.dataInicio;
         const sEnd = saidaFilters?.dataFim;
+        const [entradaResult, saidaResult] = await Promise.allSettled([
+          eStart && eEnd
+            ? fetchAnaliseFor({ dataInicio: eStart, dataFim: eEnd, turnoInicio: 7, turnoFim: 6 })
+            : Promise.resolve(null),
+          sStart && sEnd
+            ? fetchAnaliseFor({ dataInicio: sStart, dataFim: sEnd, turnoInicio: 7, turnoFim: 6 })
+            : Promise.resolve(null),
+        ]);
 
-        // Fetch entrada data
-        if (eStart && eEnd) {
-          const urlEntrada = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(eStart)}&dataFim=${encodeURIComponent(eEnd)}&turnoInicio=7&turnoFim=6`;
-          const resEntrada = await fetch(urlEntrada);
-          if (resEntrada.ok) {
-            const dataEntrada = await resEntrada.json();
-            // rendimentoPorDia contains { dia, entrada, saida, rendimento }
-            const dadosEntrada = (dataEntrada.rendimentoPorDia || []).map((d: any) => ({
-              dia: d.dia,
-              valor: d.entrada || 0
-            }));
-            setDadosEntradaPorDia(dadosEntrada);
-            // Calculate sum
-            const sum = dadosEntrada.reduce((acc: number, d: any) => acc + d.valor, 0);
-            setEntradaSum(sum);
-          } else {
-            setDadosEntradaPorDia([]);
-            setEntradaSum(null);
-          }
+        let totalEntrada = 0;
+        let totalSaida = 0;
+
+        if (entradaResult.status === 'fulfilled' && entradaResult.value) {
+          const dadosEntrada = (entradaResult.value.rendimentoPorDia || []).map((d: any) => ({
+            dia: d.dia,
+            valor: d.entrada || 0,
+          }));
+          totalEntrada = dadosEntrada.reduce((acc: number, d: any) => acc + d.valor, 0);
+          setDadosEntradaPorDia(dadosEntrada);
+          setEntradaSum(totalEntrada);
         } else {
           setDadosEntradaPorDia([]);
           setEntradaSum(null);
         }
 
-        // Fetch saida data
-        if (sStart && sEnd) {
-          const urlSaida = `http://localhost:3000/api/amendoim/analise?dataInicio=${encodeURIComponent(sStart)}&dataFim=${encodeURIComponent(sEnd)}&turnoInicio=7&turnoFim=6`;
-          const resSaida = await fetch(urlSaida);
-          if (resSaida.ok) {
-            const dataSaida = await resSaida.json();
-            const dadosSaida = (dataSaida.rendimentoPorDia || []).map((d: any) => ({
-              dia: d.dia,
-              valor: d.saida || 0
-            }));
-            setDadosSaidaPorDia(dadosSaida);
-            // Calculate sum
-            const sum = dadosSaida.reduce((acc: number, d: any) => acc + d.valor, 0);
-            setSaidaSum(sum);
-          } else {
-            setDadosSaidaPorDia([]);
-            setSaidaSum(null);
-          }
+        if (saidaResult.status === 'fulfilled' && saidaResult.value) {
+          const dadosSaida = (saidaResult.value.rendimentoPorDia || []).map((d: any) => ({
+            dia: d.dia,
+            valor: d.saida || 0,
+          }));
+          totalSaida = dadosSaida.reduce((acc: number, d: any) => acc + d.valor, 0);
+          setDadosSaidaPorDia(dadosSaida);
+          setSaidaSum(totalSaida);
         } else {
           setDadosSaidaPorDia([]);
           setSaidaSum(null);
         }
 
-        // Calculate comparativo (rendimento) from the fetched data
-        if (eStart && eEnd && sStart && sEnd) {
-          const totalEntrada = entradaSum || 0;
-          const totalSaida = saidaSum || 0;
-          setComparativo({
-            entradaCurrent: totalEntrada,
-            saidaCurrent: totalSaida,
-            entradaPrev: 0,
-            saidaPrev: 0,
-          });
-        }
       } catch (err) {
         console.error('Erro ao buscar dados por dia:', err);
         setDadosEntradaPorDia([]);
@@ -546,36 +496,13 @@ export default function Home() {
     if (tipoHome !== 'amendoim') return;
     (async () => {
       try {
-        const today = new Date();
         const prev = new Date();
         prev.setDate(prev.getDate() - 29);
-        const url = `http://localhost:3000/api/amendoim/analise?dataInicio=${formatDate(prev, 'yyyy-MM-dd')}&dataFim=${formatDate(today, 'yyyy-MM-dd')}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const body = await res.json();
-        setDadosRendimento30(body.rendimentoPorDia || []);
       } catch (err) {
         console.error('Erro ao buscar rendimento 30 dias:', err);
-        setDadosRendimento30([]);
       }
     })();
   }, [tipoHome]);
-
-  useEffect(() => {
-    if (tipoHome !== 'amendoim') return;
-    (async () => {
-      try {
-        console.log('[DEBUG TURNOS] Buscando com filtros:', turnosFilters);
-        const data = await fetchAnaliseFor(turnosFilters);
-        console.log('[DEBUG TURNOS] Dados recebidos:', data);
-        console.log('[DEBUG TURNOS] Array eficienciaPorTurno:', data?.eficienciaPorTurno);
-        setDadosTurnos(data?.eficienciaPorTurno || []);
-      } catch (err) {
-        console.error('Erro ao buscar dados turnos:', err);
-        setDadosTurnos([]);
-      }
-    })();
-  }, [tipoHome, turnosFilters?.dataInicio, turnosFilters?.dataFim]);
 
   // Removido fetch agregado para cards gerenciais
 

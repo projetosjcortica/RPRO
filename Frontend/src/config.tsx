@@ -685,7 +685,11 @@ export function IHMConfig({
       toast.info(`Testando IHM ${sel}...`);
       const backendPort = (window as any).backendPort || 3000;
       const base = `http://localhost:${backendPort}`;
-      const res = await fetch(`${base}/api/ihm/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ip: ipVal }) });
+      const res = await fetch(`${base}/api/ihm/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ip: ipVal, sftp: !!(formData as any).sftp })
+      });
 
       // Try to parse JSON body when available
       let body: any = null;

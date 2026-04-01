@@ -3130,12 +3130,26 @@ app.post('/api/admin/sync-schema', async (req, res) => {
   }
 });
 
-// Quick IHM connectivity test: attempts a TCP connect to the given IP/port (default 21)
+// Quick IHM connectivity test: attempts a TCP connect to the given IP/port.
 app.post('/api/ihm/test', async (req, res) => {
   try {
-    const { ip, port } = req.body || {};
+    const { ip, port, sftp } = req.body || {};
     if (!ip) return res.status(400).json({ ok: false, error: 'ip required' });
-    const targetPort = Number(port || 21);
+    const runtimeIhm = getRuntimeConfig('ihm-config') || {};
+    const parseSftpFlag = (value: unknown): boolean => {
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'string') {
+        const normalized = value.trim().toLowerCase();
+        if (normalized === 'true') return true;
+        if (normalized === 'false') return false;
+      }
+      return Boolean(value);
+    };
+    const useSftp = typeof sftp !== 'undefined' ? parseSftpFlag(sftp) : parseSftpFlag(runtimeIhm.sftp);
+    const parsedPort = Number(port);
+    const targetPort = Number.isFinite(parsedPort) && parsedPort > 0
+      ? parsedPort
+      : (useSftp ? 22 : 21);
 
     const start = Date.now();
     let done = false;
@@ -3147,21 +3161,21 @@ app.post('/api/ihm/test', async (req, res) => {
       try { socket.destroy(); } catch (e) { }
       if (done) return;
       done = true;
-      return res.json({ ok: true, latency, ip, port: targetPort });
+      return res.json({ ok: true, latency, ip, port: targetPort, sftp: useSftp, protocol: useSftp ? 'sftp' : 'ftp' });
     });
 
     socket.once('timeout', () => {
       try { socket.destroy(); } catch (e) { }
       if (done) return;
       done = true;
-      return res.status(504).json({ ok: false, error: 'timeout', ip, port: targetPort });
+      return res.status(504).json({ ok: false, error: 'timeout', ip, port: targetPort, sftp: useSftp, protocol: useSftp ? 'sftp' : 'ftp' });
     });
 
     socket.once('error', (err: any) => {
       try { socket.destroy(); } catch (e) { }
       if (done) return;
       done = true;
-      return res.status(502).json({ ok: false, error: String(err), ip, port: targetPort });
+      return res.status(502).json({ ok: false, error: String(err), ip, port: targetPort, sftp: useSftp, protocol: useSftp ? 'sftp' : 'ftp' });
     });
 
     socket.connect(targetPort, String(ip));
@@ -3906,6 +3920,14 @@ app.get("/api/config/", async (req, res) => {
         localCSV: "",
         metodoCSV: "",
         habilitarCSV: false,
+        duasIHMs: false,
+        ip2: "",
+        user2: "",
+        password2: "",
+        metodoCSV2: "",
+        localCSV2: "",
+        selectedIhm: 1,
+        sftp: false,
         serverDB: "",
         database: "",
         userDB: "",
@@ -3917,9 +3939,23 @@ app.get("/api/config/", async (req, res) => {
       produtosInfo: {},
     };
 
-    // Merge defaults for missing keys to ensure separation (do not overwrite existing)
+    // Merge defaults for missing keys and fill nested fields like ihm-config.sftp.
     for (const k of Object.keys(defaults)) {
-      if (normalized[k] === undefined) normalized[k] = defaults[k];
+      if (normalized[k] === undefined) {
+        normalized[k] = defaults[k];
+        continue;
+      }
+
+      if (
+        normalized[k] &&
+        typeof normalized[k] === "object" &&
+        !Array.isArray(normalized[k]) &&
+        defaults[k] &&
+        typeof defaults[k] === "object" &&
+        !Array.isArray(defaults[k])
+      ) {
+        normalized[k] = { ...defaults[k], ...normalized[k] };
+      }
     }
 
     res.json(normalized);
@@ -3950,6 +3986,14 @@ app.get("/api/config/defaults", async (req, res) => {
         localCSV: "",
         metodoCSV: "",
         habilitarCSV: false,
+        duasIHMs: false,
+        ip2: "",
+        user2: "",
+        password2: "",
+        metodoCSV2: "",
+        localCSV2: "",
+        selectedIhm: 1,
+        sftp: false,
         serverDB: "",
         database: "",
         userDB: "",
@@ -4141,6 +4185,14 @@ app.get('/api/config/:key', async (req, res) => {
       localCSV: '',
       metodoCSV: '',
       habilitarCSV: false,
+      duasIHMs: false,
+      ip2: '',
+      user2: '',
+      password2: '',
+      metodoCSV2: '',
+      localCSV2: '',
+      selectedIhm: 1,
+      sftp: false,
       serverDB: '',
       database: '',
       userDB: '',
@@ -4201,9 +4253,14 @@ app.get('/api/config/:key', async (req, res) => {
       if (typeof stored === 'string') {
         try { out = JSON.parse(String(stored)); } catch (e) { out = stored; }
       }
+
+      if (rawKey === 'ihm-config' && out && typeof out === 'object' && !Array.isArray(out)) {
+        out = { ...defaultIhm, ...out };
+      }
       
       // If db-config: apply password fallback and handle masking
       if (rawKey === 'db-config' && typeof out === 'object') {
+        out = { ...defaultDb, ...out };
         // Apply fallback password if missing
         if (!out.passwordDB) {
           out.passwordDB = 'root';

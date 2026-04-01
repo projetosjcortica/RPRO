@@ -807,33 +807,74 @@ export class AmendoimService {
       console.log('[AmendoimService.obterDadosAnalise] Filtros convertidos:', { dataInicioDB, dataFimDB });
       console.log('[AmendoimService.obterDadosAnalise] Turno customizado:', params.turnoInicio !== undefined && params.turnoFim !== undefined ? `Inicio: ${params.turnoInicio}, Fim: ${params.turnoFim}` : 'Nenhum');
 
-    // Query para dados agrupados por hora (extrair apenas HH da hora)
-    let qbHora = repo.createQueryBuilder("amendoim")
-      .select("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED)", "hora")
-      .addSelect("amendoim.tipo", "tipo")
-      .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
+    const turnoCustomizado = params.turnoInicio !== undefined && params.turnoFim !== undefined;
+    const turnoCruzaMeiaNoite = turnoCustomizado && params.turnoFim! < params.turnoInicio!;
 
-    if (dataInicioDB) qbHora.andWhere("STR_TO_DATE(amendoim.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicio, '%d/%m/%y')", { dataInicio: dataInicioDB });
-    if (dataFimDB) qbHora.andWhere("STR_TO_DATE(amendoim.dia, '%d/%m/%y') < STR_TO_DATE(:dataFim, '%d/%m/%y')", { dataFim: dataFimDB });
+    // Query para dados agrupados por hora.
+    // O bucket "7" representa todas as pesagens de 07:00:00 até 07:59:59.
+    // Usamos a parte antes do primeiro ":" para suportar HH:MM, HH:MM:SS e H:MM:SS.
+    const hourExpr = "CAST(SUBSTRING_INDEX(TRIM(amendoim.hora), ':', 1) AS UNSIGNED)";
 
-    // Aplicar filtro de turno se especificado
-    if (params.turnoInicio !== undefined && params.turnoFim !== undefined) {
-      if (params.turnoFim < params.turnoInicio) {
-        // Turno cruza meia-noite: hora >= turnoInicio OR hora <= turnoFim
-        qbHora.andWhere("(CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) >= :horaInicioNum OR CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) <= :horaFimNum)", { 
-          horaInicioNum: params.turnoInicio, 
-          horaFimNum: params.turnoFim 
-        });
-      } else {
-        // Turno no mesmo dia: hora >= turnoInicio AND hora <= turnoFim
-        qbHora.andWhere("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) >= :horaInicioNum AND CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) <= :horaFimNum", { 
-          horaInicioNum: params.turnoInicio, 
-          horaFimNum: params.turnoFim 
-        });
+    let dadosHora: any[] = [];
+
+    if (turnoCruzaMeiaNoite && params.dataInicio && params.dataFim) {
+      const diasDoPeriodo = this.getDiasDoPeriodo(params.dataInicio, params.dataFim);
+
+      for (const dia of diasDoPeriodo) {
+        const diaISO = this.normalizeDateToISOFormat(dia) || '';
+        const proximoDiaISO = this.calcularProximoDia(diaISO);
+        const diaDB = this.convertISODateToDBFormat(diaISO);
+        const proximoDiaDB = this.convertISODateToDBFormat(proximoDiaISO);
+
+        const qbHoraAtual = repo.createQueryBuilder("amendoim")
+          .select(hourExpr, "hora")
+          .addSelect("amendoim.tipo", "tipo")
+          .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso")
+          .where("STR_TO_DATE(amendoim.dia, '%d/%m/%y') = STR_TO_DATE(:dia, '%d/%m/%y')", { dia: diaDB })
+          .andWhere(`${hourExpr} >= :horaInicio`, { horaInicio: params.turnoInicio });
+
+        const qbHoraSeguinte = repo.createQueryBuilder("amendoim")
+          .select(hourExpr, "hora")
+          .addSelect("amendoim.tipo", "tipo")
+          .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso")
+          .where("STR_TO_DATE(amendoim.dia, '%d/%m/%y') = STR_TO_DATE(:proximoDia, '%d/%m/%y')", { proximoDia: proximoDiaDB })
+          .andWhere(`${hourExpr} <= :horaFim`, { horaFim: params.turnoFim });
+
+        const dadosHoraAtual = await qbHoraAtual.groupBy(`${hourExpr}, amendoim.tipo`).getRawMany();
+        const dadosHoraSeguinte = await qbHoraSeguinte.groupBy(`${hourExpr}, amendoim.tipo`).getRawMany();
+
+        dadosHora.push(...dadosHoraAtual, ...dadosHoraSeguinte);
       }
+    } else {
+      // Query para dados agrupados por hora (extrair apenas HH da hora)
+      let qbHora = repo.createQueryBuilder("amendoim")
+        .select(hourExpr, "hora")
+        .addSelect("amendoim.tipo", "tipo")
+        .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso");
+
+      if (dataInicioDB) qbHora.andWhere("STR_TO_DATE(amendoim.dia, '%d/%m/%y') >= STR_TO_DATE(:dataInicio, '%d/%m/%y')", { dataInicio: dataInicioDB });
+      if (dataFimDB) qbHora.andWhere("STR_TO_DATE(amendoim.dia, '%d/%m/%y') < STR_TO_DATE(:dataFim, '%d/%m/%y')", { dataFim: dataFimDB });
+
+      // Aplicar filtro de turno se especificado
+      if (turnoCustomizado) {
+        if (turnoCruzaMeiaNoite) {
+          // Turno cruza meia-noite: hora >= turnoInicio OR hora <= turnoFim
+          qbHora.andWhere(`(${hourExpr} >= :horaInicioNum OR ${hourExpr} <= :horaFimNum)`, {
+            horaInicioNum: params.turnoInicio,
+            horaFimNum: params.turnoFim
+          });
+        } else {
+          // Turno no mesmo dia: hora >= turnoInicio AND hora <= turnoFim
+          qbHora.andWhere(`${hourExpr} >= :horaInicioNum AND ${hourExpr} <= :horaFimNum`, {
+            horaInicioNum: params.turnoInicio,
+            horaFimNum: params.turnoFim
+          });
+        }
+      }
+
+      dadosHora = await qbHora.groupBy(`${hourExpr}, amendoim.tipo`).getRawMany();
     }
 
-    const dadosHora = await qbHora.groupBy("hora, amendoim.tipo").getRawMany();
     console.log('[AmendoimService.obterDadosAnalise] dadosHora resultado:', dadosHora.length, 'registros');
     if (dadosHora.length > 0) {
       console.log('[AmendoimService.obterDadosAnalise] dadosHora sample:', JSON.stringify(dadosHora.slice(0, 5)));
@@ -861,7 +902,7 @@ export class AmendoimService {
           .addSelect("amendoim.tipo", "tipo")
           .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso")
           .where("STR_TO_DATE(amendoim.dia, '%d/%m/%y') = STR_TO_DATE(:dia, '%d/%m/%y')", { dia: diaDB })
-          .andWhere("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) >= :horaInicio", { horaInicio: params.turnoInicio });
+          .andWhere(`${hourExpr} >= :horaInicio`, { horaInicio: params.turnoInicio });
         
         const qbDiaSeguinte = repo.createQueryBuilder("amendoim")
           .select(`'${diaDB}'`, "dia")
@@ -869,7 +910,7 @@ export class AmendoimService {
           .addSelect("amendoim.tipo", "tipo")
           .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso")
           .where("STR_TO_DATE(amendoim.dia, '%d/%m/%y') = STR_TO_DATE(:proximoDia, '%d/%m/%y')", { proximoDia: proximoDiaDB })
-          .andWhere("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) <= :horaFim", { horaFim: params.turnoFim });
+          .andWhere(`${hourExpr} <= :horaFim`, { horaFim: params.turnoFim });
         
         const dadosDiaAtual = await qbDiaAtual.groupBy("amendoim.hora, amendoim.tipo").getRawMany();
         const dadosDiaSeguinte = await qbDiaSeguinte.groupBy("amendoim.hora, amendoim.tipo").getRawMany();
@@ -891,13 +932,13 @@ export class AmendoimService {
       if (params.turnoInicio !== undefined && params.turnoFim !== undefined) {
         if (params.turnoFim < params.turnoInicio) {
           // Turno cruza meia-noite: hora >= turnoInicio OR hora <= turnoFim
-          qbDia.andWhere("(CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) >= :horaInicioNum OR CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) <= :horaFimNum)", { 
+          qbDia.andWhere(`(${hourExpr} >= :horaInicioNum OR ${hourExpr} <= :horaFimNum)`, { 
             horaInicioNum: params.turnoInicio, 
             horaFimNum: params.turnoFim 
           });
         } else {
           // Turno no mesmo dia: hora >= turnoInicio AND hora <= turnoFim
-          qbDia.andWhere("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) >= :horaInicioNum AND CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) <= :horaFimNum", { 
+          qbDia.andWhere(`${hourExpr} >= :horaInicioNum AND ${hourExpr} <= :horaFimNum`, { 
             horaInicioNum: params.turnoInicio, 
             horaFimNum: params.turnoFim 
           });
@@ -931,7 +972,7 @@ export class AmendoimService {
           .addSelect("amendoim.tipo", "tipo")
           .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso")
           .where("STR_TO_DATE(amendoim.dia, '%d/%m/%y') = STR_TO_DATE(:dia, '%d/%m/%y')", { dia: diaDB })
-          .andWhere("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) >= :horaInicio", { horaInicio: params.turnoInicio });
+          .andWhere(`${hourExpr} >= :horaInicio`, { horaInicio: params.turnoInicio });
         
         // Buscar dados do dia seguinte (hora <= turnoFim) - usar dia da semana do dia atual
         const qbSemanaSeguinte = repo.createQueryBuilder("amendoim")
@@ -939,7 +980,7 @@ export class AmendoimService {
           .addSelect("amendoim.tipo", "tipo")
           .addSelect("CAST(SUM(amendoim.peso) AS DECIMAL(10,2))", "peso")
           .where("STR_TO_DATE(amendoim.dia, '%d/%m/%y') = STR_TO_DATE(:proximoDia, '%d/%m/%y')", { proximoDia: proximoDiaDB })
-          .andWhere("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) <= :horaFim", { horaFim: params.turnoFim });
+          .andWhere(`${hourExpr} <= :horaFim`, { horaFim: params.turnoFim });
         
         const dadosSemanaAtual = await qbSemanaAtual.groupBy("amendoim.tipo").getRawMany();
         const dadosSemanaSeguinte = await qbSemanaSeguinte.groupBy("amendoim.tipo").getRawMany();
@@ -960,13 +1001,13 @@ export class AmendoimService {
       if (params.turnoInicio !== undefined && params.turnoFim !== undefined) {
         if (params.turnoFim < params.turnoInicio) {
           // Turno cruza meia-noite: hora >= turnoInicio OR hora <= turnoFim
-          qbSemana.andWhere("(CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) >= :horaInicioNum OR CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) <= :horaFimNum)", { 
+          qbSemana.andWhere(`(${hourExpr} >= :horaInicioNum OR ${hourExpr} <= :horaFimNum)`, { 
             horaInicioNum: params.turnoInicio, 
             horaFimNum: params.turnoFim 
           });
         } else {
           // Turno no mesmo dia: hora >= turnoInicio AND hora <= turnoFim
-          qbSemana.andWhere("CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) >= :horaInicioNum AND CAST(SUBSTR(amendoim.hora, 1, 2) AS UNSIGNED) <= :horaFimNum", { 
+          qbSemana.andWhere(`${hourExpr} >= :horaInicioNum AND ${hourExpr} <= :horaFimNum`, { 
             horaInicioNum: params.turnoInicio, 
             horaFimNum: params.turnoFim 
           });
@@ -977,12 +1018,37 @@ export class AmendoimService {
     }
     console.log('[AmendoimService.obterDadosAnalise] dadosSemana resultado:', dadosSemana.length, 'registros');
 
-    // Processar dados por horário (0-23)
+    // Processar dados por horário.
+    // Quando o dia operacional cruza a meia-noite, a coleta pode gerar
+    // múltiplos blocos para a mesma hora/tipo; consolidamos tudo antes
+    // de montar a série final.
+    const dadosHoraMap = new Map<string, { hora: number; tipo: string; peso: number }>();
+    dadosHora.forEach((d: any) => {
+      const hora = Number(d.hora);
+      const tipo = String(d.tipo);
+      const peso = Number(d.peso || 0);
+
+      if (!Number.isFinite(hora)) return;
+
+      const key = `${hora}|${tipo}`;
+      const existente = dadosHoraMap.get(key);
+      if (existente) {
+        existente.peso += peso;
+      } else {
+        dadosHoraMap.set(key, { hora, tipo, peso });
+      }
+    });
+
+    const dadosHoraNormalizados = Array.from(dadosHoraMap.values());
+    const ordemHoras = turnoCruzaMeiaNoite && params.turnoInicio === 7 && params.turnoFim === 6
+      ? [...Array.from({ length: 17 }, (_, i) => i + 7), ...Array.from({ length: 7 }, (_, i) => i)]
+      : Array.from({ length: 24 }, (_, h) => h);
+
     const entradaSaidaPorHorario: Array<{ hora: number; entrada: number; saida: number }> = [];
-    for (let h = 0; h < 24; h++) {
-      const entrada = dadosHora.find((d: any) => d.hora === h && d.tipo === "entrada")?.peso || 0;
-      const saida = dadosHora.find((d: any) => d.hora === h && d.tipo === "saida")?.peso || 0;
-      entradaSaidaPorHorario.push({ hora: h, entrada: Number(entrada), saida: Number(saida) });
+    for (const h of ordemHoras) {
+      const entrada = dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "entrada")?.peso || 0;
+      const saida = dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "saida")?.peso || 0;
+      entradaSaidaPorHorario.push({ hora: h, entrada, saida });
     }
 
     // Processar dados por dia
@@ -1017,8 +1083,12 @@ export class AmendoimService {
     const diasSemanaLabels = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
     const fluxoSemanal: Array<{ diaSemana: string; entrada: number; saida: number }> = [];
     for (let d = 0; d < 7; d++) {
-      const entrada = dadosSemana.find((s: any) => Number(s.diaSemana) === d && s.tipo === "entrada")?.peso || 0;
-      const saida = dadosSemana.find((s: any) => Number(s.diaSemana) === d && s.tipo === "saida")?.peso || 0;
+      const entrada = dadosSemana
+        .filter((s: any) => Number(s.diaSemana) === d && s.tipo === "entrada")
+        .reduce((sum: number, s: any) => sum + Number(s.peso || 0), 0);
+      const saida = dadosSemana
+        .filter((s: any) => Number(s.diaSemana) === d && s.tipo === "saida")
+        .reduce((sum: number, s: any) => sum + Number(s.peso || 0), 0);
       fluxoSemanal.push({ diaSemana: diasSemanaLabels[d], entrada: Number(entrada), saida: Number(saida) });
     }
     console.log('[AmendoimService.obterDadosAnalise] fluxoSemanal processado:', fluxoSemanal.filter(f => f.entrada > 0 || f.saida > 0).length, 'dias com dados');
@@ -1048,19 +1118,19 @@ export class AmendoimService {
       if (fim < inicio) {
         // Parte 1: do início até 23h
         for (let h = inicio; h <= 23; h++) {
-          entrada += Number(dadosHora.find((d: any) => Number(d.hora) === h && d.tipo === "entrada")?.peso || 0);
-          saida += Number(dadosHora.find((d: any) => Number(d.hora) === h && d.tipo === "saida")?.peso || 0);
+          entrada += Number(dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "entrada")?.peso || 0);
+          saida += Number(dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "saida")?.peso || 0);
         }
         // Parte 2: de 0h até o fim
         for (let h = 0; h <= fim; h++) {
-          entrada += Number(dadosHora.find((d: any) => Number(d.hora) === h && d.tipo === "entrada")?.peso || 0);
-          saida += Number(dadosHora.find((d: any) => Number(d.hora) === h && d.tipo === "saida")?.peso || 0);
+          entrada += Number(dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "entrada")?.peso || 0);
+          saida += Number(dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "saida")?.peso || 0);
         }
       } else {
         // Turno normal no mesmo dia
         for (let h = inicio; h <= fim; h++) {
-          entrada += Number(dadosHora.find((d: any) => Number(d.hora) === h && d.tipo === "entrada")?.peso || 0);
-          saida += Number(dadosHora.find((d: any) => Number(d.hora) === h && d.tipo === "saida")?.peso || 0);
+          entrada += Number(dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "entrada")?.peso || 0);
+          saida += Number(dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "saida")?.peso || 0);
         }
       }
       const rendimento = entrada > 0 ? (saida / entrada) * 100 : 0;
