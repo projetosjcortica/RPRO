@@ -45,7 +45,9 @@ const ihmCfg = getRuntimeConfig('ihm-config') || {};
 const ihmService = new IHMService(
   ihmCfg.ip || process.env.IHM_IP || '192.168.5.254',
   ihmCfg.user || process.env.IHM_USER || 'anonymous',
-  ihmCfg.password || process.env.IHM_PASSWORD || ''
+  ihmCfg.password || process.env.IHM_PASSWORD || '',
+  ihmCfg.caminhoRemoto || '/public/internalStorage/data/',
+  typeof ihmCfg.sftp === 'boolean' ? ihmCfg.sftp : undefined
 );
 
 class Collector {
@@ -157,7 +159,9 @@ const collector = new Collector(
   new IHMService(
     (getRuntimeConfig('ihm-config') || {}).ip || process.env.IHM_IP || '192.168.5.254',
     (getRuntimeConfig('ihm-config') || {}).user || process.env.IHM_USER || 'anonymous',
-    (getRuntimeConfig('ihm-config') || {}).password || process.env.IHM_PASS || ''
+    (getRuntimeConfig('ihm-config') || {}).password || process.env.IHM_PASS || '',
+    (getRuntimeConfig('ihm-config') || {}).caminhoRemoto || '/public/internalStorage/data/',
+    typeof (getRuntimeConfig('ihm-config') || {}).sftp === 'boolean' ? (getRuntimeConfig('ihm-config') || {}).sftp : undefined
   )
 );
 

@@ -514,7 +514,7 @@ export default function Home() {
   if (tipoHome === "amendoim") {
     return (
       <div className="h-screen flex flex-col">
-        <div className="flex-1 overflow-auto 3xl:overflow-hidden pt-3 3xl:pb-0">
+        <div className="flex-1 overflow-auto 3xl:overflow-hidden py-4 3xl:pb-0">
           <div className=" space">
 
             {/* Período: Entrada / Saída (comparativo) + Donut de Saídas por produto */}
@@ -850,7 +850,7 @@ export default function Home() {
               <Card className="shadow-lg border border-gray-200 rounded-xl mt-0 overflow-hidden h-[380px] 3xl:h-[48dvh]">
                 <CardHeader className="border-b border-gray-100 pb-2 px-3 h-14">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base font-semibold text-gray-900">Saídas por Produto</CardTitle>
+                    <CardTitle className="text-base font-semibold text-gray-900">Produtos</CardTitle>
                     <div className="flex items-center gap-1">
                       <Popover>
                         <PopoverTrigger asChild>
@@ -918,20 +918,11 @@ export default function Home() {
                       return url;
                     })()}
                     compact
+                    showLegend
                     unit="kg"
                   />
                 </CardContent>
               </Card>
-              
-            </div>
-
-            {/* Últimos 30 dias: linha com entradas e saídas comparadas */}
-            
-
-            {/* Now render the Horário de Produção and Produção Semanal side-by-side */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Horário de Produção */}
-              
             </div>
           </div>
         </div>

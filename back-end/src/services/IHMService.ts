@@ -24,6 +24,13 @@ type RemoteFileEntry = {
   isFile?: boolean;
 };
 
+type ParsedListEntry = {
+  name: string;
+  size: number;
+  type: number | string;
+  isFile: boolean;
+};
+
 export class IHMService extends BaseService {
   private cache: Map<string, number>;
   private originalNames: Map<string, string>;
@@ -40,20 +47,7 @@ export class IHMService extends BaseService {
     super('IHMService');
     this.cache = new Map();
     this.originalNames = new Map();
-
-    try {
-      const rp = String(remotePath || '').trim();
-      if (rp.toLowerCase().includes('.csv')) {
-        let dir = path.posix.dirname(rp);
-        if (!dir || dir === '.' || dir === '') dir = '/';
-        this.remotePath = dir;
-        console.log(`[IHMService] Normalized remotePath from '${remotePath}' to directory '${this.remotePath}'`);
-      } else {
-        this.remotePath = remotePath;
-      }
-    } catch {
-      this.remotePath = remotePath;
-    }
+    this.remotePath = this.normalizeRemotePath(remotePath);
 
     this.cachePrefix = `ihm_${ip.replace(/\./g, '_')}`;
     console.log(`[IHMService] Inicializando com cache prefix: ${this.cachePrefix}`);
@@ -86,6 +80,250 @@ export class IHMService extends BaseService {
       .catch((error) => {
         console.warn('[IHMService] failed to initialize cacheService:', String(error));
       });
+  }
+
+  private normalizeRemotePath(remotePath: string): string {
+    try {
+      const raw = String(remotePath || '').trim().replace(/\\/g, '/');
+      if (!raw) return '/';
+
+      let normalized = raw.replace(/\/+/g, '/');
+      if (normalized.toLowerCase().includes('.csv')) {
+        let dir = path.posix.dirname(normalized);
+        if (!dir || dir === '.' || dir === '') dir = '/';
+        normalized = dir;
+        console.log(`[IHMService] Normalized remotePath from '${remotePath}' to directory '${normalized}'`);
+      }
+
+      if (normalized.length > 1 && normalized.endsWith('/')) {
+        normalized = normalized.slice(0, -1);
+      }
+
+      return normalized || '/';
+    } catch {
+      return String(remotePath || '/');
+    }
+  }
+
+  private getRemotePathCandidates(profile: ConnectionProfile): string[] {
+    const raw = this.normalizeRemotePath(this.remotePath);
+    const candidates = new Set<string>();
+
+    const addCandidate = (candidate: string | null | undefined) => {
+      const normalized = this.normalizeRemotePath(String(candidate || ''));
+      if (!normalized) return;
+      candidates.add(normalized);
+    };
+
+    addCandidate(raw);
+
+    if (raw !== '/') {
+      addCandidate(raw.replace(/^\/+/, ''));
+      addCandidate(`/${raw.replace(/^\/+/, '')}`);
+    }
+
+    if (profile.mode === 'ftp') {
+      candidates.add('.');
+    }
+
+    return Array.from(candidates).filter(Boolean);
+  }
+
+  private isDirectoryEntry(file: RemoteFileEntry): boolean {
+    if (typeof file.isFile === 'boolean') return !file.isFile;
+    return file.type === 'd' || file.type === 'dir' || file.type === 2;
+  }
+
+  private looksLikeFileName(name: string): boolean {
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return false;
+    if (trimmed === '.' || trimmed === '..') return false;
+    return /\.[a-z0-9]{1,8}$/i.test(trimmed);
+  }
+
+  private mapRemoteEntries(list: any): RemoteFileEntry[] {
+    return (Array.isArray(list) ? list : []).map((entry: any) => ({
+      name: String(entry?.name || ''),
+      size: typeof entry?.size === 'number' ? entry.size : Number(entry?.size || 0),
+      type: entry?.type,
+      isFile: typeof entry?.isFile === 'boolean' ? entry.isFile : undefined,
+    }));
+  }
+
+  private joinRemotePath(base: string, name: string): string {
+    if (base === '/' || base === '') return `/${name}`;
+    if (base === '.') return name;
+    return path.posix.join(base, name);
+  }
+
+  private async resolveCaseInsensitiveDirectory(
+    client: any,
+    profile: ConnectionProfile
+  ): Promise<{ directory: string; list: RemoteFileEntry[] } | null> {
+    const normalized = this.normalizeRemotePath(this.remotePath);
+    const isAbsolute = normalized.startsWith('/');
+    const segments = normalized.split('/').filter(Boolean);
+
+    if (segments.length === 0) return null;
+
+    let current = isAbsolute ? '/' : '.';
+
+    for (const segment of segments) {
+      let currentList: RemoteFileEntry[];
+      try {
+        currentList = this.mapRemoteEntries(await client.list(current));
+      } catch (error) {
+        consoleLog(
+          `[IHMService] ${this.cachePrefix} - Failed listing parent directory '${current}' while resolving case-insensitive ${profile.label} path: ${error instanceof Error ? error.message : error}`
+        );
+        return null;
+      }
+
+      const matched = currentList.find((entry) => {
+        if (!entry.name) return false;
+        if (entry.name.toLowerCase() !== segment.toLowerCase()) return false;
+        return this.isDirectoryEntry(entry);
+      });
+
+      if (!matched) {
+        return null;
+      }
+
+      current = this.joinRemotePath(current, matched.name);
+    }
+
+    try {
+      const list = this.mapRemoteEntries(await client.list(current));
+      consoleLog(
+        `[IHMService] ${this.cachePrefix} - ${profile.label} directory resolved case-insensitively: configured='${this.remotePath}' -> using='${current}'`
+      );
+      return { directory: current, list };
+    } catch (error) {
+      consoleLog(
+        `[IHMService] ${this.cachePrefix} - Failed listing resolved case-insensitive ${profile.label} directory '${current}': ${error instanceof Error ? error.message : error}`
+      );
+      return null;
+    }
+  }
+
+  private async resolveRemoteDirectory(
+    client: any,
+    profile: ConnectionProfile
+  ): Promise<{ directory: string; list: RemoteFileEntry[] }> {
+    const candidates = this.getRemotePathCandidates(profile);
+    let lastError: any = null;
+
+    for (const candidate of candidates) {
+      try {
+        const list = await client.list(candidate);
+        consoleLog(
+          `[IHMService] ${this.cachePrefix} - ${profile.label} directory resolved: configured='${this.remotePath}' -> using='${candidate}'`
+        );
+        return {
+          directory: candidate,
+          list: this.mapRemoteEntries(list),
+        };
+      } catch (error) {
+        lastError = error;
+        consoleLog(
+          `[IHMService] ${this.cachePrefix} - Failed listing ${profile.label} directory candidate '${candidate}': ${error instanceof Error ? error.message : error}`
+        );
+      }
+    }
+
+    const caseInsensitiveMatch = await this.resolveCaseInsensitiveDirectory(client, profile);
+    if (caseInsensitiveMatch) {
+      return caseInsensitiveMatch;
+    }
+
+    throw lastError ?? new Error(`Nao foi possivel listar o diretorio remoto '${this.remotePath}'`);
+  }
+
+  private async enterFtpDirectoryCaseInsensitive(client: FtpClient): Promise<string | null> {
+    const normalized = this.normalizeRemotePath(this.remotePath);
+    const segments = normalized.split('/').filter(Boolean);
+
+    if (normalized === '/' || segments.length === 0) {
+      await client.cd('/');
+      return '/';
+    }
+
+    if (normalized.startsWith('/')) {
+      await client.cd('/');
+    }
+
+    for (const segment of segments) {
+      const currentList = this.mapRemoteEntries(await client.list());
+      const matched = currentList.find((entry) => {
+        if (!entry.name) return false;
+        if (entry.name.toLowerCase() !== segment.toLowerCase()) return false;
+        return this.isDirectoryEntry(entry);
+      });
+
+      if (!matched) {
+        return null;
+      }
+
+      await client.cd(matched.name);
+    }
+
+    try {
+      return await client.pwd();
+    } catch {
+      return normalized;
+    }
+  }
+
+  private async enterFtpRemoteDirectory(client: FtpClient): Promise<string> {
+    const candidates = this.getRemotePathCandidates({ mode: 'ftp', label: 'FTP', port: 21 });
+    let lastError: any = null;
+
+    for (const candidate of candidates) {
+      try {
+        await client.cd(candidate);
+        const resolved = await client.pwd().catch(() => candidate);
+        consoleLog(
+          `[IHMService] ${this.cachePrefix} - FTP directory resolved via cd: configured='${this.remotePath}' -> using='${resolved}'`
+        );
+        return resolved;
+      } catch (error) {
+        lastError = error;
+        consoleLog(
+          `[IHMService] ${this.cachePrefix} - Failed changing to FTP directory candidate '${candidate}': ${error instanceof Error ? error.message : error}`
+        );
+      }
+    }
+
+    try {
+      const caseInsensitiveResolved = await this.enterFtpDirectoryCaseInsensitive(client);
+      if (caseInsensitiveResolved) {
+        consoleLog(
+          `[IHMService] ${this.cachePrefix} - FTP directory resolved case-insensitively via cd: configured='${this.remotePath}' -> using='${caseInsensitiveResolved}'`
+        );
+        return caseInsensitiveResolved;
+      }
+    } catch (error) {
+      lastError = error;
+      consoleLog(
+        `[IHMService] ${this.cachePrefix} - Failed case-insensitive FTP cd resolution: ${error instanceof Error ? error.message : error}`
+      );
+    }
+
+    throw lastError ?? new Error(`Nao foi possivel acessar o diretorio remoto '${this.remotePath}'`);
+  }
+
+  private async resolveAndListRemoteFiles(
+    client: any,
+    profile: ConnectionProfile
+  ): Promise<{ directory: string; list: RemoteFileEntry[] }> {
+    if (profile.mode === 'ftp') {
+      const resolvedRemoteDir = await this.enterFtpRemoteDirectory(client as FtpClient);
+      const list = this.mapRemoteEntries(await client.list());
+      consoleLog(`[IHMService] ${this.cachePrefix} - Changed to FTP directory: ${resolvedRemoteDir}`);
+      return { directory: resolvedRemoteDir, list };
+    }
+
+    return this.resolveRemoteDirectory(client, profile);
   }
 
   private resolveConnectionProfile(): ConnectionProfile {
@@ -126,6 +364,7 @@ export class IHMService extends BaseService {
 
     const client = new FtpClient();
     client.ftp.verbose = false;
+    client.parseList = ((rawList: string) => this.parseRawFtpList(rawList) as any) as any;
     await client.access({
       host: this.ip,
       port: profile.port,
@@ -134,6 +373,75 @@ export class IHMService extends BaseService {
       secure: false
     });
     return client;
+  }
+
+  private parseRawFtpList(rawList: string): ParsedListEntry[] {
+    const lines = String(rawList || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line && !line.toLowerCase().startsWith('total'));
+
+    return lines
+      .map((line) => this.parseRawFtpLine(line))
+      .filter((entry): entry is ParsedListEntry => Boolean(entry));
+  }
+
+  private parseRawFtpLine(line: string): ParsedListEntry | null {
+    const mlsdMatch = line.match(/^([^ ]+?);(?:\s+)?(.+)$/);
+    if (mlsdMatch) {
+      const facts = mlsdMatch[1].split(';').filter(Boolean);
+      const name = String(mlsdMatch[2] || '').trim();
+      const factMap = new Map<string, string>();
+      for (const fact of facts) {
+        const idx = fact.indexOf('=');
+        if (idx > -1) {
+          factMap.set(fact.slice(0, idx).toLowerCase(), fact.slice(idx + 1));
+        }
+      }
+      const typeFact = String(factMap.get('type') || '').toLowerCase();
+      const isDir = typeFact === 'dir' || typeFact === 'cdir' || typeFact === 'pdir';
+      return {
+        name,
+        size: Number(factMap.get('size') || 0),
+        type: isDir ? 2 : 1,
+        isFile: !isDir,
+      };
+    }
+
+    const unixMatch = line.match(/^([\-dl])([rwx\-]{9})\s+\d+\s+\S+\s+\S+\s+(\d+)\s+\w+\s+\d+\s+[\d:]+\s+(.+)$/i);
+    if (unixMatch) {
+      const entryType = unixMatch[1];
+      return {
+        name: String(unixMatch[4] || '').trim(),
+        size: Number(unixMatch[3] || 0),
+        type: entryType === 'd' ? 2 : 1,
+        isFile: entryType !== 'd',
+      };
+    }
+
+    const dosMatch = line.match(/^(\d{2}-\d{2}-\d{2,4})\s+(\d{2}:\d{2}(?:AM|PM)?)\s+(<DIR>|\d+)\s+(.+)$/i);
+    if (dosMatch) {
+      const marker = String(dosMatch[3] || '').toUpperCase();
+      const isDir = marker === '<DIR>';
+      return {
+        name: String(dosMatch[4] || '').trim(),
+        size: isDir ? 0 : Number(marker || 0),
+        type: isDir ? 2 : 1,
+        isFile: !isDir,
+      };
+    }
+
+    const tokens = line.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return null;
+    const guessedName = tokens[tokens.length - 1];
+    if (!guessedName || guessedName === '.' || guessedName === '..') return null;
+    const sizeToken = [...tokens].reverse().find((token) => /^\d+$/.test(token));
+    return {
+      name: guessedName,
+      size: Number(sizeToken || 0),
+      type: this.looksLikeFileName(guessedName) ? 1 : 0,
+      isFile: this.looksLikeFileName(guessedName),
+    };
   }
 
   private async closeClient(client: any, profile: ConnectionProfile): Promise<void> {
@@ -150,35 +458,45 @@ export class IHMService extends BaseService {
     }
   }
 
-  private async listRemoteFiles(client: any, _profile: ConnectionProfile): Promise<RemoteFileEntry[]> {
-    const list = await client.list(this.remotePath);
-    return (Array.isArray(list) ? list : []).map((entry: any) => ({
-      name: String(entry?.name || ''),
-      size: typeof entry?.size === 'number' ? entry.size : Number(entry?.size || 0),
-      type: entry?.type,
-      isFile: typeof entry?.isFile === 'boolean' ? entry.isFile : undefined,
-    }));
-  }
-
   private async downloadFile(
     client: any,
     profile: ConnectionProfile,
+    resolvedRemoteDir: string,
     remoteFileName: string,
     localPath: string
   ): Promise<void> {
-    const remoteFilePath = path.posix.join(this.remotePath || '/', String(remoteFileName));
-
     if (profile.mode === 'sftp') {
+      const remoteFilePath = path.posix.join(resolvedRemoteDir || '/', String(remoteFileName));
       await client.fastGet(remoteFilePath, localPath);
       return;
     }
 
-    await client.downloadTo(localPath, remoteFilePath);
+    await client.downloadTo(localPath, String(remoteFileName), 0);
   }
 
   private isRegularFile(file: RemoteFileEntry): boolean {
     if (typeof file.isFile === 'boolean') return file.isFile;
+    if (this.isDirectoryEntry(file)) return false;
     return file.type === '-' || file.type === 'f' || file.type === 'file' || file.type === 1;
+  }
+
+  private shouldTreatAsFile(file: RemoteFileEntry): boolean {
+    if (this.isRegularFile(file)) return true;
+    if (this.isDirectoryEntry(file)) return false;
+    return this.looksLikeFileName(file.name);
+  }
+
+  private logListedEntries(profile: ConnectionProfile, list: RemoteFileEntry[]): void {
+    const summary = list.map((file) => ({
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      isFile: file.isFile,
+      treatedAsFile: this.shouldTreatAsFile(file),
+    }));
+    consoleLog(
+      `[IHMService] ${this.cachePrefix} - Raw ${profile.label} entries: ${JSON.stringify(summary)}`
+    );
   }
 
   async salvarCacheNoDB() {
@@ -256,7 +574,7 @@ export class IHMService extends BaseService {
       client = await this.connectClient(profile);
       consoleLog(`[IHMService] ${this.cachePrefix} - Listing directory: ${this.remotePath}`);
 
-      const list = await this.listRemoteFiles(client, profile);
+      const { directory: resolvedRemoteDir, list } = await this.resolveAndListRemoteFiles(client, profile);
       consoleLog(`[IHMService] ${this.cachePrefix} - Found ${list.length} files on ${profile.label} server`);
 
       if (list.length === 0) {
@@ -264,7 +582,8 @@ export class IHMService extends BaseService {
         return [];
       }
 
-      const csvs = list.filter((file) => this.isRegularFile(file) && file.name.toLowerCase().endsWith('.csv'));
+      this.logListedEntries(profile, list);
+      const csvs = list.filter((file) => this.shouldTreatAsFile(file) && file.name.toLowerCase().endsWith('.csv'));
       consoleLog(`[IHMService] ${this.cachePrefix} - Found ${csvs.length} CSV files: ${csvs.map((file) => file.name).join(', ')}`);
 
       const newFiles = csvs.filter(this.filterNewFiles());
@@ -274,7 +593,7 @@ export class IHMService extends BaseService {
       for (const file of newFiles) {
         const local = path.join(localDir, file.name);
         consoleLog(`[IHMService] ${this.cachePrefix} - Downloading ${file.name} to ${local}`);
-        await this.downloadFile(client, profile, file.name, local);
+        await this.downloadFile(client, profile, resolvedRemoteDir, file.name, local);
         const stat = fs.statSync(local);
         results.push({ name: file.name, localPath: local, size: stat.size });
         consoleLog(`[IHMService] ${this.cachePrefix} - Downloaded ${file.name} (${stat.size} bytes)`);
@@ -322,12 +641,13 @@ export class IHMService extends BaseService {
       consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Connecting to ${profile.label}: ${this.ip}:${profile.port}`);
       client = await this.connectClient(profile);
 
-      const list = await this.listRemoteFiles(client, profile);
-      let targetFile = list.find((file) => this.isRegularFile(file) && file.name === fileName);
+      const { directory: resolvedRemoteDir, list } = await this.resolveAndListRemoteFiles(client, profile);
+      this.logListedEntries(profile, list);
+      let targetFile = list.find((file) => this.shouldTreatAsFile(file) && file.name === fileName);
 
       if (!targetFile) {
         targetFile = list.find(
-          (file) => this.isRegularFile(file) && String(file.name || '').toLowerCase() === String(fileName || '').toLowerCase()
+          (file) => this.shouldTreatAsFile(file) && String(file.name || '').toLowerCase() === String(fileName || '').toLowerCase()
         );
 
         if (targetFile) {
@@ -346,7 +666,7 @@ export class IHMService extends BaseService {
 
       const local = path.join(localDir, fileName);
       consoleLog(`[IHMService] ${this.cachePrefix} - [FORCE] Baixando ${fileName} para ${local}`);
-      await this.downloadFile(client, profile, targetFile.name, local);
+      await this.downloadFile(client, profile, resolvedRemoteDir, targetFile.name, local);
 
       const stat = fs.statSync(local);
       const key = String(fileName).toLowerCase();
@@ -378,15 +698,16 @@ export class IHMService extends BaseService {
       consoleLog(`[IHMService] ${this.cachePrefix} - Listando CSVs no ${profile.label}: ${this.ip}:${profile.port}`);
       client = await this.connectClient(profile);
 
-      const list = await this.listRemoteFiles(client, profile);
+      const { list } = await this.resolveAndListRemoteFiles(client, profile);
       const csvFiles = list
-        .filter((file) => this.isRegularFile(file) && file.name.toLowerCase().endsWith('.csv'))
+        .filter((file) => this.shouldTreatAsFile(file) && file.name.toLowerCase().endsWith('.csv'))
         .filter((file) => {
           const name = file.name.toLowerCase();
           return !name.endsWith('_2.csv') && !name.includes('_sys');
         })
         .map((file) => file.name);
 
+      this.logListedEntries(profile, list);
       consoleLog(`[IHMService] ${this.cachePrefix} - Encontrados ${csvFiles.length} arquivos CSV`);
       return csvFiles;
     } catch (error) {

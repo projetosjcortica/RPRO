@@ -734,7 +734,7 @@ Remove todos os dados de produção (relatórios, estoque, movimentações) mas 
 Reseta matéria prima para produtos padrão (Produto 1-40 em kg).
 
 **Limpezas realizadas:**
-- Tabelas: Relatorio, Batch, Row, Estoque, MovimentacaoEstoque
+- Tabelas: Relatorio, Batch, Row,
 - Cache SQLite (arquivo físico deletado)
 - Backups
 - Matéria prima (resetada para padrões)

@@ -192,6 +192,9 @@ export async function startCollector(overrideConfig?: {
 
   const finalPassword =
     overrideConfig?.password ?? runtimeIhm.password ?? getRuntimeConfig("pass");
+  const finalRemotePath =
+    runtimeIhm.caminhoRemoto ?? getRuntimeConfig("caminhoRemoto") ?? "/public/internalStorage/data/";
+  const finalUseSftp = typeof runtimeIhm.sftp === "boolean" ? runtimeIhm.sftp : undefined;
 
   // If no IHM configuration is present at all, do not start the collector.
   // This avoids throwing low-level errors when the collector runs without any config.
@@ -228,7 +231,9 @@ export async function startCollector(overrideConfig?: {
   const ihm = new IHMService(
     String(finalIp || ""),
     String(finalUser || "anonymous"),
-    String(finalPassword || "")
+    String(finalPassword || ""),
+    String(finalRemotePath || "/public/internalStorage/data/"),
+    finalUseSftp
   );
 
   const runCycle = async () => {
@@ -1413,7 +1418,7 @@ app.post("/api/clear/production", async (req, res) => {
         try {
           await manager.query('SET FOREIGN_KEY_CHECKS=0');
           // Truncate or delete in order: deepest child tables first
-          const tables = ['movimentacao_estoque', 'estoque', 'row', 'batch', 'relatorio', 'amendoim'];
+          const tables = [ 'row', 'batch', 'relatorio', 'amendoim'];
           for (const t of tables) {
             try {
               await manager.query(`TRUNCATE TABLE \`${t}\``);
@@ -1628,13 +1633,18 @@ app.get("/api/ihm/fetchLatest", async (req, res) => {
     const ip = String(req.query.ip || "");
     const user = String(req.query.user || "anonymous");
     const password = String(req.query.password || "");
+    const runtimeIhmCfg = getRuntimeConfig("ihm-config") || {};
+    const remotePath = String(req.query.caminhoRemoto || runtimeIhmCfg.caminhoRemoto || "/public/internalStorage/data/");
+    const useSftp = typeof req.query.sftp !== "undefined"
+      ? String(req.query.sftp).trim().toLowerCase() === "true"
+      : (typeof runtimeIhmCfg.sftp === "boolean" ? runtimeIhmCfg.sftp : undefined);
     if (!ip) return res.status(400).json({ error: "ip is required" });
     const tmpDir = path.resolve(
       process.cwd(),
       process.env.COLLECTOR_TMP || "tmp"
     );
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-    const ihm = new IHMService(ip, user, password);
+    const ihm = new IHMService(ip, user, password, remotePath, useSftp);
     const downloaded = await ihm.findAndDownloadNewFiles(tmpDir);
     if (!downloaded || downloaded.length === 0)
       return res.json({ ok: true, message: "Nenhum CSV novo encontrado" });

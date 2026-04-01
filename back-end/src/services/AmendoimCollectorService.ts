@@ -86,7 +86,9 @@ export class AmendoimCollectorService {
       this.ihmService = new IHMService(
         ihmCfg.ip || process.env.IHM_IP || '192.168.5.250',
         ihmCfg.user || process.env.IHM_USER || 'anonymous',
-        ihmCfg.password || process.env.IHM_PASSWORD || ''
+        ihmCfg.password || process.env.IHM_PASSWORD || '',
+        ihmCfg.caminhoRemoto || '/public/internalStorage/data/',
+        typeof ihmCfg.sftp === 'boolean' ? ihmCfg.sftp : undefined
       );
     }
     return this.ihmService;
@@ -501,7 +503,13 @@ export class AmendoimCollectorService {
       console.log('[AmendoimCollector] ========================================');
       console.log('[AmendoimCollector]: ', ihmCfg);
       // Criar IHM1 (principal)
-      const ihm1Service = new IHMService(ipPadrao, userPadrao, passwordPadrao, caminhoPadrao);
+      const ihm1Service = new IHMService(
+        ipPadrao,
+        userPadrao,
+        passwordPadrao,
+        caminhoPadrao,
+        typeof ihmCfg.sftp === 'boolean' ? ihmCfg.sftp : undefined
+      );
       console.log(`[AmendoimCollector] ✓ IHM1 criada - IP: ${ipPadrao}`);
 
       // Criar IHM2 se configurada (aceita nested ihm2 ou ip2/user2 fields)
@@ -533,7 +541,8 @@ export class AmendoimCollectorService {
           ih2cfg.ip,
           ih2cfg.user || 'anonymous',
           ih2cfg.password || '',
-          caminhoIhm2
+          caminhoIhm2,
+          typeof ihmCfg.sftp === 'boolean' ? ihmCfg.sftp : undefined
         );
         console.log(`[AmendoimCollector] ✓ IHM2 criada - IP: ${ih2cfg.ip} (source: ${ih2cfg.source})`);
       }

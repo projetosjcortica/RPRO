@@ -173,45 +173,6 @@ CREATE TABLE IF NOT EXISTS `row` (
   CONSTRAINT `fk_row_batch` FOREIGN KEY (`batchId`) REFERENCES `batch` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Inventory table
-CREATE TABLE IF NOT EXISTS `estoque` (
-  `id` varchar(36) NOT NULL,
-  `materia_prima_id` varchar(36) NOT NULL,
-  `quantidade` decimal(10,3) NOT NULL DEFAULT 0,
-  `quantidade_minima` decimal(10,3) NOT NULL DEFAULT 0,
-  `quantidade_maxima` decimal(10,3) NOT NULL DEFAULT 0,
-  `unidade` varchar(20) NOT NULL DEFAULT 'kg',
-  `ativo` tinyint(1) NOT NULL DEFAULT 1,
-  `observacoes` text NULL,
-  `localizacao` varchar(50) NULL,
-  `criado_em` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `atualizado_em` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  INDEX `idx_materia_prima` (`materia_prima_id`),
-  INDEX `idx_ativo` (`ativo`),
-  CONSTRAINT `fk_estoque_materia` FOREIGN KEY (`materia_prima_id`) REFERENCES `materia_prima` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Inventory movement history
-CREATE TABLE IF NOT EXISTS `movimentacao_estoque` (
-  `id` varchar(36) NOT NULL,
-  `materia_prima_id` varchar(36) NOT NULL,
-  `tipo` varchar(20) NOT NULL DEFAULT 'entrada',
-  `quantidade` decimal(10,3) NOT NULL,
-  `quantidade_anterior` decimal(10,3) NOT NULL,
-  `quantidade_atual` decimal(10,3) NOT NULL,
-  `unidade` varchar(20) NOT NULL DEFAULT 'kg',
-  `documento_referencia` varchar(100) NULL,
-  `responsavel` varchar(50) NULL,
-  `observacoes` text NULL,
-  `data_movimentacao` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  INDEX `idx_materia_prima` (`materia_prima_id`),
-  INDEX `idx_tipo` (`tipo`),
-  INDEX `idx_data` (`data_movimentacao`),
-  CONSTRAINT `fk_mov_materia` FOREIGN KEY (`materia_prima_id`) REFERENCES `materia_prima` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- File cache for change detection
 CREATE TABLE IF NOT EXISTS `cache_file` (
   `id` varchar(36) NOT NULL,

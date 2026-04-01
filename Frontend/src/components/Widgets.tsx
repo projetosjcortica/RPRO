@@ -306,12 +306,13 @@ const CompactDonutTooltip = ({ active, payload, stats }: any) => {
 };
 
 // COMPONENTE: DonutChart
-export const DonutChartWidget = React.memo(({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false, title, fetchUrl, unit }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean; title?: string; fetchUrl?: string; unit?: string }) => {
+export const DonutChartWidget = React.memo(({ chartType = "produtos", config, highlightName, onSliceHover, onSliceLeave, compact = false, title, fetchUrl, unit, showLegend = false }: { chartType?: ChartType; config?: any; highlightName?: string | null; onSliceHover?: (name: string) => void; onSliceLeave?: () => void; compact?: boolean; title?: string; fetchUrl?: string; unit?: string; showLegend?: boolean }) => {
   // Se fetchUrl for fornecido, usar fetch direto; caso contrário, usar useChartData
   const [directData, setDirectData] = useState<ChartDatum[]>([]);
   const [directLoading, setDirectLoading] = useState(false);
   const [directStats, setDirectStats] = useState<any>(null);
   const [directError, setDirectError] = useState<string | null>(null);
+  const [legendHoverName, setLegendHoverName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!fetchUrl) return;
@@ -349,17 +350,21 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
     if (!data || !Array.isArray(data)) return 0;
     return data.reduce((s, d) => s + (d.value || 0), 0);
   }, [data]);
-    console.log(displayTotal);
+
+  const legendData = useMemo(() => {
+    if (!data || !Array.isArray(data)) return [];
+    return [...data]
+      .filter((item) => Number(item.value || 0) > 0)
+      .sort((a, b) => b.value - a.value);
+  }, [data]);
+
+  const effectiveHighlightName = highlightName || legendHoverName;
 
   // ✅ OTIMIZAÇÃO: Callbacks memoizados
   const handleMouseLeave = useCallback((e: any) => {
     const toElement = e.relatedTarget as HTMLElement;
     if (!toElement?.classList.contains('recharts-sector')) {
       onSliceLeave?.();
-      const tooltipEl = document.querySelector('.recharts-tooltip-wrapper');
-      if (tooltipEl) {
-        (tooltipEl as HTMLElement).style.visibility = 'hidden';
-      }
     }
   }, [onSliceLeave]);
 
@@ -414,7 +419,7 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
   const displayUnit = unit || data[0]?.unit || 'kg';
 
   return (
-    <div className="h-full w-full relative">
+    <div className="h-full w-full flex flex-col">
       {/* Título do gráfico */}
       {title && (
         <div className="text-sm font-semibold text-gray-700 mb-2">
@@ -422,12 +427,14 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
         </div>
       )}
       
+      <div className={`min-h-0 flex-1 ${showLegend ? 'grid grid-cols-[minmax(0,1fr)_minmax(180px,220px)] gap-3' : ''}`}>
+        <div className="relative min-w-0 h-full">
       {!compact && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
             <div className="text-xs 3xl:text-lg text-gray-500">Total</div>
             <div className=" text-sm  3xl:text-xl font-bold text-red-600">
-              {(stats?.total ?? data.reduce((s, d) => s + d.value, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+              {(stats?.total ?? displayTotal).toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
             </div>
             <div className="text-xs 3xl:text-lg text-gray-500">{displayUnit}</div>
           </div>
@@ -441,8 +448,8 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
             cx="50%"
             cy="50%"
             // preciso que ele aumente ou diminua o tamanho do gráfico mediante a responsividade]
-            innerRadius={compact?"40%":"50%"} 
-            outerRadius={compact?"70%":"80%"} 
+            innerRadius={compact?"30%":"40%"} 
+            outerRadius={compact?"60%":"70%"} 
             dataKey="value"
             labelLine={false}
             onMouseLeave={handleMouseLeave}
@@ -450,8 +457,8 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
 
           >
             {data.map((d, index) => {
-              const isHighlighted = !!highlightName && d.name === highlightName;
-              const dimmed = !!highlightName && d.name !== highlightName;
+              const isHighlighted = !!effectiveHighlightName && d.name === effectiveHighlightName;
+              const dimmed = !!effectiveHighlightName && d.name !== effectiveHighlightName;
               return (
                 <Cell
                   key={`cell-${index}`}
@@ -460,11 +467,6 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
                   stroke={isHighlighted ? '#111827' : '#ffffff'}
                   strokeWidth={isHighlighted ? 2 : 1}
                   onMouseEnter={() => {
-                    const tooltipEl = document.querySelector('.recharts-tooltip-wrapper');
-                    if (tooltipEl) {
-                      (tooltipEl as HTMLElement).style.visibility = 'visible';
-                      (tooltipEl as HTMLElement).style.opacity = '1';
-                    }
                     onSliceHover?.(d.name);
                   }}
                 />
@@ -477,6 +479,54 @@ export const DonutChartWidget = React.memo(({ chartType = "produtos", config, hi
           />
         </PieChart>
       </ResponsiveContainer>
+        </div>
+
+        {showLegend && (
+          <div className="min-w-0 h-full border-l border-gray-200 pl-3 overflow-y-auto">
+            <div className="h-full overflow-y-auto pr-1">
+              <div className="space-y-2">
+                {legendData.map((item, index) => {
+                  const percentage = displayTotal > 0 ? (item.value / displayTotal) * 100 : 0;
+                  const isHighlighted = !!effectiveHighlightName && item.name === effectiveHighlightName;
+
+                  return (
+                    <button
+                      key={`${item.name}-${index}`}
+                      type="button"
+                      className={`flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${isHighlighted ? 'bg-red-50' : 'hover:bg-gray-50'}`}
+                      onMouseEnter={() => {
+                        setLegendHoverName(item.name);
+                        onSliceHover?.(item.name);
+                      }}
+                      onMouseLeave={() => {
+                        setLegendHoverName(null);
+                        onSliceLeave?.();
+                      }}
+                      title={item.name}
+                    >
+                      <span
+                        className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-medium text-gray-800">
+                          {item.name}
+                        </span>
+                        <span className="block text-[11px] text-gray-500">
+                          {percentage.toFixed(1)}% do total
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-gray-700">
+                        {item.value.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {displayUnit}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 });
