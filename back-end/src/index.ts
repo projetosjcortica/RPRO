@@ -1090,47 +1090,6 @@ app.patch("/api/materiaprima/:num/toggle-ignorar-calculos", async (req, res) => 
   }
 });
 
-// Reativar todos os produtos (resetar para padrão)
-/*app.post("/api/materiaprima/reset-all", async (req, res) => {
-  try {
-    console.log('[MateriaPrima Reset] Reativando todos os produtos...');
-
-    const repo = AppDataSource.getRepository(MateriaPrima);
-
-    // Buscar todos os produtos e atualizar um por um
-    const allProducts = await repo.find();
-
-    for (const product of allProducts) {
-      product.ativo = true;
-      await repo.save(product);
-    }
-
-    // Invalidar cache
-    invalidateMateriaPrimaCache();
-
-    console.log(`[MateriaPrima Reset] ✅ ${allProducts.length} produtos reativados`);
-
-    return res.json({
-      success: true,
-      total: allProducts.length,
-      message: `${allProducts.length} produtos reativados com sucesso`
-    });
-  } catch (e: any) {
-    console.error("Failed to reset products", e);
-    return res.status(500).json({ error: e?.message || "Erro ao resetar produtos" });
-  }
-});*/
-
-// --- HTTP API parity for websocket commands ---
-
-app.get("/api/ping", async (req, res) => {
-  try {
-    return res.json({ pong: true, ts: new Date().toISOString() });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "internal" });
-  }
-});
 
 app.get("/api/db/status", async (req, res) => {
   try {

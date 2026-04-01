@@ -429,10 +429,6 @@ export class Processador {
     return this.makeRequest('/api/unidades/normalizarParaKg', 'POST', { valores, unidades });
   }
 
-  public populateDatabase(tipo = 'relatorio', quantidade = 10, config = {}) {
-    return this.makeRequest('/api/db/populate', 'POST', { tipo, quantidade, config });
-  }
-
   // New admin/database helpers
   public clearDatabase() {
     return this.makeRequest('/api/db/clear', 'POST');

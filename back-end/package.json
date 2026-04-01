@@ -41,6 +41,8 @@
     "reflect-metadata": "^0.1.13",
     "sqlite3": "^5.1.7",
     "ssh2-sftp-client": "^12.1.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "systemjs": "^6.15.1",
     "typeorm": "^0.3.6",
     "ws": "^8.18.3"
