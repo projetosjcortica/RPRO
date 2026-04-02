@@ -84,8 +84,8 @@ export default function Home() {
     return { 
       dataInicio: dateStr, 
       dataFim: dateStr,
-      turnoInicio: 7,
-      turnoFim: 6
+      turnoInicio: 0,
+      turnoFim: 23
     };
   });
   const handleHorariosDateChange = (range: any) => {
@@ -104,15 +104,15 @@ export default function Home() {
       setHorariosFilters({ 
         dataInicio: start, 
         dataFim: end,
-        turnoInicio: 7,
-        turnoFim: 6
+        turnoInicio: 0,
+        turnoFim: 23
       });
     } else {
       setHorariosFilters({ 
         dataInicio: '', 
         dataFim: '',
-        turnoInicio: 7,
-        turnoFim: 6,
+        turnoInicio: 0,
+        turnoFim: 23
       });
     }
   };
@@ -121,7 +121,7 @@ export default function Home() {
     y.setDate(y.getDate() - 1);
     setHorariosDateRange({ from: y, to: y });
     const ds = formatDate(y, 'yyyy-MM-dd');
-    setHorariosFilters({ dataInicio: ds, dataFim: ds, turnoInicio: 7, turnoFim: 6 });
+    setHorariosFilters({ dataInicio: ds, dataFim: ds, turnoInicio: 0, turnoFim: 23 });
   };
 
   // Semanal (semana atual, domingo-sábado)
@@ -144,8 +144,8 @@ export default function Home() {
     return { 
       dataInicio: formatDate(start, 'yyyy-MM-dd'), 
       dataFim: formatDate(end, 'yyyy-MM-dd'),
-      turnoInicio: 7,
-      turnoFim: 6
+      turnoInicio: 0,
+      turnoFim: 23
     };
   });
   const handleWeeklyDateChange = (date?: Date) => {
@@ -157,7 +157,7 @@ export default function Home() {
       const end = new Date(today);
       end.setDate(today.getDate() + (6 - dow));
       setWeeklyDateRange({ from: start, to: end });
-      setWeeklyFilters({ dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd'), turnoInicio: 7, turnoFim: 6 });
+      setWeeklyFilters({ dataInicio: formatDate(start, 'yyyy-MM-dd'), dataFim: formatDate(end, 'yyyy-MM-dd'), turnoInicio: 0, turnoFim: 23 });
       return;
     }
     const dow = date.getDay();
@@ -169,8 +169,8 @@ export default function Home() {
     setWeeklyFilters({
       dataInicio: formatDate(start, 'yyyy-MM-dd'),
       dataFim: formatDate(end, 'yyyy-MM-dd'),
-      turnoInicio: 7,
-      turnoFim: 6,
+      turnoInicio: 0,
+      turnoFim: 23,
     });
   };
   const clearWeeklyFilters = () => handleWeeklyDateChange(undefined);
@@ -250,7 +250,7 @@ export default function Home() {
     if (entradaDateRange?.from) {
       const start = formatDate(entradaDateRange.from, 'yyyy-MM-dd');
       const end = entradaDateRange.to ? formatDate(entradaDateRange.to, 'yyyy-MM-dd') : start;
-      setEntradaFilters({ dataInicio: start, dataFim: end, turnoInicio: 7, turnoFim: 6 });
+      setEntradaFilters({ dataInicio: start, dataFim: end, turnoInicio: 0, turnoFim: 23 });
     } else {
       setEntradaFilters({ dataInicio: '', dataFim: '' });
     }
@@ -274,7 +274,7 @@ export default function Home() {
     if (saidaDateRange?.from) {
       const start = formatDate(saidaDateRange.from, 'yyyy-MM-dd');
       const end = saidaDateRange.to ? formatDate(saidaDateRange.to, 'yyyy-MM-dd') : start;
-      setSaidaFilters({ dataInicio: start, dataFim: end, turnoInicio: 7, turnoFim: 6 });
+      setSaidaFilters({ dataInicio: start, dataFim: end, turnoInicio: 0, turnoFim: 23 });
     } else {
       setSaidaFilters({ dataInicio: '', dataFim: '' });
     }
@@ -320,8 +320,8 @@ export default function Home() {
     setHorariosDateRange({ from: inicio, to: fim });
     setHorariosFilters({
       ...ultimos30,
-      turnoInicio: 7,
-      turnoFim: 6,
+      turnoInicio: 0,
+      turnoFim: 23,
     });
     
     // weeklyFilters mantém seu comportamento original (semana atual)
@@ -444,10 +444,10 @@ export default function Home() {
         const sEnd = saidaFilters?.dataFim;
         const [entradaResult, saidaResult] = await Promise.allSettled([
           eStart && eEnd
-            ? fetchAnaliseFor({ dataInicio: eStart, dataFim: eEnd, turnoInicio: 7, turnoFim: 6 })
+            ? fetchAnaliseFor({ dataInicio: eStart, dataFim: eEnd, turnoInicio: 0, turnoFim: 23 })
             : Promise.resolve(null),
           sStart && sEnd
-            ? fetchAnaliseFor({ dataInicio: sStart, dataFim: sEnd, turnoInicio: 7, turnoFim: 6 })
+            ? fetchAnaliseFor({ dataInicio: sStart, dataFim: sEnd, turnoInicio: 0, turnoFim: 23 })
             : Promise.resolve(null),
         ]);
 

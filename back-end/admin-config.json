@@ -3,6 +3,7 @@
   "ip": "",
   "user": "",
   "password": "",
+  "caminhoRemoto": "/public/internalStorage/data/",
   "localCSV": "",
   "metodoCSV": "",
   "habilitarCSV": false,
@@ -17,7 +18,9 @@
   "ip2": "",
   "user2": "",
   "password2": "",
+  "caminhoRemoto2": "/public/internalStorage/data/",
   "metodoCSV2": "",
   "localCSV2": "",
-  "selectedIhm": 1
+  "selectedIhm": 1,
+  "sftp": false
 }

@@ -10,7 +10,8 @@ import { useRuntimeConfig } from './hooks/useRuntimeConfig';
 import Profile from "./Profile";
 import { getProcessador } from "./Processador";
 import { resolvePhotoUrl } from "./lib/photoUtils";
-import { Switch } from "./components/ui/switch";
+import {Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue} from "@/components/ui/select"
+
 import { useNotify } from "./hooks/useNotifications";
 
 import {
@@ -1417,52 +1418,7 @@ interface Estatisticas {
       <h2 className="text-xl font-bold text-gray-800 mb-4">
         Configurações Administrativas
       </h2> 
-      {/* <div className="p-4 mb-3 border rounded-md bg-white shadow-sm">
-        <Label className="font-medium text-gray-700 mb-2">Conexão MySQL (DB)</Label>
-        {dbLoading ? (
-          <div className="text-sm text-gray-500">Carregando...</div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <div className="flex gap-2 items-center">
-              <Label className="w-40">Host / IP</Label>
-              <Input value={dbConfig.serverDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, serverDB: e.target.value })} />
-            </div>
-            <div className="flex gap-2 items-center">
-              <Label className="w-40">Porta</Label>
-              <Input type="number" value={dbConfig.port ?? 3306} onChange={(e) => setDbConfig({ ...dbConfig, port: Number(e.target.value || 0) })} />
-            </div>
-            <div className="flex gap-2 items-center">
-              <Label className="w-40">Database</Label>
-              <Input value={dbConfig.database || ''} onChange={(e) => setDbConfig({ ...dbConfig, database: e.target.value })} />
-            </div>
-            <div className="flex gap-2 items-center">
-              <Label className="w-40">Usuário DB</Label>
-              <Input value={dbConfig.userDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, userDB: e.target.value })} />
-            </div>
-            <div className="flex gap-2 items-center">
-                <Label className="w-40">Senha DB</Label>
-                {user?.isAdmin ? (
-                  <Input type="password" value={dbConfig.passwordDB || ''} onChange={(e) => setDbConfig({ ...dbConfig, passwordDB: e.target.value })} />
-                ) : (
-                  <div className="text-sm text-gray-600">{dbPasswordSet ? 'Senha configurada (requer admin para alterar)' : 'Nenhuma senha configurada'}</div>
-                )}
-            </div>
-            <div className="flex gap-2 justify-end mt-2">
-              <Button onClick={testDbConfig} className="bg-gray-600 hover:bg-gray-700">Testar</Button>
-              <Button onClick={saveDbConfig} className="bg-blue-600 hover:bg-blue-700" disabled={dbSaving}>
-                {dbSaving ? <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</span> : 'Salvar DB'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </div> */}
-{/* 
-      <div id="CfgAdvancedDB" className="">
-        <div className="dir flex flex-col gap-5">
-
-        </div>
-      </div> */}
-
+      
       <div id="CmdAdvancedDB" className=" flex flex-col gap-5">
         {/* Importar Dump */}
         <AlertDialog>
@@ -1671,7 +1627,7 @@ interface Estatisticas {
             Exportar
           </Button>
         </div>
-
+        {/*modal de usuarios */}
         <AlertDialog>
           <AlertDialogTrigger asChild disabled={!isEditing}>
             <div id="sidetxt" className="flex flex-row justify-between">
@@ -1684,7 +1640,7 @@ interface Estatisticas {
                   {resetting ? (
                     <span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Resetando...</span>
                   ) : (
-                    'Resetar Sistema'
+                    'Resetar'
                   )}
                 </Button>
               
@@ -1736,161 +1692,206 @@ interface Estatisticas {
            </>) : null }
         </AlertDialog>
          
-      </div>
+        {/* importar csv */}
+        <div className="flex flex-row justify-between items-center">       
+          <Label>seleção de hora Inicial</Label>
+          
+          {user?.userType === 'amendoim' && (
+          
+            <Button
+              disabled={!isEditing}
+              className="w-70 bg-red-600 hover:bg-red-700"
+              onClick={async () => {
+                if (!isEditing) return;
 
-      <div
-        id="containerMFC"
-        className="flex flex-row justify-center items-center gap-4 p-4 shadow-lg border rounded-lg bg-gray-50 mt-4"
-      > 
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.csv';
+                input.onchange = async (e: any) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
 
-        {user?.userType === 'amendoim' && (
-         
-          <Button
-            disabled={!isEditing}
-            className="bg-red-600 hover:bg-red-700"
-            onClick={async () => {
-              if (!isEditing) return;
+                  const toastId = toast.loading(`Processando ${file.name}...`);
 
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = '.csv';
-              input.onchange = async (e: any) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
+                  try {
+                    const processador = getProcessador();
+                    const result = await processador.uploadAmendoimFile(file);
 
-                const toastId = toast.loading(`Processando ${file.name}...`);
-
-                try {
-                  const processador = getProcessador();
-                  const result = await processador.uploadAmendoimFile(file);
-
-                  if (result && (result.salvos !== undefined || result.ok)) {
-                    const salvos = result.salvos ?? (result.processed?.rowsCount ?? 0) ?? 0;
-                    const mensagemSucesso = `${salvos} registro(s) processado(s) com sucesso`;
-                    try { toastManager.updateSuccess('amendoim-upload', mensagemSucesso); } catch (e) {}
-                    await fetchRegistros();
-                    try { await fetchEstatisticas(); } catch (e) {}
-                    try { toast.update(toastId, { render: 'Importação concluída', type: 'success', isLoading: false, autoClose: 4000 }); } catch (e) {}
-                  } else {
-                    const errMsg = result?.error || 'Erro ao processar arquivo';
-                    try { toastManager.updateError('amendoim-upload', errMsg); } catch (e) {}
-                    try { toast.update(toastId, { render: errMsg, type: 'error', isLoading: false, autoClose: 5000 }); } catch (e) {}
+                    if (result && (result.salvos !== undefined || result.ok)) {
+                      const salvos = result.salvos ?? (result.processed?.rowsCount ?? 0) ?? 0;
+                      const mensagemSucesso = `${salvos} registro(s) processado(s) com sucesso`;
+                      try { toastManager.updateSuccess('amendoim-upload', mensagemSucesso); } catch (e) {}
+                      await fetchRegistros();
+                      try { await fetchEstatisticas(); } catch (e) {}
+                      try { toast.update(toastId, { render: 'Importação concluída', type: 'success', isLoading: false, autoClose: 4000 }); } catch (e) {}
+                    } else {
+                      const errMsg = result?.error || 'Erro ao processar arquivo';
+                      try { toastManager.updateError('amendoim-upload', errMsg); } catch (e) {}
+                      try { toast.update(toastId, { render: errMsg, type: 'error', isLoading: false, autoClose: 5000 }); } catch (e) {}
+                    }
+                  } catch (err: any) {
+                    const mensagemErro = err?.message || 'Erro ao enviar arquivo';
+                    try { toastManager.updateError('amendoim-upload', mensagemErro); } catch (e) {}
+                    try { toast.update(toastId, { render: mensagemErro, type: 'error', isLoading: false, autoClose: 5000 }); } catch (e) {}
                   }
-                } catch (err: any) {
-                  const mensagemErro = err?.message || 'Erro ao enviar arquivo';
-                  try { toastManager.updateError('amendoim-upload', mensagemErro); } catch (e) {}
-                  try { toast.update(toastId, { render: mensagemErro, type: 'error', isLoading: false, autoClose: 5000 }); } catch (e) {}
-                }
-              };
+                };
 
-              input.click();
-            }}
-          >
-            <FileUp />
-            Importar CSV
-          </Button>
-        )}
-        
-        {user?.userType === 'racao' && (
-         <>
-          <Button
-            disabled={!isEditing}
-            className="bg-red-600 hover:bg-red-700"
-            onClick={async () => {
-              if (!isEditing) return;
+                input.click();
+              }}
+            >
+              <FileUp />
+              Importar CSV
+            </Button>
+          )}
+          
+          {user?.userType === 'racao' && (
+          <>
+            <Button
+              disabled={!isEditing}
+              className="w-70 bg-red-600 hover:bg-red-700"
+              onClick={async () => {
+                if (!isEditing) return;
 
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = '.csv';
-              input.onchange = async (e: any) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.csv';
+                input.onchange = async (e: any) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
 
-                const toastId = toast.loading(`Processando ${file.name}...`);
+                  const toastId = toast.loading(`Processando ${file.name}...`);
 
-                try {
-                  const processador = getProcessador();
-                  const result = await processador.uploadCSV(file);
+                  try {
+                    const processador = getProcessador();
+                    const result = await processador.uploadCSV(file);
 
-                  if (result.ok) {
-                    const perf = (result as any).performance;
-                    const isLegacy = (result as any).processed?.isLegacyFormat || false;
-                    
-                    // Log no console para desenvolvedores
-                    if (isLegacy) {
-                      console.log('🔄 [CSV Import] Formato legado detectado e convertido automaticamente');
-                      console.log('📋 [CSV Import] Conversões aplicadas:');
-                      console.log('   • Datas: DD/MM/YY → YYYY-MM-DD');
-                      console.log('   • Horários: HH:MM → HH:MM:SS');
-                      console.log('   • Delimitadores normalizados');
-                    }
-                    
-                    let message = `✅ CSV importado com sucesso!\n\n`;
-                    
-                    if (isLegacy) {
-                      message += `🔄 Formato legado detectado e convertido automaticamente\n\n`;
-                    }
-                    
-                    message += `📄 Arquivo: ${file.name}\n`;
-                    message += `📊 Linhas processadas: ${result.processed.rowsCount || 0}`;
-                    
-                    if (perf?.totalTimeMs) {
-                      const seconds = (perf.totalTimeMs / 1000).toFixed(2);
-                      message += `\n⏱️ Tempo total: ${seconds}s`;
-                      if (perf.rowsPerSecond) {
-                        message += ` (${perf.rowsPerSecond} linhas/s)`;
+                    if (result.ok) {
+                      const perf = (result as any).performance;
+                      const isLegacy = (result as any).processed?.isLegacyFormat || false;
+                      
+                      // Log no console para desenvolvedores
+                      if (isLegacy) {
+                        console.log('🔄 [CSV Import] Formato legado detectado e convertido automaticamente');
+                        console.log('📋 [CSV Import] Conversões aplicadas:');
+                        console.log('   • Datas: DD/MM/YY → YYYY-MM-DD');
+                        console.log('   • Horários: HH:MM → HH:MM:SS');
+                        console.log('   • Delimitadores normalizados');
                       }
-                    }
+                      
+                      let message = `✅ CSV importado com sucesso!\n\n`;
+                      
+                      if (isLegacy) {
+                        message += `🔄 Formato legado detectado e convertido automaticamente\n\n`;
+                      }
+                      
+                      message += `📄 Arquivo: ${file.name}\n`;
+                      message += `📊 Linhas processadas: ${result.processed.rowsCount || 0}`;
+                      
+                      if (perf?.totalTimeMs) {
+                        const seconds = (perf.totalTimeMs / 1000).toFixed(2);
+                        message += `\n⏱️ Tempo total: ${seconds}s`;
+                        if (perf.rowsPerSecond) {
+                          message += ` (${perf.rowsPerSecond} linhas/s)`;
+                        }
+                      }
 
+                      toast.update(toastId, {
+                        render: message,
+                        type: 'success',
+                        isLoading: false,
+                        autoClose: 5000,
+                      });
+                    } else {
+                      toast.update(toastId, {
+                        render: 'Falha ao importar CSV',
+                        type: 'error',
+                        isLoading: false,
+                        autoClose: 3000,
+                      });
+                    }
+                  } catch (err: any) {
+                    console.error('Erro ao importar CSV:', err);
                     toast.update(toastId, {
-                      render: message,
-                      type: 'success',
-                      isLoading: false,
-                      autoClose: 5000,
-                    });
-                  } else {
-                    toast.update(toastId, {
-                      render: 'Falha ao importar CSV',
+                      render: err.message || 'Erro ao importar CSV',
                       type: 'error',
                       isLoading: false,
                       autoClose: 3000,
                     });
                   }
-                } catch (err: any) {
-                  console.error('Erro ao importar CSV:', err);
-                  toast.update(toastId, {
-                    render: err.message || 'Erro ao importar CSV',
-                    type: 'error',
-                    isLoading: false,
-                    autoClose: 3000,
-                  });
-                }
-              };
-              input.click();
-            }}
-          >
-            <FileUp />
-            Importar CSV
-          </Button> 
-        </>
-          
-        )}
-        <div 
-          data-disabled={!isEditing}
-            className="h-9 px-4 py-2 bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all data-[disabled=true]:opacity-50 disabled:pointer-events-none [&_svg]:pointer-events-none  shrink-0  outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20  aria-invalid:border-destructive " >
-          
-          Expansão de Produtos
-          <Switch disabled={!isEditing} checked={enableExtendedProducts} onCheckedChange={(v) => handleToggleExtended(!!v)} className="data-[state=checked]:bg-red-600" />
+                };
+                input.click();
+              }}
+            >
+              <FileUp />
+              Importar CSV
+            </Button> 
+            </>
+            
+          )}
         </div>
 
-        {user?.isAdmin && (
-        <div>
-          <Button disabled={!isEditing} onClick={() => { setAdminModalOpen(true); fetchAdminUsers(); }} className="bg-red-600 hover:bg-red-700">
-            <UserRoundCog />
-            Gerenciar usuários
-          </Button>
+        {/* gerenciar usuarios */}
+        <div className="flex flex-row justify-between items-center">
+          <Label>Gerenciar usuários</Label>
+          {user?.isAdmin && (
+          <div>
+            <Button disabled={!isEditing} onClick={() => { setAdminModalOpen(true); fetchAdminUsers(); }} className="w-70 bg-red-600 hover:bg-red-700">
+              <UserRoundCog />
+              Gerenciar usuários
+            </Button>
+          </div>
+          )}
         </div>
-        )}
+        {/* 65 produtos */}
+        <Field>
+          {user?.userType === 'amendoim' &&  (
+            <div data-disabled={!isEditing} className="flex flex-row justify-between items-center h-[36px]">
+              <Label htmlFor="habilitar65prod">Habilitar expansão de produtos</Label>
+              <Checkbox id="habilitar65prod" name="habilitar65prod" disabled={!isEditing} checked={enableExtendedProducts} onCheckedChange={(v) => handleToggleExtended(!!v)}  />
+            </div>
+          )}
+        </Field>
+        <Field>
+          {/* seleção hora inicial e final do dia operacional */}
+          <div data-disabled={!isEditing} className="flex flex-row justify-between items-center h-[36px]">
+            <Label htmlFor="horaInicial"> seleção de hora Inicial do dia operacional</Label>
+            <Select defaultValue="00">
+              <SelectTrigger id="horaInicial" name="horaInicial" disabled={!isEditing} className="w-[90px]">
+                <SelectValue placeholder="00:00" />
+              </SelectTrigger>
+              <SelectContent className="w-[90px]">
+                <SelectGroup>
+                  <SelectLabel>
+                    <SelectItem value="00">00:00</SelectItem>
+                    <SelectItem value="01">01:00</SelectItem>
+                    <SelectItem value="02">02:00</SelectItem> 
+                    <SelectItem value="03">03:00</SelectItem>
+                    <SelectItem value="04">04:00</SelectItem>
+                    <SelectItem value="05">05:00</SelectItem>
+                    <SelectItem value="06">06:00</SelectItem>
+                    <SelectItem value="07">07:00</SelectItem>
+                    <SelectItem value="08">08:00</SelectItem>
+                    <SelectItem value="09">09:00</SelectItem>
+                    <SelectItem value="10">10:00</SelectItem>
+                    <SelectItem value="11">11:00</SelectItem>
+                    <SelectItem value="12">12:00</SelectItem>
+                    <SelectItem value="13">13:00</SelectItem>
+                    <SelectItem value="14">14:00</SelectItem>
+                    <SelectItem value="15">15:00</SelectItem>
+                    <SelectItem value="16">16:00</SelectItem>
+                    <SelectItem value="17">17:00</SelectItem>
+                    <SelectItem value="18">18:00</SelectItem>
+                    <SelectItem value="19">19:00</SelectItem>
+                    <SelectItem value="20">20:00</SelectItem>
+                    <SelectItem value="21">21:00</SelectItem>
+                    <SelectItem value="22">22:00</SelectItem>
+                    <SelectItem value="23">23:00</SelectItem>
+                  </SelectLabel>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+        </Field>
       </div> 
 
       <Dialog open={adminModalOpen} onOpenChange={(v) => { setAdminModalOpen(!!v); }}>
@@ -1978,7 +1979,6 @@ interface Estatisticas {
         </DialogContent>
       </Dialog>
 
-      {/* Password Change Dialog */}
       <Dialog open={passwordModalOpen} onOpenChange={(v) => { if (!v) setPasswordModalOpen(false); }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -2037,6 +2037,7 @@ interface Estatisticas {
           </Button>
         )}
       </div>
+
     </div>
   );
 }
