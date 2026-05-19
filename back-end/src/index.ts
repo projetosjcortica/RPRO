@@ -3898,7 +3898,6 @@ app.get("/api/config/", async (req, res) => {
         metodoCSV2: "",
         localCSV2: "",
         selectedIhm: 1,
-        sftp: false,
         serverDB: "",
         database: "",
         userDB: "",
@@ -3906,6 +3905,7 @@ app.get("/api/config/", async (req, res) => {
         mySqlDir: "",
         dumpDir: "",
         batchDumpDir: "",
+        sftp: false,
       },
       produtosInfo: {},
     };
@@ -3966,7 +3966,6 @@ app.get("/api/config/defaults", async (req, res) => {
         metodoCSV2: "",
         localCSV2: "",
         selectedIhm: 1,
-        sftp: false,
         serverDB: "",
         database: "",
         userDB: "",
@@ -3974,6 +3973,7 @@ app.get("/api/config/defaults", async (req, res) => {
         mySqlDir: "",
         dumpDir: "",
         batchDumpDir: "",
+        sftp: false,
       },
       produtosInfo: {},
     };
@@ -6146,23 +6146,8 @@ app.get('/api/amendoim/config', async (req, res) => {
       needsIhmSelection: false,
     };
 
-    // // Se IHM1 não configurada
-    // if (!config.ip || !config.ip.trim()) {
-    //   validation.isValid = false;
-    //   validation.errors.push('IP da IHM1 é obrigatório.');
-    // }
-
-    // ⚠️ Validação IHM2 temporariamente desabilitada para testes
-    // if (config.duasIHMs && (!config.ihm2?.ip || !config.ihm2.ip.trim())) {
-    //   validation.isValid = false;
-    //   validation.errors.push('IHM2 não configurada. Configure o IP da IHM2 ou desmarque "Usar duas IHMs".');
-    // }
-
-    // Backwards-compat: return top-level keys for legacy scripts/tools
-    // e.g. scripts/check-amendoim-config.ps1 expects fields at root
     const flat: Record<string, any> = { ...(config || {}) };
 
-    // If duasIHMs is true but ihm2 not present, provide a placeholder so tools show a consistent shape
     if (flat.duasIHMs && !flat.ihm2) {
       flat.ihm2 = {
         ip: '',
@@ -6180,9 +6165,6 @@ app.get('/api/amendoim/config', async (req, res) => {
   }
 });
 
-// POST /api/amendoim/config - Atualizar configuração
-
-// GET /api/amendoim/chartdata/last30 - últimos 30 dias (linha)
 app.get('/api/amendoim/chartdata/last30', async (req, res) => {
   try {
     const today = new Date();

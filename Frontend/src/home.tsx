@@ -5,8 +5,6 @@ import HomeRelatorio from "./components/HomeRelatorio";
 import { 
   ChartEntradaSaidaPorHorario,
   ChartFluxoSemanal,
-  // ChartEficienciaPorTurno,
-  // ChartRendimentoPorDia,
 } from './components/AmendoimCharts';
 import { DonutChartWidget } from './components/Widgets';
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";

@@ -506,7 +506,6 @@ export class Processador {
     return this.sendWithConnectionCheck(comando, parametros);
   }
 
-  // ✅ CORRIGIDO: sendConfig usa endpoint relativo
   public sendConfig(config: any) {
     return this.makeRequest('/api/config', 'POST', config);
   }

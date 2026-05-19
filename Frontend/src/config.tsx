@@ -26,10 +26,10 @@ import {
   AlertDialogTitle,
 } from "./components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from './components/ui/dialog';
-// Popover and `cn` not used in this file; imports removed to satisfy build
 import toastManager from "./lib/toastManager";
 import { Field, FieldGroup } from "./components/ui/field";
 import { Checkbox } from "./components/ui/checkbox";
+import { Value } from "@radix-ui/react-select";
 
 export const initialFormData = {
   nomeCliente: "",
@@ -47,7 +47,6 @@ export const initialFormData = {
   mySqlDir: "",
   dumpDir: "",
   batchDumpDir: "",
-  // optional second IHM defaults
   duasIHMs: false,
   ip2: "",
   user2: "",
@@ -271,11 +270,7 @@ export function usePersistentForm(key: string) {
     const loadFormData = async () => {
       try {
         setIsLoading(true);
-        // by default load only inputs (backwards compatible). Callers can pass
-        // a custom flag via a second arg on usePersistentForm - but to keep
-        // the public signature simple we check for a special key naming
-        // convention: if key === 'ihm-config' we load full object to support
-        // extended fields (ip2, metodoCSV2, etc.).
+
         const inputsOnly = key !== 'ihm-config';
         const savedData = await configService.loadConfig(key, inputsOnly);
         if (savedData) {
@@ -523,11 +518,9 @@ export function ProfileConfig({
       
       // Notificar que o logo foi atualizado
       window.dispatchEvent(new Event('report-logo-updated'));
-    } catch (e: any) {
-    }
+    } catch (e: any) {}
   };
 
-  // ✅ AGORA SIM O RETURN FINAL
   return (
     <div id="geral" className="flex flex-col gap-4 bg-white">
   <Profile externalPreview={preview} file={file} onUpload={uploadPhoto} showLogoutButton={false} />
@@ -932,7 +925,6 @@ interface Estatisticas {
 
   const { isEditing, isLoading, onEdit, onSave, onCancel } =
     usePersistentForm(configKey);
-  // DB config for admin to edit MySQL host/port used by the backend
   const [dbConfig, setDbConfig] = useState<{ serverDB: string; port: number; userDB?: string; passwordDB?: string; database?: string }>({ serverDB: '', port: 3306, userDB: '', passwordDB: '', database: '' });
   const [dbLoading, setDbLoading] = useState<boolean>(true);
   const [dbSaving, setDbSaving] = useState<boolean>(false);
@@ -1389,6 +1381,12 @@ interface Estatisticas {
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordTargetUser, setPasswordTargetUser] = useState<UserItem | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState('');
+  const [horario, setHorario] = useState<string>(() => {
+    return localStorage.getItem("horario-operacional") || "00";
+  });
+  useEffect(() => {
+    localStorage.setItem("horario-operacional", horario);
+  }, [horario]);
 
   const openPasswordModal = (u: UserItem) => {
     setPasswordTargetUser(u);
@@ -1412,7 +1410,11 @@ interface Estatisticas {
   }
 
 
-  // ✅ RETURN FINAL
+  const mudaHorario = (value: string) => {
+    setHorario(value);
+  }
+  console.log("TESTE:",horario);
+
   return (
     <div id="adm" className="flex flex-col gap-3 h-fit overflow-auto bg-white">
       <h2 className="text-xl font-bold text-gray-800 mb-4">
@@ -1854,9 +1856,9 @@ interface Estatisticas {
         <Field>
           {/* seleção hora inicial e final do dia operacional */}
           <div data-disabled={!isEditing} className="flex flex-row justify-between items-center h-[36px]">
-            <Label htmlFor="horaInicial"> seleção de hora Inicial do dia operacional</Label>
-            <Select defaultValue="00">
-              <SelectTrigger id="horaInicial" name="horaInicial" disabled={!isEditing} className="w-[90px]">
+            <Label> seleção de hora Inicial do dia operacional</Label>
+            <Select value={horario} onValueChange={(value) => mudaHorario(value)}>
+              <SelectTrigger disabled={!isEditing} className="w-[90px]">
                 <SelectValue placeholder="00:00" />
               </SelectTrigger>
               <SelectContent className="w-[90px]">

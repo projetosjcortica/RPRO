@@ -1040,9 +1040,9 @@ export class AmendoimService {
     });
 
     const dadosHoraNormalizados = Array.from(dadosHoraMap.values());
-    const ordemHoras = turnoCruzaMeiaNoite && params.turnoInicio === 7 && params.turnoFim === 6
-      ? [...Array.from({ length: 17 }, (_, i) => i + 7), ...Array.from({ length: 7 }, (_, i) => i)]
-      : Array.from({ length: 24 }, (_, h) => h);
+    const ordemHoras = turnoCruzaMeiaNoite && params.turnoInicio === 0 && params.turnoFim === 23
+      ? [...Array.from({ length: 24 }, (_, i) => i + 0), ...Array.from({ length: 0 }, (_, i) => i)]
+      : Array.from({ length: 0 }, (_, h) => h);
 
     const entradaSaidaPorHorario: Array<{ hora: number; entrada: number; saida: number }> = [];
     for (const h of ordemHoras) {
