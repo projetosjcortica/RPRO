@@ -14,10 +14,7 @@ export interface Filtros {
   valorMax?: number;
 }
 
-/**
- * Hook para filtrar dados de tabela/relatório
- * Permite busca por data, nome da fórmula, categoria, intervalo de valores
- */
+
 export const useFiltros = () => {
   const [filtros, setFiltros] = useState<Filtros>(() => {
     const { dataInicio, dataFim } = getDefaultReportDateRange(29);
@@ -58,7 +55,7 @@ export const useFiltros = () => {
     return Array.from(categoriasSet).sort();
   }, [produtosInfo]);
 
-  // Helper: parse plain date strings (YYYY-MM-DD or DD-MM-YYYY) into local Date
+
   const parseToLocalDate = (input: any): Date => {
     if (!input) return new Date(NaN);
     const s = String(input).trim();
@@ -70,7 +67,7 @@ export const useFiltros = () => {
       const [d, m, y] = s.split('-').map(Number);
       return new Date(y, m - 1, d);
     }
-    // fallback to Date constructor
+
     return new Date(s);
   };
 
@@ -89,11 +86,11 @@ export const useFiltros = () => {
     });
   };
 
-  /**
-   * Filtra um conjunto de dados com base nos filtros definidos
-   * @param dados Dados a serem filtrados
-   * @returns Dados filtrados
-   */
+  
+  // Filtra um conjunto de dados com base nos filtros definidos
+  // @param dados Dados a serem filtrados
+  // @returns Dados filtrados
+
   const filtrarDados = <T extends Record<string, any>>(dados: T[]): T[] => {
     if (!dados || dados.length === 0) {
       return [];

@@ -739,7 +739,7 @@ export default function Report() {
   const handleAplicarFiltros = (novosFiltros: Filtros) => {
     setPage(1);
     setFiltros(novosFiltros);
-    setChartsOpen(true); // Abre o drawer ao buscar
+    setChartsOpen(true);
   };
 
   const formatShortDate = (raw?: string | null) => {
@@ -857,7 +857,6 @@ export default function Report() {
         wasCollectorRunningRef.current = false;
       }
 
-      // Fetch PDF data
       setPdfLoading(true);
       try {
         const params = new URLSearchParams();
@@ -881,7 +880,6 @@ export default function Report() {
       }
 
     } else {
-      // Modal closing: if it was running before, resume it
       if (wasCollectorRunningRef.current) {
         try {
           const configRes = await fetch(`http://localhost:3000/api/config/ihm-config`);

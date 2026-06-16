@@ -1,6 +1,6 @@
 CORTEZ - Sistema de Gerenciamento/Relatorios
-Versão 1.4.17
+Versão 1.7
 
-Desenvolvido por: J.Cortica
+Desenvolvido por: OKUMA
 
 Direitos autorais © 2025 CORTEZ. Todos os direitos reservados.

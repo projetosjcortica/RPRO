@@ -166,7 +166,6 @@ export default function FiltrosBar({ onAplicarFiltros }: FiltrosBarProps) {
   };
 
   const handleLimpar = () => {
-    // Reset other filters but set date range to last 30 days
     const hoje = new Date();
     const trintaDiasAtras = new Date(hoje);
     trintaDiasAtras.setDate(trintaDiasAtras.getDate() - 30);

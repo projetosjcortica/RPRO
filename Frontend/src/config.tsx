@@ -29,7 +29,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import toastManager from "./lib/toastManager";
 import { Field, FieldGroup } from "./components/ui/field";
 import { Checkbox } from "./components/ui/checkbox";
-import { Value } from "@radix-ui/react-select";
 
 export const initialFormData = {
   nomeCliente: "",
