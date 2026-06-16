@@ -1000,13 +1000,16 @@ if (!gotTheLock) {
   // Quando outra instância tenta abrir, foca na janela existente
   app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
     console.log('[main] Second instance detected, focusing existing window');
-    if (win) {
+    if (win && !win.isDestroyed()) {
       if (win.isMinimized()) {
         win.restore();
       }
       win.show();
       win.focus();
-    }
+    } else {
+    console.log('[main] No window exists, creating one');
+    createWindow();
+  }
   });
 }
 
