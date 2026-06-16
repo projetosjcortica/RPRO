@@ -184,13 +184,11 @@ export function createTray(options: TrayManagerOptions): Tray | null {
     ]);
     
     tray.setContextMenu(contextMenu);
-    
-    // Duplo clique no ícone abre a janela
+
     tray.on('double-click', () => {
       showWindow(options);
     });
     
-    // Clique simples também abre
     tray.on('click', () => {
       showWindow(options);
     });
@@ -203,9 +201,6 @@ export function createTray(options: TrayManagerOptions): Tray | null {
   }
 }
 
-/**
- * Mostra a janela principal ou cria uma nova se não existir
- */
 function showWindow(options: TrayManagerOptions): void {
   const win = options.getMainWindow();
   
