@@ -544,10 +544,12 @@ export class AmendoimService {
     const totalRegistros = await qb.getCount();
 
     const pesoResult = await qb
+      .where("amendoim.peso > 0")
       .select("SUM(amendoim.peso)", "total")
       .getRawOne();
 
     const produtosResult = await qb
+      .where("amendoim.peso > 0")
       .select("COUNT(DISTINCT amendoim.codigoProduto)", "count")
       .getRawOne();
 
@@ -761,6 +763,20 @@ export class AmendoimService {
     }
     
     return dias;
+  }
+
+  private static montarEntradaSaidaPorHorario(
+    dadosHoraNormalizados: Array<{ hora: number; tipo: string; peso: number }>,
+  ): Array<{ hora: number; entrada: number; saida: number }> {
+    const entradaSaidaPorHorario: Array<{ hora: number; entrada: number; saida: number }> = [];
+
+    for (let h = 0; h < 24; h++) {
+      const entrada = dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "entrada")?.peso || 0;
+      const saida = dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "saida")?.peso || 0;
+      entradaSaidaPorHorario.push({ hora: h, entrada, saida });
+    }
+
+    return entradaSaidaPorHorario;
   }
 
   /**
@@ -1040,16 +1056,7 @@ export class AmendoimService {
     });
 
     const dadosHoraNormalizados = Array.from(dadosHoraMap.values());
-    const ordemHoras = turnoCruzaMeiaNoite && params.turnoInicio === 0 && params.turnoFim === 23
-      ? [...Array.from({ length: 24 }, (_, i) => i + 0), ...Array.from({ length: 0 }, (_, i) => i)]
-      : Array.from({ length: 0 }, (_, h) => h);
-
-    const entradaSaidaPorHorario: Array<{ hora: number; entrada: number; saida: number }> = [];
-    for (const h of ordemHoras) {
-      const entrada = dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "entrada")?.peso || 0;
-      const saida = dadosHoraNormalizados.find((d: any) => d.hora === h && d.tipo === "saida")?.peso || 0;
-      entradaSaidaPorHorario.push({ hora: h, entrada, saida });
-    }
+    const entradaSaidaPorHorario = this.montarEntradaSaidaPorHorario(dadosHoraNormalizados);
 
     // Processar dados por dia
     // Usar diretamente o campo dia do banco, sem ajustes
