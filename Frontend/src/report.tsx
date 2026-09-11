@@ -365,18 +365,21 @@ export default function Report() {
     try {
       // show a short-lived loading toast while querying
       // toastManager.showLoading('collector-status', 'Verificando status do coletor...');
+      console.log('[Ração Collector] Verificando status do coletor...');
 
       const res = await fetch("http://localhost:3000/api/collector/status", {
         method: "GET",
       });
       if (!res.ok) {
         const msg = `Falha ao consultar coletor (HTTP ${res.status}). Verifique backend e rede.`;
+        console.error('[Ração Collector] Status falhou:', msg);
         toastManager.updateError('collector-status', msg);
         setCollectorRunning(false);
         return;
       }
 
       const status = await res.json();
+      console.log('[Ração Collector] Status recebido:', status);
       const isRunning = Boolean(status?.running);
       setCollectorRunning(isRunning);
 
@@ -550,7 +553,6 @@ export default function Report() {
     }
   }, [advancedFilters, setFiltersState]);
 
-  console.log(removeChip);
 
   // Listener para eventos explícitos de atualização de configuração
   useEffect(() => {
@@ -767,6 +769,7 @@ export default function Report() {
     setCollectorLoading(true);
     try {
       if (collectorRunning) {
+        console.log('[Ração Collector] Solicitando parada do coletor do modo ração...');
         const res = await fetch("http://localhost:3000/api/collector/stop", {
           method: "GET",
         });
@@ -775,6 +778,7 @@ export default function Report() {
         await fetchCollectorStatus();
         refetch();
         refreshResumo();
+        console.log('[Ração Collector] Coletor do modo ração parado com sucesso.');
         try { toastManager.updateSuccess('collector-toggle', 'Coletor parado'); } catch (e) { }
         notify.info('Coletor parado', 'O coletor de dados foi interrompido', 'relatorio');
         trackAction('Relatório: Coletor parado');
@@ -804,6 +808,10 @@ export default function Report() {
         }
 
         // Send config as POST with body
+        console.log('[Ração Collector] Iniciando coleta no modo ração com a IHM:', {
+          ip: ihmConfig.ip,
+          user: ihmConfig.user,
+        });
         startConnecting("Conectando ao coletor...");
         res = await fetch("http://localhost:3000/api/collector/start", {
           method: "POST",
@@ -819,6 +827,7 @@ export default function Report() {
 
         if (!res.ok) throw new Error("Falha ao iniciar o coletor.");
         const payload = await res.json().catch(() => ({}));
+        console.log('[Ração Collector] Resposta do backend ao iniciar coleta:', payload);
         if (payload && payload.started === false) {
           stopConnecting();
           throw new Error(payload?.message || "Coletor não pôde ser iniciado.");
@@ -827,6 +836,7 @@ export default function Report() {
         stopConnecting();
         refetch();
         refreshResumo();
+        console.log('[Ração Collector] Conexão e download do CSV iniciados com sucesso no modo ração.');
         notify.success('Coletor iniciado', 'O coletor de dados está rodando', 'relatorio');
         trackAction('Relatório: Coletor iniciado');
       }
