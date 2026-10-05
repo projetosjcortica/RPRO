@@ -359,6 +359,7 @@ export class IHMService extends BaseService {
         username: this.user,
         password: this.password
       });
+      console.log(`[IHMService] ${this.cachePrefix} - CONEXÃO OK: ${profile.label} conectado em ${this.ip}:${profile.port}`);
       return client;
     }
 
@@ -372,6 +373,7 @@ export class IHMService extends BaseService {
       password: this.password,
       secure: false
     });
+    console.log(`[IHMService] ${this.cachePrefix} - CONEXÃO OK: ${profile.label} conectado em ${this.ip}:${profile.port}`);
     return client;
   }
 
@@ -465,13 +467,20 @@ export class IHMService extends BaseService {
     remoteFileName: string,
     localPath: string
   ): Promise<void> {
-    if (profile.mode === 'sftp') {
-      const remoteFilePath = path.posix.join(resolvedRemoteDir || '/', String(remoteFileName));
-      await client.fastGet(remoteFilePath, localPath);
-      return;
-    }
+    try {
+      if (profile.mode === 'sftp') {
+        const remoteFilePath = path.posix.join(resolvedRemoteDir || '/', String(remoteFileName));
+        await client.fastGet(remoteFilePath, localPath);
+        console.log(`[IHMService] ${this.cachePrefix} - CSV BAIXADO COM SUCESSO: ${remoteFileName} -> ${localPath}`);
+        return;
+      }
 
-    await client.downloadTo(localPath, String(remoteFileName), 0);
+      await client.downloadTo(localPath, String(remoteFileName), 0);
+      console.log(`[IHMService] ${this.cachePrefix} - CSV BAIXADO COM SUCESSO: ${remoteFileName} -> ${localPath}`);
+    } catch (error) {
+      console.error(`[IHMService] ${this.cachePrefix} - FALHA NO DOWNLOAD do CSV ${remoteFileName}:`, error);
+      throw error;
+    }
   }
 
   private isRegularFile(file: RemoteFileEntry): boolean {
